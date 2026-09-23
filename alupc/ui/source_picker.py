@@ -1,0 +1,304 @@
+"""Dialog zum Auswählen einer Quelle (für Szenen-Felder)."""
+
+from __future__ import annotations
+
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtMultimedia import QMediaDevices
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QPushButton,
+    QSpinBox,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+from ..scenes import creates_cycle
+from ..sources import camera_id, capturable_windows
+from .util import ColorButton
+
+SOURCE_TYPES = [
+    ("camera", "Kamera"),
+    ("window", "Programm (Aufnahme)"),
+    ("screen", "Bildschirm"),
+    ("website", "Website"),
+    ("image", "Bild"),
+    ("video", "Video"),
+    ("slideshow", "Diashow (Ordner)"),
+    ("text", "Text"),
+    ("clock", "Uhr"),
+    ("countdown", "Countdown"),
+    ("color", "Farbfläche"),
+    ("scene", "Andere Szene"),
+]
+
+FITS = [("contain", "Einpassen (ganzes Bild sichtbar)"), ("cover", "Ausfüllen (Ränder abschneiden)"),
+        ("stretch", "Strecken")]
+
+IMAGE_FILTER = "Bilder (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tif *.tiff)"
+VIDEO_FILTER = "Videos (*.mp4 *.mkv *.webm *.mov *.avi *.m4v *.mpg *.mpeg *.wmv)"
+
+
+def _path_row(filter_text: str | None, folder: bool = False):
+    row = QWidget()
+    lay = QHBoxLayout(row)
+    lay.setContentsMargins(0, 0, 0, 0)
+    edit = QLineEdit()
+    btn = QPushButton("Durchsuchen …")
+    lay.addWidget(edit, 1)
+    lay.addWidget(btn)
+
+    def browse():
+        if folder:
+            path = QFileDialog.getExistingDirectory(row, "Ordner wählen", edit.text())
+        else:
+            path, _ = QFileDialog.getOpenFileName(row, "Datei wählen", edit.text(), filter_text or "")
+        if path:
+            edit.setText(path)
+
+    btn.clicked.connect(browse)
+    return row, edit
+
+
+def _fit_combo(value: str = "contain") -> QComboBox:
+    combo = QComboBox()
+    for key, label in FITS:
+        combo.addItem(label, key)
+    combo.setCurrentIndex(max(0, combo.findData(value)))
+    return combo
+
+
+class SourcePicker(QDialog):
+    def __init__(self, config, parent=None, initial: dict | None = None, scene_name: str = ""):
+        super().__init__(parent)
+        self.setWindowTitle("Quelle wählen")
+        self.config = config
+        self.scene_name = scene_name
+        self.resize(560, 360)
+        initial = initial or {}
+
+        self.type_combo = QComboBox()
+        for key, label in SOURCE_TYPES:
+            self.type_combo.addItem(label, key)
+        self.stack = QStackedWidget()
+        self.pages: dict[str, tuple[QWidget, callable]] = {}
+        for key, _label in SOURCE_TYPES:
+            page, getter = getattr(self, f"_page_{key}")(initial if initial.get("type") == key else {})
+            self.pages[key] = (page, getter)
+            self.stack.addWidget(page)
+        self.type_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
+        if initial.get("type"):
+            self.type_combo.setCurrentIndex(max(0, self.type_combo.findData(initial["type"])))
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        top = QFormLayout()
+        top.addRow("Art der Quelle:", self.type_combo)
+        lay = QVBoxLayout(self)
+        lay.addLayout(top)
+        lay.addWidget(self.stack, 1)
+        lay.addWidget(buttons)
+
+    def result_config(self) -> dict | None:
+        key = self.type_combo.currentData()
+        cfg = self.pages[key][1]()
+        if cfg is None:
+            return None
+        return {"type": key, **cfg}
+
+    # ------------------------------------------------------------ Seiten
+    def _form(self):
+        page = QWidget()
+        form = QFormLayout(page)
+        return page, form
+
+    def _page_camera(self, init):
+        page, form = self._form()
+        combo = QComboBox()
+        for dev in QMediaDevices.videoInputs():
+            combo.addItem(dev.description(), camera_id(dev))
+        if combo.count() == 0:
+            form.addRow(QLabel("Keine Kamera gefunden."))
+        idx = combo.findData(init.get("device_id"))
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+        fit = _fit_combo(init.get("fit", "cover"))
+        form.addRow("Kamera:", combo)
+        form.addRow("Anzeige:", fit)
+        return page, lambda: None if combo.count() == 0 else {
+            "device_id": combo.currentData(), "name": combo.currentText(), "fit": fit.currentData()}
+
+    def _page_window(self, init):
+        page, form = self._form()
+        combo = QComboBox()
+        combo.setEditable(True)
+        for w in capturable_windows():
+            combo.addItem(w.description())
+        if init.get("title"):
+            combo.setCurrentText(init["title"])
+        refresh = QPushButton("Liste neu laden")
+
+        def reload():
+            current = combo.currentText()
+            combo.clear()
+            for w in capturable_windows():
+                combo.addItem(w.description())
+            combo.setCurrentText(current)
+
+        refresh.clicked.connect(reload)
+        form.addRow("Programmfenster:", combo)
+        form.addRow("", refresh)
+        hint = QLabel("Das Programm muss geöffnet sein. Unter Wayland (KDE) kann Qt einzelne Fenster "
+                      "nicht aufnehmen – dann bleibt die Liste leer. Nutze dort die Kachel "
+                      "„Programm“ → „Fenster verschieben“.")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        fit = _fit_combo(init.get("fit", "contain"))
+        form.addRow("Anzeige:", fit)
+        return page, lambda: {"title": combo.currentText(), "fit": fit.currentData()} if combo.currentText() else None
+
+    def _page_screen(self, init):
+        page, form = self._form()
+        combo = QComboBox()
+        for s in QGuiApplication.screens():
+            combo.addItem(f"{s.name()} ({s.size().width()}×{s.size().height()})", s.name())
+        idx = combo.findData(init.get("screen_name"))
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+        form.addRow("Bildschirm:", combo)
+        return page, lambda: {"screen_name": combo.currentData()}
+
+    def _page_website(self, init):
+        page, form = self._form()
+        url = QLineEdit(init.get("url", ""))
+        url.setPlaceholderText("z. B. www.beispiel.de")
+        reload_s = QSpinBox()
+        reload_s.setRange(0, 86400)
+        reload_s.setSuffix(" s")
+        reload_s.setSpecialValueText("nie")
+        reload_s.setValue(int(init.get("reload_seconds", 0)))
+        zoom = QDoubleSpinBox()
+        zoom.setRange(0.25, 5.0)
+        zoom.setSingleStep(0.1)
+        zoom.setValue(float(init.get("zoom", 1.0)))
+        form.addRow("Adresse:", url)
+        form.addRow("Automatisch neu laden:", reload_s)
+        form.addRow("Zoom:", zoom)
+        return page, lambda: {"url": url.text().strip(), "reload_seconds": reload_s.value(),
+                              "zoom": zoom.value()} if url.text().strip() else None
+
+    def _page_image(self, init):
+        page, form = self._form()
+        row, edit = _path_row(IMAGE_FILTER)
+        edit.setText(init.get("path", ""))
+        fit = _fit_combo(init.get("fit", "contain"))
+        form.addRow("Bilddatei:", row)
+        form.addRow("Anzeige:", fit)
+        return page, lambda: {"path": edit.text(), "fit": fit.currentData()} if edit.text() else None
+
+    def _page_video(self, init):
+        page, form = self._form()
+        row, edit = _path_row(VIDEO_FILTER)
+        edit.setText(init.get("path", ""))
+        loop = QCheckBox("Endlos wiederholen")
+        loop.setChecked(bool(init.get("loop", True)))
+        muted = QCheckBox("Ton aus")
+        muted.setChecked(bool(init.get("muted", False)))
+        fit = _fit_combo(init.get("fit", "contain"))
+        form.addRow("Videodatei:", row)
+        form.addRow("", loop)
+        form.addRow("", muted)
+        form.addRow("Anzeige:", fit)
+        return page, lambda: {"path": edit.text(), "loop": loop.isChecked(), "muted": muted.isChecked(),
+                              "fit": fit.currentData()} if edit.text() else None
+
+    def _page_slideshow(self, init):
+        page, form = self._form()
+        row, edit = _path_row(None, folder=True)
+        edit.setText(init.get("folder", ""))
+        interval = QSpinBox()
+        interval.setRange(1, 3600)
+        interval.setSuffix(" s")
+        interval.setValue(int(init.get("interval", 5)))
+        fit = _fit_combo(init.get("fit", "contain"))
+        form.addRow("Bilderordner:", row)
+        form.addRow("Wechsel alle:", interval)
+        form.addRow("Anzeige:", fit)
+        return page, lambda: {"folder": edit.text(), "interval": interval.value(),
+                              "fit": fit.currentData()} if edit.text() else None
+
+    def _text_style(self, form, init, default_size):
+        size = QSpinBox()
+        size.setRange(2, 90)
+        size.setSuffix(" % der Feldhöhe")
+        size.setValue(int(init.get("size", default_size)))
+        color = ColorButton(init.get("color", "#ffffff"))
+        bg = ColorButton(init.get("background", "#000000"))
+        form.addRow("Schriftgröße:", size)
+        form.addRow("Schriftfarbe:", color)
+        form.addRow("Hintergrund:", bg)
+        return lambda: {"size": size.value(), "color": color.color(), "background": bg.color()}
+
+    def _page_text(self, init):
+        page, form = self._form()
+        text = QPlainTextEdit(init.get("text", ""))
+        form.addRow("Text:", text)
+        style = self._text_style(form, init, 12)
+        return page, lambda: {"text": text.toPlainText(), **style()} if text.toPlainText().strip() else None
+
+    def _page_clock(self, init):
+        page, form = self._form()
+        date = QCheckBox("Datum anzeigen")
+        date.setChecked(bool(init.get("show_date", True)))
+        secs = QCheckBox("Sekunden anzeigen")
+        secs.setChecked(bool(init.get("show_seconds", True)))
+        form.addRow("", date)
+        form.addRow("", secs)
+        style = self._text_style(form, init, 25)
+        return page, lambda: {"show_date": date.isChecked(), "show_seconds": secs.isChecked(), **style()}
+
+    def _page_countdown(self, init):
+        page, form = self._form()
+        minutes = QDoubleSpinBox()
+        minutes.setRange(0.1, 1440)
+        minutes.setSuffix(" min")
+        minutes.setValue(float(init.get("minutes", 5)))
+        finished = QLineEdit(init.get("finished_text", "Zeit ist um!"))
+        form.addRow("Dauer:", minutes)
+        form.addRow("Text am Ende:", finished)
+        hint = QLabel("Der Countdown startet, sobald die Szene angezeigt wird.")
+        form.addRow(hint)
+        style = self._text_style(form, init, 30)
+        return page, lambda: {"minutes": minutes.value(), "finished_text": finished.text(), **style()}
+
+    def _page_color(self, init):
+        page, form = self._form()
+        color = ColorButton(init.get("color", "#000000"))
+        form.addRow("Farbe:", color)
+        return page, lambda: {"color": color.color()}
+
+    def _page_scene(self, init):
+        page, form = self._form()
+        combo = QComboBox()
+        scenes = self.config["scenes"]
+        for name in self.config.scene_names():
+            if name == self.scene_name or (self.scene_name and creates_cycle(scenes, self.scene_name, name)):
+                continue  # keine Szene in sich selbst
+            combo.addItem(name)
+        if init.get("scene"):
+            combo.setCurrentText(init["scene"])
+        if combo.count() == 0:
+            form.addRow(QLabel("Es gibt noch keine andere Szene."))
+        form.addRow("Szene:", combo)
+        return page, lambda: {"scene": combo.currentText()} if combo.count() else None

@@ -1,0 +1,31 @@
+[Desktop Entry]
+Type=Application
+Name=AluPC
+GenericName=Monitor 2 steuern
+Comment=Zweiten Monitor steuern: Spiegeln, Kamera, Programme, Websites, Szenen, Standbild
+Exec=alupc
+Icon=alupc
+Terminal=false
+Categories=Utility;
+Keywords=Monitor;Beamer;Bildschirm;Spiegeln;Szene;
+Actions=Standbild;Schwarz;BildInBild;Spiegeln;Erweitern;
+
+[Desktop Action Standbild]
+Name=Standbild an/aus
+Exec=alupc --befehl standbild
+
+[Desktop Action Schwarz]
+Name=Schwarz (Sichtschutz) an/aus
+Exec=alupc --befehl schwarz
+
+[Desktop Action BildInBild]
+Name=Bild-in-Bild an/aus
+Exec=alupc --befehl bild-in-bild
+
+[Desktop Action Spiegeln]
+Name=Spiegeln
+Exec=alupc --befehl spiegeln
+
+[Desktop Action Erweitern]
+Name=Erweitern
+Exec=alupc --befehl erweitern
