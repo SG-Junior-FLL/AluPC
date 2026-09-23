@@ -16,11 +16,15 @@ def parse_args(argv):
     parser.add_argument("--befehl", metavar="BEFEHL", help=f"An laufendes AluPC senden: {COMMANDS_HELP}")
     parser.add_argument("--minimiert", action="store_true", help="Nur als Symbol in der Taskleiste starten")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
+    # Für den automatischen Test des fertigen Programms (baut alles auf, zeigt nichts, beendet sich)
+    parser.add_argument("--selbsttest", metavar="LOGDATEI", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
 def main(argv=None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
+    if args.selbsttest:
+        return self_test(args.selbsttest)
 
     if hasattr(os, "geteuid") and os.geteuid() == 0:
         # Chromium (Websites) startet als root nur ohne Sandbox – normal läuft AluPC als Benutzer
@@ -100,3 +104,55 @@ def main(argv=None) -> int:
         window.show()
     return app.exec()
 
+
+
+def self_test(log_path: str) -> int:
+    """Startet alle Teile ohne Fenster und schreibt das Ergebnis in eine Datei.
+
+    Wird vom Build auf GitHub mit der fertigen AluPC.exe ausgeführt, damit ein kaputter
+    Build (z. B. fehlende Module) auffällt, bevor ihn jemand herunterlädt.
+    """
+    import tempfile
+    import traceback
+
+    lines = []
+    try:
+        tmp = tempfile.mkdtemp(prefix="alupc-test-")
+        os.environ["APPDATA"] = tmp  # eigene Einstellungen nicht anfassen
+        os.environ["XDG_CONFIG_HOME"] = tmp
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6 import QtWebEngineWidgets  # noqa: F401
+        from PySide6.QtCore import QCoreApplication, Qt
+        from PySide6.QtWidgets import QApplication
+
+        QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+        app = QApplication(sys.argv[:1])
+
+        from .config import Config
+        from .controller import Controller
+        from .hotkeys import HotkeyManager
+        from .ui import theme
+        from .ui.main_window import MainWindow
+        from .ui.pip_window import PipWindow
+
+        config = Config()
+        theme.apply(app, "dunkel", "blau")
+        controller = Controller(config)
+        lines.append(f"Monitore: {controller.display.name}, Fenster: {type(controller.windows).__name__}, "
+                     f"Fingerabdruck: {controller.fingerprint.name}")
+        hotkeys = HotkeyManager()
+        window = MainWindow(controller, hotkeys)
+        hotkeys.attach(window)
+        controller.pip = PipWindow(controller)
+        controller.show_source({"type": "text", "text": "Selbsttest"})
+        controller.show_source({"type": "clock"})
+        app.processEvents()
+        controller.shutdown()
+        lines.append("OK")
+        code = 0
+    except Exception:  # noqa: BLE001
+        lines.append(traceback.format_exc())
+        code = 1
+    with open(log_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return code

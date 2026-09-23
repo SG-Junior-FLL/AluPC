@@ -36,7 +36,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Installieren
-        run: pip install -e ".[test]" pyinstaller
+        # Nicht „-e“: PyInstaller findet Pakete aus einer Entwicklungs-Installation nicht
+        run: pip install ".[test]" pyinstaller
       - name: Tests (Logik + Windows-Strukturen)
         run: pytest -v tests/test_logic.py
       - name: Tests (Oberfläche)
@@ -46,8 +47,17 @@ jobs:
         run: >
           pyinstaller --noconfirm --windowed --name AluPC
           --icon packaging/windows/alupc.ico
+          --paths .
+          --collect-submodules alupc
           --collect-data alupc
           packaging/pyinstaller_entry.py
+      - name: Fertige AluPC.exe starten (Selbsttest)
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP "selbsttest.txt"
+          $p = Start-Process -FilePath dist\AluPC\AluPC.exe -ArgumentList "--selbsttest", $log -Wait -PassThru
+          if (Test-Path $log) { Get-Content $log }
+          if ($p.ExitCode -ne 0) { throw "AluPC.exe Selbsttest fehlgeschlagen (Exit-Code $($p.ExitCode))" }
       - name: Version bestimmen
         id: version
         shell: bash
