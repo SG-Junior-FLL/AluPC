@@ -7,7 +7,20 @@ Wayland und X11) und **Windows 11 Pro**.
 Bedienung ohne Schnickschnack: große Kacheln, ein Klick – fertig. Keine Vorschau, kein
 OBS-Studio-Fenster.
 
-![Kacheln](docs/start.png)
+| Dunkel | Hell |
+|---|---|
+| ![Start – dunkel](docs/start.png) | ![Start – hell](docs/start-hell.png) |
+
+## Design
+
+- Eigenes, modernes Design mit **Seitenleiste**, **Statuskarte** („Was sehen die anderen gerade?“
+  mit LIVE / STANDBILD / SCHWARZ) und großen Kacheln, die ihren Zustand zeigen („AKTIV“, „AN“).
+- **Dunkel, Hell oder wie das System**, dazu 5 **Akzentfarben** (Setup → Darstellung).
+- Alle Symbole sind selbst gezeichnet – sehen unter Kubuntu und Windows gleich scharf aus
+  (keine Emojis, die je nach System anders aussehen).
+- **Weiche Überblendung** auf Monitor 2, wenn der Inhalt wechselt (abschaltbar).
+- Kurze **Hinweise** unten im Fenster statt Fehlerfenster, **Fortschrittsring** beim
+  Fingerabdruck, grafische **Monitor-Anordnung** im Setup, **Szenen als Karten** mit Vorschau.
 
 ## Funktionen
 
@@ -26,21 +39,25 @@ OBS-Studio-Fenster.
 
 Außerdem:
 
-- **Eigene Szenen** (Tab *Szenen*): Es gibt keine vorgefertigten Szenen. Du wählst eine
+- **Eigene Szenen** (Seite *Szenen*): Es gibt keine vorgefertigten Szenen. Du wählst eine
   **Layout-Vorlage** (Vollbild, 2 nebeneinander, 2 übereinander, groß + klein in einer Ecke,
   2 × 2, 1 groß + 2 klein, Vollbild + Textleiste) und legst in jedes Feld eine Quelle:
   Kamera, Programm, Bildschirm, Website, Bild, Video, Diashow, Text, Uhr, Countdown,
   Farbfläche oder eine andere Szene.
 
-  | Szenen-Editor | Ergebnis auf Monitor 2 |
-  |---|---|
-  | ![Szenen-Editor](docs/szenen-editor.png) | ![Monitor 2](docs/monitor2-beispiel.png) |
+  | Szenen | Szenen-Editor | Ergebnis auf Monitor 2 |
+  |---|---|---|
+  | ![Szenen](docs/szenen.png) | ![Szenen-Editor](docs/szenen-editor.png) | ![Monitor 2](docs/monitor2-beispiel.png) |
 - **Setup**: Auflösung, **Bildwiederholrate (Hz)**, Skalierung (KDE/Wayland), Drehung,
   Hauptmonitor, Anordnung (rechts/links/oben/unten/gespiegelt). Nach „Übernehmen“ fragt AluPC
   „Einstellungen behalten?“ – ohne Antwort wird nach 15 Sekunden zurückgesetzt.
   „Monitore identifizieren“ zeigt auf jedem Monitor eine große Nummer.
-- **Fingerabdruck** (Tab *Fingerabdruck*): Sensor wählen, Finger anlernen, Test-Scan,
+- **Fingerabdruck** (Seite *Fingerabdruck*): Sensor wählen, Finger anlernen, Test-Scan,
   Finger löschen, Anmelden mit Fingerabdruck ein/aus (Details unten).
+
+  | Setup | Finger anlernen | Bild-in-Bild |
+  |---|---|---|
+  | ![Setup](docs/setup.png) | ![Fingerabdruck](docs/fingerabdruck.png) | ![Bild-in-Bild](docs/bild-in-bild.png) |
 - **Tastenkürzel** (änderbar im Setup):
 
   | Aktion | Standard |
@@ -150,6 +167,9 @@ alupc/
   platform/         Systemschicht: Linux (kscreen-doctor/xrandr, KWin/wmctrl, fprintd/PAM)
                     und Windows (Win32-Anzeige-API, Fenster, Windows Biometric Framework)
   ui/               Hauptfenster (Kacheln), Szenen-Editor, Setup, Fingerabdruck, Bild-in-Bild
+    theme.py        Farbschema dunkel/hell + Akzentfarbe, Stylesheet
+    icons.py        selbst gezeichnete Linien-Symbole und Programmsymbol
+    widgets.py      Kachel, Navigation, Statuskarte, Hinweis, Fortschrittsring, Szenen-Karte
 ```
 
 Einstellungen liegen in `~/.config/AluPC/config.json` bzw. `%APPDATA%\AluPC\config.json`.

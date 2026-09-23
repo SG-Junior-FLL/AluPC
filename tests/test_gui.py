@@ -89,7 +89,7 @@ def test_simple_sources_and_freeze(env, tmp_path):
     # Inhalt wechselt → Standbild bleibt bis zum Ausschalten nicht hängen
     controller.toggle_freeze()
     assert not controller.frozen and not controller.output.freeze_layer.isVisible()
-    assert "Farbe" in window.status_label.text()
+    assert "Farbe" in window.status_card.title.text()
 
 
 def test_privacy_and_pip(env):
@@ -98,7 +98,7 @@ def test_privacy_and_pip(env):
     controller.toggle_privacy()
     pump()
     assert controller.privacy and controller.output.privacy_layer.isVisible()
-    assert "SCHWARZ" in window.status_label.text()
+    assert "SCHWARZ" in window.status_card.pill_texts()
     controller.toggle_pip()
     pump()
     assert controller.pip.isVisible()
@@ -175,10 +175,11 @@ def test_dialogs_build(env):
     from alupc.ui.source_picker import SOURCE_TYPES, SourcePicker
 
     picker = SourcePicker(controller.config, window)
-    for i, (key, _label) in enumerate(SOURCE_TYPES):
-        picker.type_combo.setCurrentIndex(i)
+    for key, _label in SOURCE_TYPES:
+        picker.select_type(key)
+        assert picker.current_type() == key
         picker.result_config()  # darf nicht abstürzen, auch wenn Felder leer sind
-    picker.type_combo.setCurrentIndex(picker.type_combo.findData("text"))
+    picker.select_type("text")
     page = picker.stack.currentWidget()
     from PySide6.QtWidgets import QPlainTextEdit
 
@@ -193,9 +194,38 @@ def test_dialogs_build(env):
     assert controller.config.get_scene(editor.scene["name"]) is not None
 
     ProgramDialog(controller, window)
-    for i in range(window.tabs.count()):
-        window.tabs.setCurrentIndex(i)
+    for i in range(window.stack.count()):
+        window._go(i)
         pump()
+    # Szenen-Seite zeigt eine Karte pro Szene
+    window._reload_scenes()
+    assert len(window.scene_cards) == len(controller.config["scenes"])
+
+
+def test_theme_switch(env):
+    controller, window, _ = env
+    from alupc.ui import theme
+
+    for mode, accent in (("hell", "violett"), ("dunkel", "gruen"), ("dunkel", "blau")):
+        controller.config["appearance"] = {"mode": mode, "accent": accent, "fade": True}
+        window.apply_theme()
+        pump()
+        assert theme.current().dark == (mode == "dunkel")
+        assert theme.current().accent == theme.ACCENTS[accent][1]
+
+
+def test_crossfade_layer_is_removed(env):
+    controller, _window, _ = env
+    controller.show_source({"type": "color", "color": "#ff0000"})
+    pump()
+    controller.show_source({"type": "color", "color": "#0000ff"})
+    assert len(controller.output._fades) == 1
+    import time
+
+    end = time.time() + 2
+    while controller.output._fades and time.time() < end:
+        pump()
+    assert controller.output._fades == []
 
 
 def test_website_source(env):

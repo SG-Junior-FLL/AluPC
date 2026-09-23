@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QEasingCurve, QObject, QPropertyAnimation, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QImage, QPixmap
 from PySide6.QtMultimedia import QMediaCaptureSession, QScreenCapture, QVideoSink
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
 from .platform.linux_display import is_wayland
 from .sources import FrameView, TextSource, load_image
@@ -58,9 +58,13 @@ class OutputWindow(QWidget):
         self.privacy_layer.hide()
         self.content_active = False
         self.screen_name = ""
+        self.fade_enabled = True
+        self._fades: list[QWidget] = []
 
     # ------------------------------------------------------------ Inhalt
     def set_content(self, widget: QWidget | None) -> None:
+        if self.fade_enabled and self.isVisible() and self.content is not None and widget is not None:
+            self._crossfade(self.content.grab())
         if self.content is not None:
             try:
                 self.content.stop()
@@ -76,6 +80,30 @@ class OutputWindow(QWidget):
             widget.show()
             widget.lower()
         self.update_visibility()
+
+    def _crossfade(self, old: QPixmap) -> None:
+        """Altes Bild kurz über das neue legen und ausblenden (weicher Wechsel)."""
+        if old.isNull():
+            return
+        layer = FrameView("stretch", self)
+        layer.set_image(old)
+        layer.setGeometry(self.rect())
+        effect = QGraphicsOpacityEffect(layer)
+        layer.setGraphicsEffect(effect)
+        layer.show()
+        layer.raise_()
+        for top in (self.freeze_layer, self.privacy_layer):
+            if top.isVisible():
+                top.raise_()
+        anim = QPropertyAnimation(effect, b"opacity", layer)
+        anim.setDuration(350)
+        anim.setStartValue(1.0)
+        anim.setEndValue(0.0)
+        anim.setEasingCurve(QEasingCurve.InOutQuad)
+        anim.finished.connect(layer.deleteLater)
+        anim.finished.connect(lambda: self._fades.remove(layer) if layer in self._fades else None)
+        self._fades.append(layer)
+        anim.start()
 
     def snapshot(self) -> QPixmap:
         if self.content is not None:
@@ -132,7 +160,7 @@ class OutputWindow(QWidget):
             self.hide()
 
     def resizeEvent(self, _event):
-        for w in (self.content, self.freeze_layer, self.privacy_layer):
+        for w in (self.content, self.freeze_layer, self.privacy_layer, *self._fades):
             if w is not None:
                 w.setGeometry(self.rect())
 

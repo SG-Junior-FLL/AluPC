@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtWidgets import (
@@ -15,8 +16,9 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QPlainTextEdit,
-    QPushButton,
     QSpinBox,
     QStackedWidget,
     QVBoxLayout,
@@ -25,7 +27,9 @@ from PySide6.QtWidgets import (
 
 from ..scenes import creates_cycle
 from ..sources import camera_id, capturable_windows
+from . import icons, theme
 from .util import ColorButton
+from .widgets import button, page_header
 
 SOURCE_TYPES = [
     ("camera", "Kamera"),
@@ -54,7 +58,7 @@ def _path_row(filter_text: str | None, folder: bool = False):
     lay = QHBoxLayout(row)
     lay.setContentsMargins(0, 0, 0, 0)
     edit = QLineEdit()
-    btn = QPushButton("Durchsuchen …")
+    btn = button("Durchsuchen …", "image" if not folder else "slides")
     lay.addWidget(edit, 1)
     lay.addWidget(btn)
 
@@ -84,34 +88,69 @@ class SourcePicker(QDialog):
         self.setWindowTitle("Quelle wählen")
         self.config = config
         self.scene_name = scene_name
-        self.resize(560, 360)
+        self.resize(760, 480)
         initial = initial or {}
 
-        self.type_combo = QComboBox()
+        # Links: Arten mit Symbol · rechts: Einstellungen der gewählten Art
+        self.type_list = QListWidget()
+        self.type_list.setFixedWidth(236)
+        self.type_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.type_list.setIconSize(QSize(22, 22))
         for key, label in SOURCE_TYPES:
-            self.type_combo.addItem(label, key)
+            item = QListWidgetItem(icons.icon(icons.SOURCE_ICONS[key], theme.SOURCE_COLORS[key], 22), label)
+            item.setData(Qt.UserRole, key)
+            self.type_list.addItem(item)
         self.stack = QStackedWidget()
         self.pages: dict[str, tuple[QWidget, callable]] = {}
         for key, _label in SOURCE_TYPES:
             page, getter = getattr(self, f"_page_{key}")(initial if initial.get("type") == key else {})
             self.pages[key] = (page, getter)
             self.stack.addWidget(page)
-        self.type_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
+        self.type_list.currentRowChanged.connect(self._type_changed)
+        self.page_title = QLabel()
+        self.page_title.setObjectName("SectionTitle")
+        self.type_list.setCurrentRow(0)
         if initial.get("type"):
-            self.type_combo.setCurrentIndex(max(0, self.type_combo.findData(initial["type"])))
+            self.select_type(initial["type"])
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox()
+        ok = button("Übernehmen", "check", primary=True)
+        buttons.addButton(ok, QDialogButtonBox.AcceptRole)
+        buttons.addButton(button("Abbrechen"), QDialogButtonBox.RejectRole)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        top = QFormLayout()
-        top.addRow("Art der Quelle:", self.type_combo)
+        right = QVBoxLayout()
+        right.setSpacing(10)
+        right.addWidget(self.page_title)
+        right.addWidget(self.stack, 1)
+        body = QHBoxLayout()
+        body.setSpacing(18)
+        body.addWidget(self.type_list)
+        body.addLayout(right, 1)
         lay = QVBoxLayout(self)
-        lay.addLayout(top)
-        lay.addWidget(self.stack, 1)
+        lay.setContentsMargins(22, 20, 22, 18)
+        lay.setSpacing(14)
+        lay.addWidget(page_header("Quelle wählen", "Was soll in diesem Feld zu sehen sein?"))
+        lay.addLayout(body, 1)
         lay.addWidget(buttons)
 
+    def _type_changed(self, row: int):
+        self.stack.setCurrentIndex(row)
+        if 0 <= row < len(SOURCE_TYPES):
+            self.page_title.setText(SOURCE_TYPES[row][1])
+
+    def select_type(self, key: str) -> None:
+        for i in range(self.type_list.count()):
+            if self.type_list.item(i).data(Qt.UserRole) == key:
+                self.type_list.setCurrentRow(i)
+                return
+
+    def current_type(self) -> str:
+        item = self.type_list.currentItem()
+        return item.data(Qt.UserRole) if item else SOURCE_TYPES[0][0]
+
     def result_config(self) -> dict | None:
-        key = self.type_combo.currentData()
+        key = self.current_type()
         cfg = self.pages[key][1]()
         if cfg is None:
             return None
@@ -121,6 +160,9 @@ class SourcePicker(QDialog):
     def _form(self):
         page = QWidget()
         form = QFormLayout(page)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(10)
         return page, form
 
     def _page_camera(self, init):
@@ -147,7 +189,7 @@ class SourcePicker(QDialog):
             combo.addItem(w.description())
         if init.get("title"):
             combo.setCurrentText(init["title"])
-        refresh = QPushButton("Liste neu laden")
+        refresh = button("Liste neu laden", "refresh")
 
         def reload():
             current = combo.currentText()

@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 import secrets
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QGuiApplication, QKeySequence
+from PySide6.QtCore import QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -22,7 +23,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QSlider,
     QSpinBox,
@@ -33,7 +33,9 @@ from PySide6.QtWidgets import (
 from ..config import HOTKEY_LABELS
 from ..platform import IS_WINDOWS, autostart, session_info
 from ..platform.base import ROTATIONS, clone_outputs, place, side_of
+from . import theme
 from .util import error_box, run_async
+from .widgets import button, font, rounded
 
 SIDES = [("right", "rechts vom Hauptmonitor"), ("left", "links vom Hauptmonitor"),
          ("above", "über dem Hauptmonitor"), ("below", "unter dem Hauptmonitor"),
@@ -88,7 +90,7 @@ class IdentifyWindow(QLabel):
         font.setBold(True)
         self.setFont(font)
         self.setAlignment(Qt.AlignCenter)
-        self.setStyleSheet("background:#1d6fb8; color:white; border-radius:20px;")
+        self.setStyleSheet(f"background:{theme.current().accent}; color:white; border-radius:24px;")
         self.resize(360, 260)
         geo = screen.geometry()
         self.move(geo.center().x() - 180, geo.center().y() - 130)
@@ -97,7 +99,110 @@ class IdentifyWindow(QLabel):
             self.windowHandle().setScreen(screen)
 
 
+class Swatch(QAbstractButton):
+    """Runder Farbknopf für die Akzentfarbe."""
+
+    def __init__(self, color: str, tooltip: str, parent=None):
+        super().__init__(parent)
+        self.color = color
+        self.setCheckable(True)
+        self.setToolTip(tooltip)
+        self.setFixedSize(34, 34)
+        self.setCursor(Qt.PointingHandCursor)
+
+    def paintEvent(self, _e):
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(3, 3, -3, -3)
+        if self.isChecked():
+            p.setPen(QPen(QColor(t.text), 2.5))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5))
+            r = r.adjusted(3, 3, -3, -3)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(self.color))
+        p.drawEllipse(r)
+        p.end()
+
+
+class MonitorArrangement(QWidget):
+    """Zeichnet die Monitore so, wie sie angeordnet sind; Klick wählt einen Monitor aus."""
+
+    selected = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.items: list[dict] = []
+        self.current = ""
+        self.output_name = ""
+        self.setMinimumHeight(190)
+        self.setCursor(Qt.PointingHandCursor)
+        self._rects: dict[str, QRectF] = {}
+
+    def set_items(self, items: list[dict], output_name: str):
+        self.items, self.output_name = items, output_name
+        self.update()
+
+    def set_current(self, name: str):
+        self.current = name
+        self.update()
+
+    def mousePressEvent(self, e):
+        for name, r in self._rects.items():
+            if r.contains(e.position()):
+                self.selected.emit(name)
+                return
+
+    def paintEvent(self, _e):
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        area = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        p.fillPath(rounded(area, 12), QColor(t.surface2))
+        self._rects = {}
+        if not self.items:
+            p.setPen(QColor(t.muted))
+            p.drawText(area, Qt.AlignCenter, "Keine Monitore erkannt")
+            p.end()
+            return
+        min_x = min(i["x"] for i in self.items)
+        min_y = min(i["y"] for i in self.items)
+        max_x = max(i["x"] + i["w"] for i in self.items)
+        max_y = max(i["y"] + i["h"] for i in self.items)
+        inner = area.adjusted(24, 20, -24, -20)
+        scale = min(inner.width() / max(1, max_x - min_x), inner.height() / max(1, max_y - min_y))
+        ox = inner.left() + (inner.width() - (max_x - min_x) * scale) / 2
+        oy = inner.top() + (inner.height() - (max_y - min_y) * scale) / 2
+        for i, item in enumerate(sorted(self.items, key=lambda it: it["name"] == self.current)):
+            r = QRectF(ox + (item["x"] - min_x) * scale, oy + (item["y"] - min_y) * scale,
+                       item["w"] * scale, item["h"] * scale).adjusted(3, 3, -3, -3)
+            self._rects[item["name"]] = r
+            is_out = item["name"] == self.output_name
+            color = QColor("#f97316") if is_out else QColor(t.accent)
+            fill = QColor(color)
+            fill.setAlphaF(0.22 if item["name"] == self.current else 0.12)
+            p.fillPath(rounded(r, 8), QColor(t.surface))
+            p.fillPath(rounded(r, 8), fill)
+            p.setPen(QPen(color, 2.5 if item["name"] == self.current else 1.2))
+            p.drawPath(rounded(r, 8))
+            title = "Monitor 2" if is_out else ("Hauptmonitor" if item.get("primary") else item["name"])
+            tf, df = font(10.5, QFont.Bold), font(8.5)
+            th, dh = QFontMetrics(tf).height(), QFontMetrics(df).height()
+            top = r.center().y() - (th + 2 * dh + 4) / 2
+            p.setPen(QColor(t.text))
+            p.setFont(tf)
+            p.drawText(QRectF(r.left() + 6, top, r.width() - 12, th), Qt.AlignCenter, title)
+            p.setPen(QColor(t.muted))
+            p.setFont(df)
+            p.drawText(QRectF(r.left() + 6, top + th + 4, r.width() - 12, dh), Qt.AlignCenter, item["name"])
+            p.drawText(QRectF(r.left() + 6, top + th + 4 + dh, r.width() - 12, dh), Qt.AlignCenter, item["label"])
+        p.end()
+
+
 class SetupPage(QScrollArea):
+    theme_changed = Signal()
+
     def __init__(self, controller, hotkeys, parent=None):
         super().__init__(parent)
         self.controller = controller
@@ -108,13 +213,17 @@ class SetupPage(QScrollArea):
         inner = QWidget()
         self.setWidget(inner)
         lay = QVBoxLayout(inner)
+        lay.setContentsMargins(0, 0, 8, 0)
+        lay.setSpacing(6)
         lay.addWidget(self._display_group())
+        lay.addWidget(self._appearance_group())
         lay.addWidget(self._app_group())
         lay.addWidget(self._privacy_group())
         lay.addWidget(self._pip_group())
         lay.addWidget(self._hotkey_group())
         lay.addWidget(self._lock_group())
         lay.addStretch(1)
+        controller.changed.connect(self._update_arrangement)
         QTimer.singleShot(0, self.reload_outputs)
 
     # ================================================================ Monitore
@@ -130,7 +239,13 @@ class SetupPage(QScrollArea):
             hint.setWordWrap(True)
             lay.addWidget(hint)
 
+        self.arrangement = MonitorArrangement()
+        self.arrangement.selected.connect(self._select_output)
+        lay.addWidget(self.arrangement)
+
         form = QFormLayout()
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(10)
         self.output_combo = QComboBox()
         self.output_combo.currentIndexChanged.connect(self._show_output)
         self.enabled_check = QCheckBox("Monitor eingeschaltet")
@@ -153,25 +268,22 @@ class SetupPage(QScrollArea):
         form.addRow("Bildwiederholrate:", self.rate_combo)
         form.addRow("Skalierung:", self.scale_spin)
         form.addRow("Drehung:", self.rot_combo)
+        self.side_combo = QComboBox()
+        for key, label in SIDES:
+            self.side_combo.addItem(label, key)
+        form.addRow("Monitor 2 liegt:", self.side_combo)
         if not backend.supports_scale:
             self.scale_spin.setEnabled(False)
             self.scale_spin.setToolTip("Skalierung stellst du unter Windows/X11 in den Systemeinstellungen ein.")
         lay.addLayout(form)
 
-        side_row = QHBoxLayout()
-        self.side_combo = QComboBox()
-        for key, label in SIDES:
-            self.side_combo.addItem(label, key)
-        side_row.addWidget(QLabel("Monitor 2 liegt"))
-        side_row.addWidget(self.side_combo, 1)
-        lay.addLayout(side_row)
 
         row = QHBoxLayout()
-        apply_btn = QPushButton("Übernehmen")
+        apply_btn = button("Übernehmen", "check", primary=True)
         apply_btn.clicked.connect(self._apply)
-        reload_btn = QPushButton("Neu laden")
+        reload_btn = button("Neu laden", "refresh")
         reload_btn.clicked.connect(self.reload_outputs)
-        ident_btn = QPushButton("Monitore identifizieren")
+        ident_btn = button("Monitore identifizieren", "monitor")
         ident_btn.clicked.connect(self.identify)
         row.addWidget(apply_btn)
         row.addWidget(reload_btn)
@@ -180,16 +292,16 @@ class SetupPage(QScrollArea):
         lay.addLayout(row)
 
         row2 = QHBoxLayout()
-        mirror_btn = QPushButton("System-Spiegeln")
+        mirror_btn = button("System-Spiegeln", "mirror")
         mirror_btn.setToolTip("Das Betriebssystem spiegelt Monitor 1 (ohne AluPC). "
                               "Standbild und Sichtschutz gehen dann nicht.")
         mirror_btn.clicked.connect(self._system_mirror)
-        extend_btn = QPushButton("System-Erweitern")
+        extend_btn = button("System-Erweitern", "extend")
         extend_btn.clicked.connect(self._system_extend)
         row2.addWidget(mirror_btn)
         row2.addWidget(extend_btn)
         if IS_WINDOWS:
-            open_btn = QPushButton("Windows-Anzeigeeinstellungen")
+            open_btn = button("Windows-Anzeigeeinstellungen", "sliders")
             open_btn.clicked.connect(lambda: __import__("os").startfile("ms-settings:display"))
             row2.addWidget(open_btn)
         row2.addStretch(1)
@@ -200,6 +312,7 @@ class SetupPage(QScrollArea):
 
     def reload_outputs(self):
         if not self.controller.display.available():
+            self._update_arrangement()
             return
 
         def done(outputs):
@@ -223,9 +336,40 @@ class SetupPage(QScrollArea):
             if main is not None and other is not None:
                 side = side_of(outputs, main.name, other.name)
                 self.side_combo.setCurrentIndex(max(0, self.side_combo.findData(side)))
+            self._update_arrangement()
 
         run_async(self.controller.display.list_outputs, done,
                   lambda e: self.backend_label.setText(f"Monitore konnten nicht gelesen werden: {e}"))
+
+    def _update_arrangement(self):
+        out = self.controller.output_screen()
+        items = []
+        if self.outputs:
+            logical = self.controller.display.logical_positions
+            for o in self.outputs:
+                if not o.enabled:
+                    continue
+                w, h = o.size()
+                if logical and o.scale:
+                    w, h = round(w / o.scale), round(h / o.scale)
+                m = o.mode()
+                label = f"{m.width}×{m.height} · {m.refresh:.0f} Hz" if m else ""
+                items.append({"name": o.name, "x": o.x, "y": o.y, "w": max(w, 1), "h": max(h, 1),
+                              "primary": o.primary, "label": label})
+        else:  # ohne Systemzugriff: Qt-Sicht der Monitore zeigen
+            primary = QGuiApplication.primaryScreen()
+            for s in QGuiApplication.screens():
+                g = s.geometry()
+                items.append({"name": s.name(), "x": g.x(), "y": g.y(), "w": g.width(), "h": g.height(),
+                              "primary": s is primary,
+                              "label": f"{g.width()}×{g.height()} · {s.refreshRate():.0f} Hz"})
+        self.arrangement.set_items(items, out.name() if out else "")
+        self.arrangement.set_current(self.output_combo.currentData() or "")
+
+    def _select_output(self, name: str):
+        idx = self.output_combo.findData(name)
+        if idx >= 0:
+            self.output_combo.setCurrentIndex(idx)
 
     def _current_output(self):
         name = self.output_combo.currentData()
@@ -235,6 +379,7 @@ class SetupPage(QScrollArea):
         o = self._current_output()
         if o is None:
             return
+        self.arrangement.set_current(o.name)
         self.enabled_check.setChecked(o.enabled)
         self.primary_check.setChecked(o.primary)
         self.scale_spin.setValue(o.scale)
@@ -339,6 +484,55 @@ class SetupPage(QScrollArea):
             w.show()
         QTimer.singleShot(3000, lambda: [w.close() for w in self._ident])
 
+    # ================================================================ Darstellung
+    def _appearance_group(self):
+        box = QGroupBox("Darstellung")
+        form = QFormLayout(box)
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(10)
+        a = self.config["appearance"]
+        mode = QComboBox()
+        for key, label in theme.MODES.items():
+            mode.addItem(label, key)
+        mode.setCurrentIndex(max(0, mode.findData(a.get("mode", "system"))))
+        swatches = QHBoxLayout()
+        swatches.setSpacing(8)
+        self._swatches = {}
+        for key, (label, color) in theme.ACCENTS.items():
+            b = Swatch(color, label)
+            b.clicked.connect(lambda _=False, k=key: self._set_accent(k))
+            self._swatches[key] = b
+            swatches.addWidget(b)
+        swatches.addStretch(1)
+        self._style_swatches(a.get("accent", "blau"))
+        fade = QCheckBox("Weich überblenden, wenn der Inhalt auf Monitor 2 wechselt")
+        fade.setChecked(bool(a.get("fade", True)))
+
+        def save_mode():
+            self._save_appearance(mode=mode.currentData())
+
+        mode.currentIndexChanged.connect(save_mode)
+        fade.toggled.connect(lambda v: self._save_appearance(fade=v, emit=False))
+        form.addRow("Design:", mode)
+        form.addRow("Akzentfarbe:", swatches)
+        form.addRow("", fade)
+        return box
+
+    def _style_swatches(self, active: str):
+        for key, b in self._swatches.items():
+            b.setChecked(key == active)
+
+    def _set_accent(self, key: str):
+        self._save_appearance(accent=key)
+
+    def _save_appearance(self, emit: bool = True, **changes):
+        a = dict(self.config["appearance"])
+        a.update(changes)
+        self.config["appearance"] = a
+        if emit:
+            self.theme_changed.emit()
+            self._style_swatches(a.get("accent", "blau"))
+
     # ================================================================ AluPC
     def _app_group(self):
         box = QGroupBox("AluPC")
@@ -398,7 +592,7 @@ class SetupPage(QScrollArea):
         img_row = QHBoxLayout()
         img = QLineEdit(p.get("image", ""))
         img.setPlaceholderText("optional: Bild/Logo statt Schwarz")
-        browse = QPushButton("Durchsuchen …")
+        browse = button("Durchsuchen …", "image")
         img_row.addWidget(img, 1)
         img_row.addWidget(browse)
 
@@ -489,13 +683,13 @@ class SetupPage(QScrollArea):
         self.lock_check = QCheckBox("Beim Start und über „Sperren“ nur mit Fingerabdruck (oder PIN) bedienbar")
         self.lock_check.setChecked(bool(lock.get("enabled")))
         self.lock_check.toggled.connect(self._lock_toggled)
-        pin_btn = QPushButton("Ersatz-PIN festlegen …")
+        pin_btn = button("Ersatz-PIN festlegen …", "lock")
         pin_btn.clicked.connect(self._set_pin)
         hint = QLabel("Die PIN brauchst du, falls der Sensor mal nicht geht. Die Sperre schützt nur die "
                       "Bedienung von AluPC, nicht den ganzen Computer.")
         hint.setWordWrap(True)
         lay.addWidget(self.lock_check)
-        lay.addWidget(pin_btn)
+        lay.addWidget(pin_btn, 0, Qt.AlignLeft)
         lay.addWidget(hint)
         return box
 

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QPainter
+from PySide6.QtCore import QPoint, QRectF, Qt, QTimer
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QSizeGrip, QWidget
 
 from ..sources import FrameView, ScreenSource
+from . import theme
 
 
 class PipView(FrameView):
@@ -16,26 +17,36 @@ class PipView(FrameView):
 
     def paintEvent(self, event):
         super().paintEvent(event)
-        badges = []
-        if self.controller.privacy:
-            badges.append(("SCHWARZ", "#444444"))
-        if self.controller.frozen:
-            badges.append(("EINGEFROREN", "#c0392b"))
-        if not badges:
-            return
+        t = theme.current()
         p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        c = self.controller
+        badges = [("MONITOR 2", t.accent)]
+        if c.privacy:
+            badges.append(("SCHWARZ", "#64748b"))
+        if c.frozen:
+            badges.append(("STANDBILD", "#0ea5e9"))
         font = QFont()
         font.setBold(True)
-        font.setPixelSize(max(11, self.height() // 14))
+        font.setPixelSize(max(10, min(13, self.height() // 16)))
         p.setFont(font)
-        x = 8
+        x = 10
         for text, color in badges:
-            w = p.fontMetrics().horizontalAdvance(text) + 14
-            h = p.fontMetrics().height() + 6
-            p.fillRect(x, 8, w, h, QColor(color))
+            w = p.fontMetrics().horizontalAdvance(text) + 18
+            h = p.fontMetrics().height() + 8
+            bg = QColor(color)
+            bg.setAlphaF(0.92)
+            p.setPen(Qt.NoPen)
+            p.setBrush(bg)
+            p.drawRoundedRect(QRectF(x, 10, w, h), h / 2, h / 2)
             p.setPen(Qt.white)
-            p.drawText(x, 8, w, h, Qt.AlignCenter, text)
+            p.drawText(QRectF(x, 10, w, h), Qt.AlignCenter, text)
             x += w + 6
+        # Rahmen in Akzentfarbe (Standbild: hellblau)
+        border = QColor("#0ea5e9" if c.frozen else t.accent)
+        p.setPen(QPen(border, 3))
+        p.setBrush(Qt.NoBrush)
+        p.drawRect(QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5))
         p.end()
 
 
@@ -106,12 +117,11 @@ class PipWindow(QWidget):
         # Normaler Desktop auf Monitor 2 → Monitor 2 live aufnehmen
         if self.live_capture is None:
             self.live_capture = ScreenSource({"screen_name": screen.name()})
-            self.live_capture.sink.videoFrameChanged.connect(self._live_frame)
-        self.view.update()
-
-    def _live_frame(self, frame):
-        if frame.isValid() and not self.controller.output.isVisible():
-            self.view.set_image(frame.toImage())
+        image = self.live_capture.image()  # nur so oft umwandeln, wie Bild-in-Bild aktualisiert
+        if image is not None:
+            self.view.set_image(image)
+        else:
+            self.view.update()
 
     # ------------------------------------------------------------ Maus
     def mousePressEvent(self, event):

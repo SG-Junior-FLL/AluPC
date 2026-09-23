@@ -37,6 +37,7 @@ DEFAULTS: dict = {
     "pip": {"opacity": 1.0, "width": 480, "fps": 10},
     "lock": {"enabled": False, "pin_hash": "", "pin_salt": ""},
     "start_minimized": False,
+    "appearance": {"mode": "system", "accent": "blau", "fade": True},
 }
 
 

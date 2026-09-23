@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 
 from PySide6.QtCore import QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -18,29 +18,49 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMessageBox,
-    QPushButton,
+    QHBoxLayout,
     QVBoxLayout,
+    QWidget,
 )
 
 from ..scenes import LAYOUTS, describe_source, layout_slots, new_scene, resize_slots
 from .source_picker import SourcePicker
+from . import icons, theme
 from .util import ColorButton
+from .widgets import button, page_header, paint_scene_thumb
 
 
-def layout_icon(layout: str, size: QSize = QSize(96, 54)) -> QIcon:
+def layout_icon(layout: str, size: QSize = QSize(112, 63)) -> QIcon:
     """Schematisches Bild einer Layout-Vorlage (keine Live-Vorschau)."""
-    pix = QPixmap(size)
-    pix.fill(QColor("#202020"))
+    dpr = 2
+    pix = QPixmap(size.width() * dpr, size.height() * dpr)
+    pix.setDevicePixelRatio(dpr)
+    pix.fill(Qt.transparent)
     p = QPainter(pix)
-    p.setRenderHint(QPainter.Antialiasing)
-    colors = ["#3d7ab8", "#e0913b", "#5aa469", "#b85a9e"]
-    for i, (x, y, w, h, _name) in enumerate(layout_slots(layout)):
-        rect = QRectF(x * size.width(), y * size.height(), w * size.width(), h * size.height()).adjusted(2, 2, -2, -2)
-        p.fillRect(rect, QColor(colors[i % len(colors)]))
-        p.setPen(QPen(Qt.white))
-        p.drawText(rect, Qt.AlignCenter, str(i + 1))
+    paint_scene_thumb(p, QRectF(0, 0, size.width(), size.height()), None, layout, numbers=True)
     p.end()
     return QIcon(pix)
+
+
+class ScenePreview(QWidget):
+    """Schema der Szene, wie sie gerade im Editor eingestellt ist (Quellen als farbige Felder)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.scene = None
+        self.setMinimumSize(240, 135)
+
+    def set_scene(self, scene):
+        self.scene = scene
+        self.update()
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        w = self.width()
+        h = min(self.height(), w * 9 / 16)
+        w = h * 16 / 9
+        paint_scene_thumb(p, QRectF((self.width() - w) / 2, 0, w, h), self.scene)
+        p.end()
 
 
 class SceneEditor(QDialog):
@@ -50,19 +70,20 @@ class SceneEditor(QDialog):
         self.original_name = scene["name"] if scene else None
         self.scene = copy.deepcopy(scene) if scene else new_scene(self._free_name())
         self.setWindowTitle("Szene bearbeiten" if scene else "Neue Szene")
-        self.resize(720, 560)
+        self.resize(900, 680)
 
         self.name_edit = QLineEdit(self.scene["name"])
         self.bg_button = ColorButton(self.scene.get("background", "#000000"))
 
         self.layout_list = QListWidget()
         self.layout_list.setViewMode(QListView.IconMode)
-        self.layout_list.setIconSize(QSize(96, 54))
+        self.layout_list.setIconSize(QSize(112, 63))
         self.layout_list.setResizeMode(QListView.Adjust)
         self.layout_list.setMovement(QListView.Static)
-        self.layout_list.setGridSize(QSize(170, 100))
+        self.layout_list.setGridSize(QSize(164, 126))
         self.layout_list.setWordWrap(True)
-        self.layout_list.setFixedHeight(200)
+        self.layout_list.setFixedHeight(276)
+        self.layout_list.setSpacing(4)
         for key, (label, _slots) in LAYOUTS.items():
             item = QListWidgetItem(layout_icon(key), label)
             item.setData(Qt.UserRole, key)
@@ -78,15 +99,27 @@ class SceneEditor(QDialog):
         form.addRow("Name:", self.name_edit)
         form.addRow("Hintergrundfarbe:", self.bg_button)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Save).setText("Speichern")
-        buttons.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+        buttons = QDialogButtonBox()
+        buttons.addButton(button("Speichern", "check", primary=True), QDialogButtonBox.AcceptRole)
+        buttons.addButton(button("Abbrechen"), QDialogButtonBox.RejectRole)
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)
 
+        self.preview = ScenePreview()
+        top = QHBoxLayout()
+        top.setSpacing(20)
+        top.addLayout(form, 1)
+        top.addWidget(self.preview)
+
         lay = QVBoxLayout(self)
-        lay.addLayout(form)
-        lay.addWidget(QLabel("Layout-Vorlage:"))
+        lay.setContentsMargins(22, 20, 22, 18)
+        lay.setSpacing(12)
+        lay.addWidget(page_header("Szene bearbeiten" if scene else "Neue Szene",
+                                  "1. Layout wählen  ·  2. In jedes Feld eine Quelle legen  ·  3. Speichern"))
+        lay.addLayout(top)
+        section = QLabel("Layout-Vorlage")
+        section.setObjectName("SectionTitle")
+        lay.addWidget(section)
         lay.addWidget(self.layout_list)
         lay.addWidget(self.slots_box, 1)
         lay.addWidget(buttons)
@@ -109,21 +142,31 @@ class SceneEditor(QDialog):
             w = self.slots_grid.takeAt(0).widget()
             if w:
                 w.deleteLater()
+        t = theme.current()
         for i, (_x, _y, _w, _h, name) in enumerate(layout_slots(self.scene["layout"])):
             slot = self.scene["slots"][i]
+            ic = QLabel()
+            typ = slot.get("type") if slot else None
+            ic.setPixmap(icons.pixmap(icons.SOURCE_ICONS.get(typ, "plus"),
+                                      theme.SOURCE_COLORS.get(typ, t.muted), 22))
             label = QLabel(f"<b>{i + 1}. {name}</b>")
-            desc = QLabel(describe_source(slot))
+            desc = QLabel(describe_source(slot) if slot else "Noch leer – Quelle wählen")
+            desc.setObjectName("" if slot else "Muted")
             desc.setWordWrap(True)
-            choose = QPushButton("Quelle wählen …")
-            clear = QPushButton("Leeren")
+            choose = button("Quelle wählen …", "plus" if not slot else "edit", primary=not slot)
+            clear = button("Leeren", "x")
             clear.setEnabled(slot is not None)
             choose.clicked.connect(lambda _=False, idx=i: self._choose(idx))
             clear.clicked.connect(lambda _=False, idx=i: self._clear(idx))
-            self.slots_grid.addWidget(label, i, 0)
-            self.slots_grid.addWidget(desc, i, 1)
-            self.slots_grid.addWidget(choose, i, 2)
-            self.slots_grid.addWidget(clear, i, 3)
-        self.slots_grid.setColumnStretch(1, 1)
+            self.slots_grid.addWidget(ic, i, 0)
+            self.slots_grid.addWidget(label, i, 1)
+            self.slots_grid.addWidget(desc, i, 2)
+            self.slots_grid.addWidget(choose, i, 3)
+            self.slots_grid.addWidget(clear, i, 4)
+        self.slots_grid.setColumnStretch(2, 1)
+        self.slots_grid.setHorizontalSpacing(12)
+        self.slots_grid.setVerticalSpacing(8)
+        self.preview.set_scene(self.scene)
         self.slots_grid.setRowStretch(len(self.scene["slots"]), 1)
 
     def _choose(self, idx):

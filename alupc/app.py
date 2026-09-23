@@ -55,8 +55,12 @@ def main(argv=None) -> int:
     from .ui.main_window import MainWindow, app_icon
     from .ui.pip_window import PipWindow
 
-    app.setWindowIcon(app_icon())
+    from .ui import theme
+
     config = Config()
+    appearance = config["appearance"]
+    theme.apply(app, appearance.get("mode", "system"), appearance.get("accent", "blau"))
+    app.setWindowIcon(app_icon())
     controller = Controller(config)
     hotkeys = HotkeyManager()
     window = MainWindow(controller, hotkeys)

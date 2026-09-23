@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -13,53 +14,62 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMessageBox,
-    QProgressBar,
-    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 from ..platform import IS_WINDOWS
 from ..platform.base import FINGER_NAMES, FINGERS
+from . import icons, theme
 from .util import error_box, run_async
+from .widgets import Banner, ProgressRing, button, font
 
 
 class ScanDialog(QDialog):
-    """Zeigt Anweisungen und Fortschritt, während der Sensor arbeitet."""
+    """Zeigt Anweisungen und Fortschritt (Ring), während der Sensor arbeitet."""
 
     def __init__(self, backend, title: str, parent=None):
         super().__init__(parent)
         self.backend = backend
         self.setWindowTitle(title)
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(440)
+        heading = QLabel(title)
+        heading.setObjectName("PageTitle")
+        heading.setAlignment(Qt.AlignCenter)
+        self.ring = ProgressRing("fingerprint")
+        self.ring.set_progress(-1)
         self.label = QLabel("Bitte warten …")
         self.label.setWordWrap(True)
         self.label.setAlignment(Qt.AlignCenter)
-        font = self.label.font()
-        font.setPointSize(font.pointSize() + 3)
-        self.label.setFont(font)
-        self.bar = QProgressBar()
-        self.bar.setRange(0, 0)
-        self.button = QPushButton("Abbrechen")
+        self.label.setFont(font(12, QFont.Medium))
+        self.label.setMinimumHeight(52)
+        self.stage = QLabel("")
+        self.stage.setObjectName("Muted")
+        self.stage.setAlignment(Qt.AlignCenter)
+        self.button = button("Abbrechen", "x")
         self.button.clicked.connect(self._button)
         self.finished_ok = False
         lay = QVBoxLayout(self)
+        lay.setContentsMargins(28, 24, 28, 20)
+        lay.setSpacing(12)
+        lay.addWidget(heading)
+        lay.addWidget(self.ring, 0, Qt.AlignCenter)
         lay.addWidget(self.label)
-        lay.addWidget(self.bar)
-        lay.addWidget(self.button, 0, Qt.AlignRight)
+        lay.addWidget(self.stage)
+        lay.addWidget(self.button, 0, Qt.AlignCenter)
 
     def progress(self, text, stage, total):
         self.label.setText(text)
         if total > 0:
-            self.bar.setRange(0, total)
-            self.bar.setValue(stage)
+            self.ring.set_progress(stage / total)
+            self.stage.setText(f"Schritt {min(stage, total)} von {total}")
 
     def finish(self, text, ok):
         self.finished_ok = ok
-        self.label.setText(("✔ " if ok else "✘ ") + text)
-        self.bar.setRange(0, 1)
-        self.bar.setValue(1 if ok else 0)
+        self.label.setText(text)
+        self.ring.set_state("ok" if ok else "error")
         self.button.setText("Schließen")
+        self.button.setIcon(icons.icon("check", theme.current().text, 18))
 
     def _button(self):
         if self.button.text() == "Abbrechen":
@@ -79,16 +89,17 @@ class FingerprintPage(QWidget):
         super().__init__(parent)
         self.backend = controller.fingerprint
         lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(6)
 
-        self.status = QLabel("Sensoren werden gesucht …")
-        self.status.setWordWrap(True)
+        self.status = Banner("Sensoren werden gesucht …", "busy")
         lay.addWidget(self.status)
 
         sensor_box = QGroupBox("Sensor")
         form = QFormLayout(sensor_box)
         self.sensor_combo = QComboBox()
         self.sensor_combo.currentIndexChanged.connect(self.reload_enrolled)
-        refresh = QPushButton("Neu suchen")
+        refresh = button("Neu suchen", "refresh")
         refresh.clicked.connect(self.reload)
         row = QHBoxLayout()
         row.addWidget(self.sensor_combo, 1)
@@ -99,15 +110,17 @@ class FingerprintPage(QWidget):
         finger_box = QGroupBox("Finger")
         fl = QVBoxLayout(finger_box)
         self.enrolled = QListWidget()
-        self.enrolled.setMaximumHeight(160)
-        fl.addWidget(QLabel("Angelernte Finger:"))
+        self.enrolled.setMaximumHeight(170)
+        caption = QLabel("Angelernte Finger")
+        caption.setObjectName("Muted")
+        fl.addWidget(caption)
         fl.addWidget(self.enrolled)
 
         enroll_row = QHBoxLayout()
         self.finger_combo = QComboBox()
         for key, label in FINGERS:
             self.finger_combo.addItem(label, key)
-        self.enroll_btn = QPushButton("Finger anlernen …")
+        self.enroll_btn = button("Finger anlernen …", "fingerprint", primary=True)
         self.enroll_btn.clicked.connect(self.enroll)
         if self.backend.can_enroll:
             enroll_row.addWidget(self.finger_combo, 1)
@@ -117,11 +130,11 @@ class FingerprintPage(QWidget):
         fl.addLayout(enroll_row)
 
         act_row = QHBoxLayout()
-        self.test_btn = QPushButton("Test-Scan")
+        self.test_btn = button("Test-Scan", "check")
         self.test_btn.clicked.connect(self.verify)
-        self.delete_btn = QPushButton("Ausgewählten Finger löschen")
+        self.delete_btn = button("Ausgewählten Finger löschen", "trash", danger=True)
         self.delete_btn.clicked.connect(self.delete_selected)
-        self.delete_all_btn = QPushButton("Alle löschen")
+        self.delete_all_btn = button("Alle löschen", "trash", danger=True)
         self.delete_all_btn.clicked.connect(self.delete_all)
         act_row.addWidget(self.test_btn)
         if self.backend.can_delete:
@@ -141,7 +154,7 @@ class FingerprintPage(QWidget):
         ll = QVBoxLayout(self.login_box)
         self.login_label = QLabel()
         self.login_label.setWordWrap(True)
-        self.login_btn = QPushButton()
+        self.login_btn = button("", "lock")
         self.login_btn.clicked.connect(self.toggle_login)
         ll.addWidget(self.login_label)
         ll.addWidget(self.login_btn, 0, Qt.AlignLeft)
@@ -153,7 +166,7 @@ class FingerprintPage(QWidget):
             text = QLabel("Die Windows-Anmeldung per Fingerabdruck ist eingeschaltet, sobald ein Finger "
                           "in Windows Hello angelernt ist.")
             text.setWordWrap(True)
-            btn = QPushButton("Anmeldeoptionen öffnen")
+            btn = button("Anmeldeoptionen öffnen", "lock")
             btn.clicked.connect(self.backend.open_system_settings)
             wl.addWidget(text)
             wl.addWidget(btn, 0, Qt.AlignLeft)
@@ -173,7 +186,7 @@ class FingerprintPage(QWidget):
         return self.sensor_combo.currentData()
 
     def reload(self):
-        self.status.setText("Sensoren werden gesucht …")
+        self.status.set("Sensoren werden gesucht …", "busy")
 
         def work():
             ok, msg = self.backend.availability()
@@ -188,15 +201,16 @@ class FingerprintPage(QWidget):
                 self.sensor_combo.addItem(s.name + (f" ({s.detail})" if s.detail else ""), s.id)
             self.sensor_combo.blockSignals(False)
             if ok:
-                self.status.setText(f"{len(sensors)} Sensor(en) gefunden – über {self.backend.name}.")
+                n = len(sensors)
+                self.status.set(f"{n} Sensor{'en' if n != 1 else ''} gefunden – über {self.backend.name}.", "ok")
             else:
                 hint = self.backend.install_hint()
-                self.status.setText(msg + (f"\n{hint}" if hint else ""))
+                self.status.set(msg + (f"\n{hint}" if hint else ""), "warn")
             self._set_enabled(ok)
             self.reload_enrolled()
             self.reload_login()
 
-        run_async(work, done, lambda e: self.status.setText(f"Fehler: {e}"))
+        run_async(work, done, lambda e: self.status.set(f"Fehler: {e}", "error"))
 
     def reload_enrolled(self):
         self.enrolled.clear()
@@ -211,7 +225,7 @@ class FingerprintPage(QWidget):
                 item.setFlags(Qt.NoItemFlags)
                 self.enrolled.addItem(item)
             for f in fingers:
-                item = QListWidgetItem(FINGER_NAMES.get(f, f))
+                item = QListWidgetItem(icons.icon("fingerprint", theme.current().accent, 20), FINGER_NAMES.get(f, f))
                 item.setData(Qt.UserRole, f)
                 self.enrolled.addItem(item)
 

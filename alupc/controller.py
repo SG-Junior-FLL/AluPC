@@ -105,6 +105,7 @@ class Controller(QObject):
             self.message.emit("Kein zweiter Monitor gefunden.")
         self.ensure_extended()
         self._unfreeze()
+        self.output.fade_enabled = bool(self.config["appearance"].get("fade", True))
         self.mode = "content"
         self.content = cfg
         self.output.set_content(create_source(cfg, self.config.get_scene))

@@ -10,14 +10,15 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QPushButton,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from ..sources import capturable_windows
+from . import icons, theme
 from .util import error_box, run_async
+from .widgets import button, page_header
 
 
 class ProgramDialog(QDialog):
@@ -27,13 +28,17 @@ class ProgramDialog(QDialog):
         super().__init__(parent)
         self.controller = controller
         self.setWindowTitle("Programm auf Monitor 2")
-        self.resize(560, 460)
+        self.resize(640, 540)
         tabs = QTabWidget()
+        tabs.setDocumentMode(True)
         tabs.addTab(self._capture_tab(), "Anzeigen (Aufnahme)")
         tabs.addTab(self._move_tab(), "Fenster verschieben")
         if not capturable_windows():
             tabs.setCurrentIndex(1)
         lay = QVBoxLayout(self)
+        lay.setContentsMargins(22, 20, 22, 18)
+        lay.setSpacing(12)
+        lay.addWidget(page_header("Programm auf Monitor 2", "Aufnehmen oder das echte Fenster verschieben."))
         lay.addWidget(tabs)
 
     # ------------------------------------------------------------ Aufnahme
@@ -45,9 +50,9 @@ class ProgramDialog(QDialog):
         info.setWordWrap(True)
         self.capture_list = QListWidget()
         self.capture_list.itemDoubleClicked.connect(lambda _i: self._do_capture())
-        reload_btn = QPushButton("Neu laden")
+        reload_btn = button("Neu laden", "refresh")
         reload_btn.clicked.connect(self._fill_capture)
-        show_btn = QPushButton("Anzeigen")
+        show_btn = button("Anzeigen", "play", primary=True)
         show_btn.setDefault(True)
         show_btn.clicked.connect(self._do_capture)
         row = QHBoxLayout()
@@ -65,7 +70,8 @@ class ProgramDialog(QDialog):
         windows = capturable_windows()
         for w in windows:
             if w.description():
-                self.capture_list.addItem(w.description())
+                self.capture_list.addItem(QListWidgetItem(icons.icon("window", theme.current().accent, 20),
+                                                          w.description()))
         if not windows:
             item = QListWidgetItem("Auf diesem System kann Qt keine einzelnen Fenster aufnehmen "
                                    "(z. B. KDE unter Wayland). Nutze „Fenster verschieben“.")
@@ -96,9 +102,9 @@ class ProgramDialog(QDialog):
             self.move_list.itemDoubleClicked.connect(lambda _i: self._do_move())
             lay.addWidget(self.move_list, 1)
             row = QHBoxLayout()
-            reload_btn = QPushButton("Neu laden")
+            reload_btn = button("Neu laden", "refresh")
             reload_btn.clicked.connect(self._fill_move)
-            move_btn = QPushButton("Verschieben")
+            move_btn = button("Verschieben", "extend", primary=True)
             move_btn.clicked.connect(self._do_move)
             row.addWidget(reload_btn)
             row.addStretch(1)
@@ -111,7 +117,7 @@ class ProgramDialog(QDialog):
                          "das gewünschte Programm anzuklicken.")
             box.setWordWrap(True)
             lay.addWidget(box)
-            self.countdown_btn = QPushButton("Anklicken (4 Sekunden)")
+            self.countdown_btn = button("Anklicken (4 Sekunden)", "timer")
             self.countdown_btn.clicked.connect(self._start_countdown)
             lay.addWidget(self.countdown_btn)
         if not wb.can_list and not wb.can_move_active:
@@ -127,7 +133,8 @@ class ProgramDialog(QDialog):
             error_box(self, f"Fensterliste nicht verfügbar: {exc}")
             return
         for w in windows:
-            item = QListWidgetItem(f"{w.title}" + (f"  ({w.app})" if w.app else ""))
+            item = QListWidgetItem(icons.icon("window", theme.current().accent, 20),
+                                   f"{w.title}" + (f"  ({w.app})" if w.app else ""))
             item.setData(Qt.UserRole, w.id)
             item.setData(Qt.UserRole + 1, w.title)
             self.move_list.addItem(item)

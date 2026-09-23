@@ -85,16 +85,40 @@ def fit_rect(iw: int, ih: int, w: int, h: int, fit: str = "contain") -> QRectF:
 
 
 class SinkView(FrameView):
-    """FrameView, die Bilder aus einem QVideoSink bekommt."""
+    """FrameView, die Bilder aus einem QVideoSink bekommt.
+
+    Optimierung: Ein Videobild wird erst dann in ein QImage umgewandelt, wenn es wirklich
+    gezeichnet (oder für Standbild/Bild-in-Bild abgefragt) wird. Kommen mehr Bilder, als der
+    Monitor anzeigen kann, werden die überzähligen gar nicht erst umgewandelt.
+    """
 
     def __init__(self, fit="contain", parent=None):
         super().__init__(fit, parent)
         self.sink = QVideoSink(self)
         self.sink.videoFrameChanged.connect(self._on_frame)
+        self._pending = None
 
     def _on_frame(self, frame):
         if frame.isValid():
-            self.set_image(frame.toImage())
+            self._pending = frame
+            self._message = ""
+            if self.isVisible():
+                self.update()
+
+    def _convert(self):
+        if self._pending is not None:
+            image = self._pending.toImage()
+            self._pending = None
+            if not image.isNull():
+                self._image = image
+
+    def image(self):
+        self._convert()
+        return self._image
+
+    def paintEvent(self, event):
+        self._convert()
+        super().paintEvent(event)
 
 
 # --------------------------------------------------------------------------- Kamera
