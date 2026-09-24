@@ -93,7 +93,15 @@ jobs:
       - name: Tests (Logik + Windows-Strukturen)
         run: pytest -v tests/test_logic.py
       - name: Tests (Oberfläche)
-        run: pytest -v tests/test_gui.py
+        shell: pwsh
+        run: |
+          pytest -v -rf tests/test_gui.py 2>&1 | Tee-Object -FilePath gui.log
+          if ($LASTEXITCODE -ne 0) {
+            # Fehler als Hinweis (Annotation) ausgeben – die sind auch ohne Anmeldung sichtbar
+            Select-String -Path gui.log -Pattern '^(FAILED|E   |ERROR)' | Select-Object -First 40 |
+              ForEach-Object { Write-Output ("::error::" + $_.Line.Trim()) }
+            exit 1
+          }
       - name: AluPC.exe bauen (PyInstaller)
         run: >
           pyinstaller --noconfirm --windowed --name AluPC
