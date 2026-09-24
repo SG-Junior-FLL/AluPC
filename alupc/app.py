@@ -20,6 +20,8 @@ def parse_args(argv):
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     # Für den automatischen Test des fertigen Programms (baut alles auf, zeigt nichts, beendet sich)
     parser.add_argument("--selbsttest", metavar="LOGDATEI", help=argparse.SUPPRESS)
+    # Anmelde-Prüfung für PAM (Fingerabdruckmodul am seriellen Anschluss) – ohne Oberfläche
+    parser.add_argument("--fingerabdruck-pam", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
@@ -46,6 +48,10 @@ def needs_chromium_sandbox_off() -> bool:
 
 def main(argv=None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
+    if args.fingerabdruck_pam:
+        from .platform.zw_fingerprint import pam_check
+
+        return pam_check()
     if args.selbsttest:
         return self_test(args.selbsttest)
 
@@ -173,6 +179,10 @@ def self_test(log_path: str) -> int:
         controller.toggle_screensaver()
         controller.toggle_screensaver()
         lines.append(f"Leerlaufzeit: {controller.screensaver.idle.method}")
+        from .platform.zw_fingerprint import HAVE_SERIAL, candidate_ports
+
+        lines.append(f"Serielle Fingerabdruckmodule: pyserial {'da' if HAVE_SERIAL else 'FEHLT'}, "
+                     f"Anschlüsse: {len(candidate_ports())}")
         if sys.platform.startswith("linux"):
             missing = controller.fingerprint.missing_packages()
             lines.append("Fingerabdruck-Pakete: " + ("vollständig" if not missing else "fehlen: " + ", ".join(missing))

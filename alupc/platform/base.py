@@ -267,6 +267,13 @@ class FingerprintBackend:
     def install_hint(self) -> str:
         return ""
 
+    def is_enrolled(self, sensor_id: str, finger: str) -> bool:
+        return finger in self.list_enrolled(sensor_id)
+
+    def finger_label(self, key: str) -> str:
+        """Anzeigename eines angelernten Fingers."""
+        return FINGER_NAMES.get(key, key)
+
     # ---- Automatische Einrichtung (Assistent)
     can_auto_install = False  # fehlende Systempakete selbst installieren (Linux: apt über pkexec)
 

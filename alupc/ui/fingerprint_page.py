@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..platform import IS_WINDOWS
-from ..platform.base import FINGER_NAMES, FINGERS
+from ..platform.base import FINGERS
 from . import icons, theme
 from .util import error_box, run_async
 from .widgets import Banner, ProgressRing, button, font
@@ -135,10 +135,7 @@ class FingerprintPage(QWidget):
             self.finger_combo.addItem(label, key)
         self.enroll_btn = button("Finger anlernen …", "fingerprint", primary=True)
         self.enroll_btn.clicked.connect(self.enroll)
-        if self.backend.can_enroll:
-            enroll_row.addWidget(self.finger_combo, 1)
-        else:
-            self.enroll_btn.setText("Finger anlernen (Windows Hello öffnen) …")
+        enroll_row.addWidget(self.finger_combo, 1)
         enroll_row.addWidget(self.enroll_btn)
         fl.addLayout(enroll_row)
 
@@ -150,17 +147,15 @@ class FingerprintPage(QWidget):
         self.delete_all_btn = button("Alle löschen", "trash", danger=True)
         self.delete_all_btn.clicked.connect(self.delete_all)
         act_row.addWidget(self.test_btn)
-        if self.backend.can_delete:
-            act_row.addWidget(self.delete_btn)
-            act_row.addWidget(self.delete_all_btn)
+        act_row.addWidget(self.delete_btn)
+        act_row.addWidget(self.delete_all_btn)
         act_row.addStretch(1)
         fl.addLayout(act_row)
-        if IS_WINDOWS:
-            note = QLabel("Windows erlaubt anderen Programmen nicht, Finger für die Windows-Anmeldung "
-                          "anzulernen oder zu löschen. Das geht nur über Windows Hello – AluPC öffnet "
-                          "dafür direkt die richtige Seite.")
-            note.setWordWrap(True)
-            fl.addWidget(note)
+        self.hello_note = QLabel("Windows erlaubt anderen Programmen nicht, Finger für die Windows-Anmeldung "
+                                 "anzulernen oder zu löschen. Das geht nur über Windows Hello – AluPC öffnet "
+                                 "dafür direkt die richtige Seite.")
+        self.hello_note.setWordWrap(True)
+        fl.addWidget(self.hello_note)
         lay.addWidget(finger_box)
 
         self.login_box = QGroupBox("Anmelden mit Fingerabdruck")
@@ -171,28 +166,47 @@ class FingerprintPage(QWidget):
         self.login_btn.clicked.connect(self.toggle_login)
         ll.addWidget(self.login_label)
         ll.addWidget(self.login_btn, 0, Qt.AlignLeft)
-        if self.backend.login_toggle:
-            lay.addWidget(self.login_box)
-        elif IS_WINDOWS:
-            win = QGroupBox("Anmelden mit Fingerabdruck")
-            wl = QVBoxLayout(win)
-            text = QLabel("Die Windows-Anmeldung per Fingerabdruck ist eingeschaltet, sobald ein Finger "
-                          "in Windows Hello angelernt ist.")
-            text.setWordWrap(True)
-            btn = button("Anmeldeoptionen öffnen", "lock")
-            btn.clicked.connect(self.backend.open_system_settings)
-            wl.addWidget(text)
-            wl.addWidget(btn, 0, Qt.AlignLeft)
-            lay.addWidget(win)
+        lay.addWidget(self.login_box)
+        self.win_box = QGroupBox("Anmelden mit Fingerabdruck")
+        wl = QVBoxLayout(self.win_box)
+        self.win_text = QLabel()
+        self.win_text.setWordWrap(True)
+        self.win_btn = button("Anmeldeoptionen öffnen", "lock")
+        self.win_btn.clicked.connect(self.backend.open_system_settings)
+        wl.addWidget(self.win_text)
+        wl.addWidget(self.win_btn, 0, Qt.AlignLeft)
+        lay.addWidget(self.win_box)
+        self._apply_capabilities()
         lay.addStretch(1)
         self._set_enabled(False)
         QTimer.singleShot(0, self.reload)
 
     # ------------------------------------------------------------ Laden
+    def _apply_capabilities(self):
+        """Oberfläche an den gefundenen Sensor anpassen (Modul am seriellen Anschluss ↔ System)."""
+        b = self.backend
+        serial = bool(getattr(b, "is_serial", False))
+        self.finger_combo.setVisible(b.can_enroll)
+        self.enroll_btn.setText("Finger anlernen …" if b.can_enroll else "Finger anlernen (Windows Hello öffnen) …")
+        self.delete_btn.setVisible(b.can_delete)
+        self.delete_all_btn.setVisible(b.can_delete)
+        self.hello_note.setVisible(IS_WINDOWS and not serial)
+        self.login_box.setVisible(bool(b.login_toggle))
+        self.win_box.setVisible(IS_WINDOWS)
+        if IS_WINDOWS and serial:
+            self.win_text.setText("Mit einem Modul am seriellen Anschluss (z. B. HLK-ZW101) kann AluPC anlernen und "
+                                  "prüfen – für die Windows-Anmeldung selbst lässt Windows aber nur Sensoren mit "
+                                  "Windows-Hello-Treiber zu. Das kann AluPC nicht ändern.")
+            self.win_btn.hide()
+        else:
+            self.win_text.setText("Die Windows-Anmeldung per Fingerabdruck ist eingeschaltet, sobald ein Finger "
+                                  "in Windows Hello angelernt ist.")
+            self.win_btn.show()
+
     def _set_enabled(self, on):
         for w in (self.enroll_btn, self.test_btn, self.delete_btn, self.delete_all_btn, self.finger_combo):
             w.setEnabled(on)
-        if IS_WINDOWS:
+        if IS_WINDOWS and not self.backend.can_enroll:
             self.enroll_btn.setEnabled(True)  # Einstellungen öffnen geht immer
 
     def sensor_id(self):
@@ -208,6 +222,7 @@ class FingerprintPage(QWidget):
 
         def done(result):
             ok, msg, sensors = result
+            self._apply_capabilities()
             self.sensor_combo.blockSignals(True)
             self.sensor_combo.clear()
             for s in sensors:
@@ -238,7 +253,7 @@ class FingerprintPage(QWidget):
                 item.setFlags(Qt.NoItemFlags)
                 self.enrolled.addItem(item)
             for f in fingers:
-                item = QListWidgetItem(icons.icon("fingerprint", theme.current().accent, 20), FINGER_NAMES.get(f, f))
+                item = QListWidgetItem(icons.icon("fingerprint", theme.current().accent, 20), self.backend.finger_label(f))
                 item.setData(Qt.UserRole, f)
                 self.enrolled.addItem(item)
 
@@ -268,11 +283,21 @@ class FingerprintPage(QWidget):
 
     # ------------------------------------------------------------ Aktionen
     def auto_setup(self):
+        """Erst klären, welcher Sensor-Weg gilt (Modul am Adapter oder System), dann den Assistenten
+        passend dazu aufbauen – sonst fehlen z. B. Schritte oder die Finger-Auswahl."""
         from .fingerprint_wizard import FingerprintWizard
 
-        wizard = FingerprintWizard(self.backend, self, self.finger_combo.currentData())
-        wizard.exec()
-        self.reload()
+        self.auto_btn.setEnabled(False)
+        self.status.set("Sensor wird gesucht …", "busy")
+
+        def open_wizard(_result=None):
+            self.auto_btn.setEnabled(True)
+            self._apply_capabilities()
+            wizard = FingerprintWizard(self.backend, self, self.finger_combo.currentData())
+            wizard.exec()
+            self.reload()
+
+        run_async(self.backend.availability, open_wizard, lambda _e: open_wizard())
 
     def _scan(self, title, fn, success_text=None, after=None):
         dlg = ScanDialog(self.backend, title, self)

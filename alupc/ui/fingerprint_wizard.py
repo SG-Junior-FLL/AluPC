@@ -6,7 +6,9 @@ Windows: Sensor suchen → Windows Hello zum Anlernen öffnen → Test-Scan
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+import sys
+
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -88,6 +90,7 @@ class FingerprintWizard(QDialog):
         self.sensor_id = None
         self.running = False
         self.linux = backend.name == "fprintd"
+        self._access_fixed = False
 
         self.finger_combo = QComboBox()
         for key, label in FINGERS:
@@ -219,10 +222,18 @@ class FingerprintWizard(QDialog):
             ok, msg = self.backend.availability()
             sensors = self.backend.list_sensors() if ok else []
             hardware = self.backend.detect_hardware() if not sensors else []
-            return ok, msg, sensors, hardware
+            problem = ""
+            if not sensors and not hardware and sys.platform.startswith("linux"):
+                from ..platform.linux_serial_login import access_problem
+
+                problem = access_problem()
+            return ok, msg, sensors, hardware, problem
 
         def done(result):
-            ok, msg, sensors, hardware = result
+            ok, msg, sensors, hardware, problem = result
+            if not sensors and problem and not self._access_fixed:
+                self._offer_access_fix(problem)
+                return
             if sensors:
                 self.sensor_id = sensors[0].id
                 more = f" (+{len(sensors) - 1} weitere)" if len(sensors) > 1 else ""
@@ -240,8 +251,34 @@ class FingerprintWizard(QDialog):
 
         run_async(work, done, lambda e: self._fail("sensor", str(e)))
 
+    def _offer_access_fix(self, problem: str):
+        """Linux: USB-Seriell-Adapter (Fingerabdruckmodul) ist da, aber nicht nutzbar → reparieren?"""
+        from PySide6.QtWidgets import QMessageBox
+
+        from ..platform.linux_serial_login import fix_access
+
+        step = self.steps["sensor"]
+        if problem == "brltty":
+            text = ("Ein USB-Seriell-Adapter (CH340) steckt, wird aber vom Dienst „brltty“ (für Braillezeilen) "
+                    "blockiert – ein bekanntes Ubuntu-Problem.\n\nSoll AluPC brltty entfernen und angemeldeten "
+                    "Benutzern Zugriff auf USB-Seriell-Adapter geben? (Passwort nötig. Wer eine Braillezeile "
+                    "benutzt, sollte „Nein“ wählen.)")
+        else:
+            text = ("Ein USB-Seriell-Adapter steckt, aber AluPC darf ihn nicht öffnen.\n\nSoll AluPC angemeldeten "
+                    "Benutzern Zugriff auf USB-Seriell-Adapter geben (udev-Regel)? Passwort nötig.")
+        if QMessageBox.question(self, "Zugriff auf den Adapter", text) != QMessageBox.Yes:
+            self._fail("sensor", "Kein Zugriff auf den USB-Seriell-Adapter.")
+            return
+        self._access_fixed = True
+        step.set("läuft", "Zugriff wird eingerichtet … (Adapter danach einmal aus- und wieder einstecken)")
+        run_async(lambda: fix_access(problem == "brltty"),
+                  lambda _r: QTimer.singleShot(2500, self._step_sensor),
+                  lambda e: self._fail("sensor", str(e)))
+
     def _step_enroll(self):
         step = self.steps["anlernen"]
+        if self.backend.can_enroll:
+            step.title.setText("Finger anlernen")
         if not self.backend.can_enroll:
             # Windows: Anlernen geht nur über Windows Hello
             step.set("läuft", "Windows Hello ist geöffnet – dort „Fingerabdruck einrichten“ durchklicken.")
@@ -254,8 +291,7 @@ class FingerprintWizard(QDialog):
         step.set("läuft", f"{label} …")
 
         def work(status):
-            enrolled = self.backend.list_enrolled(self.sensor_id)
-            if finger in enrolled:
+            if self.backend.is_enrolled(self.sensor_id, finger):
                 return "schon da"
             self.backend.enroll(self.sensor_id, finger, status)
             return "neu"

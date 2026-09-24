@@ -846,6 +846,9 @@ class FakeFingerprint:
     def list_enrolled(self, _sid):
         return []
 
+    def is_enrolled(self, sid, finger):
+        return finger in self.list_enrolled(sid)
+
     def enroll(self, sid, finger, status):
         for i in range(1, 4):
             status("auflegen", i, 3)
@@ -1256,3 +1259,50 @@ def test_cursor_tracker_cleans_up_failed_kwin(monkeypatch):
     t.acquire()
     assert t.method == "keine" and t._kwin is None and stopped == [1]
     t.release()
+
+
+# ---------------------------------------------------------------- 0.9: Fingerabdruckmodul am seriellen Anschluss
+@pytest.mark.skipif(not __import__("sys").platform.startswith("linux"), reason="virtueller Anschluss nur Linux")
+def test_serial_module_page_and_wizard(env, monkeypatch):
+    pytest.importorskip("serial")
+    import time
+
+    from fake_zw101 import FakeZW101
+
+    from alupc.platform import zw_fingerprint as zw
+    from alupc.ui.fingerprint_wizard import FingerprintWizard
+
+    controller, window, tmp = env
+    fake = FakeZW101()
+    try:
+        monkeypatch.setattr(zw, "candidate_ports", lambda: [fake.port])
+        backend = controller.fingerprint
+        assert backend.availability() == (True, "") and backend.is_serial
+        assert backend.can_enroll and backend.can_delete
+
+        # Seite: passt sich an (Finger-Auswahl, Löschen sichtbar, kein Windows-Hello-Hinweis)
+        window._go(3)
+        page = window.pages[3].findChild(__import__("alupc.ui.fingerprint_page", fromlist=["x"]).FingerprintPage)
+        end = time.time() + 5
+        while page.sensor_combo.count() == 0 and time.time() < end:
+            pump()
+        assert fake.port in page.sensor_combo.currentData()
+        assert not page.finger_combo.isHidden() and not page.hello_note.isVisible()
+
+        # Assistent: Sensor → anlernen → testen (Anmeldung hier aus: dafür braucht es das .deb)
+        fake.finger = "zeigefinger"
+        fake.auto_lift = True
+        wiz = FingerprintWizard(backend, None, "right-index-finger")
+        wiz.login_box.setChecked(False)
+        wiz.start()
+        end = time.time() + 15
+        while wiz.running and time.time() < end:
+            pump()
+            time.sleep(0.01)
+        states = {k: s.state for k, s in wiz.steps.items()}
+        assert states["sensor"] == "ok" and states["anlernen"] == "ok" and states["test"] == "ok", \
+            {k: s.detail.text() for k, s in wiz.steps.items()}
+        assert list(fake.library.values()) == ["zeigefinger"]
+        wiz.deleteLater()
+    finally:
+        fake.close()

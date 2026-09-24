@@ -8,6 +8,18 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.9.0)
+- **Fingerabdruckmodul am USB-Seriell-Adapter** (z. B. **Hi-Link HLK-ZW101 / ZW0922**, AS608, R307):
+  AluPC findet das Modul selbst (Anschluss und Baudrate), lernt Finger an, zeigt und löscht sie, macht
+  Test-Scans – unter **Windows und Linux**.
+- **Linux-Anmeldung** mit dem Modul (Anmeldebildschirm, Sperrbildschirm, sudo) über PAM – nur mit
+  dem .deb und nur auf PCs mit einem Benutzerkonto (das Modul hat keinen Zugriffsschutz); das Passwort
+  geht immer weiter. Das .deb bringt eine udev-Regel mit, damit der Adapter
+  benutzt werden darf; blockiert brltty den CH340-Adapter, bietet der Assistent an, es zu entfernen.
+- **Windows:** Anmelden mit so einem Modul ist nicht möglich (Windows lässt nur Windows-Hello-Sensoren
+  zu) – anlernen und prüfen in AluPC geht.
+- Getestet gegen ein nachgebautes Modul mit gleichem Protokoll, nicht gegen echte Hardware.
+
 ### Neu in dieser Version (0.8.2)
 - Behoben: Mit „Harter Schnitt“ im Setup wurde ein eigener Übergang einer Szene ignoriert.
 - Behoben (KDE/Wayland): Hing KWin beim Aufnehmen, konnte AluPC beim Szenenwechsel abstürzen;

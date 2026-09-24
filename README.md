@@ -201,6 +201,32 @@ Für Szenen: *Neu hinzufügen → Befehl* mit `alupc --befehl "szene:Name"`.
 | Finger löschen | ✔ | nur in den Windows-Einstellungen |
 | Anmelden mit Fingerabdruck | ein/aus über `pam-auth-update` (gilt für Anmeldebildschirm, Sperrbildschirm, sudo) | automatisch aktiv, sobald ein Finger in Windows Hello angelernt ist |
 
+### Fingerabdruckmodul am USB-Seriell-Adapter (z. B. Hi-Link HLK-ZW101 / ZW0922)
+
+Diese Module (auch AS608, R307 und andere mit „EF01“-Protokoll) vergleichen Fingerabdrücke selbst
+und hängen über einen USB-Seriell-Adapter (CH340, CP2102 …) am PC. Windows Hello und libfprint
+kennen sie nicht – AluPC steuert sie direkt. Steckt so ein Modul, nimmt AluPC automatisch das Modul.
+
+| | Kubuntu | Windows 11 |
+|---|---|---|
+| Modul finden (Anschluss + Baudrate automatisch) | ✔ | ✔ (CH340-Treiber kommt meist über Windows Update) |
+| Finger anlernen (2× auflegen), anzeigen, löschen, Test-Scan | ✔ | ✔ |
+| Anmelden / Entsperren / sudo | ✔ nur mit dem **.deb** (über PAM, `pam_exec`) | ✘ Windows lässt nur Windows-Hello-Sensoren zu |
+
+- **Kubuntu:** „Automatisch einrichten“ findet das Modul, lernt den Finger an, testet und schaltet die
+  Anmeldung ein. Blockiert der Dienst **brltty** den CH340-Adapter (bekanntes Ubuntu-Problem), bietet
+  AluPC an, ihn zu entfernen. Beim Anmelden/Entsperren/sudo hat man ca. 6 Sekunden, um den Finger
+  aufzulegen – sonst geht es mit dem Passwort weiter (das Passwort funktioniert immer). Am
+  Sperrbildschirm startet die Prüfung je nach Plasma-Version erst nach Enter.
+- **Sicherheit:** Der PC vertraut der Antwort des Moduls („passt“), und das Modul hat keinen
+  Zugriffsschutz: Wer den Adapter öffnen darf, kann Finger in beliebige Speicherplätze schreiben.
+  Deshalb lässt AluPC die Anmeldung per Modul **nur auf PCs mit genau einem Benutzerkonto** zu (sonst
+  könnte ein anderer Benutzer seinen Finger für dein Konto eintragen). Wer an den PC kommt und das Modul
+  gegen ein manipuliertes Gerät tauscht, könnte es ebenfalls ausnutzen – sicherer als ein Passwort ist
+  es nicht. Das Prüfprogramm läuft als root; deshalb geht die Anmeldung nur
+  mit dem installierten .deb (Programmdatei gehört root), nicht mit der portablen Version.
+- Getestet ist der Treiber gegen ein nachgebautes Modul (gleiches Protokoll), nicht gegen ein echtes.
+
 ## Ehrliche Grenzen
 
 - **Nicht auf echter Hardware getestet.** Die automatischen Tests laufen auf GitHub unter Linux und
