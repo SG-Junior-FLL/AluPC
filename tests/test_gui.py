@@ -6,7 +6,21 @@ from pathlib import Path
 import pytest
 
 HERE = Path(__file__).resolve().parent
-os.environ["QT_QPA_PLATFORM"] = f"offscreen:configfile={HERE / 'offscreen_two_screens.json'}"
+
+
+def _qpa_path(path: Path) -> str:
+    """Pfad ohne Doppelpunkt: Qt trennt Plattform-Optionen am „:“ (Windows: „D:\\…“)."""
+    try:
+        rel = os.path.relpath(path)
+    except ValueError:  # anderes Laufwerk
+        rel = str(path)
+    rel = rel.replace("\\", "/")
+    if ":" in rel:
+        rel = rel.split(":", 1)[1]  # Laufwerksbuchstabe weg → gilt für das aktuelle Laufwerk
+    return rel
+
+
+os.environ["QT_QPA_PLATFORM"] = f"offscreen:configfile={_qpa_path(HERE / 'offscreen_two_screens.json')}"
 
 pytest.importorskip("PySide6.QtWidgets")
 
