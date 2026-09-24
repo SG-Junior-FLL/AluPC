@@ -11,6 +11,7 @@ from PySide6.QtGui import QColor, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QSlider,
@@ -20,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..laser import paint_dot, paint_strokes
+from ..output_window import grab_scaled
 from ..sources import ScreenSource, fit_rect
 from . import icons, theme
 from .util import ColorButton
@@ -28,6 +30,7 @@ from .widgets import button
 COLORS = ["#ef4444", "#f59e0b", "#facc15", "#22c55e", "#3b82f6", "#a855f7", "#ffffff", "#111827"]
 TOOLS = [("laser", "laser", "Laserpointer (L)"), ("pen", "edit", "Stift (S)"),
          ("marker", "highlighter", "Textmarker (M)"), ("eraser", "eraser", "Radierer (R)")]
+FPS_CHOICES = [10, 15, 20, 30, 45, 60]
 ERASER_RADIUS = 0.03  # relativ zur Höhe von Monitor 2
 
 
@@ -192,6 +195,20 @@ class PresenterWindow(QWidget):
         self.width_slider.setFixedWidth(110)
         self.width_slider.valueChanged.connect(self._save)
         bar.addWidget(self.width_slider)
+        bar.addSpacing(12)
+        self.fps_combo = QComboBox()
+        for fps in FPS_CHOICES:
+            self.fps_combo.addItem(f"{fps} Bilder/s", fps)
+        self.fps_combo.setToolTip("Wie oft die Vorschau hier aktualisiert wird (Monitor 2 selbst läuft immer "
+                                  "flüssig). Mehr Bilder/s = flüssiger, braucht aber mehr Rechenleistung.")
+        wanted = int(controller.config["draw"].get("fps", 30))
+        self.fps_combo.setCurrentIndex(max(0, self.fps_combo.findData(wanted)))
+        self.fps_combo.currentIndexChanged.connect(self._fps_changed)
+        self.fps_label = QLabel("")
+        self.fps_label.setObjectName("Muted")
+        self.fps_label.setMinimumWidth(80)
+        bar.addWidget(self.fps_combo)
+        bar.addWidget(self.fps_label)
         bar.addStretch(1)
         undo = button("Rückgängig", "undo")
         undo.setToolTip("Letzten Strich entfernen (Strg+Z)")
@@ -234,8 +251,13 @@ class PresenterWindow(QWidget):
                            ("Esc", self.close)):
             QShortcut(QKeySequence(keys), self, activated=slot)
 
-        self.timer = QTimer(self, interval=100)  # Vorschau 10 Bilder/s
+        self.timer = QTimer(self)
+        self.timer.setTimerType(Qt.PreciseTimer)
         self.timer.timeout.connect(self.refresh)
+        self._frames = 0
+        self._measure = QTimer(self, interval=1000)
+        self._measure.timeout.connect(self._show_rate)
+        self._apply_fps()
         self.set_tool(controller.config["draw"].get("tool", "laser"))
         self.set_color(self.color)
 
@@ -261,6 +283,22 @@ class PresenterWindow(QWidget):
             s.setStyleSheet(f"QToolButton {{ background: {col}; border: 3px solid {border}; border-radius: 14px; }}")
         self._save()
 
+    def fps(self) -> int:
+        return int(self.fps_combo.currentData() or 30)
+
+    def _apply_fps(self):
+        self.timer.setInterval(max(1, round(1000 / self.fps())))
+
+    def _fps_changed(self, *_):
+        self._apply_fps()
+        self._stop_live()  # Aufnahme mit neuer Rate neu starten
+        self._save()
+
+    def _show_rate(self):
+        # ehrlich anzeigen, was wirklich erreicht wird (langsamer Rechner → weniger als eingestellt)
+        self.fps_label.setText(f"(erreicht: {self._frames})")
+        self._frames = 0
+
     def width_value(self) -> float:
         return self.width_slider.value() / 1000  # relativ zur Höhe von Monitor 2
 
@@ -269,17 +307,21 @@ class PresenterWindow(QWidget):
             return
         self.controller.config["draw"] = {
             "tool": self.tool, "color": self.color, "width": self.width_slider.value(),
-            "clear_on_change": self.clear_on_change.isChecked(), "clear_on_close": self.clear_on_close.isChecked()}
+            "clear_on_change": self.clear_on_change.isChecked(), "clear_on_close": self.clear_on_close.isChecked(),
+            "fps": self.fps()}
 
     # ------------------------------------------------------------ Vorschau
     def showEvent(self, e):
         self.controller.laser.set_remote(True)
         self.timer.start()
+        self._frames = 0
+        self._measure.start()
         self.refresh()
         super().showEvent(e)
 
     def hideEvent(self, e):
         self.timer.stop()
+        self._measure.stop()
         self._stop_live()
         self.controller.laser.remote_point(None)
         if self.clear_on_close.isChecked():
@@ -299,7 +341,10 @@ class PresenterWindow(QWidget):
         if out.isVisible():
             # AluPC zeigt selbst etwas → Ausgabefenster abfotografieren (ohne Aufnahme-Freigabe)
             self._stop_live()
-            self.canvas.image = out.grab().toImage()
+            # direkt in Vorschaugröße zeichnen (schneller als volle Auflösung abfotografieren)
+            area = self.canvas.area()
+            dpr = self.canvas.devicePixelRatioF()
+            self.canvas.image = grab_scaled(out, area.size() * dpr)
         else:
             screen = c.output_screen()
             if screen is None:
@@ -308,6 +353,7 @@ class PresenterWindow(QWidget):
             else:
                 # „Erweitern“: Monitor 2 live aufnehmen
                 if self.live_capture is None:
-                    self.live_capture = ScreenSource({"screen_name": screen.name()})
+                    self.live_capture = ScreenSource({"screen_name": screen.name(), "fps": self.fps()})
                 self.canvas.image = self.live_capture.image()
+        self._frames += 1
         self.canvas.update()

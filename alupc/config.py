@@ -52,7 +52,7 @@ DEFAULTS: dict = {
     "scenes": [],
     "hotkeys": dict(DEFAULT_HOTKEYS),
     "privacy": {"text": "", "image": ""},
-    "pip": {"opacity": 1.0, "width": 480, "fps": 10},
+    "pip": {"opacity": 1.0, "width": 480, "fps": 20},
     # Timer (Countdown/Stoppuhr): Voreinstellung für Kachel und Befehle
     "timer": {"minutes": 5, "seconds": 0, "mode": "countdown", "finished_text": "Zeit ist um!",
               "warn_colors": True, "size": 30},
@@ -78,7 +78,8 @@ DEFAULTS: dict = {
     # Laserpointer auf Monitor 2 (folgt der Maus auf Monitor 1)
     "laser": {"color": "#ff2a2a", "size": 100, "trail": True},
     # Fenster „Zeigen & Zeichnen“: Werkzeug, Farbe, Stärke; Zeichnungen automatisch löschen
-    "draw": {"tool": "laser", "color": "#ef4444", "width": 4, "clear_on_change": True, "clear_on_close": True},
+    "draw": {"tool": "laser", "color": "#ef4444", "width": 4, "clear_on_change": True, "clear_on_close": True,
+             "fps": 30},
     "start_minimized": False,
     "appearance": {"mode": "system", "accent": "blau", "fade": True},
     # Übergang zwischen Inhalten/Szenen auf Monitor 2 (Art siehe transitions.py); Szenen können

@@ -60,6 +60,7 @@ class PipWindow(QWidget):
         self.grip.resize(16, 16)
         self.live_capture: ScreenSource | None = None
         self.timer = QTimer(self)
+        self.timer.setTimerType(Qt.PreciseTimer)
         self.timer.timeout.connect(self.refresh)
         self._drag: QPoint | None = None
         self.setToolTip("Ziehen zum Verschieben, Ecke unten rechts zum Vergrößern, Doppelklick schließt")
@@ -106,7 +107,9 @@ class PipWindow(QWidget):
         if out.isVisible():
             # AluPC zeigt selbst etwas → einfach das Ausgabefenster abfotografieren
             self._stop_live()
-            self.view.set_image(out.grab())
+            from ..output_window import grab_scaled
+
+            self.view.set_image(grab_scaled(out, self.view.size() * self.view.devicePixelRatioF()))
             return
         screen = self.controller.output_screen()
         if screen is None:
@@ -116,7 +119,8 @@ class PipWindow(QWidget):
             return
         # Normaler Desktop auf Monitor 2 → Monitor 2 live aufnehmen
         if self.live_capture is None:
-            self.live_capture = ScreenSource({"screen_name": screen.name()})
+            fps = int(self.controller.config["pip"].get("fps", 20))
+            self.live_capture = ScreenSource({"screen_name": screen.name(), "fps": fps})
         image = self.live_capture.image()  # nur so oft umwandeln, wie Bild-in-Bild aktualisiert
         if image is not None:
             self.view.set_image(image)

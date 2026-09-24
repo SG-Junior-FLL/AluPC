@@ -706,7 +706,7 @@ class SetupPage(QWidget):
         opacity.setRange(20, 100)
         opacity.setValue(int(float(cfg.get("opacity", 1.0)) * 100))
         fps = QSpinBox()
-        fps.setRange(1, 30)
+        fps.setRange(1, 60)
         fps.setSuffix(" Bilder/s")
         fps.setValue(int(cfg.get("fps", 10)))
 

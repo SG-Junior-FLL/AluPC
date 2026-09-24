@@ -338,6 +338,29 @@ class ScreenGrabber(QObject):
             self.failed.emit(error or "Unbekannter Fehler")
 
 
+def grab_scaled(widget, size) -> QImage:
+    """Widget (mit allen Kindern) direkt in Zielgröße zeichnen – viel schneller als erst in voller
+    Auflösung abfotografieren und dann verkleinern (wichtig für flüssige Vorschauen)."""
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QPainter, QRegion
+
+    w, h = widget.width(), widget.height()
+    tw, th = max(1, int(size.width())), max(1, int(size.height()))
+    if w <= 0 or h <= 0:
+        return QImage()
+    if tw >= w and th >= h:
+        return widget.grab().toImage()  # nicht kleiner → normal abfotografieren
+    scale = min(tw / w, th / h)
+    image = QImage(max(1, round(w * scale)), max(1, round(h * scale)), QImage.Format_RGB32)
+    image.fill(Qt.black)
+    p = QPainter(image)
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    p.scale(scale, scale)
+    widget.render(p, QPoint(), QRegion(widget.rect()))
+    p.end()
+    return image
+
+
 def screen_by_name(name: str):
     for s in QGuiApplication.screens():
         if s.name() == name:

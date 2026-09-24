@@ -1205,3 +1205,31 @@ def test_drawings_can_stay_when_wanted(env):
     assert len(controller.laser.strokes) == 1 and controller.laser.isVisible()  # bleibt auf Monitor 2
     controller.run_command("zeichnungen_loeschen")
     assert controller.laser.strokes == [] and not controller.laser.isVisible()
+
+
+def test_preview_frame_rate_selectable(env):
+    import time
+
+    from PySide6.QtCore import QSize
+
+    from alupc.output_window import grab_scaled
+
+    controller, window, _ = env
+    controller.show_source({"type": "color", "color": "#ff0000"})
+    pump()
+    window.open_presenter()
+    win = window.presenter
+    assert win.fps() == 30 and win.timer.interval() == 33  # Standard jetzt 30 statt 10
+    win.fps_combo.setCurrentIndex(win.fps_combo.findData(60))
+    assert win.timer.interval() == 17 and controller.config["draw"]["fps"] == 60
+    # Vorschau wird direkt verkleinert gezeichnet – richtiger Inhalt, richtige Größe
+    img = grab_scaled(controller.output, QSize(320, 180))
+    assert img.width() <= 320 and img.height() <= 180 and img.pixelColor(10, 10).name() == "#ff0000"
+    # Es kommen wirklich viele Bilder pro Sekunde an (nicht mehr nur 10)
+    win._frames = 0
+    end = time.time() + 1.0
+    while time.time() < end:
+        pump(1)
+    assert win._frames >= 15, win._frames  # großzügig: GitHub-Rechner sind langsam
+    win.close()
+    pump()
