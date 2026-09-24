@@ -8,6 +8,12 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.9.1)
+- **Fingerabdruckmodul: Anmeldung auch bei mehreren Benutzerkonten** – nach einer deutlichen Warnung
+  und ausdrücklicher Bestätigung. Jeder Benutzer verwaltet nur seine eigenen Finger: fremde Finger
+  werden weder überschrieben noch gelöscht, und die Zuordnung Finger → Benutzer wird zusammengeführt
+  statt ersetzt (vorher hätte jeder Benutzer die Einträge der anderen gelöscht).
+
 ### Neu in dieser Version (0.9.0)
 - **Fingerabdruckmodul am USB-Seriell-Adapter** (z. B. **Hi-Link HLK-ZW101 / ZW0922**, AS608, R307):
   AluPC findet das Modul selbst (Anschluss und Baudrate), lernt Finger an, zeigt und löscht sie, macht

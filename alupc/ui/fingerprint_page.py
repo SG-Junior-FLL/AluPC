@@ -364,6 +364,17 @@ class FingerprintPage(QWidget):
             text = "Anmeldung mit Fingerabdruck ausschalten?"
         if QMessageBox.question(self, "Anmeldung", text) != QMessageBox.Yes:
             return
+        allow_multi = False
+        warning = getattr(self.backend, "multi_user_warning", lambda: "")() if enable else ""
+        if warning:
+            box = QMessageBox(QMessageBox.Warning, "Mehrere Benutzer", warning, parent=self)
+            box.addButton("Trotzdem einschalten", QMessageBox.AcceptRole)
+            cancel = box.addButton("Abbrechen", QMessageBox.RejectRole)
+            box.setDefaultButton(cancel)
+            box.exec()
+            if box.clickedButton() is cancel:
+                return
+            allow_multi = True
         self.login_btn.setEnabled(False)
 
         def finished(*_):
@@ -374,4 +385,7 @@ class FingerprintPage(QWidget):
             finished()
             error_box(self, f"Konnte nicht geändert werden: {e}")
 
-        run_async(lambda: self.backend.set_login_enabled(enable), finished, failed)
+        if allow_multi:
+            run_async(lambda: self.backend.set_login_enabled(enable, allow_multi=True), finished, failed)
+        else:
+            run_async(lambda: self.backend.set_login_enabled(enable), finished, failed)

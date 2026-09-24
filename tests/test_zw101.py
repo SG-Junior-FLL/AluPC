@@ -122,6 +122,8 @@ def test_login_config_and_safety(fake, tmp_path, monkeypatch):
     zw.save_slots({"0": {"finger": "right-thumb", "user": "noah"}, "2": {"finger": "left-thumb", "user": "noah"},
                    "5": {"finger": "right-thumb", "user": "evil;rm -rf /"}})
     cfg = login.valid_config(zw.login_config("/dev/ttyUSB0", 57600))
+    assert cfg["users"] == {} or all(u == zw.current_user() for u in cfg["users"])  # nur eigene Finger
+    cfg = login.valid_config({"users": {"noah": [0, 2], "evil;rm -rf /": [5]}, "port": "/dev/ttyUSB0"})
     assert cfg["users"] == {"noah": [0, 2]} and cfg["port"] == "/dev/ttyUSB0"  # unsinnige Namen fliegen raus
     assert login.valid_config({"users": {}, "port": "/etc/shadow"})["port"] == ""
     profile = login.pam_profile("/opt/alupc/AluPC --fingerabdruck-pam")
@@ -132,10 +134,12 @@ def test_login_config_and_safety(fake, tmp_path, monkeypatch):
     monkeypatch.setattr(login, "human_accounts", lambda: ["noah"])
     with pytest.raises(RuntimeError, match=".deb"):
         login.enable_login(cfg)
-    # mehrere Konten → abgelehnt (egal wie installiert)
+    # mehrere Konten → nur nach ausdrücklicher Bestätigung (allow_multi), sonst Warnung
     monkeypatch.setattr(login, "human_accounts", lambda: ["noah", "gast"])
-    with pytest.raises(RuntimeError, match="genau einem Benutzerkonto"):
+    with pytest.raises(login.MultiUserError, match="mehrere Benutzerkonten"):
         login.enable_login(cfg)
+    with pytest.raises(RuntimeError, match=".deb"):  # bestätigt → weiter bis zur .deb-Prüfung
+        login.enable_login(cfg, allow_multi=True)
 
 
 def test_garbage_stream_does_not_hang(tmp_path, monkeypatch):
@@ -191,3 +195,35 @@ def test_is_enrolled_uses_finger_names(fake):
     assert not backend.is_enrolled(fake.port, "right-thumb")
     fake.library.clear()  # im Modul gelöscht → nicht mehr angelernt
     assert not backend.is_enrolled(fake.port, "left-index-finger")
+
+
+def test_multi_user_mapping_is_merged_not_overwritten():
+    from alupc.platform import linux_serial_login as login
+
+    existing = {"users": {"anna": [0, 1], "ben": [2]}, "port": "/dev/ttyUSB0", "baud": 57600, "timeout": 6,
+                "multi_user": True}
+    # Ben lernt neu an (Platz 2 und 5) – Annas Einträge bleiben
+    merged = login.merge_config({"users": {"ben": [2, 5]}, "port": "/dev/ttyUSB0", "baud": 57600}, "ben", existing)
+    assert merged["users"] == {"anna": [0, 1], "ben": [2, 5]} and merged["multi_user"] is True
+    # Ben löscht alle seine Finger → nur Ben verschwindet
+    merged = login.merge_config({"users": {}, "port": "/dev/ttyUSB0"}, "ben", existing)
+    assert merged["users"] == {"anna": [0, 1]}
+    # veralteter Eintrag: Platz 1 war Anna zugeordnet, gehört jetzt Ben → nicht mehr für Anna gültig
+    merged = login.merge_config({"users": {"ben": [1]}}, "ben", existing)
+    assert merged["users"] == {"anna": [0], "ben": [1]}
+
+
+def test_foreign_fingers_are_protected(fake, monkeypatch):
+    backend = zw.SerialFingerprintBackend()
+    backend.list_sensors()
+    fake.library = {0: "anna-daumen"}
+    monkeypatch.setattr(zw, "foreign_slots", lambda user=None: {0})  # Platz 0 gehört „anna“
+    fake.finger = "ben"
+    fake.auto_lift = True
+    backend.enroll(fake.port, "right-thumb", lambda *_: None)
+    assert fake.library == {0: "anna-daumen", 1: "ben"}  # Annas Platz wird nicht belegt
+    with pytest.raises(zw.SensorError, match="anderen Benutzer"):
+        backend.delete(fake.port, "platz:0")
+    backend.delete(fake.port, "*")  # „Alle löschen“ = alle eigenen
+    assert fake.library == {0: "anna-daumen"}
+    assert "anderen Benutzers" in backend.finger_label("platz:0")

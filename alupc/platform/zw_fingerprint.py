@@ -370,6 +370,8 @@ class SerialFingerprintBackend(FingerprintBackend):
         info = load_slots().get(slot, {})
         name = FINGER_NAMES.get(info.get("finger", ""), "Finger")
         who = info.get("user")
+        if not info and slot.isdigit() and int(slot) in foreign_slots():
+            return f"Finger eines anderen Benutzers (Platz {slot})"
         return f"{name} (Platz {slot}" + (f", {who})" if who and who != current_user() else ")")
 
     def list_enrolled(self, sensor_id):
@@ -419,7 +421,7 @@ class SerialFingerprintBackend(FingerprintBackend):
         s, cap = self._open(sensor_id)
         total = SCANS_PER_ENROLL + 1
         with s:
-            used = s.used_slots(cap)
+            used = s.used_slots(cap) | foreign_slots(user)
             free = next((i for i in range(cap) if i not in used), None)
             if free is None:
                 raise SensorError("Der Speicher des Moduls ist voll – bitte erst Finger löschen.")
@@ -471,12 +473,21 @@ class SerialFingerprintBackend(FingerprintBackend):
     def delete(self, sensor_id, finger):
         s, cap = self._open(sensor_id)
         with s:
+            others = foreign_slots() | {int(k) for k, v in load_slots().items()
+                                         if v.get("user") not in (None, current_user())}
             if finger == "*":
-                s.empty()
-                save_slots({})
+                if not others:
+                    s.empty()
+                    save_slots({})
+                else:  # andere Benutzer haben Finger im Modul → nur die eigenen löschen
+                    for slot in s.used_slots(cap) - others:
+                        s.delete(slot)
+                    save_slots({k: v for k, v in load_slots().items() if v.get("user") != current_user()})
                 self._sync_login(sensor_id)
                 return
             slot = int(finger.split(":", 1)[1])
+            if slot in others:
+                raise SensorError("Dieser Finger gehört einem anderen Benutzer – den kann nur dieser löschen.")
             s.delete(slot)
         slots = load_slots()
         slots.pop(str(slot), None)
@@ -512,23 +523,32 @@ class SerialFingerprintBackend(FingerprintBackend):
         except OSError:
             return None
 
-    def set_login_enabled(self, enabled):
+    def set_login_enabled(self, enabled, allow_multi: bool = False):
         from .linux_serial_login import disable_login, enable_login
 
         if enabled:
             port = next(iter(self._found), "")
-            enable_login(login_config(port, self._found.get(port, (57600, {}))[0]))
+            enable_login(login_config(port, self._found.get(port, (57600, {}))[0]), allow_multi)
         else:
             disable_login()
 
 
 def login_config(port: str, baud: int) -> dict:
     """Was die Anmelde-Prüfung braucht: welche Plätze gehören welchem Benutzer, wo steckt das Modul."""
-    users: dict[str, list[int]] = {}
-    for slot, info in load_slots().items():
-        users.setdefault(info.get("user", ""), []).append(int(slot))
-    users.pop("", None)
-    return {"users": users, "port": port, "baud": baud, "timeout": 6}
+    user = current_user()
+    # nur die eigenen Finger – Einträge anderer Benutzer verwaltet deren AluPC
+    mine = [int(slot) for slot, info in load_slots().items() if info.get("user") == user]
+    return {"users": {user: sorted(mine)} if mine else {}, "port": port, "baud": baud, "timeout": 6}
+
+
+def foreign_slots(user: str | None = None) -> set[int]:
+    """Plätze, die laut Anmelde-Einstellung anderen Benutzern gehören (für Linux mit mehreren Konten)."""
+    if not sys.platform.startswith("linux"):
+        return set()
+    from .linux_serial_login import read_login
+
+    user = user or current_user()
+    return {int(s) for name, slots in read_login().get("users", {}).items() if name != user for s in slots}
 
 
 # --------------------------------------------------------------------------- Anmelde-Prüfung (PAM)

@@ -220,8 +220,11 @@ kennen sie nicht – AluPC steuert sie direkt. Steckt so ein Modul, nimmt AluPC 
   Sperrbildschirm startet die Prüfung je nach Plasma-Version erst nach Enter.
 - **Sicherheit:** Der PC vertraut der Antwort des Moduls („passt“), und das Modul hat keinen
   Zugriffsschutz: Wer den Adapter öffnen darf, kann Finger in beliebige Speicherplätze schreiben.
-  Deshalb lässt AluPC die Anmeldung per Modul **nur auf PCs mit genau einem Benutzerkonto** zu (sonst
-  könnte ein anderer Benutzer seinen Finger für dein Konto eintragen). Wer an den PC kommt und das Modul
+  Gibt es **mehrere Benutzerkonten**, warnt AluPC deshalb vor dem Einschalten und schaltet die Anmeldung
+  nur nach ausdrücklicher Bestätigung ein: Ein anderer Benutzer könnte mit etwas Technik seinen Finger
+  für dein Konto eintragen. AluPC selbst verhindert das (jeder sieht und löscht nur seine eigenen Finger,
+  fremde Plätze werden nie überschrieben) – nur nicht bei Absicht. Nur einschalten, wenn du allen
+  Benutzern des PCs vertraust. Wer an den PC kommt und das Modul
   gegen ein manipuliertes Gerät tauscht, könnte es ebenfalls ausnutzen – sicherer als ein Passwort ist
   es nicht. Das Prüfprogramm läuft als root; deshalb geht die Anmeldung nur
   mit dem installierten .deb (Programmdatei gehört root), nicht mit der portablen Version.

@@ -129,8 +129,19 @@ class AutoFingerprintBackend(FingerprintBackend):
     def login_enabled(self):
         return self.active.login_enabled()
 
-    def set_login_enabled(self, enabled):
+    def set_login_enabled(self, enabled, allow_multi: bool = False):
+        if self.is_serial:
+            return self.serial.set_login_enabled(enabled, allow_multi)
         return self.active.set_login_enabled(enabled)
+
+    def multi_user_warning(self) -> str:
+        """Leer, außer: Modul am Adapter + Linux + mehrere Benutzerkonten → Warntext zum Bestätigen."""
+        if not (self.is_serial and IS_LINUX):
+            return ""
+        from .linux_serial_login import MULTI_USER_WARNING, human_accounts
+
+        accounts = human_accounts()
+        return MULTI_USER_WARNING.format(accounts=", ".join(accounts)) if len(accounts) > 1 else ""
 
     def open_system_settings(self):
         return self.system.open_system_settings()

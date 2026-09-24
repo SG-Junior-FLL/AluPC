@@ -360,9 +360,25 @@ class FingerprintWizard(QDialog):
             step.set("ok", "War schon eingeschaltet.")
             self._finish()
             return
+        allow_multi = False
+        warning = getattr(self.backend, "multi_user_warning", lambda: "")()
+        if warning:
+            from PySide6.QtWidgets import QMessageBox
+
+            box = QMessageBox(QMessageBox.Warning, "Mehrere Benutzer", warning, parent=self)
+            box.addButton("Trotzdem einschalten", QMessageBox.AcceptRole)
+            cancel = box.addButton("Nicht einschalten", QMessageBox.RejectRole)
+            box.setDefaultButton(cancel)
+            box.exec()
+            if box.clickedButton() is cancel:
+                step.set("übersprungen", "Nicht eingeschaltet (mehrere Benutzer).")
+                self._finish()
+                return
+            allow_multi = True
         step.set("läuft", "Passwort bestätigen …")
         self.say("Das System fragt nach deinem Passwort, um die Anmeldung umzustellen.")
-        run_async(lambda: self.backend.set_login_enabled(True),
+        run_async((lambda: self.backend.set_login_enabled(True, allow_multi=True)) if allow_multi
+                  else (lambda: self.backend.set_login_enabled(True)),
                   lambda _r: (step.set("ok", "Eingeschaltet – das Passwort geht weiterhin."), self._finish()),
                   lambda e: self._fail("anmeldung", str(e)))
 

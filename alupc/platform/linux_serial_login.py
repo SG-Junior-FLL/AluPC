@@ -56,7 +56,7 @@ def valid_config(cfg: dict) -> dict:
     if port and not re.fullmatch(r"/dev/tty[A-Za-z0-9]+", port):
         port = ""
     return {"users": users, "port": port, "baud": int(cfg.get("baud", 57600)),
-            "timeout": max(2, min(30, int(cfg.get("timeout", 6))))}
+            "timeout": max(2, min(30, int(cfg.get("timeout", 6)))), "multi_user": bool(cfg.get("multi_user"))}
 
 
 def _pkexec(script: str, *args: str, timeout: int = 600) -> None:
@@ -144,28 +144,72 @@ def human_accounts(passwd: str = "/etc/passwd") -> list[str]:
     return names
 
 
-def enable_login(cfg: dict) -> None:
+class MultiUserError(RuntimeError):
+    """Mehrere Benutzerkonten – Anmeldung per Modul nur nach ausdrücklicher Bestätigung."""
+
+
+MULTI_USER_WARNING = (
+    "Auf diesem PC gibt es mehrere Benutzerkonten ({accounts}).\n\n"
+    "Das Fingerabdruckmodul hat keinen Zugriffsschutz: Wer an diesem PC angemeldet ist, kann mit etwas "
+    "technischem Wissen direkt mit dem Modul sprechen und seinen eigenen Finger in den Speicherplatz eines "
+    "anderen Benutzers schreiben – und sich dann als dieser anmelden (auch sudo/Administrator).\n\n"
+    "AluPC selbst verhindert das (jeder sieht und löscht nur seine eigenen Finger), aber nicht jemand, "
+    "der es absichtlich darauf anlegt.\n\nNur einschalten, wenn du allen Benutzern dieses PCs vertraust."
+)
+
+
+def read_login(path: Path = Path("/etc/alupc/fingerprint-login.json")) -> dict:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def merge_config(own: dict, user: str, existing: dict | None = None) -> dict:
+    """Nur die Einträge des eigenen Benutzers ersetzen – die anderer Benutzer bleiben erhalten.
+    Belegt man einen Platz neu, der vorher (veraltet) jemand anderem zugeordnet war, gilt er nur noch
+    für den neuen Besitzer."""
+    existing = read_login() if existing is None else existing
+    mine = sorted({int(s) for s in own.get("users", {}).get(user, [])})
+    users = {}
+    for name, slots in existing.get("users", {}).items():
+        if name == user:
+            continue
+        rest = [int(s) for s in slots if int(s) not in mine]
+        if rest:
+            users[name] = rest
+    if mine:
+        users[user] = mine
+    merged = {**existing, **{k: v for k, v in own.items() if k != "users"}, "users": users}
+    merged["multi_user"] = bool(own.get("multi_user", existing.get("multi_user", False)))
+    return merged
+
+
+def enable_login(cfg: dict, allow_multi: bool = False) -> None:
     accounts = human_accounts()
-    if len(accounts) > 1:
-        # Das Modul hat keinen Zugriffsschutz: Wer den Adapter öffnen darf, kann Finger in beliebige
-        # Plätze schreiben – bei mehreren Konten könnte sich jemand so als ein anderer Benutzer anmelden.
-        raise RuntimeError("Anmelden mit diesem Modul ist nur auf PCs mit genau einem Benutzerkonto erlaubt "
-                           f"(gefunden: {', '.join(accounts)}). Grund: Das Modul hat keinen Zugriffsschutz – "
-                           "ein anderer Benutzer könnte sonst seinen Finger für dein Konto eintragen.")
+    if len(accounts) > 1 and not allow_multi:
+        raise MultiUserError(MULTI_USER_WARNING.format(accounts=", ".join(accounts)))
     if not helper_is_safe():
         raise RuntimeError("Anmelden mit dem Modul geht nur mit dem installierten .deb-Paket von AluPC "
                            "(aus Sicherheitsgründen – das Prüfprogramm läuft beim Anmelden als root).")
     if not shutil.which("pam-auth-update"):
         raise RuntimeError("pam-auth-update nicht gefunden (kein Ubuntu/Kubuntu?).")
+    import getpass
+
+    user = getpass.getuser()
+    cfg = merge_config({**cfg, "multi_user": len(accounts) > 1}, user)
     cfg = valid_config(cfg)
-    if not any(cfg["users"].values()):
+    if not cfg["users"].get(user):
         raise RuntimeError("Erst einen Finger anlernen.")
     _pkexec(ENABLE_SCRIPT, json.dumps(cfg), pam_profile(helper_command()), UDEV_RULE)
 
 
 def update_login(cfg: dict) -> None:
-    """Nach Anlernen/Löschen: Zuordnung Finger → Benutzer für die Anmeldung aktualisieren."""
-    _pkexec(UPDATE_SCRIPT, json.dumps(valid_config(cfg)))
+    """Nach Anlernen/Löschen: Zuordnung Finger → Benutzer für die Anmeldung aktualisieren
+    (nur die eigenen Einträge – die anderer Benutzer bleiben)."""
+    import getpass
+
+    _pkexec(UPDATE_SCRIPT, json.dumps(valid_config(merge_config(cfg, getpass.getuser()))))
 
 
 def disable_login() -> None:
