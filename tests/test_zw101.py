@@ -116,7 +116,7 @@ def test_pam_check(fake, tmp_path):
     assert zw.pam_check({"PAM_USER": "noah"}, tmp_path / "fehlt.json") == 1
 
 
-def test_login_config_and_safety(fake, tmp_path):
+def test_login_config_and_safety(fake, tmp_path, monkeypatch):
     from alupc.platform import linux_serial_login as login
 
     zw.save_slots({"0": {"finger": "right-thumb", "user": "noah"}, "2": {"finger": "left-thumb", "user": "noah"},
@@ -129,7 +129,12 @@ def test_login_config_and_safety(fake, tmp_path):
     assert "Default: no" in profile
     # Start aus dem Quellcode (Python im venv/Home) darf nie als root-Prüfprogramm eingetragen werden
     assert login.helper_is_safe() is False
+    monkeypatch.setattr(login, "human_accounts", lambda: ["noah"])
     with pytest.raises(RuntimeError, match=".deb"):
+        login.enable_login(cfg)
+    # mehrere Konten → abgelehnt (egal wie installiert)
+    monkeypatch.setattr(login, "human_accounts", lambda: ["noah", "gast"])
+    with pytest.raises(RuntimeError, match="genau einem Benutzerkonto"):
         login.enable_login(cfg)
 
 
