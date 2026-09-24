@@ -14,7 +14,8 @@ from .sources import create_source, media_sources, window_settings
 
 class Controller(QObject):
     changed = Signal()
-    message = Signal(str)  # kurze Meldung für die Statusleiste / Benachrichtigung
+    message = Signal(str)
+    presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
 
     def __init__(self, config: Config):
         super().__init__()
@@ -180,6 +181,7 @@ class Controller(QObject):
         self.mode = "content"
         self.content = cfg
         self._scene_volume = None
+        self._content_switched()
         window_settings["restore_minimized"] = bool(self.config["program"].get("restore_minimized", True))
         self.output.set_content(create_source(cfg, self.config.get_scene), self.transition_for(cfg))
         if remember:
@@ -259,7 +261,13 @@ class Controller(QObject):
     def program_moved(self, title: str) -> None:
         self._set_desktop(f"Programm direkt auf Monitor 2: {title}")
 
+    def _content_switched(self) -> None:
+        """Neuer Inhalt auf Monitor 2 → alte Zeichnungen weg (einstellbar)."""
+        if self.config["draw"].get("clear_on_change", True):
+            self.laser.clear_strokes()
+
     def _set_desktop(self, note: str) -> None:
+        self._content_switched()
         self._unfreeze()
         self.screensaver.stop()
         self.mode = "desktop"
@@ -410,6 +418,8 @@ class Controller(QObject):
             "timer_minus": lambda: self.timer_action("minus"),
             "laserpointer": self.toggle_laser,
             "laser": self.toggle_laser,
+            "zeichnen": self.presenter_requested.emit,
+            "zeichnungen_loeschen": lambda: self.laser.clear_strokes(),
         }
         action = actions.get(command)
         if action:

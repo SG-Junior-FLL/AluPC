@@ -75,6 +75,9 @@ jobs:
           grep -q '^X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2' /usr/share/applications/alupc.desktop
           test -f /usr/share/icons/hicolor/48x48/apps/alupc.png
           test -f /usr/share/icons/hicolor/scalable/apps/alupc.svg
+          # Fingerabdruck: apt muss fprintd + libpam-fprintd (empfohlene Pakete) gleich mitinstallieren
+          dpkg -s fprintd libpam-fprintd | grep -E '^(Package|Status)'
+          grep -q 'Fingerabdruck-Pakete: vollständig' "$RUNNER_TEMP/deb.txt"
       - name: Portables Archiv
         run: tar -C dist -czf "dist/AluPC-linux-x86_64-${{ steps.version.outputs.v }}.tar.gz" AluPC
       - uses: actions/upload-artifact@v4

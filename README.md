@@ -40,6 +40,7 @@ OBS-Studio-Fenster.
 | **Bild-in-Bild** | kleines Fenster auf Monitor 1, das live zeigt, was auf Monitor 2 läuft (mit Hinweis „STANDBILD“/„SCHWARZ“) |
 | **Bildschirmschoner** | Uhr, schwebender Text/Logo, Diashow, Farbverlauf oder eigene Szene – automatisch nach X Minuten ohne Maus/Tastatur oder per Klick |
 | **Laserpointer** | roter Leuchtpunkt auf Monitor 2: die Maus auf Monitor 1 steuert ihn (wie ein Touchpad; beim Spiegeln genau an der gespiegelten Stelle). Farbe, Größe, Leuchtspur im Setup |
+| **Zeigen & Zeichnen** | eigenes Fenster auf Monitor 1 mit Live-Bild von Monitor 2: darin mit dem **Laserpointer** zeigen oder mit **Stift/Textmarker** in 8 Farben (+ eigene) kritzeln, Radierer, Rückgängig, Alles löschen – erscheint sofort auf Monitor 2. Öffnen über Kachel, Pfeil an der Laserpointer-Kachel, Taskleisten-Menü oder `Strg+Alt+K` |
 
 Außerdem:
 
@@ -106,6 +107,7 @@ Außerdem:
   | Nächste / vorherige Szene | `Strg+Alt+Bild↓` / `Strg+Alt+Bild↑` |
   | Timer Start/Pause | `Strg+Alt+T` (Neustart, ±1 Minute frei belegbar) |
   | Laserpointer an/aus | `Strg+Alt+Z` |
+  | Zeigen & Zeichnen | `Strg+Alt+K` |
   | Spiegeln | `Strg+Alt+M` |
   | Erweitern | `Strg+Alt+E` |
   | jede Szene | frei wählbar im Szenen-Editor |

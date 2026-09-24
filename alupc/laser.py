@@ -5,6 +5,9 @@ beim Spiegeln genau dort, wo das gespiegelte Bild ist). Steht die Maus selbst au
 („Erweitern“), leuchtet der Punkt direkt an der Maus.
 
 Der Punkt liegt in einem eigenen, durchsichtigen Fenster über allem, das keine Klicks abfängt.
+Im selben Fenster erscheinen auch die Zeichnungen aus „Zeigen & Zeichnen“ (Stift, Textmarker) und der
+Laserpunkt, den man dort in der Vorschau steuert. Zeichnungen werden relativ gespeichert (0…1), damit sie
+auf jedem Monitor an derselben Stelle liegen.
 """
 
 from __future__ import annotations
@@ -12,13 +15,65 @@ from __future__ import annotations
 import time
 
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QPainter, QRadialGradient
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QRadialGradient
 from PySide6.QtWidgets import QWidget
 
 from .cursor import tracker
 from .sources import fit_rect
 
 TRAIL_SECONDS = 0.28
+MARKER_ALPHA = 0.38
+
+
+def stroke_pen(stroke: dict, height: float) -> QPen:
+    color = QColor(stroke.get("color", "#ff2a2a"))
+    width = max(1.0, float(stroke.get("width", 0.004)) * height)
+    if stroke.get("tool") == "marker":
+        color.setAlphaF(MARKER_ALPHA)
+        width *= 3.5
+    return QPen(color, width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+
+
+def paint_strokes(p: QPainter, strokes: list[dict], area: QRectF) -> None:
+    """Zeichnungen (Punkte relativ 0…1) in das Rechteck `area` malen."""
+    p.save()
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setBrush(Qt.NoBrush)
+    for stroke in strokes:
+        pts = stroke.get("points") or []
+        if not pts:
+            continue
+        p.setPen(stroke_pen(stroke, area.height()))
+        first = QPointF(area.x() + pts[0][0] * area.width(), area.y() + pts[0][1] * area.height())
+        if len(pts) == 1:
+            p.drawPoint(first)
+            continue
+        path = QPainterPath(first)
+        for x, y in pts[1:]:
+            path.lineTo(area.x() + x * area.width(), area.y() + y * area.height())
+        p.drawPath(path)
+    p.restore()
+
+
+def paint_dot(p: QPainter, point: QPointF, r: float, color: QColor) -> None:
+    """Leuchtender Laserpunkt."""
+    p.save()
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setPen(Qt.NoPen)
+    glow = QRadialGradient(point, r * 3)
+    g0 = QColor(color)
+    g0.setAlphaF(0.55)
+    g1 = QColor(color)
+    g1.setAlphaF(0.0)
+    glow.setColorAt(0, g0)
+    glow.setColorAt(1, g1)
+    p.setBrush(glow)
+    p.drawEllipse(point, r * 3, r * 3)
+    p.setBrush(color)
+    p.drawEllipse(point, r, r)
+    p.setBrush(QColor(255, 255, 255, 200))
+    p.drawEllipse(point, r * 0.38, r * 0.38)
+    p.restore()
 
 
 class LaserWindow(QWidget):
@@ -38,6 +93,11 @@ class LaserWindow(QWidget):
         self._fade = QTimer(self, interval=16)
         self._fade.timeout.connect(self._tick)
         self._kde_done = False
+        self.remote = False  # Laserpunkt kommt aus dem Fenster „Zeigen & Zeichnen“
+        self.strokes: list[dict] = []
+
+    def needed(self) -> bool:
+        return self.active or self.remote or bool(self.strokes)
 
     # ------------------------------------------------------------ an/aus
     def set_active(self, on: bool) -> bool:
@@ -60,14 +120,16 @@ class LaserWindow(QWidget):
             self.point = None
             self.trail.clear()
             self._fade.stop()
-            self.hide()
-            self._kde_done = False
+            self.update()
+            self.place()
         return self.active
 
     def place(self) -> None:
         screen = self.controller.output_screen()
-        if screen is None or not self.active:
-            self.hide()
+        if screen is None or not self.needed():
+            if self.isVisible():
+                self.hide()
+            self._kde_done = False
             return
         from .platform.linux_display import is_wayland
 
@@ -155,6 +217,78 @@ class LaserWindow(QWidget):
         if not self.trail:
             self._fade.stop()
 
+    # ------------------------------------------------------------ gesteuert aus „Zeigen & Zeichnen“
+    def set_remote(self, on: bool) -> None:
+        self.remote = on
+        if not on and not self.active:
+            self.remote_point(None)
+        self.place()
+
+    def remote_point(self, norm: QPointF | None) -> None:
+        """Laserpunkt an relativer Stelle (0…1) von Monitor 2 zeigen; None = ausblenden."""
+        old = self._dirty()
+        if norm is None:
+            self.point = None
+        else:
+            self.point = QPointF(norm.x() * self.width(), norm.y() * self.height())
+            self.trail.append((time.monotonic(), self.point))
+        self._prune()
+        self.update(old.united(self._dirty()))
+        if self.trail:
+            self._fade.start()
+
+    def begin_stroke(self, tool: str, color: str, width: float, norm: QPointF) -> None:
+        self.strokes.append({"tool": tool, "color": color, "width": width, "points": [(norm.x(), norm.y())]})
+        self.place()
+        self._update_last()
+
+    def extend_stroke(self, norm: QPointF) -> None:
+        if not self.strokes:
+            return
+        pts = self.strokes[-1]["points"]
+        if pts and abs(pts[-1][0] - norm.x()) < 0.0005 and abs(pts[-1][1] - norm.y()) < 0.0005:
+            return  # kaum bewegt → keinen Punkt speichern
+        pts.append((norm.x(), norm.y()))
+        self._update_last()
+
+    def _update_last(self):
+        """Nur den Bereich des letzten Strichstücks neu zeichnen (schnell, auch bei 4K)."""
+        stroke = self.strokes[-1]
+        pts = stroke["points"][-2:]
+        w, h = self.width(), self.height()
+        pad = stroke_pen(stroke, h).widthF() + 4
+        xs, ys = [x * w for x, _ in pts], [y * h for _, y in pts]
+        self.update(QRectF(min(xs) - pad, min(ys) - pad, max(xs) - min(xs) + 2 * pad,
+                           max(ys) - min(ys) + 2 * pad).toAlignedRect())
+
+    def undo(self) -> None:
+        if self.strokes:
+            self.strokes.pop()
+            self.update()
+            self.place()
+
+    def clear_strokes(self) -> None:
+        if self.strokes:
+            self.strokes = []
+            self.update()
+            self.place()
+
+    def erase_at(self, norm: QPointF, radius: float) -> bool:
+        """Striche entfernen, die den Radierer (Radius relativ zur Höhe) berühren."""
+        aspect = self.width() / max(1, self.height()) if self.height() else 16 / 9
+        keep = []
+        for stroke in self.strokes:
+            hit = any(((x - norm.x()) * aspect) ** 2 + (y - norm.y()) ** 2 <= radius ** 2
+                      for x, y in stroke["points"])
+            if not hit:
+                keep.append(stroke)
+        changed = len(keep) != len(self.strokes)
+        if changed:
+            self.strokes = keep
+            self.update()
+            self.place()
+        return changed
+
     # ------------------------------------------------------------ Zeichnen
     def radius(self) -> float:
         size = float(self.controller.config["laser"].get("size", 100)) / 100
@@ -170,12 +304,14 @@ class LaserWindow(QWidget):
                       max(ys) - min(ys) + 2 * r).toAlignedRect()
 
     def paintEvent(self, _event):
-        if (self.point is None and not self.trail) or self.controller.privacy:
-            return  # bei „Schwarz“ (Sichtschutz) auch keinen Laserpunkt zeigen
+        if self.controller.privacy:
+            return  # bei „Schwarz“ (Sichtschutz) weder Laser noch Zeichnungen zeigen
+        p = QPainter(self)
+        if self.strokes:
+            paint_strokes(p, self.strokes, QRectF(self.rect()))
         cfg = self.controller.config["laser"]
         color = QColor(cfg.get("color", "#ff2a2a"))
         r = self.radius()
-        p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setPen(Qt.NoPen)
         now = time.monotonic()
@@ -188,17 +324,5 @@ class LaserWindow(QWidget):
                 rr = r * (0.9 - 0.5 * age)
                 p.drawEllipse(pt, rr, rr)
         if self.point is not None:
-            glow = QRadialGradient(self.point, r * 3)
-            g0 = QColor(color)
-            g0.setAlphaF(0.55)
-            g1 = QColor(color)
-            g1.setAlphaF(0.0)
-            glow.setColorAt(0, g0)
-            glow.setColorAt(1, g1)
-            p.setBrush(glow)
-            p.drawEllipse(self.point, r * 3, r * 3)
-            p.setBrush(color)
-            p.drawEllipse(self.point, r, r)
-            p.setBrush(QColor(255, 255, 255, 200))
-            p.drawEllipse(self.point, r * 0.38, r * 0.38)
+            paint_dot(p, self.point, r, color)
         p.end()

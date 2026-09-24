@@ -22,6 +22,7 @@ DEFAULT_HOTKEYS = {
     "timer_plus": "",
     "timer_minus": "",
     "laserpointer": "Ctrl+Alt+Z",
+    "zeichnen": "Ctrl+Alt+K",
 }
 
 HOTKEY_LABELS = {
@@ -38,6 +39,7 @@ HOTKEY_LABELS = {
     "timer_plus": "Timer +1 Minute",
     "timer_minus": "Timer −1 Minute",
     "laserpointer": "Laserpointer an/aus",
+    "zeichnen": "Zeigen & Zeichnen (Fenster)",
 }
 
 DEFAULTS: dict = {
@@ -75,6 +77,8 @@ DEFAULTS: dict = {
                "confine_cursor": True},
     # Laserpointer auf Monitor 2 (folgt der Maus auf Monitor 1)
     "laser": {"color": "#ff2a2a", "size": 100, "trail": True},
+    # Fenster „Zeigen & Zeichnen“: Werkzeug, Farbe, Stärke; Zeichnungen automatisch löschen
+    "draw": {"tool": "laser", "color": "#ef4444", "width": 4, "clear_on_change": True, "clear_on_close": True},
     "start_minimized": False,
     "appearance": {"mode": "system", "accent": "blau", "fade": True},
     # Übergang zwischen Inhalten/Szenen auf Monitor 2 (Art siehe transitions.py); Szenen können

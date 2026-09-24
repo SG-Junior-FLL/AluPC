@@ -8,7 +8,7 @@ import sys
 
 from . import APP_NAME, __version__
 
-COMMANDS_HELP = ("standbild, schwarz, bild-in-bild, bildschirmschoner, laserpointer, spiegeln, erweitern, "
+COMMANDS_HELP = ("standbild, schwarz, bild-in-bild, bildschirmschoner, laserpointer, zeichnen, spiegeln, erweitern, "
                  "naechste_szene, "
                  "vorherige_szene, sperren (Computer), zeigen, szene:NAME")
 
@@ -173,6 +173,10 @@ def self_test(log_path: str) -> int:
         controller.toggle_screensaver()
         controller.toggle_screensaver()
         lines.append(f"Leerlaufzeit: {controller.screensaver.idle.method}")
+        if sys.platform.startswith("linux"):
+            missing = controller.fingerprint.missing_packages()
+            lines.append("Fingerabdruck-Pakete: " + ("vollständig" if not missing else "fehlen: " + ", ".join(missing))
+                         + f" · automatisch installierbar: {'ja' if controller.fingerprint.can_auto_install else 'nein'}")
         controller.sounds.play("builtin:ding")  # Ton-Wiedergabe (FFmpeg/Multimedia im Paket vorhanden?)
         window.open_browser_control()
         window.browser_control.close()
@@ -192,6 +196,14 @@ def self_test(log_path: str) -> int:
         controller.run_command("laserpointer")
         controller.run_command("laserpointer")
         controller.update_cursor_guard()
+        window.open_presenter()  # Zeigen & Zeichnen: Vorschau, Strich, Laser
+        from PySide6.QtCore import QPointF
+
+        controller.laser.begin_stroke("pen", "#ff0000", 0.004, QPointF(0.1, 0.1))
+        controller.laser.extend_stroke(QPointF(0.5, 0.5))
+        controller.laser.remote_point(QPointF(0.5, 0.5))
+        app.processEvents()
+        window.presenter.close()
         app.processEvents()
         controller.shutdown()
         lines.append("OK")

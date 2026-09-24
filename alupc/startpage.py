@@ -18,7 +18,8 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "pip": ("pip", "Bild-in-Bild", "Monitor 2 klein anzeigen", "#8b5cf6", "schnell"),
     "screensaver": ("moon", "Bildschirmschoner", "Starten / beenden · ▾ Einstellungen", "#6366f1", "schnell"),
     "timer": ("timer", "Timer", "Start / Pause · ▾ mehr", "#f43f5e", "schnell"),
-    "laser": ("laser", "Laserpointer", "Roter Punkt auf Monitor 2", "#ef4444", "schnell"),
+    "laser": ("laser", "Laserpointer", "An / aus · ▾ Zeigen & Zeichnen", "#ef4444", "schnell"),
+    "draw": ("edit", "Zeigen & Zeichnen", "Monitor 2 sehen, zeigen, kritzeln", "#f97316", "schnell"),
 }
 DEFAULT_ORDER = list(BUILTIN_TILES)
 # Kacheln, die es schon vor dem Merken von „seen“ gab (für ältere Einstellungen)
@@ -43,6 +44,7 @@ COMMANDS = {
     "timer_plus": "Timer +1 Minute",
     "timer_minus": "Timer −1 Minute",
     "laserpointer": "Laserpointer an/aus",
+    "zeichnen": "Zeigen & Zeichnen (Fenster öffnen)",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann

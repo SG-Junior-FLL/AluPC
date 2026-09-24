@@ -1101,3 +1101,107 @@ def test_laser_follows_mirrored_image_area(env):
     left = laser.target_for(main.topLeft())
     assert abs(left.x() - (out.width() - out.height()) / 2) < 2  # linker Rand des Bildes, nicht des Monitors
     controller.run_command("laserpointer")
+
+
+# ---------------------------------------------------------------- 0.8: Zeigen & Zeichnen
+def _mouse(widget, kind, pos, button=None):
+    from PySide6.QtCore import QEvent, QPointF
+    from PySide6.QtGui import QMouseEvent
+
+    button = button if button is not None else Qt.LeftButton
+    buttons = Qt.LeftButton if kind in (QEvent.MouseButtonPress, QEvent.MouseMove) and button == Qt.LeftButton \
+        else Qt.NoButton
+    ev = QMouseEvent(kind, QPointF(pos), QPointF(pos), button if kind != QEvent.MouseMove else Qt.NoButton,
+                     buttons, Qt.NoModifier)
+    {QEvent.MouseButtonPress: widget.mousePressEvent, QEvent.MouseMove: widget.mouseMoveEvent,
+     QEvent.MouseButtonRelease: widget.mouseReleaseEvent}[kind](ev)
+
+
+def test_presenter_laser_and_drawing(env):
+    from PySide6.QtCore import QEvent, QPointF
+
+    controller, window, _ = env
+    controller.show_source({"type": "color", "color": "#000000"})
+    pump()
+    controller.run_command("zeichnen")
+    pump()
+    win = window.presenter
+    laser = controller.laser
+    assert win.isVisible() and laser.remote and laser.isVisible()
+    assert laser.geometry() == controller.output_screen().geometry()
+    canvas = win.canvas
+    canvas.resize(800, 450)
+    a = canvas.area()
+    center = QPointF(a.x() + a.width() / 2, a.y() + a.height() / 2)
+
+    # Laser: Maus in der Mitte der Vorschau → Punkt in der Mitte von Monitor 2
+    win.set_tool("laser")
+    _mouse(canvas, QEvent.MouseMove, center)
+    out = controller.output_screen().geometry()
+    assert abs(laser.point.x() - out.width() / 2) < 2 and abs(laser.point.y() - out.height() / 2) < 2
+    canvas.leaveEvent(None)
+    assert laser.point is None
+
+    # Stift: Strich von links oben zur Mitte
+    win.set_tool("pen")
+    win.set_color("#22c55e")
+    start = QPointF(a.x() + a.width() * 0.25, a.y() + a.height() * 0.25)
+    _mouse(canvas, QEvent.MouseButtonPress, start)
+    for i in range(1, 11):
+        _mouse(canvas, QEvent.MouseMove, start + (center - start) * (i / 10))
+    _mouse(canvas, QEvent.MouseButtonRelease, center)
+    assert len(laser.strokes) == 1 and laser.strokes[0]["color"] == "#22c55e"
+    assert len(laser.strokes[0]["points"]) == 11
+    img = laser.grab().toImage()
+    mid = QPointF(out.width() * 0.375, out.height() * 0.375).toPoint()
+    assert img.pixelColor(mid).green() > 150  # grüner Strich auf Monitor 2
+    prev = canvas.grab().toImage()
+    pm = QPointF(a.x() + a.width() * 0.375, a.y() + a.height() * 0.375).toPoint()
+    assert prev.pixelColor(pm).green() > 150  # … und in der Vorschau
+
+    # Textmarker, Rückgängig, Radierer
+    win.set_tool("marker")
+    _mouse(canvas, QEvent.MouseButtonPress, center)
+    _mouse(canvas, QEvent.MouseMove, center + QPointF(60, 0))
+    _mouse(canvas, QEvent.MouseButtonRelease, center + QPointF(60, 0))
+    assert laser.strokes[-1]["tool"] == "marker"
+    controller.laser.undo()
+    assert len(laser.strokes) == 1
+    win.set_tool("eraser")
+    _mouse(canvas, QEvent.MouseButtonPress, start)
+    _mouse(canvas, QEvent.MouseButtonRelease, start)
+    assert laser.strokes == []
+
+    # Neuer Inhalt → Zeichnungen weg (Standard)
+    laser.begin_stroke("pen", "#ff0000", 0.004, QPointF(0.5, 0.5))
+    controller.show_source({"type": "color", "color": "#111111"})
+    assert laser.strokes == []
+    # Schwarz: nichts vom Laser/Zeichnen zu sehen
+    laser.begin_stroke("pen", "#ff0000", 0.02, QPointF(0.5, 0.5))
+    laser.extend_stroke(QPointF(0.6, 0.5))
+    controller.toggle_privacy()
+    img = laser.grab().toImage()
+    assert img.pixelColor(QPointF(out.width() * 0.55, out.height() * 0.5).toPoint()).red() < 50
+    controller.toggle_privacy()
+    # Schließen → Zeichnungen weg, Overlay aus
+    win.close()
+    pump()
+    assert laser.strokes == [] and not laser.remote and not laser.isVisible()
+    assert controller.config["draw"]["tool"] == "eraser"  # zuletzt gewähltes Werkzeug gemerkt
+
+
+def test_drawings_can_stay_when_wanted(env):
+    from PySide6.QtCore import QPointF
+
+    controller, window, _ = env
+    window.open_presenter()
+    win = window.presenter
+    win.clear_on_change.setChecked(False)
+    win.clear_on_close.setChecked(False)
+    controller.laser.begin_stroke("pen", "#ff0000", 0.004, QPointF(0.5, 0.5))
+    controller.show_source({"type": "color"})
+    win.close()
+    pump()
+    assert len(controller.laser.strokes) == 1 and controller.laser.isVisible()  # bleibt auf Monitor 2
+    controller.run_command("zeichnungen_loeschen")
+    assert controller.laser.strokes == [] and not controller.laser.isVisible()

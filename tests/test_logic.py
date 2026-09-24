@@ -295,7 +295,7 @@ def test_new_builtin_tiles_appear_after_update():
     from alupc.startpage import ordered_keys
 
     old_saved = {"tiles": ["timer", "mirror"], "custom": []}  # Einstellungen von vor dem Update
-    assert ordered_keys(old_saved) == ["timer", "mirror", "laser"]
+    assert ordered_keys(old_saved) == ["timer", "mirror", "laser", "draw"]
     from alupc.startpage import DEFAULT_ORDER
 
     hidden_on_purpose = {"tiles": ["timer", "mirror"], "custom": [], "seen": list(DEFAULT_ORDER)}

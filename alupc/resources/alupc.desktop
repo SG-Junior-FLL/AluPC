@@ -12,7 +12,7 @@ StartupWMClass=AluPC
 X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2
 Categories=Utility;
 Keywords=Monitor;Beamer;Bildschirm;Spiegeln;Szene;
-Actions=Standbild;Schwarz;BildInBild;Bildschirmschoner;Spiegeln;Erweitern;NaechsteSzene;VorherigeSzene;TimerStartPause;Laserpointer;Sperren;
+Actions=Standbild;Schwarz;BildInBild;Bildschirmschoner;Spiegeln;Erweitern;NaechsteSzene;VorherigeSzene;TimerStartPause;Laserpointer;Zeichnen;Sperren;
 
 [Desktop Action Standbild]
 Name=Standbild an/aus
@@ -53,6 +53,10 @@ Exec=alupc --befehl timer_start_pause
 [Desktop Action Laserpointer]
 Name=Laserpointer an/aus
 Exec=alupc --befehl laserpointer
+
+[Desktop Action Zeichnen]
+Name=Zeigen & Zeichnen
+Exec=alupc --befehl zeichnen
 
 [Desktop Action Sperren]
 Name=Computer sperren

@@ -245,6 +245,7 @@ class MainWindow(QMainWindow):
         self._build_tray()
         controller.changed.connect(self.refresh)
         controller.message.connect(self.show_message)
+        controller.presenter_requested.connect(self.open_presenter)
         self.refresh()
 
     # ================================================================ Seitenleiste
@@ -344,7 +345,16 @@ class MainWindow(QMainWindow):
         self.t_freeze, self.t_black, self.t_pip = self.tiles["freeze"], self.tiles["black"], self.tiles["pip"]
         self.t_saver = self.tiles["screensaver"]
         self.t_laser = self.tiles["laser"]
-        self.t_laser.clicked.connect(c.toggle_laser)
+        self.t_laser.activated.connect(c.toggle_laser)
+        laser_menu = QMenu(self)
+        laser_menu.addAction(icons.icon("laser", theme.current().text, 18), "Laserpointer an / aus", c.toggle_laser)
+        laser_menu.addAction(icons.icon("edit", theme.current().text, 18), "Zeigen & Zeichnen (Fenster) …",
+                             self.open_presenter)
+        laser_menu.addAction(icons.icon("trash", theme.current().text, 18), "Zeichnungen auf Monitor 2 löschen",
+                             c.laser.clear_strokes)
+        self.t_laser.set_menu(laser_menu, split=True)
+        self.t_draw = self.tiles["draw"]
+        self.t_draw.clicked.connect(self.open_presenter)
 
         self.t_mirror.clicked.connect(c.mirror)
         self.t_extend.clicked.connect(c.extend)
@@ -558,6 +568,22 @@ class MainWindow(QMainWindow):
         name, ok = QInputDialog.getText(self, "Website speichern", "Name für die Website:", text=title)
         if ok:
             self.controller.save_website(name.strip() or title, view.url().toString())
+
+    def open_presenter(self):
+        """Fenster „Zeigen & Zeichnen“ auf Monitor 1 öffnen (bzw. nach vorne holen)."""
+        from .presenter_window import PresenterWindow
+
+        if getattr(self, "presenter", None) is None:
+            self.presenter = PresenterWindow(self.controller, self)
+        win = self.presenter
+        screen = self.controller.main_screen()
+        if screen is not None and not win.isVisible():
+            g = screen.availableGeometry()
+            win.resize(min(win.width(), g.width() - 40), min(win.height(), g.height() - 40))
+            win.move(g.x() + (g.width() - win.width()) // 2, g.y() + (g.height() - win.height()) // 2)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_browser_control(self):
         from .browser_control import BrowserControl
@@ -809,7 +835,9 @@ class MainWindow(QMainWindow):
         self.a_pip.triggered.connect(lambda _=False: c.toggle_pip())
         self.a_laser = QAction(ic("laser"), "Laserpointer", menu, checkable=True)
         self.a_laser.triggered.connect(lambda _=False: c.toggle_laser())
-        for act in (self.a_freeze, self.a_black, self.a_saver, self.a_pip, self.a_laser):
+        self.a_draw = QAction(ic("edit"), "Zeigen & Zeichnen …", menu)
+        self.a_draw.triggered.connect(self.open_presenter)
+        for act in (self.a_freeze, self.a_black, self.a_saver, self.a_pip, self.a_laser, self.a_draw):
             menu.addAction(act)
         self.tray_timer = menu.addMenu(ic("timer"), "Timer")
         self._fill_timer_menu(self.tray_timer)
@@ -959,6 +987,8 @@ class MainWindow(QMainWindow):
         saver_on = c.screensaver.active
         self.t_saver.set_state(saver_on, badge="AN" if saver_on else "")
         self.t_laser.set_state(c.laser.active, badge="AN" if c.laser.active else "")
+        drawing = bool(getattr(self, "presenter", None) and self.presenter.isVisible())
+        self.t_draw.set_state(drawing, badge="OFFEN" if drawing else "")
         for key, tile in self.custom_tiles.items():
             tcfg = find_custom(self.config["start_page"], key) or {}
             action = tcfg.get("action") or {}
