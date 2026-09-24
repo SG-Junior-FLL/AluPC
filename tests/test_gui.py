@@ -1208,7 +1208,6 @@ def test_drawings_can_stay_when_wanted(env):
 
 
 def test_preview_frame_rate_selectable(env):
-    import time
 
     from PySide6.QtCore import QSize
 
@@ -1226,10 +1225,11 @@ def test_preview_frame_rate_selectable(env):
     img = grab_scaled(controller.output, QSize(320, 180))
     assert img.width() <= 320 and img.height() <= 180 and img.pixelColor(10, 10).name() == "#ff0000"
     # Es kommen wirklich viele Bilder pro Sekunde an (nicht mehr nur 10)
-    win._frames = 0
-    end = time.time() + 1.0
-    while time.time() < end:
-        pump(1)
-    assert win._frames >= 15, win._frames  # großzügig: GitHub-Rechner sind langsam
+    from PySide6.QtTest import QTest
+
+    counted = []
+    win.timer.timeout.connect(lambda: counted.append(1))  # eigener Zähler (die Anzeige setzt ihren zurück)
+    QTest.qWait(1000)
+    assert len(counted) >= 15, len(counted)  # großzügig: GitHub-Rechner sind langsam
     win.close()
     pump()

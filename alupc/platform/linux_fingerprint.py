@@ -315,7 +315,7 @@ class FprintdBackend(FingerprintBackend):
             raise RuntimeError((proc.stderr or proc.stdout or "Abgebrochen").strip())
 
     def install_hint(self):
-        return "Installieren mit: sudo apt install fprintd libpam-fprintd"
+        return "Tipp: „Automatisch einrichten“ installiert fehlende Pakete selbst."
 
     # ------------------------------------------------------------ Assistent
     @property

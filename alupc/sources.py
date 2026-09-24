@@ -179,7 +179,7 @@ class ScreenSource(SinkView):
         self.capture = None
         self._screen = screen
         if screen is not None and _kwin_allowed(screen.name()):
-            self._start_kwin(screen.name(), int(cfg.get("fps", 20)))
+            self._start_kwin(screen.name(), int(cfg.get("fps", 30)))
         else:
             self._start_qt(screen)
 
@@ -659,9 +659,22 @@ class ClockSource(TextBase):
         super().__init__(cfg, parent)
         self.show_date = bool(cfg.get("show_date", True))
         self.show_seconds = bool(cfg.get("show_seconds", True))
-        self.timer = QTimer(self, interval=1000)
-        self.timer.timeout.connect(self.update)
+        # 4× pro Sekunde nachsehen, aber nur neu zeichnen, wenn sich die Anzeige ändert:
+        # die Sekunde springt pünktlich um (max. ¼ s spät) und es wird trotzdem kaum gezeichnet
+        self._shown = ""
+        self.timer = QTimer(self, interval=250)
+        self.timer.setTimerType(Qt.PreciseTimer)
+        self.timer.timeout.connect(self._tick)
         self.timer.start()
+
+    def _tick(self):
+        text = self.text()
+        if text != self._shown:
+            self._shown = text
+            self.update()
+
+    def stop(self):
+        self.timer.stop()
 
     def text(self):
         fmt = "%H:%M:%S" if self.show_seconds else "%H:%M"
@@ -708,9 +721,6 @@ def fitted_font(painter, text: str, width: int, size: int) -> QFont:
         font.setPixelSize(max(8, int(size * width / advance)))
     return font
 
-    def stop(self):
-        self.timer.stop()
-
 
 WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
@@ -741,9 +751,18 @@ class CountdownSource(TextBase):
         if cfg.get("autostart", True) and clock.fresh():
             clock.start()
         self.warn_colors = bool(cfg.get("warn_colors", True))
-        self.timer = QTimer(self, interval=200)
-        self.timer.timeout.connect(self.update)
+        self._shown = None
+        self.timer = QTimer(self, interval=100)
+        self.timer.setTimerType(Qt.PreciseTimer)
+        self.timer.timeout.connect(self._tick)
         self.timer.start()
+
+    def _tick(self):
+        # nur neu zeichnen, wenn sich Zahl oder Farbe (Warnung/Blinken) ändert
+        state = (self.text(), self.text_color().rgba())
+        if state != self._shown:
+            self._shown = state
+            self.update()
 
     def text(self):
         return self.clock.text()

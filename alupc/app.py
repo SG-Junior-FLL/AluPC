@@ -196,6 +196,8 @@ def self_test(log_path: str) -> int:
         controller.run_command("laserpointer")
         controller.run_command("laserpointer")
         controller.update_cursor_guard()
+        for page in range(len(window.pages)):  # auch die erst beim Öffnen gebauten Seiten prüfen
+            window._go(page)
         window.open_presenter()  # Zeigen & Zeichnen: Vorschau, Strich, Laser
         from PySide6.QtCore import QPointF
 

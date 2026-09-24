@@ -203,7 +203,7 @@ class SetupPage(QWidget):
 
     SECTIONS = [
         ("monitor", "Monitore", "Auflösung, Hz, Anordnung"),
-        ("pip", "Monitor 2", "Taskleiste, Standbild, Sichtschutz, Bild-in-Bild"),
+        ("pip", "Monitor 2", "Maus, Laserpointer, Standbild, Sichtschutz, Bild-in-Bild"),
         ("palette", "Darstellung", "Design und Akzentfarbe"),
         ("moon", "Bildschirmschoner", "Stil, Zeit, Verhalten"),
         ("timer", "Timer", "Dauer, Art, Warnfarben"),
