@@ -164,11 +164,53 @@ def find_screen(name: str | None):
 
 
 class ScreenSource(SinkView):
+    """Nimmt einen ganzen Monitor auf (z. B. für Spiegeln und Bild-in-Bild).
+
+    KDE/Wayland: wenn erlaubt direkt über KWin – ohne Fenster „Welchen Bildschirm teilen?“.
+    Sonst über Qt (Windows, X11 ohne Nachfrage; Wayland mit Nachfrage des Systems).
+    """
+
     def __init__(self, cfg, parent=None):
         super().__init__(cfg.get("fit", "contain"), parent)
+        screen = find_screen(cfg.get("screen_name")) or QGuiApplication.primaryScreen()
+        self.method = "qt"
+        self.feed = None
+        self.capture = None
+        self._screen = screen
+        if screen is not None and _kwin_allowed(screen.name()):
+            self._start_kwin(screen.name(), int(cfg.get("fps", 20)))
+        else:
+            self._start_qt(screen)
+
+    def _start_kwin(self, name: str, fps: int):
+        from .platform.kwin_capture import KWinScreenFeed
+
+        self.method = "kwin"
+        self.feed = KWinScreenFeed(name, fps, parent=self)
+        self.feed.frame.connect(self._kwin_frame)
+        self.feed.failed.connect(self._kwin_failed)
+        self.set_message("Bildschirmaufnahme startet …")
+        self.feed.start()
+
+    def _kwin_frame(self, image):
+        self._pending = None
+        self._image = image
+        self._message = ""
+        if self.feed is not None:
+            self.feed.frame_taken()
+        self.update()
+
+    def _kwin_failed(self, text):
+        # KWin-Weg geht nicht (mehr) → normale Aufnahme versuchen
+        self.feed = None
+        self._start_qt(self._screen)
+
+    def _start_qt(self, screen):
+        self.method = "qt"
+        if screen is None:
+            screen = QGuiApplication.primaryScreen()
         self.session = QMediaCaptureSession(self)
         self.capture = QScreenCapture(self)
-        screen = find_screen(cfg.get("screen_name")) or QGuiApplication.primaryScreen()
         self.capture.setScreen(screen)
         self.capture.errorOccurred.connect(self._error)
         self.session.setScreenCapture(self.capture)
@@ -183,7 +225,23 @@ class ScreenSource(SinkView):
         )
 
     def stop(self):
-        self.capture.stop()
+        if self.feed is not None:
+            self.feed.stop()
+            self.feed = None
+        if self.capture is not None:
+            self.capture.stop()
+
+
+def _kwin_allowed(screen_name: str) -> bool:
+    import sys
+
+    if not sys.platform.startswith("linux"):
+        return False
+    try:
+        from .platform import kwin_capture
+    except Exception:  # noqa: BLE001
+        return False
+    return kwin_capture.allowed(screen_name)
 
 
 # --------------------------------------------------------------------------- Programmfenster

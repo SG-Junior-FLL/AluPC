@@ -217,3 +217,72 @@ def test_normalize_url():
     assert normalize_url("data:text/html,<b>x</b>") == "data:text/html,<b>x</b>"
     assert normalize_url("about:blank") == "about:blank"
     assert normalize_url("") == ""
+
+
+# ---------------------------------------------------------------- 0.6: Linux-Einrichtung
+def _usb(root, name, vendor, product, label=""):
+    d = root / name
+    d.mkdir(parents=True)
+    (d / "idVendor").write_text(vendor + "\n")
+    (d / "idProduct").write_text(product + "\n")
+    if label:
+        (d / "product").write_text(label + "\n")
+
+
+def test_detect_usb_fingerprint_sensors(tmp_path):
+    from alupc.platform.linux_fingerprint import detect_usb_sensors
+
+    _usb(tmp_path, "1-1", "27c6", "538c", "Goodix USB2.0 MISC")
+    _usb(tmp_path, "1-2", "046d", "c52b", "USB Receiver")  # Maus-Empfänger
+    _usb(tmp_path, "1-3", "04f3", "0c4b")  # Elan-Fingerabdruck
+    _usb(tmp_path, "1-4", "04f3", "2a1c", "Touchscreen")  # Elan-Touchscreen → nein
+    _usb(tmp_path, "1-5", "abcd", "0001", "Fingerprint Reader")
+    found = detect_usb_sensors(tmp_path)
+    labels = [f[0] for f in found]
+    assert len(found) == 3
+    assert "27c6:538c" in labels[0] and "Goodix" in labels[0]
+    assert "libfprint-2-tod1-goodix" in found[0][1]
+    assert any("04f3:0c4b" in x for x in labels)
+    assert not any("2a1c" in x or "c52b" in x for x in labels)
+    assert detect_usb_sensors(tmp_path / "gibtsnicht") == []
+
+
+def test_desktop_entry_and_icons(tmp_path):
+    from alupc.platform import linux_desktop
+
+    text = linux_desktop.desktop_entry("/opt/alupc/AluPC")
+    assert "Exec=/opt/alupc/AluPC\n" in text
+    assert "Exec=/opt/alupc/AluPC --befehl standbild" in text
+    assert "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2" in text
+    assert "StartupWMClass=AluPC" in text
+    assert 'Exec="/mein pfad/AluPC"' in linux_desktop.desktop_entry("/mein pfad/AluPC")
+    changed = linux_desktop.install_files(tmp_path, "/x/AluPC")
+    assert (tmp_path / "applications" / "alupc.desktop").exists()
+    for size in linux_desktop.ICON_SIZES:
+        assert (tmp_path / "icons" / "hicolor" / f"{size}x{size}" / "apps" / "alupc.png").exists()
+    assert (tmp_path / "icons" / "hicolor" / "scalable" / "apps" / "alupc.svg").exists()
+    assert len(changed) == len(linux_desktop.ICON_SIZES) + 2
+    assert linux_desktop.install_files(tmp_path, "/x/AluPC") == []  # zweites Mal: nichts zu tun
+
+
+def test_portable_registers_itself(tmp_path, monkeypatch):
+    import sys
+
+    from alupc.platform import linux_desktop
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    monkeypatch.setattr(linux_desktop, "refresh_caches", lambda _p: None)
+    monkeypatch.setattr(linux_desktop, "system_installed", lambda: False)
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    assert linux_desktop.ensure_user_entry() is False  # Quellcode: nichts eintragen
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    assert linux_desktop.ensure_user_entry() is True
+    entry = (tmp_path / "applications" / "alupc.desktop").read_text()
+    assert f"Exec={__import__('os').path.realpath(sys.executable)}" in entry
+    assert linux_desktop.ensure_user_entry() is False
+    # .deb installiert → alten Eintrag der portablen Version entfernen (würde den des .deb verdecken)
+    monkeypatch.setattr(linux_desktop, "system_installed", lambda: True)
+    (tmp_path / "applications" / "alupc.desktop").write_text(entry.replace("Exec=", "Exec=/alt"))
+    assert linux_desktop.ensure_user_entry() is True
+    assert not (tmp_path / "applications" / "alupc.desktop").exists()

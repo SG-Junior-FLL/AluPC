@@ -7,7 +7,6 @@ SRC="$(pwd)"
 PREFIX="${HOME}/.local/share/alupc"
 BIN="${HOME}/.local/bin"
 APPS="${HOME}/.local/share/applications"
-ICONS="${HOME}/.local/share/icons/hicolor/256x256/apps"
 
 echo "==> Systempakete installieren (sudo-Passwort nötig)"
 sudo apt-get update
@@ -24,12 +23,11 @@ python3 -m venv "${PREFIX}/venv"
 "${PREFIX}/venv/bin/pip" install "${SRC}"
 
 echo "==> Startbefehl, Menüeintrag und Symbol"
-mkdir -p "${BIN}" "${APPS}" "${ICONS}"
+mkdir -p "${BIN}" "${APPS}"
 ln -sf "${PREFIX}/venv/bin/alupc" "${BIN}/alupc"
-install -m 644 "${SRC}/packaging/linux/alupc.desktop" "${APPS}/alupc.desktop"
-sed -i "s|^Exec=alupc|Exec=${BIN}/alupc|" "${APPS}/alupc.desktop"
-install -m 644 "${SRC}/alupc/resources/alupc.png" "${ICONS}/alupc.png"
+"${PREFIX}/venv/bin/python" -m alupc.platform.linux_desktop "${HOME}/.local/share" "${BIN}/alupc"
 update-desktop-database "${APPS}" 2>/dev/null || true
+command -v kbuildsycoca6 >/dev/null && kbuildsycoca6 >/dev/null 2>&1 || true
 
 echo
 echo "Fertig! AluPC steht jetzt im Startmenü."

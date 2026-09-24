@@ -293,6 +293,16 @@ class ScreenGrabber(QObject):
             if not pixmap.isNull():
                 QTimer.singleShot(0, lambda: self.done.emit(pixmap.toImage()))
                 return
+        from .sources import _kwin_allowed
+
+        if _kwin_allowed(screen.name()):
+            # KDE/Wayland: direkt über KWin, ohne Nachfrage
+            from .platform.kwin_capture import grab_once
+            from .ui.util import run_async
+
+            name = screen.name()
+            run_async(lambda: grab_once(name), self.done.emit, lambda _e: self._start_capture(screen))
+            return
         self._start_capture(screen)
 
     def _start_capture(self, screen) -> None:

@@ -23,6 +23,7 @@ class Controller(QObject):
         self.windows = create_window_backend()
         self.fingerprint = create_fingerprint_backend()
         self._scene_volume: dict | None = None
+        self._mirror_hint_shown = False
         self.output = OutputWindow()
         self.grabber = ScreenGrabber(self)
         self.grabber.done.connect(self._frozen_grab_done)
@@ -179,6 +180,14 @@ class Controller(QObject):
     def mirror(self) -> None:
         main = self.main_screen()
         self.show_source({"type": "screen", "screen_name": main.name() if main else "", "mirror": True})
+        content = self.output.content
+        if getattr(content, "method", "") == "qt" and not self._mirror_hint_shown:
+            from .platform.linux_display import is_wayland
+
+            if is_wayland():
+                self._mirror_hint_shown = True
+                self.message.emit("Wayland fragt beim Spiegeln nach dem Bildschirm. Ohne Nachfrage geht es unter "
+                                  "KDE mit dem installierten .deb-Paket von AluPC.")
 
     def extend(self) -> None:
         if not self._guard():

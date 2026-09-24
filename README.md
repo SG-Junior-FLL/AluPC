@@ -83,8 +83,12 @@ Außerdem:
   Hauptmonitor, Anordnung (rechts/links/oben/unten/gespiegelt). Nach „Übernehmen“ fragt AluPC
   „Einstellungen behalten?“ – ohne Antwort wird nach 15 Sekunden zurückgesetzt.
   „Monitore identifizieren“ zeigt auf jedem Monitor eine große Nummer.
-- **Fingerabdruck** (Seite *Fingerabdruck*): Sensor wählen, Finger anlernen, Test-Scan,
-  Finger löschen, Anmelden mit Fingerabdruck ein/aus (Details unten).
+- **Fingerabdruck** (Seite *Fingerabdruck*): **„Automatisch einrichten“** erledigt alles in einem
+  Durchgang – unter Linux fehlende Pakete installieren (fprintd, libpam-fprintd), Sensor suchen,
+  Finger anlernen, Test-Scan, Anmeldung einschalten; unter Windows Sensor suchen, Windows Hello
+  öffnen, Test-Scan. Findet fprintd keinen Sensor, schaut AluPC am USB nach und sagt, welcher
+  Sensor verbaut ist und ob es einen Zusatztreiber gibt. Einzeln geht weiterhin: Sensor wählen,
+  Finger anlernen, Test-Scan, Finger löschen, Anmeldung ein/aus (Details unten).
 
   | Setup | Finger anlernen | Bild-in-Bild |
   |---|---|---|
@@ -146,8 +150,10 @@ Fertige Pakete gibt es unter **[Releases](https://github.com/SG-Junior-FLL/AluPC
 | **Kubuntu / Ubuntu 22.04, 24.04+** | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – AluPC steht im Startmenü |
 | Linux x86_64 | `AluPC-linux-x86_64-….tar.gz` | entpacken, `AluPC/AluPC` starten |
 
-Für den Fingerabdruck unter Linux zusätzlich: `sudo apt install fprintd libpam-fprintd`
-(das .deb empfiehlt die Pakete, apt installiert sie normalerweise gleich mit).
+Für den Fingerabdruck unter Linux braucht es `fprintd` und `libpam-fprintd` – das .deb empfiehlt sie,
+und „Fingerabdruck → Automatisch einrichten“ installiert sie bei Bedarf selbst (Passwortabfrage).
+
+Die portable Linux-Version trägt sich beim ersten Start selbst ins Startmenü ein (mit Logo).
 
 **Aus dem Quellcode (Kubuntu):**
 
@@ -201,8 +207,12 @@ Für Szenen: *Neu hinzufügen → Befehl* mit `alupc --befehl "szene:Name"`.
 - **Windows erlaubt Fremdprogrammen nicht**, Finger für die Windows-Anmeldung anzulernen oder
   zu löschen – das geht nur über Windows Hello. Ist „Erweiterte Anmeldesicherheit“ (ESS) aktiv,
   kann Windows den Sensor für AluPC (Test-Scan) ganz sperren.
-- **Wayland (KDE)**: Beim ersten Aufnehmen des Bildschirms (Spiegeln, Bild-in-Bild,
-  Standbild im Modus „Erweitern“) fragt KDE nach einer Freigabe. Einzelne Programmfenster
+- **Wayland (KDE)**: Spiegeln, Bild-in-Bild und Standbild nehmen den Bildschirm direkt über KWin
+  auf – **ohne Nachfrage**, wie unter Windows. KWin erlaubt das nur der installierten AluPC-Datei
+  (.deb, oder portable Version nach dem ersten Start). Beim Start aus dem Quellcode fragt KDE wie
+  bisher, welcher Bildschirm geteilt werden soll. Die KWin-Aufnahme macht Einzelbilder
+  (typisch 10–25 Bilder/s, je nach Auflösung) – für Präsentationen gut, für Videos etwas ruckeliger
+  als unter Windows. Getestet nur gegen einen nachgebauten KWin-Dienst, nicht auf echtem KDE. Einzelne Programmfenster
   kann Qt unter Wayland nicht aufnehmen – dort „Programm → Fenster verschieben“ nutzen
   (klappt über ein kleines KWin-Skript). „Immer im Vordergrund“ für Bild-in-Bild setzt KDE
   unter Wayland evtl. nicht um (Abhilfe: Fensterregel in KDE).

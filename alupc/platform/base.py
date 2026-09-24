@@ -266,3 +266,16 @@ class FingerprintBackend:
 
     def install_hint(self) -> str:
         return ""
+
+    # ---- Automatische Einrichtung (Assistent)
+    can_auto_install = False  # fehlende Systempakete selbst installieren (Linux: apt über pkexec)
+
+    def missing_packages(self) -> list[str]:
+        return []
+
+    def install_packages(self, packages: list[str]) -> None:
+        raise NotImplementedError
+
+    def detect_hardware(self) -> list[tuple[str, str]]:
+        """Sensoren, die das System als Gerät sieht (auch ohne Treiber): [(Name, Hinweis), …]."""
+        return []

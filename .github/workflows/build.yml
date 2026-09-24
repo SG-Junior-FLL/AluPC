@@ -71,6 +71,10 @@ jobs:
           QT_QPA_PLATFORM=offscreen alupc --selbsttest "$RUNNER_TEMP/deb.txt" || { cat "$RUNNER_TEMP/deb.txt"; exit 1; }
           cat "$RUNNER_TEMP/deb.txt"
           test -f /usr/share/applications/alupc.desktop
+          grep -q '^Exec=/opt/alupc/AluPC$' /usr/share/applications/alupc.desktop
+          grep -q '^X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2' /usr/share/applications/alupc.desktop
+          test -f /usr/share/icons/hicolor/48x48/apps/alupc.png
+          test -f /usr/share/icons/hicolor/scalable/apps/alupc.svg
       - name: Portables Archiv
         run: tar -C dist -czf "dist/AluPC-linux-x86_64-${{ steps.version.outputs.v }}.tar.gz" AluPC
       - uses: actions/upload-artifact@v4

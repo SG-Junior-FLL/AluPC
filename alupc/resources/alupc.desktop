@@ -6,6 +6,10 @@ Comment=Zweiten Monitor steuern: Spiegeln, Kamera, Programme, Websites, Szenen, 
 Exec=alupc
 Icon=alupc
 Terminal=false
+StartupWMClass=AluPC
+# Erlaubt KWin-Bildschirmaufnahme ohne Nachfrage (Spiegeln unter KDE/Wayland); gilt nur, wenn
+# Exec= auf genau die laufende Programmdatei zeigt (setzt das .deb bzw. AluPC beim ersten Start)
+X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2
 Categories=Utility;
 Keywords=Monitor;Beamer;Bildschirm;Spiegeln;Szene;
 Actions=Standbild;Schwarz;BildInBild;Bildschirmschoner;Spiegeln;Erweitern;NaechsteSzene;VorherigeSzene;TimerStartPause;Sperren;

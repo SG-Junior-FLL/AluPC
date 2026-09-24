@@ -860,8 +860,6 @@ class MainWindow(QMainWindow):
 
     def _tray_icon(self):
         """Programmsymbol mit kleinem Zustands-Punkt (Standbild, Schwarz, Bildschirmschoner)."""
-        from PySide6.QtCore import QRectF
-        from PySide6.QtGui import QColor, QIcon, QPainter
 
         c = self.controller
         state = ("eye_off", PRIVACY_COLOR) if c.privacy else ("snowflake", FREEZE_COLOR) if c.frozen \
@@ -872,16 +870,7 @@ class MainWindow(QMainWindow):
         self._tray_key = key
         if state is None:
             return app_icon()
-        px = app_icon().pixmap(64, 64)
-        p = QPainter(px)
-        p.setRenderHint(QPainter.Antialiasing)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(state[1]))
-        badge = QRectF(28, 28, 36, 36)
-        p.drawEllipse(badge)
-        icons.paint(p, state[0], badge.adjusted(7, 7, -7, -7), "#ffffff", 2.6)
-        p.end()
-        return QIcon(px)
+        return icons.app_icon_with_badge(state[0], state[1])
 
     def _fill_tray_scenes(self):
         if hasattr(self, "tray_scenes"):

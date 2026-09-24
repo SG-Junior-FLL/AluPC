@@ -95,6 +95,19 @@ class FingerprintPage(QWidget):
         self.status = Banner("Sensoren werden gesucht …", "busy")
         lay.addWidget(self.status)
 
+        auto_box = QGroupBox("Automatisch einrichten")
+        al = QHBoxLayout(auto_box)
+        auto_text = QLabel("Ein Klick: AluPC installiert, was fehlt, findet den Sensor, lernt den Finger an, "
+                           "testet ihn und schaltet die Anmeldung ein." if not IS_WINDOWS else
+                           "Ein Klick: AluPC sucht den Sensor, öffnet Windows Hello zum Anlernen und macht "
+                           "danach einen Test-Scan.")
+        auto_text.setWordWrap(True)
+        self.auto_btn = button("Automatisch einrichten …", "fingerprint", primary=True)
+        self.auto_btn.clicked.connect(self.auto_setup)
+        al.addWidget(auto_text, 1)
+        al.addWidget(self.auto_btn)
+        lay.addWidget(auto_box)
+
         sensor_box = QGroupBox("Sensor")
         form = QFormLayout(sensor_box)
         self.sensor_combo = QComboBox()
@@ -254,6 +267,13 @@ class FingerprintPage(QWidget):
         self._login_state = state
 
     # ------------------------------------------------------------ Aktionen
+    def auto_setup(self):
+        from .fingerprint_wizard import FingerprintWizard
+
+        wizard = FingerprintWizard(self.backend, self, self.finger_combo.currentData())
+        wizard.exec()
+        self.reload()
+
     def _scan(self, title, fn, success_text=None, after=None):
         dlg = ScanDialog(self.backend, title, self)
 

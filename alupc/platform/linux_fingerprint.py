@@ -40,6 +40,67 @@ VERIFY_TEXT = {
 }
 ENROLL_DONE_OK = "enroll-completed"
 PAM_FILE = Path("/etc/pam.d/common-auth")
+PACKAGES = {"fprintd": ("/usr/libexec/fprintd", "/usr/lib/fprintd/fprintd"),
+            "libpam-fprintd": ("/usr/share/pam-configs/fprintd",)}
+SUPPORTED_LIST = "https://fprint.freedesktop.org/supported-devices.html"
+
+# USB-Hersteller von Fingerabdrucksensoren (Synaptics/Elan bauen auch Touchpads → Produkt-IDs prüfen)
+FP_VENDORS = {
+    "27c6": "Goodix", "138a": "Validity/Synaptics", "1c7a": "EgisTec", "2808": "FocalTech",
+    "10a5": "FPC", "147e": "UPEK", "08ff": "AuthenTec", "298d": "Next Biometrics", "06cb": "Synaptics",
+    "04f3": "Elan",
+}
+DRIVER_HINTS = {
+    "27c6": "Goodix: Einige Modelle laufen nur mit dem Zusatztreiber „libfprint-2-tod1-goodix“ "
+            "(Dell/Lenovo, Ubuntu-OEM-Paketquelle), viele neuere (noch) gar nicht.",
+    "138a": "Validity: Ältere Modelle (138a:0090/0097/009d) gehen mit dem Community-Treiber "
+            "„python-validity“ (ohne Gewähr).",
+    "06cb": "Synaptics: Neuere libfprint-Versionen (Ubuntu 24.04+) kennen viele Modelle – "
+            "ein System-Update kann helfen.",
+}
+
+
+def _is_fingerprint_device(vendor: str, product: str, name: str) -> bool:
+    lowered = name.lower()
+    if any(word in lowered for word in ("finger", "fprint", "biometric")):
+        return True
+    if vendor == "04f3":
+        return product.startswith("0c")  # Elan-Fingerabdrucksensoren: 04f3:0cxx
+    if vendor == "06cb":
+        return product.startswith("00")  # Synaptics-Fingerabdrucksensoren: 06cb:00xx
+    return vendor in FP_VENDORS
+
+
+def detect_usb_sensors(root: Path = Path("/sys/bus/usb/devices")) -> list[tuple[str, str]]:
+    """Fingerabdrucksensoren am USB (auch ohne passenden Treiber) → [(Name, Hinweis)]."""
+    found = []
+    try:
+        devices = sorted(root.iterdir())
+    except OSError:
+        return []
+    for dev in devices:
+        try:
+            vendor = (dev / "idVendor").read_text().strip().lower()
+            product = (dev / "idProduct").read_text().strip().lower()
+        except OSError:
+            continue
+        try:
+            name = (dev / "product").read_text().strip()
+        except OSError:
+            name = ""
+        if not _is_fingerprint_device(vendor, product, name):
+            continue
+        label = f"{FP_VENDORS.get(vendor, 'Sensor')} {name}".strip() + f" (USB {vendor}:{product})"
+        found.append((label, DRIVER_HINTS.get(vendor, "")))
+    return found
+
+
+def _package_installed(pkg: str) -> bool:
+    if shutil.which("dpkg-query"):
+        proc = subprocess.run(["dpkg-query", "-W", "-f=${Status}", pkg], capture_output=True, text=True)
+        if proc.returncode == 0:
+            return "install ok installed" in proc.stdout
+    return any(Path(p).exists() for p in PACKAGES[pkg])
 
 
 def _friendly_error(exc: Exception) -> str:
@@ -255,3 +316,28 @@ class FprintdBackend(FingerprintBackend):
 
     def install_hint(self):
         return "Installieren mit: sudo apt install fprintd libpam-fprintd"
+
+    # ------------------------------------------------------------ Assistent
+    @property
+    def can_auto_install(self):
+        return bool(shutil.which("apt-get") and shutil.which("pkexec"))
+
+    def missing_packages(self):
+        return [pkg for pkg in PACKAGES if not _package_installed(pkg)]
+
+    def install_packages(self, packages):
+        if not self.can_auto_install:
+            raise RuntimeError("Automatisch installieren geht nur unter Ubuntu/Kubuntu. Bitte selbst installieren: "
+                               + " ".join(packages))
+        names = " ".join(p for p in packages if p in PACKAGES)  # nur bekannte Namen in die Befehlszeile
+        script = f"apt-get update -q || true; apt-get install -y {names}"
+        proc = subprocess.run(["pkexec", "env", "DEBIAN_FRONTEND=noninteractive", "sh", "-c", script],
+                              capture_output=True, text=True, timeout=900)
+        if proc.returncode == 126 or proc.returncode == 127:
+            raise RuntimeError("Abgebrochen (Passwort nicht bestätigt).")
+        if proc.returncode != 0:
+            tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-3:]
+            raise RuntimeError("Installation fehlgeschlagen: " + " ".join(tail))
+
+    def detect_hardware(self):
+        return detect_usb_sensors()

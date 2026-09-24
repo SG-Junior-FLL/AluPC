@@ -6,13 +6,13 @@ VERSION="${1:?Version fehlt}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PKG="$ROOT/build/deb/alupc_${VERSION}_amd64"
 rm -rf "$PKG"
-mkdir -p "$PKG/DEBIAN" "$PKG/opt" "$PKG/usr/bin" "$PKG/usr/share/applications" \
-         "$PKG/usr/share/icons/hicolor/256x256/apps" "$PKG/etc/apparmor.d"
+mkdir -p "$PKG/DEBIAN" "$PKG/opt" "$PKG/usr/bin" "$PKG/usr/share" "$PKG/etc/apparmor.d"
 
 cp -a "$ROOT/dist/AluPC" "$PKG/opt/alupc"
 ln -s /opt/alupc/AluPC "$PKG/usr/bin/alupc"
-install -m 644 "$ROOT/packaging/linux/alupc.desktop" "$PKG/usr/share/applications/alupc.desktop"
-install -m 644 "$ROOT/alupc/resources/alupc.png" "$PKG/usr/share/icons/hicolor/256x256/apps/alupc.png"
+# Menüeintrag (Exec mit vollem Pfad – nötig für die KWin-Aufnahme ohne Nachfrage) und Symbole in allen Größen
+PYTHONPATH="$ROOT" python3 -m alupc.platform.linux_desktop "$PKG/usr/share" /opt/alupc/AluPC
+chmod -R u+rwX,go+rX "$PKG/usr/share"
 install -m 644 "$ROOT/packaging/linux/apparmor-alupc" "$PKG/etc/apparmor.d/alupc"
 
 SIZE=$(du -sk "$PKG" | cut -f1)

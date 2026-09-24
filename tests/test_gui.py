@@ -796,3 +796,177 @@ def test_window_source_wakes_minimized(env, monkeypatch):
     assert src._wake_if_minimized() is False
     assert src.state == "minimiert"
     assert "minimiert" in src._message
+
+
+# ---------------------------------------------------------------- 0.6: Linux
+class FakeFingerprint:
+    name = "fprintd"
+    can_enroll = True
+    login_toggle = True
+    can_auto_install = True
+
+    def __init__(self, missing=("libpam-fprintd",), sensors=True, match=True):
+        self.missing = list(missing)
+        self.sensors = sensors
+        self.match = match
+        self.log = []
+        self.login = False
+
+    def missing_packages(self):
+        return list(self.missing)
+
+    def install_packages(self, pkgs):
+        self.log.append(("install", tuple(pkgs)))
+        self.missing = []
+
+    def availability(self):
+        return (True, "") if self.sensors else (False, "Kein Sensor")
+
+    def list_sensors(self):
+        from alupc.platform.base import Sensor
+
+        return [Sensor("/dev/0", "Testsensor")] if self.sensors else []
+
+    def detect_hardware(self):
+        return [("Goodix (USB 27c6:538c)", "Zusatztreiber nötig")]
+
+    def list_enrolled(self, _sid):
+        return []
+
+    def enroll(self, sid, finger, status):
+        for i in range(1, 4):
+            status("auflegen", i, 3)
+        self.log.append(("enroll", finger))
+
+    def verify(self, sid, status):
+        status("auflegen", 0, 0)
+        return (self.match, "Erkannt" if self.match else "Passt nicht")
+
+    def login_enabled(self):
+        return self.login
+
+    def set_login_enabled(self, on):
+        self.login = on
+        self.log.append(("login", on))
+
+    def cancel(self):
+        self.log.append(("cancel",))
+
+    def open_system_settings(self):
+        self.log.append(("hello",))
+
+
+def _wait(cond, seconds=5):
+    import time
+
+    end = time.time() + seconds
+    while not cond() and time.time() < end:
+        pump()
+        time.sleep(0.01)
+    return cond()
+
+
+def test_fingerprint_wizard_runs_all_steps(env):
+    from alupc.ui.fingerprint_wizard import FingerprintWizard
+
+    backend = FakeFingerprint()
+    wiz = FingerprintWizard(backend, None, "left-thumb")
+    wiz.start()
+    assert _wait(lambda: not wiz.running)
+    assert [s.state for s in wiz.steps.values()] == ["ok"] * 5, [s.detail.text() for s in wiz.steps.values()]
+    assert backend.log == [("install", ("libpam-fprintd",)), ("enroll", "left-thumb"), ("login", True)]
+    assert "Fertig" in wiz.message.text()
+    wiz.deleteLater()
+
+
+def test_fingerprint_wizard_explains_missing_driver(env):
+    from alupc.ui.fingerprint_wizard import FingerprintWizard
+
+    backend = FakeFingerprint(missing=(), sensors=False)
+    wiz = FingerprintWizard(backend)
+    wiz.start()
+    assert _wait(lambda: not wiz.running)
+    assert wiz.steps["sensor"].state == "fehler"
+    assert "27c6:538c" in wiz.steps["sensor"].detail.text()
+    assert wiz.start_btn.isEnabled()
+    # Test-Scan passt nicht → anhalten, Anmeldung NICHT einschalten
+    backend = FakeFingerprint(missing=(), match=False)
+    wiz2 = FingerprintWizard(backend)
+    wiz2.start()
+    assert _wait(lambda: not wiz2.running)
+    assert wiz2.steps["test"].state == "fehler"
+    assert ("login", True) not in backend.log
+    wiz.deleteLater()
+    wiz2.deleteLater()
+
+
+def test_fingerprint_wizard_windows_flow(env):
+    from alupc.ui.fingerprint_wizard import FingerprintWizard
+
+    backend = FakeFingerprint(missing=())
+    backend.name, backend.can_enroll, backend.login_toggle = "winbio", False, False
+    wiz = FingerprintWizard(backend)
+    wiz.start()
+    assert _wait(lambda: not wiz.next_btn.isHidden())
+    assert ("hello",) in backend.log and "pakete" not in wiz.steps
+    wiz.next_btn.click()
+    assert _wait(lambda: not wiz.running)
+    assert wiz.steps["test"].state == "ok"
+    wiz.deleteLater()
+
+
+def test_screen_source_uses_kwin_without_asking(env, monkeypatch):
+    from PySide6.QtCore import QObject, Signal
+
+    from alupc import sources
+    from alupc.platform import kwin_capture
+
+    class FakeFeed(QObject):
+        frame = Signal(QImage)
+        failed = Signal(str)
+
+        def __init__(self, name, fps, parent=None):
+            super().__init__(parent)
+            self.name = name
+            self.stopped = False
+
+        def start(self):
+            img = QImage(40, 20, QImage.Format_RGB32)
+            img.fill(QColor("#00ff00"))
+            self.frame.emit(img)
+
+        def frame_taken(self):
+            pass
+
+        def stop(self):
+            self.stopped = True
+
+    monkeypatch.setattr(sources, "_kwin_allowed", lambda _name: True)
+    monkeypatch.setattr(kwin_capture, "KWinScreenFeed", FakeFeed)
+    controller, _window, _ = env
+    controller.mirror()
+    pump()
+    src = controller.output.content
+    assert src.method == "kwin" and src.feed.name == "Haupt"
+    assert src.image().pixelColor(1, 1) == QColor("#00ff00")
+    feed = src.feed
+    controller.show_source({"type": "color"})
+    assert feed.stopped
+    # KWin verweigert später → normale Aufnahme
+    controller.mirror()
+    src = controller.output.content
+    src.feed.failed.emit("NoAuthorized")
+    assert src.method == "qt" and src.capture is not None
+
+
+def test_tray_badge_icon_has_all_sizes(env):
+    controller, window, _ = env
+    from alupc.ui import icons
+
+    ic = icons.app_icon_with_badge("snowflake", "#0ea5e9")
+    sizes = {s.width() for s in ic.availableSizes()}
+    assert {16, 22, 32, 48, 256} <= sizes
+    controller.toggle_privacy()
+    pump()
+    assert window._tray_key == "eye_off"
+    controller.toggle_privacy()

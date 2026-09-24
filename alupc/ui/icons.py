@@ -377,32 +377,69 @@ SOURCE_ICONS = {
 }
 
 
-def app_icon() -> QIcon:
-    """Programmsymbol: zwei Monitore auf blauem Verlauf."""
+ICON_SIZES = (16, 22, 24, 32, 48, 64, 128, 256, 512)
+
+
+def render_app_icon(size: int) -> QPixmap:
+    """Programmsymbol: zwei Monitore auf blauem Verlauf (gleiches Bild wie resources/icons/alupc.svg)."""
     from PySide6.QtGui import QLinearGradient
 
+    px = QPixmap(size, size)
+    px.fill(Qt.transparent)
+    p = QPainter(px)
+    p.setRenderHint(QPainter.Antialiasing)
+    s = size / 64
+    grad = QLinearGradient(0, 0, size, size)
+    grad.setColorAt(0, QColor("#4f8df9"))
+    grad.setColorAt(1, QColor("#6d4ce8"))
+    p.setPen(Qt.NoPen)
+    p.setBrush(grad)
+    p.drawRoundedRect(QRectF(2 * s, 2 * s, 60 * s, 60 * s), 15 * s, 15 * s)
+    # hinterer Monitor (Monitor 2) halbtransparent, vorderer weiß
+    p.setBrush(QColor(255, 255, 255, 110))
+    p.drawRoundedRect(QRectF(24 * s, 13 * s, 28 * s, 20 * s), 3.5 * s, 3.5 * s)
+    p.setBrush(QColor("#ffffff"))
+    p.drawRoundedRect(QRectF(12 * s, 22 * s, 30 * s, 21 * s), 3.5 * s, 3.5 * s)
+    p.drawRoundedRect(QRectF(22 * s, 43 * s, 10 * s, 6 * s), 1 * s, 1 * s)
+    p.drawRoundedRect(QRectF(17 * s, 48 * s, 20 * s, 3.5 * s), 1.7 * s, 1.7 * s)
+    p.setBrush(QColor("#5b76f2"))
+    p.drawRoundedRect(QRectF(15 * s, 25 * s, 24 * s, 15 * s), 2 * s, 2 * s)
+    p.end()
+    return px
+
+
+_APP_ICON: QIcon | None = None
+
+
+def app_icon() -> QIcon:
+    """Programmsymbol in allen Größen (scharf in Taskleiste, Menü und Fenstertitel)."""
+    global _APP_ICON
+    if _APP_ICON is None:
+        ic = QIcon()
+        for size in ICON_SIZES:
+            ic.addPixmap(render_app_icon(size))
+        _APP_ICON = ic
+    return QIcon(_APP_ICON)
+
+
+def app_icon_with_badge(icon_name: str, color: str) -> QIcon:
+    """Programmsymbol mit kleinem runden Zustands-Abzeichen unten rechts (für das Taskleisten-Symbol)."""
     ic = QIcon()
-    for size in (16, 24, 32, 48, 64, 128, 256):
-        px = QPixmap(size, size)
-        px.fill(Qt.transparent)
+    for size in ICON_SIZES:
+        px = render_app_icon(size)
         p = QPainter(px)
         p.setRenderHint(QPainter.Antialiasing)
-        s = size / 64
-        grad = QLinearGradient(0, 0, size, size)
-        grad.setColorAt(0, QColor("#4f8df9"))
-        grad.setColorAt(1, QColor("#6d4ce8"))
+        d = size * 0.52
+        badge = QRectF(size - d, size - d, d, d)
+        # heller Rand trennt das Abzeichen vom Logo
         p.setPen(Qt.NoPen)
-        p.setBrush(grad)
-        p.drawRoundedRect(QRectF(2 * s, 2 * s, 60 * s, 60 * s), 15 * s, 15 * s)
-        # hinterer Monitor (Monitor 2) halbtransparent, vorderer weiß
-        p.setBrush(QColor(255, 255, 255, 110))
-        p.drawRoundedRect(QRectF(24 * s, 13 * s, 28 * s, 20 * s), 3.5 * s, 3.5 * s)
         p.setBrush(QColor("#ffffff"))
-        p.drawRoundedRect(QRectF(12 * s, 22 * s, 30 * s, 21 * s), 3.5 * s, 3.5 * s)
-        p.drawRoundedRect(QRectF(22 * s, 43 * s, 10 * s, 6 * s), 1 * s, 1 * s)
-        p.drawRoundedRect(QRectF(17 * s, 48 * s, 20 * s, 3.5 * s), 1.7 * s, 1.7 * s)
-        p.setBrush(QColor("#5b76f2"))
-        p.drawRoundedRect(QRectF(15 * s, 25 * s, 24 * s, 15 * s), 2 * s, 2 * s)
+        p.drawEllipse(badge)
+        p.setBrush(QColor(color))
+        p.drawEllipse(badge.adjusted(d * 0.08, d * 0.08, -d * 0.08, -d * 0.08))
+        if size >= 22:
+            inset = d * 0.26
+            paint(p, icon_name, badge.adjusted(inset, inset, -inset, -inset), "#ffffff", 2.4 if size >= 48 else 2.0)
         p.end()
         ic.addPixmap(px)
     return ic

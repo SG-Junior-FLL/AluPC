@@ -111,6 +111,12 @@ def main(argv=None) -> int:
     instance.command.connect(on_command)
     app.aboutToQuit.connect(controller.shutdown)
 
+    if sys.platform.startswith("linux"):
+        # Portable Version: Menüeintrag und Logo für KDE/Wayland anlegen (einmalig, danach nur bei Änderung)
+        from .platform.linux_desktop import ensure_user_entry
+
+        ensure_user_entry()
+
     controller.restore_last()
     if args.befehl and args.befehl != "zeigen":
         on_command(args.befehl)
