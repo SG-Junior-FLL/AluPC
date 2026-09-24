@@ -95,11 +95,13 @@ jobs:
       - name: Tests (Oberfläche)
         shell: pwsh
         run: |
-          pytest -v -rf tests/test_gui.py 2>&1 | Tee-Object -FilePath gui.log
+          python -X faulthandler -m pytest -v -rf tests/test_gui.py 2>&1 | Tee-Object -FilePath gui.log
           if ($LASTEXITCODE -ne 0) {
             # Fehler als Hinweis (Annotation) ausgeben – die sind auch ohne Anmeldung sichtbar
-            Select-String -Path gui.log -Pattern '^(FAILED|E   |ERROR)' | Select-Object -First 40 |
-              ForEach-Object { Write-Output ("::error::" + $_.Line.Trim()) }
+            Select-String -Path gui.log -Pattern '^(FAILED|E   |ERROR|Fatal|Windows fatal|  File )' |
+              Select-Object -First 40 | ForEach-Object { Write-Output ("::error::" + $_.Line.Trim()) }
+            Get-Content gui.log -Tail 25 | Where-Object { $_.Trim() } |
+              ForEach-Object { Write-Output ("::warning::" + $_.Trim()) }
             exit 1
           }
       - name: AluPC.exe bauen (PyInstaller)
