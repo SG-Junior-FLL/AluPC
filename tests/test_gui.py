@@ -628,12 +628,21 @@ def test_website_favorites_and_browser_control(env):
 
     bc.preview.resize(640, 360)
     center = QPointF(bc.preview.width() / 2, bc.preview.height() / 2)
-    for kind in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
-        ev = QMouseEvent(kind, center, center, Qt.LeftButton,
-                         Qt.LeftButton if kind == QEvent.MouseButtonPress else Qt.NoButton, Qt.NoModifier)
-        (bc.preview.mousePressEvent if kind == QEvent.MouseButtonPress else bc.preview.mouseReleaseEvent)(ev)
-    end = time.time() + 10
+
+    def click():
+        for kind in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+            ev = QMouseEvent(kind, center, center, Qt.LeftButton,
+                             Qt.LeftButton if kind == QEvent.MouseButtonPress else Qt.NoButton, Qt.NoModifier)
+            (bc.preview.mousePressEvent if kind == QEvent.MouseButtonPress else bc.preview.mouseReleaseEvent)(ev)
+
+    # Chromium nimmt Eingaben erst an, wenn die Seite fertig gezeichnet ist – auf langsamen Rechnern
+    # (GitHub) kann das nach „geladen“ noch etwas dauern, darum ggf. erneut klicken
+    end = time.time() + 20
+    next_click = 0.0
     while view.title() != "Geklickt" and time.time() < end:
+        if time.time() >= next_click:
+            click()
+            next_click = time.time() + 1.5
         pump()
     assert view.title() == "Geklickt"
     bc._zoom(0.1)
