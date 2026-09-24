@@ -686,7 +686,8 @@ def test_scene_transition_overrides_setup(env):
     assert controller.transition_for({"type": "scene", "scene": "S"}) == ("zoom", 900)
     assert controller.transition_for({"type": "color"}) == ("blende", 400)
     controller.config["appearance"] = {**controller.config["appearance"], "fade": False}
-    assert controller.transition_for({"type": "scene", "scene": "S"})[0] == "schnitt"
+    assert controller.transition_for({"type": "color"})[0] == "schnitt"  # Setup: harter Schnitt
+    assert controller.transition_for({"type": "scene", "scene": "S"}) == ("zoom", 900)  # Szene gilt trotzdem
 
 
 def test_media_volume_live(env, tmp_path):
@@ -1233,3 +1234,25 @@ def test_preview_frame_rate_selectable(env):
     assert len(counted) >= 15, len(counted)  # großzügig: GitHub-Rechner sind langsam
     win.close()
     pump()
+
+
+def test_cursor_tracker_cleans_up_failed_kwin(monkeypatch):
+    from alupc import cursor as cursor_mod
+    from alupc.platform import kwin_cursor
+
+    stopped = []
+
+    class Broken(kwin_cursor.CursorReceiver):
+        def start(self, load_script=True):
+            raise RuntimeError("KWin-Skript ließ sich nicht laden")
+
+        def stop(self):
+            stopped.append(1)
+
+    monkeypatch.setattr(cursor_mod, "is_wayland", lambda: True)
+    monkeypatch.setattr(cursor_mod, "wayland_kde", lambda: True)
+    monkeypatch.setattr(kwin_cursor, "CursorReceiver", Broken)
+    t = cursor_mod.CursorTracker()
+    t.acquire()
+    assert t.method == "keine" and t._kwin is None and stopped == [1]
+    t.release()

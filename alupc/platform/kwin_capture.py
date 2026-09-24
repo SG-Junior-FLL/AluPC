@@ -13,6 +13,7 @@ Jedes Bild ist ein eigener Screenshot → etwas langsamer als eine Video-Aufnahm
 from __future__ import annotations
 
 import os
+import select
 import threading
 import time
 
@@ -27,6 +28,7 @@ PATH = "/org/kde/KWin/ScreenShot2"
 IFACE = "org.kde.KWin.ScreenShot2"
 RESTRICTED_LINE = f"X-KDE-DBUS-Restricted-Interfaces={IFACE}"
 
+_orphans: list = []  # beendete, aber noch nicht fertige Aufnahme-Threads
 _state = {"allowed": None, "checked": 0.0, "error": ""}
 _lock = threading.Lock()
 
@@ -73,6 +75,10 @@ def capture_screen(conn, screen_name: str, cursor: bool = True) -> QImage:
         (info,) = unwrap_msg(reply)
         chunks = []
         while True:
+            # nie ewig warten: liefert KWin 5 s lang nichts, abbrechen
+            ready, _w, _x = select.select([read_fd], [], [], 5)
+            if not ready:
+                raise TimeoutError("KWin liefert keine Bilddaten")
             chunk = os.read(read_fd, 4 << 20)
             if not chunk:
                 break
@@ -128,7 +134,17 @@ class KWinScreenFeed(QThread):
 
     def stop(self) -> None:
         self._stop.set()
-        self.wait(3000)
+        if not self.wait(3000):
+            # Hängt KWin gerade: Thread weiterlaufen lassen, aber vom Besitzer lösen, damit er nicht
+            # gelöscht wird, solange er noch läuft (das würde AluPC abstürzen lassen)
+            try:
+                self.frame.disconnect()
+                self.failed.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self.setParent(None)
+            _orphans.append(self)
+            self.finished.connect(lambda: _orphans.remove(self) if self in _orphans else None)
 
     def frame_taken(self) -> None:
         self._busy.clear()

@@ -171,7 +171,9 @@ class WinBioBackend(FingerprintBackend):
         except Exception as exc:  # noqa: BLE001
             return (False, str(exc))
         if not sensors:
-            return (False, "Kein Fingerabdrucksensor gefunden (Windows Hello).")
+            return (False, "Kein Fingerabdrucksensor gefunden (Windows Hello). Steckt ein USB-Leser, fehlt meist "
+                           "nur der Treiber: Einstellungen → Windows Update → Erweiterte Optionen → Optionale "
+                           "Updates → Treiberupdates, dort den Fingerabdruck-Treiber installieren und neu starten.")
         return (True, "")
 
     def list_sensors(self):

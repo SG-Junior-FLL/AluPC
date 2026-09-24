@@ -8,6 +8,16 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.8.2)
+- Behoben: Mit „Harter Schnitt“ im Setup wurde ein eigener Übergang einer Szene ignoriert.
+- Behoben (KDE/Wayland): Hing KWin beim Aufnehmen, konnte AluPC beim Szenenwechsel abstürzen;
+  Bilddaten werden jetzt höchstens 5 s abgewartet.
+- Behoben (KDE/Wayland): Ließ sich das Maus-Skript für den Laserpointer nicht laden, blieben bei jedem
+  Einschalten Verbindung und Hintergrund-Thread übrig.
+- Fingerabdruck: günstige USB-Leser von Chipsailing (z. B. CS9711, USB 2541:0236) und Microarray werden
+  erkannt und ehrlich benannt (Linux-Standardtreiber unterstützt sie nicht); Windows: Hinweis, wo es den
+  Treiber gibt, wenn kein Sensor gefunden wird.
+
 ### Neu in dieser Version (0.8.1)
 - **Flüssigere Vorschau**: „Zeigen & Zeichnen“ zeigt Monitor 2 jetzt mit 30 Bilder/s (wählbar 10–60,
   daneben steht, wie viele wirklich erreicht werden). Bild-in-Bild: bis 60 Bilder/s (Setup), Standard 20.

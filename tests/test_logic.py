@@ -336,3 +336,16 @@ def test_windows_cursor_image_and_clip():
         image, (hx, hy), _key = shape
         assert image.width() == 128 and 0 <= hx < 128 and 0 <= hy < 128
     assert cursor_native.clip_cursor(None) in (True, False)
+
+
+def test_cheap_usb_sensors_are_named():
+    import tempfile
+    from pathlib import Path
+
+    from alupc.platform.linux_fingerprint import detect_usb_sensors
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _usb(Path(tmp), "3-1", "2541", "0236")  # Chipsailing CS9711 (günstige USB-Leser)
+        found = detect_usb_sensors(Path(tmp))
+    assert len(found) == 1 and "Chipsailing" in found[0][0] and "2541:0236" in found[0][0]
+    assert "nicht unterstützt" in found[0][1] and "Windows" in found[0][1]

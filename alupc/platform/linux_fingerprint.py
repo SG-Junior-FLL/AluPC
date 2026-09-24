@@ -48,7 +48,7 @@ SUPPORTED_LIST = "https://fprint.freedesktop.org/supported-devices.html"
 FP_VENDORS = {
     "27c6": "Goodix", "138a": "Validity/Synaptics", "1c7a": "EgisTec", "2808": "FocalTech",
     "10a5": "FPC", "147e": "UPEK", "08ff": "AuthenTec", "298d": "Next Biometrics", "06cb": "Synaptics",
-    "04f3": "Elan",
+    "04f3": "Elan", "2541": "Chipsailing", "3274": "Microarray",
 }
 DRIVER_HINTS = {
     "27c6": "Goodix: Einige Modelle laufen nur mit dem Zusatztreiber „libfprint-2-tod1-goodix“ "
@@ -57,6 +57,9 @@ DRIVER_HINTS = {
             "„python-validity“ (ohne Gewähr).",
     "06cb": "Synaptics: Neuere libfprint-Versionen (Ubuntu 24.04+) kennen viele Modelle – "
             "ein System-Update kann helfen.",
+    "2541": "Chipsailing (z. B. CS9711, typischer günstiger USB-Leser): wird vom normalen Linux-Treiber "
+            "(libfprint) nicht unterstützt. Unter Windows geht er mit dem Windows-Hello-Treiber.",
+    "3274": "Microarray: wird vom normalen Linux-Treiber (libfprint) nicht unterstützt.",
 }
 
 

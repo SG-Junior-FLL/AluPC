@@ -220,10 +220,12 @@ class Controller(QObject):
         """Übergang zum neuen Inhalt: Einstellung im Setup, eine Szene kann sie überschreiben."""
         from .transitions import resolve
 
+        base = dict(self.config["transition"])
         if not self.config["appearance"].get("fade", True):
-            return "schnitt", 0
+            base["type"] = "schnitt"  # alte Einstellung „nicht überblenden“ = harter Schnitt …
         scene = self.config.get_scene(cfg.get("scene")) if cfg and cfg.get("type") == "scene" else None
-        return resolve(self.config["transition"], (scene or {}).get("transition"))
+        # … aber ein Übergang, der bei der Szene selbst eingestellt ist, gilt trotzdem
+        return resolve(base, (scene or {}).get("transition"))
 
     def mirror(self) -> None:
         main = self.main_screen()

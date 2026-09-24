@@ -62,6 +62,8 @@ class CursorTracker(QObject):
                     self.method = "kwin"
                     return
                 except Exception:  # noqa: BLE001
+                    if self._kwin is not None:
+                        self._kwin.stop()  # D-Bus-Verbindung und Thread nicht liegen lassen
                     self._kwin = None
             self.method = "keine"
             return
