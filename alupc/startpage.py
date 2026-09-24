@@ -18,8 +18,12 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "pip": ("pip", "Bild-in-Bild", "Monitor 2 klein anzeigen", "#8b5cf6", "schnell"),
     "screensaver": ("moon", "Bildschirmschoner", "Starten / beenden · ▾ Einstellungen", "#6366f1", "schnell"),
     "timer": ("timer", "Timer", "Start / Pause · ▾ mehr", "#f43f5e", "schnell"),
+    "laser": ("laser", "Laserpointer", "Roter Punkt auf Monitor 2", "#ef4444", "schnell"),
 }
 DEFAULT_ORDER = list(BUILTIN_TILES)
+# Kacheln, die es schon vor dem Merken von „seen“ gab (für ältere Einstellungen)
+LEGACY_TILES = ["mirror", "extend", "camera", "program", "website", "media", "scenes", "freeze", "black",
+                "pip", "screensaver", "timer"]
 
 SECTIONS = {"anzeigen": "Anzeigen", "schnell": "Schnell umschalten"}
 
@@ -38,6 +42,7 @@ COMMANDS = {
     "timer_neustart": "Timer neu starten",
     "timer_plus": "Timer +1 Minute",
     "timer_minus": "Timer −1 Minute",
+    "laserpointer": "Laserpointer an/aus",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann
@@ -75,6 +80,9 @@ def ordered_keys(start_cfg: dict) -> list[str]:
     if saved is None:
         return DEFAULT_ORDER + [custom_key(t) for t in start_cfg.get("custom", [])]
     keys = [k for k in saved if k in BUILTIN_TILES or k in custom]
+    # Neue Standard-Kacheln (nach einem Update) erscheinen, auch wenn die Reihenfolge schon angepasst wurde
+    seen = set(start_cfg.get("seen") or LEGACY_TILES)
+    keys += [k for k in DEFAULT_ORDER if k not in seen and k not in keys]
     # Neu angelegte eigene Kacheln, die noch nicht in der Liste stehen, hinten anhängen
     listed = set(saved)
     keys += [custom_key(t) for t in start_cfg.get("custom", []) if custom_key(t) not in listed]

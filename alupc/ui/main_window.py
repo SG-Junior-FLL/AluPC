@@ -343,6 +343,8 @@ class MainWindow(QMainWindow):
         self.t_web, self.t_media, self.t_scenes = self.tiles["website"], self.tiles["media"], self.tiles["scenes"]
         self.t_freeze, self.t_black, self.t_pip = self.tiles["freeze"], self.tiles["black"], self.tiles["pip"]
         self.t_saver = self.tiles["screensaver"]
+        self.t_laser = self.tiles["laser"]
+        self.t_laser.clicked.connect(c.toggle_laser)
 
         self.t_mirror.clicked.connect(c.mirror)
         self.t_extend.clicked.connect(c.extend)
@@ -805,7 +807,9 @@ class MainWindow(QMainWindow):
         self.a_saver.triggered.connect(lambda _=False: c.toggle_screensaver())
         self.a_pip = QAction(ic("pip"), "Bild-in-Bild", menu, checkable=True)
         self.a_pip.triggered.connect(lambda _=False: c.toggle_pip())
-        for act in (self.a_freeze, self.a_black, self.a_saver, self.a_pip):
+        self.a_laser = QAction(ic("laser"), "Laserpointer", menu, checkable=True)
+        self.a_laser.triggered.connect(lambda _=False: c.toggle_laser())
+        for act in (self.a_freeze, self.a_black, self.a_saver, self.a_pip, self.a_laser):
             menu.addAction(act)
         self.tray_timer = menu.addMenu(ic("timer"), "Timer")
         self._fill_timer_menu(self.tray_timer)
@@ -934,6 +938,8 @@ class MainWindow(QMainWindow):
             pills.append(("LIVE", t.success))
         if pip_on:
             pills.append(("BILD-IN-BILD", PIP_COLOR))
+        if c.laser.active:
+            pills.append(("LASER", "#ef4444"))
         self.status_card.set(icon_name, where, c.describe(), pills)
         self.volume_box.sync()
         self._sync_tray_volume()
@@ -952,6 +958,7 @@ class MainWindow(QMainWindow):
             tile.set_state(on, badge="AKTIV" if on else "")
         saver_on = c.screensaver.active
         self.t_saver.set_state(saver_on, badge="AN" if saver_on else "")
+        self.t_laser.set_state(c.laser.active, badge="AN" if c.laser.active else "")
         for key, tile in self.custom_tiles.items():
             tcfg = find_custom(self.config["start_page"], key) or {}
             action = tcfg.get("action") or {}
@@ -965,6 +972,7 @@ class MainWindow(QMainWindow):
         self.a_freeze.setChecked(c.frozen)
         self.a_black.setChecked(c.privacy)
         self.a_pip.setChecked(pip_on)
+        self.a_laser.setChecked(c.laser.active)
         self.a_saver.setChecked(c.screensaver.active)
         self.a_status.setText(f"Monitor 2: {c.describe()}"[:70])
         self.tray.setToolTip(f"{APP_NAME} – Monitor 2: {c.describe()}")

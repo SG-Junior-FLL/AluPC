@@ -322,6 +322,9 @@ def test_custom_tile_and_scene_steps(env):
          "action": {"kind": "command", "command": "standbild"}},
     ]
     start["tiles"] = ["camera", "custom:t1", "freeze", "custom:t2"]
+    from alupc.startpage import BUILTIN_TILES
+
+    start["seen"] = list(BUILTIN_TILES)  # wie beim Speichern im Dialog: alle anderen bewusst ausgeblendet
     cfg["start_page"] = start
     window.rebuild_start()
     pump()
@@ -934,9 +937,10 @@ def test_screen_source_uses_kwin_without_asking(env, monkeypatch):
         frame = Signal(QImage)
         failed = Signal(str)
 
-        def __init__(self, name, fps, parent=None):
+        def __init__(self, name, fps, cursor=True, parent=None):
             super().__init__(parent)
             self.name = name
+            self.cursor = cursor
             self.stopped = False
 
         def start(self):
@@ -979,3 +983,121 @@ def test_tray_badge_icon_has_all_sizes(env):
     pump()
     assert window._tray_key == "eye_off"
     controller.toggle_privacy()
+
+
+# ---------------------------------------------------------------- 0.7: Maus, Laserpointer
+def test_mirror_draws_mouse_pointer(env, monkeypatch):
+    from PySide6.QtCore import QPoint
+
+    from alupc import cursor as cursor_mod
+
+    controller, _window, _ = env
+    controller.mirror()
+    pump()
+    src = controller.output.content
+    assert src.method == "qt" and src._cursor_on
+    img = QImage(1920, 1080, QImage.Format_RGB32)
+    img.fill(QColor("#336699"))
+    src._pending = None
+    src._image = img
+    src.resize(960, 540)
+    main = controller.main_screen().geometry()
+    t = cursor_mod.tracker()
+    t._set(QPoint(main.x() + main.width() // 2, main.y() + main.height() // 2))
+    shot = src.grab().toImage()
+    # Pfeilspitze in der Bildmitte: dort (knapp daneben) ist der Pfeil weiß/schwarz statt blau
+    colors = {shot.pixelColor(480 + dx, 270 + dy).name() for dx in range(1, 6) for dy in range(3, 12)}
+    assert "#ffffff" in colors or "#000000" in colors, colors
+    # Ausschalten im Setup → kein Zeiger mehr
+    controller.config["output"] = {**controller.config["output"], "mirror_cursor": False}
+    controller.apply_output_settings()
+    shot = src.grab().toImage()
+    colors = {shot.pixelColor(480 + dx, 270 + dy).name() for dx in range(1, 6) for dy in range(3, 12)}
+    assert colors == {"#336699"}
+    controller.config["output"] = {**controller.config["output"], "mirror_cursor": True}
+    controller.apply_output_settings()
+    users = t.users
+    controller.show_source({"type": "color"})
+    assert t.users == users - 1  # Aufnahme beendet → Abfrage wird freigegeben
+
+
+def test_cursor_stays_home_except_extend(env):
+    from PySide6.QtGui import QCursor
+
+    controller, _window, _ = env
+    controller.show_source({"type": "color"})
+    pump()
+    assert controller.cursor_should_stay_home()
+    guard = controller.cursor_guard
+    assert guard.active
+    out = controller.output_screen().geometry()
+    QCursor.setPos(out.center())
+    guard._enforce()
+    assert controller.main_screen().geometry().contains(QCursor.pos())
+    controller.extend()
+    pump()
+    assert not controller.cursor_should_stay_home() and not guard.active
+    controller.show_source({"type": "color"})
+    controller.config["output"] = {**controller.config["output"], "confine_cursor": False}
+    controller.apply_output_settings()
+    assert not guard.active
+    controller.config["output"] = {**controller.config["output"], "confine_cursor": True}
+    controller.apply_output_settings()
+
+
+def test_laser_pointer(env):
+    import time
+
+    from PySide6.QtCore import QPoint
+
+    controller, window, _ = env
+    controller.show_source({"type": "color", "color": "#000000"})
+    pump()
+    controller.run_command("laserpointer")
+    pump()
+    laser = controller.laser
+    assert laser.active and laser.isVisible()
+    assert laser.geometry() == controller.output_screen().geometry()
+    window.refresh()
+    assert window.a_laser.isChecked()
+    main, out = controller.main_screen().geometry(), controller.output_screen().geometry()
+    # Maus in der Mitte von Monitor 1 → Punkt in der Mitte von Monitor 2
+    target = laser.target_for(main.center())
+    assert abs(target.x() - out.width() / 2) < 2 and abs(target.y() - out.height() / 2) < 2
+    # Maus direkt auf Monitor 2 („Erweitern“) → Punkt genau dort
+    assert laser.target_for(out.topLeft() + QPoint(10, 20)).toPoint() == QPoint(10, 20)
+    from alupc.cursor import tracker
+
+    tracker()._set(main.topLeft() + QPoint(main.width() // 4, main.height() // 4))
+    laser._moved(tracker().pos)
+    assert laser.point is not None and laser.trail
+    img = laser.grab().toImage()
+    p = laser.point.toPoint()
+    assert img.pixelColor(p).red() > 200
+    end = time.time() + 1
+    while laser.trail and time.time() < end:
+        pump()
+    assert not laser.trail  # Leuchtspur verblasst
+    from alupc.sources import screen_settings
+
+    assert screen_settings["cursor"] is False  # Laser an → kein zusätzlicher Mauszeiger im Spiegelbild
+    controller.run_command("laserpointer")
+    assert not laser.active and not laser.isVisible()
+    assert screen_settings["cursor"] is True
+
+
+def test_laser_follows_mirrored_image_area(env):
+    controller, _window, _ = env
+    controller.mirror()
+    pump()
+    src = controller.output.content
+    img = QImage(400, 400, QImage.Format_RGB32)  # quadratisch → links/rechts schwarze Ränder
+    img.fill(QColor("#ffffff"))
+    src._pending = None
+    src._image = img
+    controller.run_command("laserpointer")
+    laser = controller.laser
+    main, out = controller.main_screen().geometry(), controller.output_screen().geometry()
+    left = laser.target_for(main.topLeft())
+    assert abs(left.x() - (out.width() - out.height()) / 2) < 2  # linker Rand des Bildes, nicht des Monitors
+    controller.run_command("laserpointer")

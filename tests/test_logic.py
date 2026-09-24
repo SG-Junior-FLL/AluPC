@@ -2,6 +2,7 @@
 
 import ctypes
 import json
+import sys
 
 import pytest
 
@@ -179,6 +180,7 @@ def test_startpage_order():
     cfg = {"tiles": None, "custom": [{"id": "a1", "title": "X", "section": "schnell"}]}
     assert ordered_keys(cfg) == DEFAULT_ORDER + ["custom:a1"]
     cfg["tiles"] = ["camera", "gibts-nicht", "mirror"]
+    cfg["seen"] = list(DEFAULT_ORDER)
     keys = ordered_keys(cfg)
     assert keys == ["camera", "mirror", "custom:a1"]  # unbekannte weg, neue eigene hinten dran
     full = all_keys(cfg)
@@ -286,3 +288,51 @@ def test_portable_registers_itself(tmp_path, monkeypatch):
     (tmp_path / "applications" / "alupc.desktop").write_text(entry.replace("Exec=", "Exec=/alt"))
     assert linux_desktop.ensure_user_entry() is True
     assert not (tmp_path / "applications" / "alupc.desktop").exists()
+
+
+# ---------------------------------------------------------------- 0.7: Maus, Laserpointer
+def test_new_builtin_tiles_appear_after_update():
+    from alupc.startpage import ordered_keys
+
+    old_saved = {"tiles": ["timer", "mirror"], "custom": []}  # Einstellungen von vor dem Update
+    assert ordered_keys(old_saved) == ["timer", "mirror", "laser"]
+    from alupc.startpage import DEFAULT_ORDER
+
+    hidden_on_purpose = {"tiles": ["timer", "mirror"], "custom": [], "seen": list(DEFAULT_ORDER)}
+    assert ordered_keys(hidden_on_purpose) == ["timer", "mirror"]
+    assert "laser" in ordered_keys({"tiles": None})
+
+
+def test_barrier_lines():
+    from alupc.platform.cursor_native import barrier_lines
+
+    assert barrier_lines((1920, 0, 1280, 720)) == [
+        (1920, 0, 1920, 720), (3200, 0, 3200, 720), (1920, 0, 3200, 0), (1920, 720, 3200, 720)]
+
+
+def test_laser_hotkey_and_command_exist():
+    from alupc.config import DEFAULT_HOTKEYS, HOTKEY_LABELS
+    from alupc.startpage import COMMANDS
+
+    assert DEFAULT_HOTKEYS["laserpointer"] == "Ctrl+Alt+Z"
+    assert "laserpointer" in HOTKEY_LABELS and "laserpointer" in COMMANDS
+    values = [v for v in DEFAULT_HOTKEYS.values() if v]
+    assert len(values) == len(set(values))  # keine doppelten Standard-Kürzel
+
+
+_KEEP: list = []
+
+
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="nur Windows")
+def test_windows_cursor_image_and_clip():
+    from PySide6.QtGui import QGuiApplication
+
+    if QGuiApplication.instance() is None:
+        _KEEP.append(QGuiApplication([]))  # Qt-Anwendung am Leben halten
+    from alupc.platform import cursor_native
+
+    shape = cursor_native.cursor_image()  # darf None sein (z. B. Zeiger versteckt), aber nicht abstürzen
+    if shape is not None:
+        image, (hx, hy), _key = shape
+        assert image.width() == 128 and 0 <= hx < 128 and 0 <= hy < 128
+    assert cursor_native.clip_cursor(None) in (True, False)

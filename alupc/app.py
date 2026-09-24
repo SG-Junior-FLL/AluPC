@@ -8,7 +8,8 @@ import sys
 
 from . import APP_NAME, __version__
 
-COMMANDS_HELP = ("standbild, schwarz, bild-in-bild, bildschirmschoner, spiegeln, erweitern, naechste_szene, "
+COMMANDS_HELP = ("standbild, schwarz, bild-in-bild, bildschirmschoner, laserpointer, spiegeln, erweitern, "
+                 "naechste_szene, "
                  "vorherige_szene, sperren (Computer), zeigen, szene:NAME")
 
 
@@ -184,6 +185,13 @@ def self_test(log_path: str) -> int:
         controller.config["transition"] = {"type": "zoom", "ms": 100}
         controller.show_source({"type": "text", "text": "Übergang"})
         controller.set_media_volume(volume=50)
+        controller.mirror()  # Aufnahme + Mauszeiger (Windows: echtes Zeigerbild über Win32)
+        from .platform.cursor_native import cursor_image
+
+        cursor_image()
+        controller.run_command("laserpointer")
+        controller.run_command("laserpointer")
+        controller.update_cursor_guard()
         app.processEvents()
         controller.shutdown()
         lines.append("OK")

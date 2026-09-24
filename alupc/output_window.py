@@ -95,6 +95,7 @@ class OutputWindow(QWidget):
         self.hide_taskbar = True
         self._placed_on: tuple | None = None
         self._kde_done = False
+        self.after_raise: list = []  # z. B. Laserpointer: muss über diesem Fenster bleiben
         from .platform.window_tools import SecondaryTaskbar
 
         self.taskbar = SecondaryTaskbar()
@@ -247,6 +248,8 @@ class OutputWindow(QWidget):
         if not self._kde_done:
             self._kde_done = True
             self._kde_keep_above()
+        for callback in self.after_raise:
+            callback()
 
     def _kde_keep_above(self) -> None:
         from .platform.window_tools import kde_keep_above

@@ -21,6 +21,7 @@ DEFAULT_HOTKEYS = {
     "timer_neustart": "",
     "timer_plus": "",
     "timer_minus": "",
+    "laserpointer": "Ctrl+Alt+Z",
 }
 
 HOTKEY_LABELS = {
@@ -36,6 +37,7 @@ HOTKEY_LABELS = {
     "timer_neustart": "Timer neu starten",
     "timer_plus": "Timer +1 Minute",
     "timer_minus": "Timer −1 Minute",
+    "laserpointer": "Laserpointer an/aus",
 }
 
 DEFAULTS: dict = {
@@ -66,7 +68,13 @@ DEFAULTS: dict = {
     # Gespeicherte Websites (Favoriten) für die Kachel „Website“
     "websites": {"favorites": []},
     # Monitor 2: Taskleiste dort ausblenden (Windows), Standbild-Symbol oben rechts
-    "output": {"hide_taskbar": True, "freeze_badge": True},
+    "output": {"hide_taskbar": True, "freeze_badge": True,
+               # Mauszeiger beim Spiegeln ins Bild zeichnen (die Aufnahme enthält ihn nicht)
+               "mirror_cursor": True,
+               # Maus bleibt auf Monitor 1, außer bei „Erweitern“ (dort ist Monitor 2 ein normaler Bildschirm)
+               "confine_cursor": True},
+    # Laserpointer auf Monitor 2 (folgt der Maus auf Monitor 1)
+    "laser": {"color": "#ff2a2a", "size": 100, "trail": True},
     "start_minimized": False,
     "appearance": {"mode": "system", "accent": "blau", "fade": True},
     # Übergang zwischen Inhalten/Szenen auf Monitor 2 (Art siehe transitions.py); Szenen können

@@ -16,4 +16,4 @@ def test_kwin_capture_with_fake_kwin():
     pytest.importorskip("jeepney")
     proc = subprocess.run(["dbus-run-session", "--", sys.executable, str(HERE / "kwin_check.py")],
                           capture_output=True, text=True, timeout=120)
-    assert "KWIN-OK" in proc.stdout, proc.stdout + proc.stderr
+    assert "KWIN-OK" in proc.stdout and "CURSOR-OK" in proc.stdout, proc.stdout + proc.stderr

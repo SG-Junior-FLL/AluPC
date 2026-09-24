@@ -55,7 +55,8 @@ def build_kwin_script(output_name: str, rect: tuple[int, int, int, int], fullscr
     }
 
 
-def run_kwin_script(source: str) -> None:
+def start_kwin_script(source: str) -> str:
+    """KWin-Skript laden und starten; es läuft weiter, bis `stop_kwin_script(name)` es entfernt."""
     plugin = f"alupc_{uuid.uuid4().hex[:8]}"
     fd, path = tempfile.mkstemp(prefix="alupc-", suffix=".js")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -76,16 +77,28 @@ def run_kwin_script(source: str) -> None:
                 except Exception as exc:  # noqa: BLE001
                     last_error = exc
             else:
+                stop_kwin_script(plugin)
                 raise RuntimeError(f"KWin-Skript konnte nicht gestartet werden: {last_error}")
-            try:
-                dbus_util.call(conn, "org.kde.KWin", "/Scripting", iface, "unloadScript", "s", (plugin,))
-            except Exception:  # noqa: BLE001
-                pass
     finally:
         try:
             os.unlink(path)
         except OSError:
             pass
+    return plugin
+
+
+def stop_kwin_script(plugin: str) -> None:
+    try:
+        with dbus_util.connect("SESSION") as conn:
+            dbus_util.call(conn, "org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting", "unloadScript", "s",
+                           (plugin,))
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def run_kwin_script(source: str) -> None:
+    """KWin-Skript einmal ausführen (und gleich wieder entfernen)."""
+    stop_kwin_script(start_kwin_script(source))
 
 
 def parse_wmctrl(text: str) -> list[WindowInfo]:

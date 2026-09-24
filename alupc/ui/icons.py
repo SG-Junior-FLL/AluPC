@@ -97,6 +97,17 @@ def _draw(name: str, p: QPainter, color: QColor):
         p.setBrush(fill)
         p.drawRoundedRect(QRectF(12, 11, 7, 6), 1.2, 1.2)
         p.setBrush(Qt.NoBrush)
+    elif name == "laser":
+        # Stift, aus dessen Spitze ein Leuchtpunkt kommt
+        p.drawLine(QPointF(4, 20), QPointF(11.5, 12.5))
+        p.drawLine(QPointF(6, 21.5), QPointF(13, 14.5))
+        p.drawLine(QPointF(2.5, 18.5), QPointF(10, 11))
+        p.setBrush(fill)
+        p.drawEllipse(QPointF(17, 7), 2.6, 2.6)
+        p.setBrush(Qt.NoBrush)
+        p.drawLine(QPointF(17, 1.5), QPointF(17, 2.8))
+        p.drawLine(QPointF(22.5, 7), QPointF(21.2, 7))
+        p.drawLine(QPointF(20.9, 3.1), QPointF(20, 4))
     elif name == "home":
         path = QPainterPath(QPointF(3, 10.5))
         path.lineTo(12, 3)

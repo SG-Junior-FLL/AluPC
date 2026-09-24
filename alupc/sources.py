@@ -173,6 +173,7 @@ class ScreenSource(SinkView):
     def __init__(self, cfg, parent=None):
         super().__init__(cfg.get("fit", "contain"), parent)
         screen = find_screen(cfg.get("screen_name")) or QGuiApplication.primaryScreen()
+        self._cursor_on = False
         self.method = "qt"
         self.feed = None
         self.capture = None
@@ -186,7 +187,7 @@ class ScreenSource(SinkView):
         from .platform.kwin_capture import KWinScreenFeed
 
         self.method = "kwin"
-        self.feed = KWinScreenFeed(name, fps, parent=self)
+        self.feed = KWinScreenFeed(name, fps, cursor=screen_settings["cursor"], parent=self)
         self.feed.frame.connect(self._kwin_frame)
         self.feed.failed.connect(self._kwin_failed)
         self.set_message("Bildschirmaufnahme startet …")
@@ -217,6 +218,41 @@ class ScreenSource(SinkView):
         self.session.setVideoSink(self.sink)
         self.set_message("Bildschirmaufnahme startet … (evtl. Freigabe bestätigen)")
         self.capture.start()
+        # Die Aufnahme unter Windows/X11 enthält den Mauszeiger nicht → selbst einzeichnen
+        from .platform.linux_display import is_wayland
+
+        if not is_wayland() and not self._cursor_on:
+            from .cursor import tracker
+
+            self._cursor_on = True
+            tracker().acquire()
+            tracker().moved.connect(self._cursor_moved)
+
+    def _cursor_moved(self, _pos):
+        if self.isVisible() and screen_settings["cursor"]:
+            self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not (self._cursor_on and screen_settings["cursor"]) or self._image is None or self._screen is None:
+            return
+        from .cursor import map_to_image, paint_cursor, tracker
+
+        pos = tracker().pos
+        if pos is None:
+            return
+        try:
+            geo = self._screen.geometry()
+            dpr = self._screen.devicePixelRatio()
+        except RuntimeError:  # Monitor wurde abgesteckt
+            return
+        area = fit_rect(self._image.width(), self._image.height(), self.width(), self.height(), self.fit)
+        point = map_to_image(pos, geo, area)
+        if point is None:
+            return
+        p = QPainter(self)
+        paint_cursor(p, point, area.width() / max(1, geo.width()), dpr)
+        p.end()
 
     def _error(self, _err, text):
         self.set_message(
@@ -230,6 +266,19 @@ class ScreenSource(SinkView):
             self.feed = None
         if self.capture is not None:
             self.capture.stop()
+        if self._cursor_on:
+            from .cursor import tracker
+
+            self._cursor_on = False
+            try:
+                tracker().moved.disconnect(self._cursor_moved)
+            except (RuntimeError, TypeError):
+                pass
+            tracker().release()
+
+
+# Einstellungen der Bildschirmaufnahme (setzt der Controller): Mauszeiger einzeichnen?
+screen_settings = {"cursor": True}
 
 
 def _kwin_allowed(screen_name: str) -> bool:

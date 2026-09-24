@@ -361,6 +361,7 @@ class StartPageDialog(QDialog):
         """Haken und Reihenfolge der Liste in die Arbeitskopie übernehmen."""
         _order, visible = self._current_keys()
         self.cfg["tiles"] = visible
+        self.cfg["seen"] = list(BUILTIN_TILES)
 
     def _move(self, step: int):
         row = self.list.currentRow()

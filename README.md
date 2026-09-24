@@ -28,7 +28,7 @@ OBS-Studio-Fenster.
 
 | Kachel | Was passiert auf Monitor 2 |
 |---|---|
-| **Spiegeln** | zeigt dasselbe wie Monitor 1 (AluPC nimmt Monitor 1 auf – dadurch gehen Standbild und Sichtschutz) |
+| **Spiegeln** | zeigt dasselbe wie Monitor 1 – mit Mauszeiger (AluPC nimmt Monitor 1 auf – dadurch gehen Standbild und Sichtschutz) |
 | **Erweitern** | Monitor 2 ist ein normaler zweiter Bildschirm |
 | **Kamera** | eine Kamera im Vollbild – bei nur einer Kamera sofort, sonst Auswahl |
 | **Programm** | ein Programm zeigen: *Anzeigen (Aufnahme)* oder *Fenster wirklich verschieben* |
@@ -39,6 +39,7 @@ OBS-Studio-Fenster.
 | **Standbild** | friert das Bild auf Monitor 2 ein; du arbeitest auf Monitor 1 unbemerkt weiter |
 | **Bild-in-Bild** | kleines Fenster auf Monitor 1, das live zeigt, was auf Monitor 2 läuft (mit Hinweis „STANDBILD“/„SCHWARZ“) |
 | **Bildschirmschoner** | Uhr, schwebender Text/Logo, Diashow, Farbverlauf oder eigene Szene – automatisch nach X Minuten ohne Maus/Tastatur oder per Klick |
+| **Laserpointer** | roter Leuchtpunkt auf Monitor 2: die Maus auf Monitor 1 steuert ihn (wie ein Touchpad; beim Spiegeln genau an der gespiegelten Stelle). Farbe, Größe, Leuchtspur im Setup |
 
 Außerdem:
 
@@ -104,6 +105,7 @@ Außerdem:
   | Bildschirmschoner an/aus | `Strg+Alt+W` |
   | Nächste / vorherige Szene | `Strg+Alt+Bild↓` / `Strg+Alt+Bild↑` |
   | Timer Start/Pause | `Strg+Alt+T` (Neustart, ±1 Minute frei belegbar) |
+  | Laserpointer an/aus | `Strg+Alt+Z` |
   | Spiegeln | `Strg+Alt+M` |
   | Erweitern | `Strg+Alt+E` |
   | jede Szene | frei wählbar im Szenen-Editor |
@@ -234,6 +236,16 @@ Für Szenen: *Neu hinzufügen → Befehl* mit `alupc --befehl "szene:Name"`.
 - **Taskleiste ausblenden (Windows)** nutzt die versteckte Taskleiste auf Monitor 2
   („Shell_SecondaryTrayWnd“). Beim Beenden von AluPC wird sie wieder eingeblendet; sollte AluPC
   abstürzen, kommt sie spätestens nach einer Ab-/Anmeldung zurück.
+- **Maus bleibt auf Monitor 1** (außer bei „Erweitern“): Windows begrenzt die Maus (ClipCursor), X11
+  bekommt unsichtbare Wände am Rand von Monitor 2. **Unter Wayland erlaubt das System das Programmen
+  nicht** – dort kann die Maus weiter auf Monitor 2. Sollte AluPC unter Windows abstürzen, während die
+  Maus begrenzt ist: `Strg+Alt+Entf` → `Esc` gibt sie frei.
+- **Mauszeiger beim Spiegeln**: Unter Windows und X11 zeichnet AluPC den Zeiger selbst ins Bild (mit
+  seiner echten Form). Unter KDE/Wayland liefert KWin ihn mit. Mit der normalen Wayland-Aufnahme
+  (Start aus dem Quellcode) hängt es vom System ab, ob er zu sehen ist.
+- **Laserpointer unter Wayland** braucht KDE (ein kleines KWin-Skript meldet die Mausposition); auf
+  anderen Wayland-Oberflächen geht er nicht. Unter X11 braucht der durchsichtige Punkt einen
+  Compositor (bei Kubuntu Standard).
 - **Bildschirmschoner – Leerlaufzeit**: Unter Windows und KDE meldet das System, wann zuletzt Maus
   oder Tastatur benutzt wurden. Wo das nicht geht, zählt nur die Bedienung von AluPC (steht im Setup).
 - **Websites unter Kubuntu 24.04+**: Das System erlaubt der eingebauten Chromium-Engine ihre Sandbox

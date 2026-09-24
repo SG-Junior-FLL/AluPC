@@ -32,7 +32,7 @@ from ..config import HOTKEY_LABELS
 from ..platform import IS_WINDOWS, autostart, session_info
 from ..platform.base import ROTATIONS, clone_outputs, place, side_of
 from . import icons, theme
-from .util import error_box, run_async
+from .util import ColorButton, error_box, run_async
 from .hotkey_edit import HotkeyButton
 from .widgets import button, font, rounded
 
@@ -914,6 +914,8 @@ class SetupPage(QWidget):
 
     # ================================================================ Monitor 2
     def _output_group(self):
+        from ..cursor import CursorGuard
+
         box = QGroupBox("Monitor 2")
         lay = QVBoxLayout(box)
         cfg = self.config["output"]
@@ -922,17 +924,57 @@ class SetupPage(QWidget):
         taskbar.setEnabled(IS_WINDOWS)
         badge = QCheckBox("Beim Standbild ein kleines Schneeflocken-Symbol oben rechts auf Monitor 2 zeigen")
         badge.setChecked(bool(cfg.get("freeze_badge", True)))
+        cursor = QCheckBox("Mauszeiger beim Spiegeln auf Monitor 2 zeigen")
+        cursor.setChecked(bool(cfg.get("mirror_cursor", True)))
+        confine = QCheckBox("Maus bleibt auf Monitor 1 – nur bei „Erweitern“ darf sie auf Monitor 2")
+        confine.setChecked(bool(cfg.get("confine_cursor", True)))
+        if not CursorGuard().supported:
+            confine.setEnabled(False)
+            confine.setToolTip("Unter Wayland dürfen Programme die Maus nicht festhalten.")
 
         def save(*_):
-            self.config["output"] = {"hide_taskbar": taskbar.isChecked(), "freeze_badge": badge.isChecked()}
+            self.config["output"] = {**self.config["output"], "hide_taskbar": taskbar.isChecked(),
+                                     "freeze_badge": badge.isChecked(), "mirror_cursor": cursor.isChecked(),
+                                     "confine_cursor": confine.isChecked()}
             self.controller.apply_output_settings()
 
-        taskbar.toggled.connect(save)
-        badge.toggled.connect(save)
-        lay.addWidget(taskbar)
-        lay.addWidget(badge)
+        for w in (taskbar, badge, cursor, confine):
+            w.toggled.connect(save)
+            lay.addWidget(w)
+        if not confine.isEnabled():
+            note = QLabel("Maus festhalten geht unter Wayland nicht (das System erlaubt es Programmen nicht).")
+            note.setObjectName("Muted")
+            note.setWordWrap(True)
+            lay.addWidget(note)
+
+        # Laserpointer
+        laser = self.config["laser"]
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Laserpointer:"))
+        color = ColorButton(laser.get("color", "#ff2a2a"))
+        size = QSpinBox()
+        size.setRange(40, 300)
+        size.setSingleStep(10)
+        size.setSuffix(" % Größe")
+        size.setValue(int(laser.get("size", 100)))
+        trail = QCheckBox("Leuchtspur")
+        trail.setChecked(bool(laser.get("trail", True)))
+
+        def save_laser(*_):
+            self.config["laser"] = {"color": color.color(), "size": size.value(), "trail": trail.isChecked()}
+            self.controller.laser.update()
+
+        color.changed.connect(save_laser)
+        size.valueChanged.connect(save_laser)
+        trail.toggled.connect(save_laser)
+        row.addWidget(color)
+        row.addWidget(size)
+        row.addWidget(trail)
+        row.addStretch(1)
+        lay.addLayout(row)
         hint = QLabel("„Computer sperren“ (Seitenleiste, Taskleisten-Symbol, Befehl „sperren“) sperrt den "
-                      "ganzen Computer wie Win+L – Monitor 2 zeigt dabei weiter, was gerade läuft.")
+                      "ganzen Computer wie Win+L. Der Sperrbildschirm des Systems liegt dann über allen "
+                      "Monitoren – auch Monitor 2 zeigt so lange nichts von AluPC.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         lay.addWidget(hint)

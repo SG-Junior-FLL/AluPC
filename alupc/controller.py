@@ -35,6 +35,13 @@ class Controller(QObject):
         self.desktop_note = "Erweitert (normaler zweiter Bildschirm)"
         self.frozen = False
         self.privacy = False
+        from .cursor import CursorGuard
+        from .laser import LaserWindow
+
+        self.cursor_guard = CursorGuard(self)
+        self.laser = LaserWindow(self)
+        self.output.after_raise.append(self.laser.raise_above)
+        self.changed.connect(self.update_cursor_guard)
         self.apply_output_settings()
 
         from .sounds import SoundPlayer
@@ -94,7 +101,44 @@ class Controller(QObject):
 
     def update_screens(self) -> None:
         self.output.place_on(self.output_screen())
+        if self.laser.active:
+            self.laser.place()
         self.changed.emit()
+
+    # ------------------------------------------------------------ Maus
+    def cursor_should_stay_home(self) -> bool:
+        """Maus auf Monitor 1 festhalten? Ja, solange Monitor 2 nicht der normale Desktop („Erweitern“) ist."""
+        return bool(self.config["output"].get("confine_cursor", True)) and self.output.needed() \
+            and self.output.isVisible()
+
+    def update_cursor_guard(self) -> None:
+        self.cursor_guard.set_active(self.cursor_should_stay_home(), self.main_screen(), self.output_screen())
+
+    def toggle_laser(self) -> None:
+        from .cursor import tracker
+
+        on = self.laser.set_active(not self.laser.active)
+        if on and not tracker().available():
+            self.laser.set_active(False)
+            self.message.emit("Laserpointer: Die Mausposition ist auf diesem System nicht abfragbar "
+                              "(Wayland ohne KDE).")
+            on = False
+        self._apply_cursor_settings()
+        if on:
+            self.message.emit("Laserpointer an – die Maus auf Monitor 1 steuert den roten Punkt auf Monitor 2.")
+        self.changed.emit()
+
+    def _apply_cursor_settings(self) -> None:
+        """Mauszeiger beim Spiegeln einzeichnen – aber nicht, wenn der Laserpointer an ist."""
+        from .sources import ScreenSource, screen_settings
+
+        show = bool(self.config["output"].get("mirror_cursor", True)) and not self.laser.active
+        screen_settings["cursor"] = show
+        content = self.output.content
+        if isinstance(content, ScreenSource):
+            if content.feed is not None:
+                content.feed.cursor = show
+            content.update()
 
     def screens_overlap(self) -> bool:
         out, main = self.output_screen(), self.main_screen()
@@ -117,6 +161,8 @@ class Controller(QObject):
         self.output.freeze_layer.update()
         if not self.output.hide_taskbar:
             self.output.taskbar.restore()
+        self._apply_cursor_settings()
+        self.update_cursor_guard()
 
     def _guard(self) -> bool:
         # Jede Bedienung zählt als Aktivität und beendet einen laufenden Bildschirmschoner
@@ -362,6 +408,8 @@ class Controller(QObject):
             "timer_neustart": lambda: self.timer_action("restart"),
             "timer_plus": lambda: self.timer_action("plus"),
             "timer_minus": lambda: self.timer_action("minus"),
+            "laserpointer": self.toggle_laser,
+            "laser": self.toggle_laser,
         }
         action = actions.get(command)
         if action:
@@ -496,6 +544,12 @@ class Controller(QObject):
 
     def shutdown(self) -> None:
         self._timer_watch.stop()
+        self.laser.set_active(False)
+        self.laser.close()
+        self.cursor_guard.shutdown()
+        from .cursor import tracker
+
+        tracker().shutdown()
         self.screensaver.timer.stop()
         self.output.set_screensaver(None)
         self.output.set_content(None)
