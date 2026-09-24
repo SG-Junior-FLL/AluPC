@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from PySide6.QtCore import QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -18,9 +18,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QScrollArea,
     QSlider,
     QSpinBox,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -28,7 +31,7 @@ from PySide6.QtWidgets import (
 from ..config import HOTKEY_LABELS
 from ..platform import IS_WINDOWS, autostart, session_info
 from ..platform.base import ROTATIONS, clone_outputs, place, side_of
-from . import theme
+from . import icons, theme
 from .util import error_box, run_async
 from .hotkey_edit import HotkeyButton
 from .widgets import button, font, rounded
@@ -192,9 +195,22 @@ class MonitorArrangement(QWidget):
         p.end()
 
 
-class SetupPage(QScrollArea):
+class SetupPage(QWidget):
+    """Setup mit Bereichen: links die Liste, rechts der gewählte Bereich."""
+
     theme_changed = Signal()
     hotkeys_changed = Signal()
+
+    SECTIONS = [
+        ("monitor", "Monitore", "Auflösung, Hz, Anordnung"),
+        ("pip", "Monitor 2", "Taskleiste, Standbild, Sichtschutz, Bild-in-Bild"),
+        ("palette", "Darstellung", "Design und Akzentfarbe"),
+        ("moon", "Bildschirmschoner", "Stil, Zeit, Verhalten"),
+        ("timer", "Timer", "Dauer, Art, Warnfarben"),
+        ("sound", "Töne", "Ton bei Aktionen, eigene Töne"),
+        ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
+        ("sliders", "Allgemein", "Autostart, Monitor-Wahl"),
+    ]
 
     def __init__(self, controller, hotkeys, parent=None):
         super().__init__(parent)
@@ -202,23 +218,52 @@ class SetupPage(QScrollArea):
         self.config = controller.config
         self.hotkeys = hotkeys
         self.outputs = []
-        self.setWidgetResizable(True)
-        inner = QWidget()
-        self.setWidget(inner)
-        lay = QVBoxLayout(inner)
-        lay.setContentsMargins(0, 0, 8, 0)
-        lay.setSpacing(6)
-        lay.addWidget(self._display_group())
-        lay.addWidget(self._appearance_group())
-        lay.addWidget(self._app_group())
-        lay.addWidget(self._privacy_group())
-        lay.addWidget(self._pip_group())
-        lay.addWidget(self._screensaver_group())
-        lay.addWidget(self._hotkey_group())
-        lay.addWidget(self._output_group())
-        lay.addStretch(1)
+        builders = {
+            "Monitore": [self._display_group],
+            "Monitor 2": [self._output_group, self._privacy_group, self._pip_group],
+            "Darstellung": [self._appearance_group],
+            "Bildschirmschoner": [self._screensaver_group],
+            "Timer": [self._timer_group],
+            "Töne": [self._sound_group],
+            "Tastenkürzel": [self._hotkey_group],
+            "Allgemein": [self._app_group],
+        }
+        self.nav = QListWidget()
+        self.nav.setObjectName("SetupNav")
+        self.nav.setFixedWidth(230)
+        self.nav.setIconSize(QSize(20, 20))
+        self.stack = QStackedWidget()
+        t = theme.current()
+        for icon_name, title, sub in self.SECTIONS:
+            item = QListWidgetItem(icons.icon(icon_name, t.accent, 20), f"{title}\n{sub}")
+            item.setSizeHint(QSize(220, 54))
+            self.nav.addItem(item)
+            area = QScrollArea()
+            area.setWidgetResizable(True)
+            area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            inner = QWidget()
+            lay = QVBoxLayout(inner)
+            lay.setContentsMargins(0, 0, 8, 0)
+            lay.setSpacing(6)
+            for build in builders[title]:
+                lay.addWidget(build())
+            lay.addStretch(1)
+            area.setWidget(inner)
+            self.stack.addWidget(area)
+        self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
+        self.nav.setCurrentRow(0)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(18)
+        root.addWidget(self.nav)
+        root.addWidget(self.stack, 1)
         controller.changed.connect(self._update_arrangement)
         QTimer.singleShot(0, self.reload_outputs)
+
+    def show_section(self, title: str) -> None:
+        for i, (_icon, name, _sub) in enumerate(self.SECTIONS):
+            if name == title:
+                self.nav.setCurrentRow(i)
 
     # ================================================================ Monitore
     def _display_group(self):
@@ -643,6 +688,119 @@ class SetupPage(QScrollArea):
 
         self.screensaver_box = ScreensaverSettings(self.controller)
         return self.screensaver_box
+
+    # ================================================================ Timer
+    def _timer_group(self):
+        box = QGroupBox("Timer (Kachel „Timer“ und Tastenkürzel)")
+        form = QFormLayout(box)
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(10)
+        cfg = self.config["timer"]
+        mode = QComboBox()
+        mode.addItem("Countdown (läuft rückwärts)", "countdown")
+        mode.addItem("Stoppuhr (läuft vorwärts)", "stoppuhr")
+        mode.setCurrentIndex(max(0, mode.findData(cfg.get("mode", "countdown"))))
+        minutes = QSpinBox()
+        minutes.setRange(0, 999)
+        minutes.setSuffix(" min")
+        minutes.setValue(int(cfg.get("minutes", 5)))
+        seconds = QSpinBox()
+        seconds.setRange(0, 59)
+        seconds.setSuffix(" s")
+        seconds.setValue(int(cfg.get("seconds", 0)))
+        text = QLineEdit(cfg.get("finished_text", "Zeit ist um!"))
+        warn = QCheckBox("Letzte Minute orange, letzte 10 Sekunden rot, am Ende blinken")
+        warn.setChecked(bool(cfg.get("warn_colors", True)))
+        size = QSpinBox()
+        size.setRange(5, 80)
+        size.setSuffix(" % der Bildhöhe")
+        size.setValue(int(cfg.get("size", 30)))
+        dur = QHBoxLayout()
+        dur.addWidget(minutes)
+        dur.addWidget(seconds)
+
+        def save(*_):
+            self.config["timer"] = {"mode": mode.currentData(), "minutes": minutes.value(),
+                                    "seconds": seconds.value(), "finished_text": text.text(),
+                                    "warn_colors": warn.isChecked(), "size": size.value()}
+
+        for w in (minutes, seconds, size):
+            w.valueChanged.connect(save)
+        mode.currentIndexChanged.connect(save)
+        warn.toggled.connect(save)
+        text.editingFinished.connect(save)
+        form.addRow("Art:", mode)
+        form.addRow("Dauer:", dur)
+        form.addRow("Text am Ende:", text)
+        form.addRow("Schriftgröße:", size)
+        form.addRow("", warn)
+        hint = QLabel("Gilt für die Timer-Kachel. Eigene Kacheln können einen Timer mit eigener Dauer haben. "
+                      "Töne bei Start/Ende stellst du unter „Töne“ ein.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        return box
+
+    # ================================================================ Töne
+    def _sound_group(self):
+        from PySide6.QtMultimedia import QMediaDevices
+
+        from ..sounds import EVENTS
+        from .sound_picker import SoundPicker
+
+        box = QGroupBox("Töne bei Aktionen")
+        form = QFormLayout(box)
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(8)
+        cfg = self.config["sounds"]
+        enabled = QCheckBox("Töne abspielen")
+        enabled.setChecked(bool(cfg.get("enabled", True)))
+        volume = QSlider(Qt.Horizontal)
+        volume.setRange(0, 100)
+        volume.setValue(int(cfg.get("volume", 70)))
+        device = QComboBox()
+        device.addItem("Standard-Ausgabe des Systems", "")
+        for dev in QMediaDevices.audioOutputs():
+            device.addItem(dev.description(), bytes(dev.id()).decode(errors="replace"))
+        idx = device.findData(cfg.get("device", ""))
+        device.setCurrentIndex(max(0, idx))
+
+        def save_general(*_):
+            new = dict(self.config["sounds"])
+            new.update({"enabled": enabled.isChecked(), "volume": volume.value(), "device": device.currentData()})
+            self.config["sounds"] = new
+
+        enabled.toggled.connect(save_general)
+        volume.sliderReleased.connect(save_general)
+        volume.valueChanged.connect(lambda _v: volume.isSliderDown() or save_general())
+        device.currentIndexChanged.connect(save_general)
+        form.addRow("", enabled)
+        form.addRow("Lautstärke:", volume)
+        form.addRow("Ausgabe:", device)
+        hint = QLabel("Tipp: Als Ausgabe den Monitor/Beamer (HDMI) wählen, dann hören die anderen den Ton.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        self.sound_pickers = {}
+        for event, label in EVENTS.items():
+            picker = SoundPicker(self.controller.sounds, cfg.get("events", {}).get(event, ""))
+
+            def save_event(spec, e=event):
+                new = dict(self.config["sounds"])
+                events = dict(new.get("events", {}))
+                events[e] = spec
+                new["events"] = events
+                self.config["sounds"] = new
+
+            picker.changed.connect(save_event)
+            form.addRow(label + ":", picker)
+            self.sound_pickers[event] = picker
+        more = QLabel("„Eigene Datei hochladen …“ kopiert den Ton in den AluPC-Ordner – er bleibt also, auch wenn "
+                      "die Originaldatei gelöscht wird. Erlaubt: WAV, MP3, OGG, FLAC, M4A …")
+        more.setObjectName("Muted")
+        more.setWordWrap(True)
+        form.addRow(more)
+        return box
 
     # ================================================================ Tastenkürzel
     def _hotkey_group(self):

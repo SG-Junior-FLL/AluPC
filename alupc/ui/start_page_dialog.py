@@ -19,7 +19,9 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMessageBox,
-    QRadioButton,
+    QSpinBox,
+    QStackedWidget,
+    QWidget,
     QVBoxLayout,
 )
 
@@ -43,15 +45,24 @@ from .source_picker import SourcePicker
 from .widgets import button, page_header
 
 
-class CustomTileDialog(QDialog):
-    """Eine eigene Kachel: Name, Symbol, Farbe, Aktion und Tastenkürzel."""
+ACTION_KINDS = {
+    "source": "Etwas auf Monitor 2 anzeigen",
+    "screensaver": "Eigenen Bildschirmschoner zeigen (nochmal klicken = beenden)",
+    "timer": "Timer mit eigener Dauer starten",
+    "command": "Befehl ausführen",
+}
 
-    def __init__(self, config, tile: dict, hotkey: str = "", parent=None):
+
+class CustomTileDialog(QDialog):
+    """Eine eigene Kachel: Name, Symbol, Farbe, Aktion, Ton und Tastenkürzel."""
+
+    def __init__(self, config, tile: dict, hotkey: str = "", parent=None, controller=None):
         super().__init__(parent)
         self.config = config
+        self.controller = controller
         self.tile = copy.deepcopy(tile)
         self.setWindowTitle("Eigene Kachel")
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(640)
 
         self.title = QLineEdit(self.tile.get("title", ""))
         self.subtitle = QLineEdit(self.tile.get("subtitle", ""))
@@ -79,24 +90,89 @@ class CustomTileDialog(QDialog):
         self.section.setCurrentIndex(max(0, self.section.findData(self.tile.get("section", "anzeigen"))))
 
         action = self.tile.get("action") or {}
-        self.source = action.get("source") if action.get("kind") == "source" else None
-        self.show_radio = QRadioButton("Etwas auf Monitor 2 anzeigen")
-        self.cmd_radio = QRadioButton("Befehl ausführen")
+        kind = action.get("kind") or "source"
+        self.kind = QComboBox()
+        for key, label in ACTION_KINDS.items():
+            if key == "screensaver" and controller is None:
+                continue
+            self.kind.addItem(label, key)
+        self.pages = QStackedWidget()
+
+        # --- Anzeigen
+        self.source = action.get("source") if kind == "source" else None
+        page = QWidget()
+        pl = QHBoxLayout(page)
+        pl.setContentsMargins(0, 0, 0, 0)
         self.source_label = QLabel(describe_action({"kind": "source", "source": self.source})
                                    if self.source else "(noch nichts gewählt)")
         self.source_label.setObjectName("Muted")
         pick = button("Quelle wählen …", "plus")
         pick.clicked.connect(self._pick_source)
+        pl.addWidget(self.source_label, 1)
+        pl.addWidget(pick)
+        self.pages.addWidget(page)
+        self._page_index = {"source": 0}
+
+        # --- Bildschirmschoner
+        self.saver_data = dict(action.get("screensaver") or {"style": "nachricht", "text": self.tile.get("title", "")})
+        if controller is not None:
+            from .screensaver_settings import ScreensaverSettings
+
+            self.saver = ScreensaverSettings(controller, "", data=self.saver_data, tile_mode=True,
+                                             on_change=lambda d: self.saver_data.update(d))
+            self._page_index["screensaver"] = self.pages.count()
+            self.pages.addWidget(self.saver)
+
+        # --- Timer
+        t = action.get("timer") or {}
+        page = QWidget()
+        tf = QFormLayout(page)
+        tf.setContentsMargins(0, 0, 0, 0)
+        self.t_mode = QComboBox()
+        self.t_mode.addItem("Countdown", "countdown")
+        self.t_mode.addItem("Stoppuhr", "stoppuhr")
+        self.t_mode.setCurrentIndex(max(0, self.t_mode.findData(t.get("mode", "countdown"))))
+        self.t_min = QSpinBox()
+        self.t_min.setRange(0, 999)
+        self.t_min.setSuffix(" min")
+        self.t_min.setValue(int(t.get("minutes", 5)))
+        self.t_sec = QSpinBox()
+        self.t_sec.setRange(0, 59)
+        self.t_sec.setSuffix(" s")
+        self.t_sec.setValue(int(t.get("seconds", 0)))
+        self.t_text = QLineEdit(t.get("finished_text", "Zeit ist um!"))
+        self.t_auto = QCheckBox("Sofort starten")
+        self.t_auto.setChecked(bool(t.get("autostart", True)))
+        dur = QHBoxLayout()
+        dur.addWidget(self.t_min)
+        dur.addWidget(self.t_sec)
+        tf.addRow("Art:", self.t_mode)
+        tf.addRow("Dauer:", dur)
+        tf.addRow("Text am Ende:", self.t_text)
+        tf.addRow("", self.t_auto)
+        self._page_index["timer"] = self.pages.count()
+        self.pages.addWidget(page)
+
+        # --- Befehl
         self.command = QComboBox()
         for key, label in COMMANDS.items():
             self.command.addItem(label, key)
-        if action.get("kind") == "command":
-            self.cmd_radio.setChecked(True)
+        if kind == "command":
             self.command.setCurrentIndex(max(0, self.command.findData(action.get("command"))))
-        else:
-            self.show_radio.setChecked(True)
+        self._page_index["command"] = self.pages.count()
+        self.pages.addWidget(self.command)
+
+        self.kind.currentIndexChanged.connect(
+            lambda _i: self.pages.setCurrentIndex(self._page_index[self.kind.currentData()]))
+        self.kind.setCurrentIndex(max(0, self.kind.findData(kind)))
+        self.pages.setCurrentIndex(self._page_index.get(self.kind.currentData(), 0))
 
         self.hotkey = HotkeyButton(hotkey, "Tastenkürzel für diese Kachel")
+        self.sound = None
+        if controller is not None:
+            from .sound_picker import SoundPicker
+
+            self.sound = SoundPicker(controller.sounds, self.tile.get("sound", ""))
 
         form = QFormLayout()
         form.setHorizontalSpacing(16)
@@ -106,13 +182,10 @@ class CustomTileDialog(QDialog):
         form.addRow("Symbol:", self.icon)
         form.addRow("Farbe:", colors)
         form.addRow("Bereich:", self.section)
-        form.addRow(self.show_radio)
-        row = QHBoxLayout()
-        row.addWidget(self.source_label, 1)
-        row.addWidget(pick)
-        form.addRow("", row)
-        form.addRow(self.cmd_radio)
-        form.addRow("", self.command)
+        form.addRow("Beim Klick:", self.kind)
+        form.addRow("", self.pages)
+        if self.sound is not None:
+            form.addRow("Ton:", self.sound)
         form.addRow("Tastenkürzel:", self.hotkey)
 
         buttons = QDialogButtonBox()
@@ -123,7 +196,8 @@ class CustomTileDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Eigene Kachel", "Ein Klick darauf zeigt etwas an oder führt einen Befehl aus."))
+        lay.addWidget(page_header("Eigene Kachel", "Anzeigen, eigener Bildschirmschoner, Timer oder Befehl – "
+                                                   "mit eigenem Ton und Tastenkürzel."))
         lay.addLayout(form)
         lay.addWidget(buttons)
 
@@ -136,7 +210,6 @@ class CustomTileDialog(QDialog):
                 return
             self.source = cfg
             self.source_label.setText(describe_action({"kind": "source", "source": cfg}))
-            self.show_radio.setChecked(True)
 
     def hotkey_text(self) -> str:
         return self.hotkey.sequence()
@@ -145,11 +218,21 @@ class CustomTileDialog(QDialog):
         if not self.title.text().strip():
             QMessageBox.warning(self, "Kachel", "Bitte einen Namen eingeben.")
             return
-        if self.show_radio.isChecked():
+        kind = self.kind.currentData()
+        if kind == "source":
             if not self.source:
                 QMessageBox.warning(self, "Kachel", "Bitte eine Quelle wählen.")
                 return
             action = {"kind": "source", "source": self.source}
+        elif kind == "screensaver":
+            action = {"kind": "screensaver", "screensaver": dict(self.saver_data)}
+        elif kind == "timer":
+            if self.t_mode.currentData() == "countdown" and self.t_min.value() * 60 + self.t_sec.value() <= 0:
+                QMessageBox.warning(self, "Kachel", "Bitte eine Dauer größer als 0 wählen.")
+                return
+            action = {"kind": "timer", "timer": {
+                "mode": self.t_mode.currentData(), "minutes": self.t_min.value(), "seconds": self.t_sec.value(),
+                "finished_text": self.t_text.text(), "autostart": self.t_auto.isChecked()}}
         else:
             action = {"kind": "command", "command": self.command.currentData()}
         checked = self.color_group.checkedButton()
@@ -160,14 +243,16 @@ class CustomTileDialog(QDialog):
             "color": checked.color if checked else TILE_COLORS[0],
             "section": self.section.currentData(),
             "action": action,
+            "sound": self.sound.spec() if self.sound is not None else self.tile.get("sound", ""),
         })
         self.accept()
 
 
 class StartPageDialog(QDialog):
-    def __init__(self, config, parent=None):
+    def __init__(self, config, parent=None, controller=None):
         super().__init__(parent)
         self.config = config
+        self.controller = controller
         self.cfg = copy.deepcopy(config["start_page"])
         self.hotkeys = dict(config["hotkeys"])
         self.setWindowTitle("Startseite anpassen")
@@ -289,7 +374,7 @@ class StartPageDialog(QDialog):
     def _add(self):
         self._sync()
         tile = new_custom_tile()
-        dlg = CustomTileDialog(self.config, tile, "", self)
+        dlg = CustomTileDialog(self.config, tile, "", self, self.controller)
         if dlg.exec() == QDialog.Accepted:
             self.cfg.setdefault("custom", []).append(dlg.tile)
             self.cfg["tiles"] = self.cfg["tiles"] + [custom_key(dlg.tile)]
@@ -307,7 +392,8 @@ class StartPageDialog(QDialog):
             return
         self._sync()
         tile = find_custom(self.cfg, key)
-        dlg = CustomTileDialog(self.config, tile, self.hotkeys.get(f"kachel:{tile['id']}", ""), self)
+        dlg = CustomTileDialog(self.config, tile, self.hotkeys.get(f"kachel:{tile['id']}", ""), self,
+                               self.controller)
         if dlg.exec() == QDialog.Accepted:
             tile.update(dlg.tile)
             self._set_hotkey(tile["id"], dlg.hotkey_text())

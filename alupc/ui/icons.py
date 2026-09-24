@@ -284,6 +284,39 @@ def _draw(name: str, p: QPainter, color: QColor):
         p.drawLine(QPointF(12, 5), QPointF(12, 19))
         p.drawLine(QPointF(12, 19), QPointF(6.5, 13.5))
         p.drawLine(QPointF(12, 19), QPointF(17.5, 13.5))
+    elif name == "sound":
+        path = QPainterPath(QPointF(3.5, 9.5))
+        path.lineTo(7.5, 9.5)
+        path.lineTo(12, 5)
+        path.lineTo(12, 19)
+        path.lineTo(7.5, 14.5)
+        path.lineTo(3.5, 14.5)
+        path.closeSubpath()
+        p.drawPath(path)
+        p.drawArc(QRectF(10, 8, 7, 8), -60 * 16, 120 * 16)
+        p.drawArc(QRectF(9, 4.5, 12, 15), -60 * 16, 120 * 16)
+    elif name == "back":
+        p.drawLine(QPointF(19, 12), QPointF(5, 12))
+        p.drawLine(QPointF(5, 12), QPointF(10.5, 6.5))
+        p.drawLine(QPointF(5, 12), QPointF(10.5, 17.5))
+    elif name == "forward":
+        p.drawLine(QPointF(5, 12), QPointF(19, 12))
+        p.drawLine(QPointF(19, 12), QPointF(13.5, 6.5))
+        p.drawLine(QPointF(19, 12), QPointF(13.5, 17.5))
+    elif name == "zoom_in" or name == "zoom_out":
+        p.drawEllipse(QPointF(10.5, 10.5), 6.5, 6.5)
+        p.drawLine(QPointF(15.5, 15.5), QPointF(20.5, 20.5))
+        p.drawLine(QPointF(7.5, 10.5), QPointF(13.5, 10.5))
+        if name == "zoom_in":
+            p.drawLine(QPointF(10.5, 7.5), QPointF(10.5, 13.5))
+    elif name == "bookmark":
+        path = QPainterPath(QPointF(6, 3.5))
+        path.lineTo(18, 3.5)
+        path.lineTo(18, 20.5)
+        path.lineTo(12, 16)
+        path.lineTo(6, 20.5)
+        path.closeSubpath()
+        p.drawPath(path)
     else:  # unbekannt → Kreis
         p.drawEllipse(QPointF(12, 12), 8, 8)
 

@@ -17,6 +17,7 @@ from .sources import create_source, format_date_de, list_images, load_image
 
 STYLES = {
     "uhr": "Uhr (wandert langsam – schont den Bildschirm)",
+    "nachricht": "Nachricht (großer Text, kleine Uhr, optional Hintergrundbild)",
     "schweben": "Schwebender Text oder Logo",
     "diashow": "Diashow aus einem Ordner",
     "farben": "Farbverlauf (ruhige Animation)",
@@ -154,7 +155,8 @@ class ScreensaverView(QWidget):
         if self.style_ == "szene" and cfg.get("scene"):
             self.child = create_source({"type": "scene", "scene": cfg["scene"]}, scene_lookup, 0, self)
             self.child.show()
-        fps = {"uhr": 2, "diashow": 30, "schweben": 50, "farben": 25}.get(self.style_, 0)
+        self.text_color = QColor(cfg.get("color") or "#e8ecf3")
+        fps = {"uhr": 2, "nachricht": 2, "diashow": 30, "schweben": 50, "farben": 25}.get(self.style_, 0)
         self.timer = QTimer(self, interval=int(1000 / fps) if fps else 1000)
         self.timer.timeout.connect(self._tick)
         if fps:
@@ -220,7 +222,7 @@ class ScreensaverView(QWidget):
         p.fillRect(self.rect(), Qt.black)
         t = time.monotonic() - self.t0
         {"uhr": self._paint_clock, "schweben": self._paint_float, "diashow": self._paint_slides,
-         "farben": self._paint_colors}.get(self.style_, lambda *_: None)(p, t)
+         "farben": self._paint_colors, "nachricht": self._paint_message}.get(self.style_, lambda *_: None)(p, t)
         p.end()
 
     def _paint_clock(self, p: QPainter, t: float):
@@ -246,7 +248,7 @@ class ScreensaverView(QWidget):
         x = rng.uniform(w * 0.05, max(w * 0.05, w * 0.95 - block_w))
         y = rng.uniform(h * 0.08, max(h * 0.08, h * 0.92 - bh - sh))
         p.setFont(big)
-        p.setPen(QColor("#e8ecf3"))
+        p.setPen(self.text_color)
         p.drawText(QRectF(x, y, block_w, bh), Qt.AlignHCenter | Qt.AlignVCenter, clock)
         p.setFont(small)
         p.setPen(QColor("#8f99ab"))
@@ -258,10 +260,43 @@ class ScreensaverView(QWidget):
         if self.logo is not None:
             p.drawImage(rect, self.logo)
             return
-        hue = int(t * 20) % 360
         p.setFont(self._float_font())
-        p.setPen(QColor.fromHsv(hue, 150, 255))
+        if self.cfg.get("color"):
+            p.setPen(self.text_color)
+        else:
+            p.setPen(QColor.fromHsv(int(t * 20) % 360, 150, 255))
         p.drawText(rect, Qt.AlignCenter, self._float_text())
+
+    def _paint_message(self, p: QPainter, t: float):
+        w, h = self.width(), self.height()
+        if self.logo is not None:
+            self._draw_kenburns(p, self.logo, 0, 1.0)
+            p.fillRect(self.rect(), QColor(0, 0, 0, 120))  # abdunkeln, damit der Text lesbar bleibt
+        else:
+            g = QLinearGradient(0, 0, w, h)
+            g.setColorAt(0, QColor("#111827"))
+            g.setColorAt(1, QColor("#1e1b4b"))
+            p.fillRect(self.rect(), g)
+        # Text wandert pro Minute ein kleines Stück (Einbrennschutz)
+        rng = random.Random(int(time.time() // 60))
+        dx, dy = rng.uniform(-0.04, 0.04) * w, rng.uniform(-0.04, 0.04) * h
+        text = self.cfg.get("text") or "Gleich geht's weiter"
+        f = QFont()
+        f.setBold(True)
+        f.setPixelSize(max(24, h // 8))
+        while f.pixelSize() > 16 and QFontMetrics(f).boundingRect(
+                0, 0, int(w * 0.85), h, Qt.TextWordWrap, text).height() > h * 0.6:
+            f.setPixelSize(int(f.pixelSize() * 0.9))
+        p.setFont(f)
+        p.setPen(self.text_color)
+        p.drawText(QRectF(w * 0.075 + dx, h * 0.2 + dy, w * 0.85, h * 0.6), Qt.AlignCenter | Qt.TextWordWrap, text)
+        small = QFont()
+        small.setPixelSize(max(14, h // 20))
+        p.setFont(small)
+        c = QColor(self.text_color)
+        c.setAlpha(170)
+        p.setPen(c)
+        p.drawText(QRectF(0, h * 0.86, w * 0.96, h * 0.1), Qt.AlignRight | Qt.AlignVCenter, time.strftime("%H:%M"))
 
     def _paint_slides(self, p: QPainter, t: float):
         if self.current is None or self.current.isNull():
@@ -315,6 +350,7 @@ class ScreensaverManager(QObject):
         self.idle = IdleClock()
         self.active = False
         self.manual = False
+        self.override_id = None
         self.last_activity = time.monotonic()  # Ersatz, wenn das System keine Leerlaufzeit meldet
         self.timer = QTimer(self, interval=2000)
         self.timer.timeout.connect(self.check)
@@ -352,7 +388,8 @@ class ScreensaverManager(QObject):
         if cfg.get("enabled") and idle >= max(1, float(cfg.get("minutes", 10))) * 60 and self.allowed():
             self.start(manual=False)
 
-    def start(self, manual: bool = True):
+    def start(self, manual: bool = True, override: dict | None = None):
+        """Bildschirmschoner zeigen – mit den Einstellungen aus dem Setup oder (Kachel) eigenen."""
         c = self.controller
         if c.output_screen() is None:
             c.message.emit("Kein zweiter Monitor gefunden.")
@@ -361,14 +398,19 @@ class ScreensaverManager(QObject):
             c.message.emit("Bildschirmschoner geht nicht bei System-Spiegeln – nutze „Spiegeln“ in AluPC.")
             return
         self.active, self.manual = True, manual
-        c.output.set_screensaver(ScreensaverView(dict(self.settings()), c.config.get_scene))
+        self.override_id = (override or {}).get("_id")
+        cfg = {**self.settings(), **(override or {})}
+        c.output.set_screensaver(ScreensaverView(cfg, c.config.get_scene))
+        c.sounds.play_event("schoner_an")
         self.changed.emit()
 
     def stop(self):
         if not self.active:
             return
         self.active = self.manual = False
+        self.override_id = None
         self.controller.output.set_screensaver(None)
+        self.controller.sounds.play_event("schoner_aus")
         self.changed.emit()
 
     def toggle(self):

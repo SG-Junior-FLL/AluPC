@@ -67,6 +67,8 @@ def error_box(parent, text: str, title: str = "AluPC") -> None:
 
 
 class ColorButton(QPushButton):
+    changed = Signal(str)
+
     def __init__(self, color: str = "#000000", parent=None):
         super().__init__(parent)
         self.clicked.connect(self._pick)
@@ -85,3 +87,4 @@ class ColorButton(QPushButton):
         c = QColorDialog.getColor(QColor(self._color), self, "Farbe wählen")
         if c.isValid():
             self.set_color(c.name())
+            self.changed.emit(c.name())

@@ -35,10 +35,21 @@ class Controller(QObject):
         self.privacy = False
         self.apply_output_settings()
 
+        from .sounds import SoundPlayer
+
+        self.sounds = SoundPlayer(config)
         from .screensaver import ScreensaverManager
 
         self.screensaver = ScreensaverManager(self)
         self.screensaver.changed.connect(self.changed.emit)
+
+        # Timer beobachten: Ton bei „noch 1 Minute“ und bei Ablauf
+        from PySide6.QtCore import QTimer
+
+        self._timer_state = ("", False)
+        self._timer_watch = QTimer(self, interval=250)
+        self._timer_watch.timeout.connect(self._watch_timer)
+        self._timer_watch.start()
 
         app = QGuiApplication.instance()
         app.screenAdded.connect(self._screen_added)
@@ -110,7 +121,7 @@ class Controller(QObject):
         self.screensaver.activity()
         return True
 
-    def show_source(self, cfg: dict, remember: bool = True) -> None:
+    def show_source(self, cfg: dict, remember: bool = True, sound: bool = True) -> None:
         if not self._guard():
             return
         if self.output_screen() is None:
@@ -124,6 +135,8 @@ class Controller(QObject):
         self.output.set_content(create_source(cfg, self.config.get_scene))
         if remember:
             self.config["last_content"] = cfg
+        if sound and remember:
+            self.sounds.play_event("szene" if cfg.get("type") == "scene" else "inhalt")
         self.changed.emit()
 
     def mirror(self) -> None:
@@ -185,8 +198,10 @@ class Controller(QObject):
             return
         if self.frozen:
             self._unfreeze()
+            self.sounds.play_event("standbild_aus")
             self.changed.emit()
             return
+        self.sounds.play_event("standbild_an")
         if self.mode == "content" and self.output.content is not None:
             self.frozen = True
             self.output.set_frozen(self._content_snapshot())
@@ -212,6 +227,25 @@ class Controller(QObject):
             if not pixmap.isNull():
                 return pixmap
         return self.output.snapshot()
+
+    def current_web_view(self):
+        """Die Website, die gerade auf Monitor 2 läuft (auch als Teil einer Szene) – oder None."""
+        from .sources import WebsiteSource
+
+        content = self.output.content
+        if content is None or self.mode != "content":
+            return None
+        if isinstance(content, WebsiteSource):
+            return content.view
+        found = content.findChildren(WebsiteSource)
+        return found[0].view if found else None
+
+    def save_website(self, title: str, url: str) -> None:
+        favs = [f for f in self.config["websites"].get("favorites", []) if f.get("url") != url]
+        favs.insert(0, {"title": title, "url": url})
+        self.config["websites"] = {**self.config["websites"], "favorites": favs}
+        self.message.emit(f"„{title}“ unter „Website“ gespeichert.")
+        self.changed.emit()
 
     def lock_computer(self) -> None:
         """Wie Win+L: Computer sperren (Windows) bzw. Bildschirmsperre (Linux)."""
@@ -245,6 +279,7 @@ class Controller(QObject):
             self.message.emit("Sichtschutz geht nicht bei System-Spiegeln – nutze „Spiegeln“ in AluPC.")
             return
         self.privacy = not self.privacy
+        self.sounds.play_event("schwarz_an" if self.privacy else "schwarz_aus")
         p = self.config["privacy"]
         self.output.set_privacy(self.privacy, p.get("image", ""), p.get("text", ""))
         self.changed.emit()
@@ -315,9 +350,28 @@ class Controller(QObject):
         if clock.fresh() and action in ("toggle", "restart"):
             clock.set(float(cfg.get("minutes", 5)) * 60 + float(cfg.get("seconds", 0)),
                       cfg.get("mode", "countdown"), cfg.get("finished_text", ""))
+        was_running = clock.running
         {"toggle": clock.toggle, "restart": clock.restart, "reset": clock.reset,
          "plus": lambda: clock.add(60), "minus": lambda: clock.add(-60)}[action]()
+        if clock.running and not was_running:
+            self.sounds.play_event("timer_start")
+        elif was_running and not clock.running and action == "toggle":
+            self.sounds.play_event("timer_pause")
         self.changed.emit()
+
+    def _watch_timer(self) -> None:
+        from .timer import clock
+
+        state = clock.urgency()
+        finished = clock.finished()
+        old_state, old_finished = self._timer_state
+        if clock.running or finished:
+            if state == "bald" and old_state == "normal":
+                self.sounds.play_event("timer_minute")
+            if finished and not old_finished:
+                self.sounds.play_event("timer_ende")
+                self.changed.emit()
+        self._timer_state = (state, finished)
 
     def timer_visible(self) -> bool:
         """Zeigt Monitor 2 gerade irgendwo einen Timer (direkt oder in einer Szene)?"""
@@ -357,10 +411,37 @@ class Controller(QObject):
             self.message.emit("Diese Kachel gibt es nicht mehr.")
             return
         action = tile.get("action") or {}
-        if action.get("kind") == "command":
+        kind = action.get("kind")
+        # Hat die Kachel einen eigenen Ton (oder gibt es einen Kachel-Ton), ersetzt er die normalen Töne
+        tile_sound = tile.get("sound") or self.config["sounds"].get("events", {}).get("kachel", "")
+        normal = not tile_sound
+        if kind == "command":
             self.run_command(action.get("command", ""))
-        elif action.get("kind") == "source" and action.get("source"):
-            self.show_source(action["source"])
+        elif kind == "source" and action.get("source"):
+            self.show_source(action["source"], remember=True, sound=normal)
+        elif kind == "screensaver":
+            # eigener Bildschirmschoner dieser Kachel: nochmal klicken = beenden
+            if not self._guard():
+                return
+            if self.screensaver.active and self.screensaver.override_id == tile_id:
+                self.screensaver.stop()
+            else:
+                self.screensaver.stop()
+                self.screensaver.start(manual=True, override={**(action.get("screensaver") or {}),
+                                                              "_id": tile_id})
+        elif kind == "timer":
+            from .timer import clock
+
+            t = action.get("timer") or {}
+            clock.set(float(t.get("minutes", 5)) * 60 + float(t.get("seconds", 0)), t.get("mode", "countdown"),
+                      t.get("finished_text", self.config["timer"].get("finished_text", "")))
+            self.show_source(self.timer_source(), sound=normal)
+            if t.get("autostart", True):
+                clock.start()  # direkt starten – timer_action würde auf die Standarddauer zurückstellen
+                self.sounds.play_event("timer_start")
+                self.changed.emit()
+        if tile_sound:
+            self.sounds.play_event("kachel", tile_sound)
 
     def toggle_pip(self) -> None:
         if self.pip is not None and self._guard():
@@ -368,6 +449,7 @@ class Controller(QObject):
             self.changed.emit()
 
     def shutdown(self) -> None:
+        self._timer_watch.stop()
         self.screensaver.timer.stop()
         self.output.set_screensaver(None)
         self.output.set_content(None)

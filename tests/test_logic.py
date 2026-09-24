@@ -207,3 +207,13 @@ def test_new_default_hotkeys_merge_into_old_config(tmp_path):
     assert cfg["hotkeys"]["standbild"] == "Ctrl+Alt+X"  # eigene Einstellung bleibt
     assert cfg["hotkeys"]["bildschirmschoner"] == "Ctrl+Alt+W"  # neue Standardwerte kommen dazu
     assert cfg["screensaver"]["style"] == "uhr"
+
+
+def test_normalize_url():
+    from alupc.sources import normalize_url
+
+    assert normalize_url(" beispiel.de ") == "https://beispiel.de"
+    assert normalize_url("http://x.de") == "http://x.de"
+    assert normalize_url("data:text/html,<b>x</b>") == "data:text/html,<b>x</b>"
+    assert normalize_url("about:blank") == "about:blank"
+    assert normalize_url("") == ""

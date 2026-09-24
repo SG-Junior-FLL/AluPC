@@ -10,7 +10,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "extend": ("extend", "Erweitern", "Normaler zweiter Bildschirm", None, "anzeigen"),
     "camera": ("camera", "Kamera", "Kamera im Vollbild", None, "anzeigen"),
     "program": ("window", "Programm", "Ein Programm zeigen", None, "anzeigen"),
-    "website": ("globe", "Website", "Website im Vollbild", None, "anzeigen"),
+    "website": ("globe", "Website", "Öffnen · ▾ Gespeicherte, Browser steuern", None, "anzeigen"),
     "media": ("image", "Bild / Video", "Bild, Video oder Diashow", None, "anzeigen"),
     "scenes": ("scenes", "Meine Szenen", "Eigene Zusammenstellungen", None, "anzeigen"),
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),
@@ -110,4 +110,9 @@ def describe_action(action: dict | None) -> str:
         return "Befehl: " + COMMANDS.get(action.get("command", ""), action.get("command", ""))
     if action.get("kind") == "source":
         return describe_source(action.get("source"))
+    if action.get("kind") == "screensaver":
+        return "Eigener Bildschirmschoner"
+    if action.get("kind") == "timer":
+        t = action.get("timer") or {}
+        return f"Timer {int(t.get('minutes', 0))}:{int(t.get('seconds', 0)):02d}"
     return "(unbekannt)"

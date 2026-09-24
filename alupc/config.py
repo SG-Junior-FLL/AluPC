@@ -52,6 +52,19 @@ DEFAULTS: dict = {
     # Timer (Countdown/Stoppuhr): Voreinstellung für Kachel und Befehle
     "timer": {"minutes": 5, "seconds": 0, "mode": "countdown", "finished_text": "Zeit ist um!",
               "warn_colors": True, "size": 30},
+    # Töne bei Aktionen: Ereignis → "builtin:<name>" oder Pfad einer hochgeladenen Datei ("" = still)
+    "sounds": {
+        "enabled": True,
+        "volume": 70,
+        "device": "",
+        "events": {
+            "inhalt": "", "szene": "", "standbild_an": "", "standbild_aus": "", "schwarz_an": "",
+            "schwarz_aus": "", "schoner_an": "", "schoner_aus": "", "timer_start": "", "timer_pause": "",
+            "timer_minute": "", "timer_ende": "builtin:alarm", "kachel": "",
+        },
+    },
+    # Gespeicherte Websites (Favoriten) für die Kachel „Website“
+    "websites": {"favorites": []},
     # Monitor 2: Taskleiste dort ausblenden (Windows), Standbild-Symbol oben rechts
     "output": {"hide_taskbar": True, "freeze_badge": True},
     "start_minimized": False,

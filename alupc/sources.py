@@ -304,8 +304,9 @@ class WebsiteSource(QWidget):
 
 
 def normalize_url(url: str) -> str:
+    """„beispiel.de“ → „https://beispiel.de“; Adressen mit Schema (https:, file:, data: …) bleiben."""
     url = url.strip()
-    if url and "://" not in url and not url.startswith(("about:", "file:")):
+    if url and "://" not in url and not url.startswith(("about:", "file:", "data:", "view-source:")):
         url = "https://" + url
     return url
 

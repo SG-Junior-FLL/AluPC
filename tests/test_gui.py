@@ -494,3 +494,152 @@ def test_program_window_matching():
     assert find_window(wins, "Startseite — Mozilla Firefox").d == "Neuer Tab — Mozilla Firefox"
     assert find_window(wins, "Gibt es nicht") is None
     assert _app_part("a - b - Word") == "Word"
+
+
+def test_sounds_builtin_and_events(env, tmp_path):
+    controller, _window, _ = env
+    from alupc import sounds
+
+    for name in sounds.BUILTIN:
+        path = sounds.builtin_path(name)
+        assert path.exists() and path.stat().st_size > 1000
+    src = tmp_path / "mein ton.wav"
+    src.write_bytes(sounds.builtin_path("ding").read_bytes())
+    stored = sounds.upload(str(src))
+    assert stored != str(src) and sounds.resolve(stored) is not None
+    src.unlink()  # Original weg – hochgeladene Kopie bleibt
+    assert sounds.resolve(stored) is not None
+    cfg = controller.config
+    events = dict(cfg["sounds"]["events"])
+    events.update({"standbild_an": "builtin:ding", "schwarz_an": stored, "inhalt": "builtin:klick"})
+    cfg["sounds"] = {**cfg["sounds"], "events": events}
+    player = controller.sounds
+    player.last_played = None
+    controller.show_source({"type": "clock"})
+    assert player.last_played == "builtin:klick"
+    controller.toggle_freeze()
+    assert player.last_played == "builtin:ding"
+    controller.toggle_freeze()
+    controller.toggle_privacy()
+    assert player.last_played == stored
+    controller.toggle_privacy()
+    cfg["sounds"] = {**cfg["sounds"], "enabled": False}
+    player.last_played = None
+    controller.toggle_freeze()
+    assert player.last_played is None  # Töne aus → still
+    controller.toggle_freeze()
+
+
+def test_timer_end_plays_sound(env):
+    controller, _window, _ = env
+    from alupc.timer import clock
+
+    controller.config["sounds"] = {**controller.config["sounds"], "enabled": True}
+    clock.set(30)
+    clock.start()
+    controller._watch_timer()
+    clock._accumulated = 31  # abgelaufen
+    controller.sounds.last_played = None
+    controller._watch_timer()
+    assert controller.sounds.last_played == "builtin:alarm"
+    clock.reset()
+
+
+def test_tile_with_own_screensaver_and_timer(env):
+    controller, window, _ = env
+    from alupc.timer import clock
+
+    start = dict(controller.config["start_page"])
+    start["custom"] = [
+        {"id": "pause", "title": "Pause", "icon": "moon", "color": "#6366f1", "section": "schnell",
+         "sound": "builtin:gong",
+         "action": {"kind": "screensaver", "screensaver": {"style": "nachricht", "text": "Pause – 10 Minuten"}}},
+        {"id": "t10", "title": "10 Minuten", "icon": "timer", "color": "#f43f5e", "section": "schnell",
+         "action": {"kind": "timer", "timer": {"minutes": 10, "seconds": 0, "mode": "countdown",
+                                               "autostart": True}}},
+    ]
+    controller.config["start_page"] = start
+    window.rebuild_start()
+    controller.sounds.last_played = None
+    controller.run_tile("pause")
+    assert controller.screensaver.active and controller.screensaver.override_id == "pause"
+    assert controller.output.screensaver.cfg["text"] == "Pause – 10 Minuten"
+    assert controller.sounds.last_played == "builtin:gong"  # eigener Ton der Kachel
+    window.refresh()
+    assert window.custom_tiles["custom:pause"].active
+    controller.run_tile("pause")  # nochmal = beenden
+    assert not controller.screensaver.active
+    controller.run_tile("t10")
+    assert clock.running and 590 < clock.remaining() <= 600
+    assert controller.timer_visible()
+    clock.reset()
+
+
+def test_custom_tile_dialog_kinds(env):
+    controller, window, _ = env
+    from alupc.startpage import new_custom_tile
+    from alupc.ui.start_page_dialog import CustomTileDialog
+
+    dlg = CustomTileDialog(controller.config, new_custom_tile(), "", window, controller)
+    dlg.title.setText("Meine Pause")
+    dlg.kind.setCurrentIndex(dlg.kind.findData("screensaver"))
+    dlg.saver.style_combo.setCurrentIndex(dlg.saver.style_combo.findData("uhr"))
+    dlg._save()
+    assert dlg.tile["action"]["kind"] == "screensaver"
+    assert dlg.tile["action"]["screensaver"]["style"] == "uhr"
+    dlg2 = CustomTileDialog(controller.config, new_custom_tile(), "", window, controller)
+    dlg2.kind.setCurrentIndex(dlg2.kind.findData("timer"))
+    dlg2.t_min.setValue(3)
+    dlg2._save()
+    assert dlg2.tile["action"] == {"kind": "timer", "timer": {"mode": "countdown", "minutes": 3, "seconds": 0,
+                                                             "finished_text": "Zeit ist um!", "autostart": True}}
+
+
+def test_website_favorites_and_browser_control(env):
+    controller, window, _ = env
+    import time
+
+    html = ("data:text/html,<html><head><title>Start</title></head><body style='margin:0'>"
+            "<button id=b style='width:100vw;height:100vh' onclick=\"document.title='Geklickt'\">X</button>"
+            "</body></html>")
+    controller.show_source({"type": "website", "url": html})
+    view = controller.current_web_view()
+    assert view is not None
+    loaded = []
+    view.loadFinished.connect(loaded.append)
+    end = time.time() + 20
+    while not loaded and time.time() < end:
+        pump()
+    assert loaded and loaded[0]
+    controller.save_website("Testseite", html)
+    assert controller.config["websites"]["favorites"][0] == {"title": "Testseite", "url": html}
+    controller.save_website("Testseite 2", html)  # gleiche Adresse → ersetzt, nicht doppelt
+    assert len(controller.config["websites"]["favorites"]) == 1
+
+    window.open_browser_control()
+    bc = window.browser_control
+    pump()
+    assert bc.view is view and bc.save_btn.isEnabled()
+    bc.refresh()
+    assert bc.preview.image() is not None
+    # Klick in die Vorschau landet auf der Website (Knopf füllt die ganze Seite)
+    from PySide6.QtCore import QEvent, QPointF
+    from PySide6.QtGui import QMouseEvent
+
+    bc.preview.resize(640, 360)
+    center = QPointF(bc.preview.width() / 2, bc.preview.height() / 2)
+    for kind in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+        ev = QMouseEvent(kind, center, center, Qt.LeftButton,
+                         Qt.LeftButton if kind == QEvent.MouseButtonPress else Qt.NoButton, Qt.NoModifier)
+        (bc.preview.mousePressEvent if kind == QEvent.MouseButtonPress else bc.preview.mouseReleaseEvent)(ev)
+    end = time.time() + 10
+    while view.title() != "Geklickt" and time.time() < end:
+        pump()
+    assert view.title() == "Geklickt"
+    bc._zoom(0.1)
+    assert abs(view.zoomFactor() - 1.1) < 0.01
+    # Keine Website mehr → Fenster zeigt Hinweis
+    controller.show_source({"type": "clock"})
+    pump()
+    assert bc.view is None and not bc.save_btn.isEnabled()
+    bc.close()

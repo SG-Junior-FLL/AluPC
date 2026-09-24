@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QAction
 from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -18,6 +19,8 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -92,22 +95,47 @@ class FlowGrid(QWidget):
 
 
 class WebsiteDialog(QDialog):
-    def __init__(self, recent: list[str], parent=None):
+    """Website öffnen: gespeicherte Websites (Favoriten) oder eine neue Adresse."""
+
+    def __init__(self, config, parent=None):
         super().__init__(parent)
+        self.config = config
         self.setWindowTitle("Website anzeigen")
-        self.setMinimumWidth(520)
+        self.setMinimumSize(560, 480)
+        recent = list(config.data.get("recent_urls", []))
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
-        lay.setSpacing(14)
+        lay.setSpacing(12)
         lay.addWidget(page_header("Website anzeigen", "Die Seite erscheint im Vollbild auf Monitor 2."))
+        caption = QLabel("Gespeicherte Websites")
+        caption.setObjectName("SectionTitle")
+        lay.addWidget(caption)
+        self.favs = QListWidget()
+        self.favs.itemDoubleClicked.connect(lambda _i: self._use_favorite())
+        self.favs.currentItemChanged.connect(lambda item, _p: item and self.combo.setCurrentText(
+            item.data(Qt.UserRole)))
+        lay.addWidget(self.favs, 1)
+        fav_row = QHBoxLayout()
+        remove = button("Entfernen", "trash", danger=True)
+        remove.clicked.connect(self._remove)
+        rename = button("Umbenennen …", "edit")
+        rename.clicked.connect(self._rename)
+        fav_row.addWidget(rename)
+        fav_row.addWidget(remove)
+        fav_row.addStretch(1)
+        lay.addLayout(fav_row)
         self.combo = QComboBox()
         self.combo.setEditable(True)
         self.combo.addItems(recent)
         self.combo.setCurrentText(recent[0] if recent else "")
         self.combo.lineEdit().setPlaceholderText("z. B. www.beispiel.de")
         self.combo.setMinimumHeight(38)
+        self.save_it = QCheckBox("Unter „Website“ speichern")
+        self.control_it = QCheckBox("Danach das Fenster „Browser steuern“ öffnen")
         form = QFormLayout()
         form.addRow("Adresse:", self.combo)
+        form.addRow("", self.save_it)
+        form.addRow("", self.control_it)
         lay.addLayout(form)
         buttons = QDialogButtonBox()
         ok = button("Anzeigen", "play", primary=True)
@@ -117,6 +145,52 @@ class WebsiteDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         lay.addWidget(buttons)
+        self._fill()
+
+    def _fill(self):
+        self.favs.clear()
+        t = theme.current()
+        for fav in self.config["websites"].get("favorites", []):
+            item = QListWidgetItem(icons.icon("globe", t.accent, 20), f"{fav.get('title')}   —   {fav.get('url')}")
+            item.setData(Qt.UserRole, fav.get("url"))
+            item.setData(Qt.UserRole + 1, fav.get("title"))
+            self.favs.addItem(item)
+        if not self.favs.count():
+            item = QListWidgetItem("Noch keine gespeicherten Websites – unten eine Adresse eingeben und "
+                                   "„Unter Website speichern“ anhaken.")
+            item.setFlags(Qt.NoItemFlags)
+            self.favs.addItem(item)
+
+    def _use_favorite(self):
+        item = self.favs.currentItem()
+        if item is not None and item.data(Qt.UserRole):
+            self.combo.setCurrentText(item.data(Qt.UserRole))
+            self.accept()
+
+    def _selected(self):
+        item = self.favs.currentItem()
+        return item.data(Qt.UserRole) if item is not None else None
+
+    def _remove(self):
+        url = self._selected()
+        if url:
+            favs = [f for f in self.config["websites"].get("favorites", []) if f.get("url") != url]
+            self.config["websites"] = {**self.config["websites"], "favorites": favs}
+            self._fill()
+
+    def _rename(self):
+        url = self._selected()
+        if not url:
+            return
+        from PySide6.QtWidgets import QInputDialog
+
+        old = self.favs.currentItem().data(Qt.UserRole + 1)
+        name, ok = QInputDialog.getText(self, "Umbenennen", "Name:", text=old)
+        if ok and name.strip():
+            favs = [dict(f, title=name.strip()) if f.get("url") == url else f
+                    for f in self.config["websites"].get("favorites", [])]
+            self.config["websites"] = {**self.config["websites"], "favorites": favs}
+            self._fill()
 
     def url(self) -> str:
         return normalize_url(self.combo.currentText())
@@ -271,7 +345,10 @@ class MainWindow(QMainWindow):
         self.t_extend.clicked.connect(c.extend)
         self.t_camera.clicked.connect(self._camera_clicked)
         self.t_program.clicked.connect(lambda: ProgramDialog(c, self).exec())
-        self.t_web.clicked.connect(self.pick_website)
+        self.t_web.activated.connect(self.pick_website)
+        self.website_menu = QMenu(self)
+        self.website_menu.aboutToShow.connect(lambda: self._fill_website_menu(self.website_menu))
+        self.t_web.set_menu(self.website_menu, split=True)
         self.t_black.clicked.connect(c.toggle_privacy)
         self.t_freeze.clicked.connect(c.toggle_freeze)
         self.t_pip.clicked.connect(c.toggle_pip)
@@ -392,7 +469,7 @@ class MainWindow(QMainWindow):
         self.tray_timer.setTitle(f"Timer  {badge}".rstrip())
 
     def customize_start(self):
-        dlg = StartPageDialog(self.config, self)
+        dlg = StartPageDialog(self.config, self, self.controller)
         if dlg.exec() == QDialog.Accepted:
             self.rebuild_start()
             self.show_message("Startseite gespeichert.", "ok")
@@ -427,13 +504,81 @@ class MainWindow(QMainWindow):
         menu.addAction(icons.icon("plus", theme.current().text, 18), "Neue Szene …", self.new_scene)
 
     def pick_website(self):
-        recent = list(self.config.data.get("recent_urls", []))
-        dlg = WebsiteDialog(recent, self)
+        dlg = WebsiteDialog(self.config, self)
         if dlg.exec() != QDialog.Accepted or not dlg.url():
             return
         url = dlg.url()
+        recent = list(self.config.data.get("recent_urls", []))
         self.config["recent_urls"] = [url] + [u for u in recent if u != url][:9]
         self.controller.show_source({"type": "website", "url": url})
+        if dlg.save_it.isChecked():
+            self._save_current_later(url)
+        if dlg.control_it.isChecked():
+            self.open_browser_control()
+
+    def _save_current_later(self, url: str):
+        """Name der Seite abwarten (Titel kommt erst nach dem Laden), dann speichern."""
+        view = self.controller.current_web_view()
+
+        def save(ok=True):
+            title = (view.title() if view is not None else "") or QUrl(url).host() or url
+            self.controller.save_website(title, url)
+
+        if view is None:
+            save()
+            return
+        done = {"x": False}
+
+        def once(ok):
+            if not done["x"]:
+                done["x"] = True
+                save(ok)
+
+        view.loadFinished.connect(once)
+        QTimer.singleShot(8000, lambda: once(False))
+
+    def save_current_website(self):
+        view = self.controller.current_web_view()
+        if view is None:
+            self.show_message("Auf Monitor 2 läuft gerade keine Website.", "warn")
+            return
+        from PySide6.QtWidgets import QInputDialog
+
+        title = view.title() or view.url().host()
+        name, ok = QInputDialog.getText(self, "Website speichern", "Name für die Website:", text=title)
+        if ok:
+            self.controller.save_website(name.strip() or title, view.url().toString())
+
+    def open_browser_control(self):
+        from .browser_control import BrowserControl
+
+        if getattr(self, "browser_control", None) is None:
+            self.browser_control = BrowserControl(self.controller, self.controller.save_website, self)
+        win = self.browser_control
+        screen = self.controller.main_screen()
+        if screen is not None and not win.isVisible():
+            g = screen.availableGeometry()
+            win.move(g.x() + (g.width() - win.width()) // 2, g.y() + (g.height() - win.height()) // 2)
+        win.show()
+        win.raise_()
+        win.activateWindow()
+
+    def _fill_website_menu(self, menu):
+        t = theme.current()
+        menu.clear()
+        favs = self.config["websites"].get("favorites", [])
+        for fav in favs[:15]:
+            menu.addAction(icons.icon("globe", t.text, 18), fav.get("title") or fav.get("url"),
+                           lambda u=fav.get("url"): self.controller.show_source({"type": "website", "url": u}))
+        if not favs:
+            act = menu.addAction("Noch keine gespeicherten Websites")
+            act.setEnabled(False)
+        menu.addSeparator()
+        menu.addAction(icons.icon("sliders", t.text, 18), "Browser steuern …", self.open_browser_control)
+        save = menu.addAction(icons.icon("bookmark", t.text, 18), "Aktuelle Website speichern …",
+                              self.save_current_website)
+        save.setEnabled(self.controller.current_web_view() is not None)
+        menu.addAction(icons.icon("plus", t.text, 18), "Website öffnen / verwalten …", self.pick_website)
 
     def pick_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Bild wählen", "", IMAGE_FILTER)
@@ -603,7 +748,7 @@ class MainWindow(QMainWindow):
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(page_header("Setup", "Monitore, Darstellung, Tastenkürzel und Sperre."))
+        lay.addWidget(page_header("Setup", "Alle Einstellungen – links den Bereich wählen."))
         self.setup = SetupPage(self.controller, self.hotkeys)
         self.setup.theme_changed.connect(self.apply_theme)
         self.setup.hotkeys_changed.connect(self.refresh)
@@ -789,7 +934,9 @@ class MainWindow(QMainWindow):
         for key, tile in self.custom_tiles.items():
             tcfg = find_custom(self.config["start_page"], key) or {}
             action = tcfg.get("action") or {}
-            on = action.get("kind") == "source" and c.mode == "content" and c.content == action.get("source")
+            on = (action.get("kind") == "source" and c.mode == "content" and c.content == action.get("source")) \
+                or (action.get("kind") == "screensaver" and c.screensaver.active
+                    and c.screensaver.override_id == tcfg.get("id"))
             tile.set_state(on, badge="AKTIV" if on else "")
         self.t_freeze.set_state(c.frozen, badge="AN" if c.frozen else "")
         self.t_black.set_state(c.privacy, badge="AN" if c.privacy else "")

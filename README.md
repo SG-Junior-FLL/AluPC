@@ -30,7 +30,7 @@ OBS-Studio-Fenster.
 | **Erweitern** | Monitor 2 ist ein normaler zweiter Bildschirm |
 | **Kamera** | eine Kamera im Vollbild – bei nur einer Kamera sofort, sonst Auswahl |
 | **Programm** | ein Programm zeigen: *Anzeigen (Aufnahme)* oder *Fenster wirklich verschieben* |
-| **Website** | Adresse eingeben → Website im Vollbild (die letzten 10 Adressen werden gemerkt) |
+| **Website** | Adresse eingeben oder gespeicherte Website wählen → Vollbild. Pfeil an der Kachel: gespeicherte Websites, **Browser steuern** (eigenes Fenster: Adresse, Zurück/Vor, Zoom, Scrollen, Live-Vorschau zum Klicken und Tippen), aktuelle Seite **unter „Website“ speichern** |
 | **Bild / Video** | Bild, Video (Endlosschleife) oder Diashow aus einem Ordner |
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
@@ -53,6 +53,10 @@ Außerdem:
   (unter Windows und KDE vom System gemeldet) – wahlweise nur, wenn AluPC gerade nichts zeigt, oder
   immer. Maus bewegen beendet ihn; von Hand gestartet (Kachel/Tastenkürzel) bleibt er, bis man ihn
   wieder ausschaltet. Sichtschutz liegt immer darüber.
+
+  Stile: Uhr, Nachricht (großer Text + kleine Uhr, optional Hintergrundbild), schwebender Text/Logo,
+  Diashow, Farbverlauf, eigene Szene; Textfarbe wählbar. Einstellungen auch direkt über den Pfeil
+  an der Kachel.
 
   | Uhr | Farbverlauf |
   |---|---|
@@ -104,6 +108,15 @@ Außerdem:
   Wieder-Anstecken automatisch wieder benutzt.
 - **Computer sperren** (Seitenleiste, Taskleisten-Menü, Befehl `sperren`): wie Win+L bzw. die
   Bildschirmsperre unter Linux – Monitor 2 zeigt dabei weiter, was gerade läuft.
+- **Töne** (Setup → Töne): Ton bei Standbild an/aus, Schwarz an/aus, neuem Inhalt, Szenenwechsel,
+  Bildschirmschoner, Timer-Start/-Pause, „noch 1 Minute“, Timer-Ende … – 7 eingebaute Klänge oder
+  eigene Dateien hochladen (WAV, MP3, OGG …). Lautstärke und Ausgabegerät (z. B. HDMI des Beamers)
+  wählbar. Eigene Kacheln können einen eigenen Ton haben.
+- **Eigene Kacheln – mehr Möglichkeiten**: etwas anzeigen, **eigener Bildschirmschoner** (z. B.
+  „Pause – gleich geht's weiter“ mit Hintergrundbild; nochmal klicken = beenden), **Timer mit eigener
+  Dauer** oder ein Befehl – jeweils mit eigenem Symbol, Farbe, Ton und Tastenkürzel.
+- **Setup in Bereichen**: Monitore, Monitor 2, Darstellung, Bildschirmschoner, Timer, Töne,
+  Tastenkürzel, Allgemein.
 - **Timer** (Kachel „Timer“): Countdown oder Stoppuhr, läuft durch – auch wenn Szenen neu
   aufgebaut werden. Klick = Start/Pause (beim ersten Mal wird er auf Monitor 2 gezeigt), Pfeil =
   Neu starten, ±1 Minute, Einstellen. Letzte Minute orange, letzte 10 Sekunden rot, am Ende blinkt
