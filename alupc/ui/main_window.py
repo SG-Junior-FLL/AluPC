@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtWidgets import (
@@ -35,7 +35,6 @@ from ..sources import camera_id, normalize_url
 from . import icons, theme
 from .fingerprint_page import FingerprintPage
 from .icons import app_icon
-from .lock_dialog import LockDialog
 from .program_dialog import ProgramDialog
 from .scene_editor import SceneEditor
 from .setup_page import SetupPage
@@ -215,7 +214,8 @@ class MainWindow(QMainWindow):
         self.side_monitor.setWordWrap(True)
         self.side_monitor.setContentsMargins(14, 0, 8, 8)
         lay.addWidget(self.side_monitor)
-        lock = NavButton("lock", "Sperren")
+        lock = NavButton("lock", "Computer sperren")
+        lock.setToolTip("Wie Win+L – Monitor 2 zeigt weiter, was gerade läuft")
         lock.setCheckable(False)
         lock.clicked.connect(self.lock)
         lay.addWidget(lock)
@@ -275,7 +275,22 @@ class MainWindow(QMainWindow):
         self.t_black.clicked.connect(c.toggle_privacy)
         self.t_freeze.clicked.connect(c.toggle_freeze)
         self.t_pip.clicked.connect(c.toggle_pip)
-        self.t_saver.clicked.connect(c.toggle_screensaver)
+        self.t_saver.activated.connect(c.toggle_screensaver)
+        saver_menu = QMenu(self)
+        saver_menu.addAction(icons.icon("moon", theme.current().text, 18), "Jetzt starten / beenden",
+                             c.toggle_screensaver)
+        saver_menu.addAction(icons.icon("sliders", theme.current().text, 18), "Einstellungen …",
+                             self.edit_screensaver)
+        self.t_saver.set_menu(saver_menu, split=True)
+        self.t_timer = self.tiles["timer"]
+        self.t_timer.activated.connect(self._timer_clicked)
+        timer_menu = QMenu(self)
+        self._fill_timer_menu(timer_menu)
+        self.t_timer.set_menu(timer_menu, split=True)
+        # Timer-Anzeige auf Kachel/Statuskarte jede Sekunde aktualisieren
+        self._timer_tick = QTimer(self, interval=500)
+        self._timer_tick.timeout.connect(self._update_timer_ui)
+        self._timer_tick.start()
         self.camera_menu = QMenu(self)
         media_menu = QMenu(self)
         media_menu.addAction(icons.icon("image", theme.current().text, 18), "Bild …", self.pick_image)
@@ -349,6 +364,32 @@ class MainWindow(QMainWindow):
         problems = self.hotkeys.apply(self.config["hotkeys"])
         for text in problems:
             self.show_message(text, "warn")
+
+    def _timer_clicked(self):
+        c = self.controller
+        if not c.timer_visible():
+            c.show_timer()  # erst anzeigen …
+            from ..timer import clock
+
+            if clock.fresh():
+                c.timer_action("toggle")  # … und beim ersten Mal gleich starten
+        else:
+            c.timer_action("toggle")
+
+    def _update_timer_ui(self):
+        from ..timer import clock
+
+        if clock.fresh():
+            badge = ""
+        elif clock.finished():
+            badge = "ENDE"
+        else:
+            badge = clock.text() + ("" if clock.running else " ⏸")
+        self.t_timer.set_state(clock.running or clock.finished(), badge=badge)
+        c = self.controller
+        if c.content and c.content.get("type") == "countdown" and c.mode == "content":
+            self.status_card.title.setText(c.describe())
+        self.tray_timer.setTitle(f"Timer  {badge}".rstrip())
 
     def customize_start(self):
         dlg = StartPageDialog(self.config, self)
@@ -593,28 +634,37 @@ class MainWindow(QMainWindow):
 
     # ================================================================ Tray
     def _build_tray(self):
+        """Symbol in der Taskleiste: Klick öffnet ein Schnellmenü, das Symbol zeigt den Zustand."""
         self.tray = QSystemTrayIcon(app_icon(), self)
         self.tray.setToolTip(APP_NAME)
-        menu = QMenu()
-        menu.addAction("AluPC öffnen", self.show_normal_front)
-        menu.addSeparator()
         c = self.controller
-        self.a_freeze = QAction("Standbild", menu, checkable=True)
+        t = theme.current()
+        ic = lambda name: icons.icon(name, t.text, 18)  # noqa: E731
+        menu = QMenu()
+        self.a_status = menu.addAction("")
+        self.a_status.setEnabled(False)
+        menu.addSeparator()
+        self.a_freeze = QAction(ic("snowflake"), "Standbild", menu, checkable=True)
         self.a_freeze.triggered.connect(lambda _=False: c.toggle_freeze())
-        self.a_black = QAction("Schwarz (Sichtschutz)", menu, checkable=True)
+        self.a_black = QAction(ic("eye_off"), "Schwarz (Sichtschutz)", menu, checkable=True)
         self.a_black.triggered.connect(lambda _=False: c.toggle_privacy())
-        self.a_pip = QAction("Bild-in-Bild", menu, checkable=True)
+        self.a_saver = QAction(ic("moon"), "Bildschirmschoner", menu, checkable=True)
+        self.a_saver.triggered.connect(lambda _=False: c.toggle_screensaver())
+        self.a_pip = QAction(ic("pip"), "Bild-in-Bild", menu, checkable=True)
         self.a_pip.triggered.connect(lambda _=False: c.toggle_pip())
-        menu.addAction(self.a_freeze)
-        menu.addAction(self.a_black)
-        menu.addAction(self.a_pip)
+        for act in (self.a_freeze, self.a_black, self.a_saver, self.a_pip):
+            menu.addAction(act)
+        self.tray_timer = menu.addMenu(ic("timer"), "Timer")
+        self._fill_timer_menu(self.tray_timer)
         menu.addSeparator()
-        menu.addAction("Spiegeln", c.mirror)
-        menu.addAction("Erweitern", c.extend)
-        self.tray_scenes = menu.addMenu("Szenen")
+        menu.addAction(ic("mirror"), "Spiegeln", c.mirror)
+        menu.addAction(ic("extend"), "Erweitern", c.extend)
+        self.tray_scenes = menu.addMenu(ic("scenes"), "Szenen")
+        menu.addAction(ic("down"), "Nächste Szene", lambda: c.step_scene(1))
         menu.addSeparator()
-        menu.addAction("Sperren", self.lock)
-        menu.addAction("Beenden", QApplication.instance().quit)
+        menu.addAction(ic("home"), "AluPC öffnen", self.show_normal_front)
+        menu.addAction(ic("lock"), "Computer sperren", self.lock)
+        menu.addAction(ic("power"), "Beenden", QApplication.instance().quit)
         self.tray_menu = menu
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(self._tray_activated)
@@ -622,16 +672,66 @@ class MainWindow(QMainWindow):
         if QSystemTrayIcon.isSystemTrayAvailable():
             self.tray.show()
 
+    def _fill_timer_menu(self, menu):
+        c = self.controller
+        menu.clear()
+        menu.addAction("Auf Monitor 2 zeigen", c.show_timer)
+        menu.addAction("Start / Pause", lambda: c.timer_action("toggle"))
+        menu.addAction("Neu starten", lambda: c.timer_action("restart"))
+        menu.addAction("+1 Minute", lambda: c.timer_action("plus"))
+        menu.addAction("−1 Minute", lambda: c.timer_action("minus"))
+        menu.addSeparator()
+        menu.addAction("Timer einstellen …", self.edit_timer)
+
+    def edit_timer(self):
+        from .timer_dialog import TimerDialog
+
+        self.show_normal_front()
+        TimerDialog(self.controller, self).exec()
+
+    def edit_screensaver(self):
+        from .screensaver_settings import ScreensaverDialog
+
+        ScreensaverDialog(self.controller, self).exec()
+
+    def _tray_icon(self):
+        """Programmsymbol mit kleinem Zustands-Punkt (Standbild, Schwarz, Bildschirmschoner)."""
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QColor, QIcon, QPainter
+
+        c = self.controller
+        state = ("eye_off", PRIVACY_COLOR) if c.privacy else ("snowflake", FREEZE_COLOR) if c.frozen \
+            else ("moon", "#6366f1") if c.screensaver.active else None
+        key = state[0] if state else ""
+        if getattr(self, "_tray_key", None) == key:
+            return None
+        self._tray_key = key
+        if state is None:
+            return app_icon()
+        px = app_icon().pixmap(64, 64)
+        p = QPainter(px)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(state[1]))
+        badge = QRectF(28, 28, 36, 36)
+        p.drawEllipse(badge)
+        icons.paint(p, state[0], badge.adjusted(7, 7, -7, -7), "#ffffff", 2.6)
+        p.end()
+        return QIcon(px)
+
     def _fill_tray_scenes(self):
         if hasattr(self, "tray_scenes"):
             self._fill_scene_menu(self.tray_scenes)
 
     def _tray_activated(self, reason):
-        if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
-            if self.isVisible() and not self.isMinimized():
-                self.hide()
-            else:
-                self.show_normal_front()
+        # Einfacher Klick: Schnellmenü zum Steuern · Doppelklick: Fenster öffnen
+        if reason == QSystemTrayIcon.DoubleClick:
+            self.tray_menu.hide()
+            self.show_normal_front()
+        elif reason == QSystemTrayIcon.Trigger:
+            from PySide6.QtGui import QCursor
+
+            self.tray_menu.popup(QCursor.pos())
 
     def show_normal_front(self):
         self.showNormal()
@@ -697,6 +797,12 @@ class MainWindow(QMainWindow):
         self.a_freeze.setChecked(c.frozen)
         self.a_black.setChecked(c.privacy)
         self.a_pip.setChecked(pip_on)
+        self.a_saver.setChecked(c.screensaver.active)
+        self.a_status.setText(f"Monitor 2: {c.describe()}"[:70])
+        self.tray.setToolTip(f"{APP_NAME} – Monitor 2: {c.describe()}")
+        icon = self._tray_icon()
+        if icon is not None:
+            self.tray.setIcon(icon)
         hk = self.config["hotkeys"]
         parts = [(hk.get(k), label) for k, label in (("standbild", "Standbild"), ("schwarz", "Schwarz"),
                                                         ("bild_in_bild", "Bild-in-Bild"),
@@ -721,16 +827,8 @@ class MainWindow(QMainWindow):
 
     # ================================================================ Sperre
     def lock(self):
-        if not self.config["lock"].get("enabled"):
-            self.show_message("Die Sperre ist aus – einschalten unter Setup → „AluPC sperren“.", "warn")
-            return
-        self.controller.locked = True
-        self.hide()
-        dlg = LockDialog(self.controller)
-        dlg.setWindowIcon(app_icon())
-        dlg.exec()
-        self.controller.locked = False
-        self.show_normal_front()
+        """Computer sperren – wie Win+L (Linux: Bildschirmsperre)."""
+        self.controller.lock_computer()
 
     def closeEvent(self, event):
         # Schließen = nur ausblenden; Monitor 2 läuft weiter. Beenden über das Tray-Menü.

@@ -16,7 +16,8 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),
     "black": ("eye_off", "Schwarz", "Sichtschutz", "#64748b", "schnell"),
     "pip": ("pip", "Bild-in-Bild", "Monitor 2 klein anzeigen", "#8b5cf6", "schnell"),
-    "screensaver": ("moon", "Bildschirmschoner", "Jetzt starten / beenden", "#6366f1", "schnell"),
+    "screensaver": ("moon", "Bildschirmschoner", "Starten / beenden · ▾ Einstellungen", "#6366f1", "schnell"),
+    "timer": ("timer", "Timer", "Start / Pause · ▾ mehr", "#f43f5e", "schnell"),
 }
 DEFAULT_ORDER = list(BUILTIN_TILES)
 
@@ -32,6 +33,11 @@ COMMANDS = {
     "erweitern": "Erweitern",
     "naechste_szene": "Nächste Szene",
     "vorherige_szene": "Vorherige Szene",
+    "timer_zeigen": "Timer auf Monitor 2 zeigen",
+    "timer_start_pause": "Timer starten/pausieren",
+    "timer_neustart": "Timer neu starten",
+    "timer_plus": "Timer +1 Minute",
+    "timer_minus": "Timer −1 Minute",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann

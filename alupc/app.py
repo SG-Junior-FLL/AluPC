@@ -8,7 +8,8 @@ import sys
 
 from . import APP_NAME, __version__
 
-COMMANDS_HELP = "standbild, schwarz, bild-in-bild, spiegeln, erweitern, zeigen, sperren, szene:NAME"
+COMMANDS_HELP = ("standbild, schwarz, bild-in-bild, bildschirmschoner, spiegeln, erweitern, naechste_szene, "
+                 "vorherige_szene, sperren (Computer), zeigen, szene:NAME")
 
 
 def parse_args(argv):
@@ -90,6 +91,9 @@ def main(argv=None) -> int:
     window = MainWindow(controller, hotkeys)
     hotkeys.attach(window)
     hotkeys.triggered.connect(controller.run_command)
+    from .ui import hotkey_edit
+
+    hotkey_edit.manager = hotkeys
     problems = hotkeys.apply(config["hotkeys"])
     for p in problems:
         controller.message.emit(p)
@@ -101,21 +105,11 @@ def main(argv=None) -> int:
     def on_command(cmd):
         if cmd == "zeigen":
             window.show_normal_front()
-        elif cmd == "sperren":
-            window.lock()
         else:
             controller.run_command(cmd)
 
     instance.command.connect(on_command)
     app.aboutToQuit.connect(controller.shutdown)
-
-    locked_start = bool(config["lock"].get("enabled"))
-    if locked_start:
-        from .ui.lock_dialog import LockDialog
-
-        controller.locked = True
-        LockDialog(controller).exec()
-        controller.locked = False
 
     controller.restore_last()
     if args.befehl and args.befehl != "zeigen":

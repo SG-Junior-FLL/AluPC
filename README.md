@@ -77,7 +77,8 @@ Außerdem:
   | Setup | Finger anlernen | Bild-in-Bild |
   |---|---|---|
   | ![Setup](docs/setup.png) | ![Fingerabdruck](docs/fingerabdruck.png) | ![Bild-in-Bild](docs/bild-in-bild.png) |
-- **Tastenkürzel** (änderbar im Setup, jedes auch löschbar):
+- **Tastenkürzel** (Setup → Tastenkürzel: auf das Kürzel klicken, neue Tasten drücken – fertig;
+  „Kein Kürzel“ entfernt es):
 
   | Aktion | Standard |
   |---|---|
@@ -86,6 +87,7 @@ Außerdem:
   | Bild-in-Bild an/aus | `Strg+Alt+P` |
   | Bildschirmschoner an/aus | `Strg+Alt+W` |
   | Nächste / vorherige Szene | `Strg+Alt+Bild↓` / `Strg+Alt+Bild↑` |
+  | Timer Start/Pause | `Strg+Alt+T` (Neustart, ±1 Minute frei belegbar) |
   | Spiegeln | `Strg+Alt+M` |
   | Erweitern | `Strg+Alt+E` |
   | jede Szene | frei wählbar im Szenen-Editor |
@@ -93,11 +95,24 @@ Außerdem:
 
   Doppelt vergebene Kürzel meldet AluPC.
 
-- **Symbol in der Taskleiste** mit Menü (Standbild, Schwarz, Szenen, Sperren …).
+- **Steuern über die Taskleiste**: Ein Klick auf das AluPC-Symbol öffnet ein Schnellmenü
+  (Standbild, Schwarz, Bildschirmschoner, Bild-in-Bild, Timer, Spiegeln, Erweitern, Szenen,
+  Computer sperren). Das Symbol zeigt den Zustand (Schneeflocke = Standbild, Auge = Schwarz,
+  Mond = Bildschirmschoner). Doppelklick öffnet AluPC.
   Fenster schließen = AluPC läuft im Hintergrund weiter.
 - **Autostart**, letzten Inhalt beim Start wiederherstellen, Monitor wird nach dem
   Wieder-Anstecken automatisch wieder benutzt.
-- **AluPC sperren**: Bedienung nur nach Fingerabdruck (oder Ersatz-PIN).
+- **Computer sperren** (Seitenleiste, Taskleisten-Menü, Befehl `sperren`): wie Win+L bzw. die
+  Bildschirmsperre unter Linux – Monitor 2 zeigt dabei weiter, was gerade läuft.
+- **Timer** (Kachel „Timer“): Countdown oder Stoppuhr, läuft durch – auch wenn Szenen neu
+  aufgebaut werden. Klick = Start/Pause (beim ersten Mal wird er auf Monitor 2 gezeigt), Pfeil =
+  Neu starten, ±1 Minute, Einstellen. Letzte Minute orange, letzte 10 Sekunden rot, am Ende blinkt
+  er. Tastenkürzel: `Strg+Alt+T` = Start/Pause (weitere frei belegbar).
+- **Standbild-Symbol**: kleine Schneeflocke oben rechts auf dem eingefrorenen Bild (abschaltbar
+  unter Setup → Monitor 2).
+- **Monitor 2 bleibt vorne**: Wird das Fenster verdeckt oder minimiert (z. B. Win+D), holt AluPC es
+  sofort zurück. Unter Windows wird die Taskleiste auf Monitor 2 ausgeblendet, solange AluPC dort
+  etwas zeigt (abschaltbar), unter KDE wird das Fenster über die Leisten gelegt.
 
 ## Installation
 
@@ -164,7 +179,7 @@ Für Szenen: *Neu hinzufügen → Befehl* mit `alupc --befehl "szene:Name"`.
   Viele neuere Notebook-Sensoren (z. B. manche von Goodix/Synaptics) werden nicht erkannt.
 - **Windows erlaubt Fremdprogrammen nicht**, Finger für die Windows-Anmeldung anzulernen oder
   zu löschen – das geht nur über Windows Hello. Ist „Erweiterte Anmeldesicherheit“ (ESS) aktiv,
-  kann Windows den Sensor für AluPC (Test-Scan, Sperre) ganz sperren → dann Ersatz-PIN nutzen.
+  kann Windows den Sensor für AluPC (Test-Scan) ganz sperren.
 - **Wayland (KDE)**: Beim ersten Aufnehmen des Bildschirms (Spiegeln, Bild-in-Bild,
   Standbild im Modus „Erweitern“) fragt KDE nach einer Freigabe. Einzelne Programmfenster
   kann Qt unter Wayland nicht aufnehmen – dort „Programm → Fenster verschieben“ nutzen
@@ -175,7 +190,9 @@ Für Szenen: *Neu hinzufügen → Befehl* mit `alupc --befehl "szene:Name"`.
   „Spiegeln“ nutzt deshalb die Aufnahme durch AluPC.
 - **Hz/Auflösung**: Wählbar ist nur, was Monitor, Kabel und Grafikkarte melden. Skalierung
   lässt sich unter Windows/X11 nur in den Systemeinstellungen ändern.
-- Die **Sperre** schützt die Bedienung von AluPC, nicht den ganzen Computer.
+- **Taskleiste ausblenden (Windows)** nutzt die versteckte Taskleiste auf Monitor 2
+  („Shell_SecondaryTrayWnd“). Beim Beenden von AluPC wird sie wieder eingeblendet; sollte AluPC
+  abstürzen, kommt sie spätestens nach einer Ab-/Anmeldung zurück.
 - **Bildschirmschoner – Leerlaufzeit**: Unter Windows und KDE meldet das System, wann zuletzt Maus
   oder Tastatur benutzt wurden. Wo das nicht geht, zählt nur die Bedienung von AluPC (steht im Setup).
 - **Websites unter Kubuntu 24.04+**: Das System erlaubt der eingebauten Chromium-Engine ihre Sandbox

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import hashlib
-import secrets
 
 from PySide6.QtCore import QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QKeySequence, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
     QCheckBox,
@@ -18,11 +16,8 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
-    QInputDialog,
-    QKeySequenceEdit,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QScrollArea,
     QSlider,
     QSpinBox,
@@ -35,15 +30,12 @@ from ..platform import IS_WINDOWS, autostart, session_info
 from ..platform.base import ROTATIONS, clone_outputs, place, side_of
 from . import theme
 from .util import error_box, run_async
+from .hotkey_edit import HotkeyButton
 from .widgets import button, font, rounded
 
 SIDES = [("right", "rechts vom Hauptmonitor"), ("left", "links vom Hauptmonitor"),
          ("above", "über dem Hauptmonitor"), ("below", "unter dem Hauptmonitor"),
          ("mirror", "gespiegelt (gleiche Position)")]
-
-
-def hash_pin(pin: str, salt: str) -> str:
-    return hashlib.pbkdf2_hmac("sha256", pin.encode(), salt.encode(), 200_000).hex()
 
 
 class ConfirmDialog(QDialog):
@@ -223,7 +215,7 @@ class SetupPage(QScrollArea):
         lay.addWidget(self._pip_group())
         lay.addWidget(self._screensaver_group())
         lay.addWidget(self._hotkey_group())
-        lay.addWidget(self._lock_group())
+        lay.addWidget(self._output_group())
         lay.addStretch(1)
         controller.changed.connect(self._update_arrangement)
         QTimer.singleShot(0, self.reload_outputs)
@@ -647,111 +639,10 @@ class SetupPage(QScrollArea):
 
     # ================================================================ Bildschirmschoner
     def _screensaver_group(self):
-        from ..screensaver import STYLES, WHEN
+        from .screensaver_settings import ScreensaverSettings
 
-        box = QGroupBox("Bildschirmschoner (Monitor 2)")
-        form = QFormLayout(box)
-        form.setHorizontalSpacing(16)
-        form.setVerticalSpacing(10)
-        cfg = self.config["screensaver"]
-        enabled = QCheckBox("Automatisch starten, wenn niemand den PC benutzt")
-        enabled.setChecked(bool(cfg.get("enabled")))
-        minutes = QSpinBox()
-        minutes.setRange(1, 240)
-        minutes.setSuffix(" Minuten")
-        minutes.setValue(int(cfg.get("minutes", 10)))
-        when = QComboBox()
-        for key, label in WHEN.items():
-            when.addItem(label, key)
-        when.setCurrentIndex(max(0, when.findData(cfg.get("when", "desktop"))))
-        style = QComboBox()
-        for key, label in STYLES.items():
-            style.addItem(label, key)
-        style.setCurrentIndex(max(0, style.findData(cfg.get("style", "uhr"))))
-        text = QLineEdit(cfg.get("text", ""))
-        text.setPlaceholderText("leer = Uhrzeit")
-        image = QLineEdit(cfg.get("image", ""))
-        image.setPlaceholderText("optional: Logo statt Text")
-        img_btn = button("…", "image")
-        folder = QLineEdit(cfg.get("folder", ""))
-        folder_btn = button("…", "slides")
-        interval = QSpinBox()
-        interval.setRange(3, 600)
-        interval.setSuffix(" s")
-        interval.setValue(int(cfg.get("interval", 8)))
-        scene = QComboBox()
-        scene.addItems(self.config.scene_names())
-        scene.setCurrentText(cfg.get("scene", ""))
-        test = button("Jetzt starten / beenden", "moon", primary=True)
-        test.clicked.connect(self.controller.toggle_screensaver)
-        info = QLabel(self.controller.screensaver.idle.describe())
-        info.setObjectName("Muted")
-        info.setWordWrap(True)
-
-        def row(*widgets):
-            r = QHBoxLayout()
-            for w in widgets:
-                r.addWidget(w, 1 if isinstance(w, QLineEdit) else 0)
-            return r
-
-        rows = {
-            "schweben": [("Text:", text), ("Logo:", row(image, img_btn))],
-            "diashow": [("Ordner:", row(folder, folder_btn)), ("Wechsel alle:", interval)],
-            "szene": [("Szene:", scene)],
-        }
-        form.addRow("", enabled)
-        form.addRow("Nach:", minutes)
-        form.addRow("Wann:", when)
-        form.addRow("Stil:", style)
-        for items in rows.values():
-            for label, field in items:
-                form.addRow(label, field)
-        test_row = QHBoxLayout()
-        test_row.addWidget(test)
-        test_row.addStretch(1)
-        form.addRow("", test_row)
-        form.addRow(info)
-
-        def update_rows():
-            current = style.currentData()
-            for key, items in rows.items():
-                for _label, field in items:
-                    form.setRowVisible(field, key == current)
-
-        def save(*_):
-            self.config["screensaver"] = {
-                "enabled": enabled.isChecked(), "minutes": minutes.value(), "when": when.currentData(),
-                "style": style.currentData(), "text": text.text(), "image": image.text(),
-                "folder": folder.text(), "interval": interval.value(), "scene": scene.currentText(),
-            }
-            update_rows()
-
-        def pick_image():
-            path, _ = QFileDialog.getOpenFileName(self, "Logo wählen", image.text(),
-                                                  "Bilder (*.png *.jpg *.jpeg *.bmp *.webp *.svg)")
-            if path:
-                image.setText(path)
-                save()
-
-        def pick_folder():
-            path = QFileDialog.getExistingDirectory(self, "Bilderordner wählen", folder.text())
-            if path:
-                folder.setText(path)
-                save()
-
-        img_btn.clicked.connect(pick_image)
-        folder_btn.clicked.connect(pick_folder)
-        for w in (enabled,):
-            w.toggled.connect(save)
-        for w in (minutes, interval):
-            w.valueChanged.connect(save)
-        for w in (when, style, scene):
-            w.currentIndexChanged.connect(save)
-        for w in (text, image, folder):
-            w.editingFinished.connect(save)
-        self._screensaver_scene_combo = scene
-        update_rows()
-        return box
+        self.screensaver_box = ScreensaverSettings(self.controller)
+        return self.screensaver_box
 
     # ================================================================ Tastenkürzel
     def _hotkey_group(self):
@@ -761,17 +652,10 @@ class SetupPage(QScrollArea):
         form.setVerticalSpacing(8)
         self.hotkey_edits = {}
         for action, label in HOTKEY_LABELS.items():
-            edit = QKeySequenceEdit(QKeySequence(self.config["hotkeys"].get(action, ""), QKeySequence.PortableText))
-            edit.setMaximumSequenceLength(1)
-            edit.editingFinished.connect(lambda a=action, e=edit: self._save_hotkey(a, e))
-            clear = button("", "x")
-            clear.setToolTip("Tastenkürzel entfernen")
-            clear.clicked.connect(lambda _=False, a=action, e=edit: (e.clear(), self._save_hotkey(a, e)))
-            row = QHBoxLayout()
-            row.addWidget(edit, 1)
-            row.addWidget(clear)
-            form.addRow(label + ":", row)
-            self.hotkey_edits[action] = edit
+            btn = HotkeyButton(self.config["hotkeys"].get(action, ""), label)
+            btn.changed.connect(lambda seq, a=action: self._save_hotkey(a, seq))
+            form.addRow(label + ":", btn)
+            self.hotkey_edits[action] = btn
         more = QLabel("Eigene Tastenkürzel für <b>Szenen</b> legst du im Szenen-Editor fest, für "
                       "<b>eigene Kacheln</b> unter Start → „Startseite anpassen“.")
         more.setWordWrap(True)
@@ -800,9 +684,10 @@ class SetupPage(QScrollArea):
 
     def refresh_scene_lists(self):
         """Szenenliste im Bildschirmschoner aktualisieren (nach Anlegen/Umbenennen/Löschen)."""
-        combo = getattr(self, "_screensaver_scene_combo", None)
-        if combo is None:
+        box = getattr(self, "screensaver_box", None)
+        if box is None:
             return
+        combo = box.scene_combo
         current = combo.currentText()
         combo.blockSignals(True)
         combo.clear()
@@ -820,53 +705,36 @@ class SetupPage(QScrollArea):
                 return
         error_box(self, "Die KDE-Systemeinstellungen wurden nicht gefunden.")
 
-    def _save_hotkey(self, action, edit):
+    def _save_hotkey(self, action, seq: str):
         hotkeys = dict(self.config["hotkeys"])
-        hotkeys[action] = edit.keySequence().toString(QKeySequence.PortableText)
+        hotkeys[action] = seq
         self.config["hotkeys"] = hotkeys
         problems = self.hotkeys.apply(hotkeys)
         self.hotkey_status.setText("\n".join(problems))
         self.hotkeys_changed.emit()
 
-    # ================================================================ Sperre
-    def _lock_group(self):
-        box = QGroupBox("AluPC sperren")
+    # ================================================================ Monitor 2
+    def _output_group(self):
+        box = QGroupBox("Monitor 2")
         lay = QVBoxLayout(box)
-        lock = self.config["lock"]
-        self.lock_check = QCheckBox("Beim Start und über „Sperren“ nur mit Fingerabdruck (oder PIN) bedienbar")
-        self.lock_check.setChecked(bool(lock.get("enabled")))
-        self.lock_check.toggled.connect(self._lock_toggled)
-        pin_btn = button("Ersatz-PIN festlegen …", "lock")
-        pin_btn.clicked.connect(self._set_pin)
-        hint = QLabel("Die PIN brauchst du, falls der Sensor mal nicht geht. Die Sperre schützt nur die "
-                      "Bedienung von AluPC, nicht den ganzen Computer.")
+        cfg = self.config["output"]
+        taskbar = QCheckBox("Taskleiste auf Monitor 2 ausblenden, solange AluPC dort etwas zeigt (Windows)")
+        taskbar.setChecked(bool(cfg.get("hide_taskbar", True)))
+        taskbar.setEnabled(IS_WINDOWS)
+        badge = QCheckBox("Beim Standbild ein kleines Schneeflocken-Symbol oben rechts auf Monitor 2 zeigen")
+        badge.setChecked(bool(cfg.get("freeze_badge", True)))
+
+        def save(*_):
+            self.config["output"] = {"hide_taskbar": taskbar.isChecked(), "freeze_badge": badge.isChecked()}
+            self.controller.apply_output_settings()
+
+        taskbar.toggled.connect(save)
+        badge.toggled.connect(save)
+        lay.addWidget(taskbar)
+        lay.addWidget(badge)
+        hint = QLabel("„Computer sperren“ (Seitenleiste, Taskleisten-Symbol, Befehl „sperren“) sperrt den "
+                      "ganzen Computer wie Win+L – Monitor 2 zeigt dabei weiter, was gerade läuft.")
+        hint.setObjectName("Muted")
         hint.setWordWrap(True)
-        lay.addWidget(self.lock_check)
-        lay.addWidget(pin_btn, 0, Qt.AlignLeft)
         lay.addWidget(hint)
         return box
-
-    def _lock_toggled(self, on):
-        lock = dict(self.config["lock"])
-        if on and not lock.get("pin_hash"):
-            if not self._set_pin():
-                self.lock_check.setChecked(False)
-                return
-            lock = dict(self.config["lock"])
-        lock["enabled"] = on
-        self.config["lock"] = lock
-
-    def _set_pin(self) -> bool:
-        pin, ok = QInputDialog.getText(self, "Ersatz-PIN", "Neue PIN (mindestens 4 Zeichen):", QLineEdit.Password)
-        if not ok:
-            return False
-        if len(pin) < 4:
-            QMessageBox.warning(self, "PIN", "Die PIN muss mindestens 4 Zeichen haben.")
-            return False
-        salt = secrets.token_hex(16)
-        lock = dict(self.config["lock"])
-        lock.update({"pin_salt": salt, "pin_hash": hash_pin(pin, salt)})
-        self.config["lock"] = lock
-        QMessageBox.information(self, "PIN", "PIN gespeichert.")
-        return True
-

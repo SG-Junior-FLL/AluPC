@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -15,7 +14,6 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
-    QKeySequenceEdit,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -39,6 +37,7 @@ from ..startpage import (
     ordered_keys,
 )
 from . import icons, theme
+from .hotkey_edit import HotkeyButton
 from .setup_page import Swatch
 from .source_picker import SourcePicker
 from .widgets import button, page_header
@@ -97,10 +96,7 @@ class CustomTileDialog(QDialog):
         else:
             self.show_radio.setChecked(True)
 
-        self.hotkey = QKeySequenceEdit(QKeySequence(hotkey, QKeySequence.PortableText))
-        self.hotkey.setMaximumSequenceLength(1)
-        clear = button("Leeren", "x")
-        clear.clicked.connect(self.hotkey.clear)
+        self.hotkey = HotkeyButton(hotkey, "Tastenkürzel für diese Kachel")
 
         form = QFormLayout()
         form.setHorizontalSpacing(16)
@@ -117,10 +113,7 @@ class CustomTileDialog(QDialog):
         form.addRow("", row)
         form.addRow(self.cmd_radio)
         form.addRow("", self.command)
-        hk = QHBoxLayout()
-        hk.addWidget(self.hotkey, 1)
-        hk.addWidget(clear)
-        form.addRow("Tastenkürzel:", hk)
+        form.addRow("Tastenkürzel:", self.hotkey)
 
         buttons = QDialogButtonBox()
         buttons.addButton(button("Übernehmen", "check", primary=True), QDialogButtonBox.AcceptRole)
@@ -146,7 +139,7 @@ class CustomTileDialog(QDialog):
             self.show_radio.setChecked(True)
 
     def hotkey_text(self) -> str:
-        return self.hotkey.keySequence().toString(QKeySequence.PortableText)
+        return self.hotkey.sequence()
 
     def _save(self):
         if not self.title.text().strip():

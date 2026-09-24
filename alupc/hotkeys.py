@@ -79,12 +79,26 @@ class HotkeyManager(QObject):
     def __init__(self):
         super().__init__()
         self.window = None
+        self._last: dict | None = None
+        self._paused = False
         self.shortcuts: list[QShortcut] = []
         self.win_ids: dict[int, str] = {}
         self._filter = None
         if sys.platform.startswith("win"):
             self._filter = _WinHotkeyFilter(self._on_win_hotkey)
             QCoreApplication.instance().installNativeEventFilter(self._filter)
+
+    def pause(self) -> None:
+        """Alle Kürzel kurz abschalten (z. B. während ein neues Kürzel aufgenommen wird)."""
+        self._paused = True
+        for sc in self.shortcuts:
+            sc.setEnabled(False)
+        self._unregister_windows()
+
+    def resume(self) -> None:
+        self._paused = False
+        if self._last is not None:
+            self.apply(self._last)
 
     def attach(self, window) -> None:
         """Fenster, an dem die In-App-Kürzel hängen."""
@@ -98,6 +112,7 @@ class HotkeyManager(QObject):
 
     def apply(self, hotkeys: dict[str, str]) -> list[str]:
         """Tastenkürzel neu setzen; liefert Liste mit Problemen (z. B. Kürzel schon belegt)."""
+        self._last = dict(hotkeys)
         problems: list[str] = []
         for sc in self.shortcuts:
             sc.setEnabled(False)
@@ -124,6 +139,10 @@ class HotkeyManager(QObject):
             sc.setContext(Qt.ApplicationShortcut)
             sc.activated.connect(lambda a=action: self.triggered.emit(a))
             self.shortcuts.append(sc)
+        if self._paused:
+            for sc in self.shortcuts:
+                sc.setEnabled(False)
+            self._unregister_windows()
         return problems
 
     def _register_windows(self, hotkey_id: int, action: str, seq: str) -> bool:

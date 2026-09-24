@@ -172,14 +172,20 @@ def test_missing_things_do_not_crash(env):
         assert controller.output.content is not None
 
 
-def test_commands_and_lock(env):
+def test_commands_and_computer_lock(env, monkeypatch):
     controller, _window, _ = env
     controller.run_command("standbild")
     pump()
-    controller.locked = True
+    assert controller.frozen
+    calls = []
+    import alupc.platform.window_tools as wt
+
+    monkeypatch.setattr(wt, "lock_computer", lambda: calls.append(1))
+    controller.run_command("sperren")
+    assert calls == [1]  # „Sperren“ sperrt jetzt den Computer (wie Win+L)
     controller.run_command("schwarz")
-    assert not controller.privacy  # gesperrt → nichts passiert
-    controller.locked = False
+    assert controller.privacy  # AluPC selbst bleibt bedienbar
+    controller.run_command("schwarz")
 
 
 def test_dialogs_build(env):
@@ -364,3 +370,127 @@ def test_windows_hotkey_mapping():
     assert to_windows_hotkey("Shift+F5") == (MOD_NOREPEAT | MOD_SHIFT, 0x74)
     assert to_windows_hotkey("Ctrl+Alt+1")[1] == ord("1")
     assert to_windows_hotkey("") is None
+
+
+def test_timer_keeps_running_when_view_is_rebuilt(env):
+    controller, window, _ = env
+    from alupc.timer import clock
+
+    clock.set(120)
+    controller.config.put_scene({"name": "T", "layout": "vollbild",
+                                 "slots": [{"type": "countdown", "minutes": 2}]})
+    controller.run_command("szene:T")  # startet den Timer
+    assert clock.running
+    clock._accumulated = 30  # 30 s sind schon vergangen
+    controller.run_command("szene:T")  # Szene neu aufbauen …
+    assert clock.running and clock.remaining() <= 90.5  # … Timer läuft weiter statt neu zu beginnen
+    controller.timer_action("toggle")
+    assert not clock.running
+    rem = clock.remaining()
+    controller.show_timer()  # Timer-Kachel zeigt den pausierten Timer, ohne ihn zurückzusetzen
+    assert abs(clock.remaining() - rem) < 0.5 and not clock.running
+    assert controller.timer_visible()
+    controller.timer_action("plus")
+    assert clock.remaining() > rem + 59
+    controller.timer_action("restart")
+    assert clock.running and clock.remaining() > 170
+    window._update_timer_ui()
+    assert window.t_timer.badge.startswith("0")
+    clock.reset()
+
+
+def test_timer_clock_logic():
+    from alupc.timer import TimerClock, format_time
+
+    t = TimerClock()
+    t.set(65)
+    assert t.text() == "01:05" and t.fresh()
+    t._accumulated = 64.2
+    assert t.text() == "00:01" and t.urgency() == "gleich"
+    t._accumulated = 70
+    assert t.finished() and t.text() == "Zeit ist um!" and t.urgency() == "ende"
+    t.toggle()  # abgelaufen + Start → beginnt neu
+    assert t.running and not t.finished()
+    t.set(30, "stoppuhr")
+    t._accumulated = 75
+    assert t.text() == "01:15" and not t.finished()
+    assert format_time(3725) == "1:02:05"
+
+
+def test_freeze_badge_and_watchdog(env):
+    controller, _window, _ = env
+    controller.show_source({"type": "color", "color": "#00ff00"})
+    pump()
+    controller.toggle_freeze()
+    img = controller.output.freeze_layer.grab().toImage()
+    w = img.width()
+    # oben rechts ist das hellblaue Standbild-Symbol, links oben die grüne Fläche
+    corner = QColor(img.pixel(w - 26, 26))
+    assert corner.blue() > 150 and corner != QColor("#00ff00")
+    assert QColor(img.pixel(20, 20)) == QColor("#00ff00")
+    controller.config["output"] = {"hide_taskbar": True, "freeze_badge": False}
+    controller.apply_output_settings()
+    img = controller.output.freeze_layer.grab().toImage()
+    assert QColor(img.pixel(w - 26, 26)) == QColor("#00ff00")
+    controller.toggle_freeze()
+    # Wächter: versteckt jemand das Fenster (z. B. Win+D), kommt es zurück
+    controller.output.hide()
+    controller.output._watch()
+    assert controller.output.isVisible()
+
+
+def test_hotkey_capture_dialog(env):
+    controller, window, _ = env
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtCore import QEvent
+    from alupc.ui.hotkey_edit import CaptureDialog, pretty
+
+    dlg = CaptureDialog("Test", "")
+    ev = QKeyEvent(QEvent.KeyPress, Qt.Key_K, Qt.ControlModifier | Qt.AltModifier)
+    dlg.keyPressEvent(ev)
+    assert dlg.sequence == "Ctrl+Alt+K"
+    ev = QKeyEvent(QEvent.KeyPress, Qt.Key_K, Qt.NoModifier)
+    dlg.keyPressEvent(ev)
+    assert dlg.sequence == "Ctrl+Alt+K" and dlg.warn.text()  # ohne Zusatztaste nicht erlaubt
+    assert pretty("Ctrl+Alt+PgDown") == "Strg+Alt+Bild↓"
+    # Pausieren schaltet alle Kürzel ab und wieder an
+    window.hotkeys.pause()
+    assert all(not sc.isEnabled() for sc in window.hotkeys.shortcuts)
+    window.hotkeys.resume()
+    assert window.hotkeys.shortcuts and all(sc.isEnabled() for sc in window.hotkeys.shortcuts)
+
+
+def test_split_tile_menu_and_action(env):
+    controller, window, _ = env
+    from PySide6.QtCore import QPointF
+
+    tile = window.t_saver
+    tile.resize(260, 132)
+    hits = []
+    tile.activated.connect(lambda: hits.append("action"))
+    tile._press_pos = QPointF(40, 100)  # Klick auf die Kachel → Aktion
+    tile._show_menu()
+    assert hits == ["action"]
+    controller.screensaver.stop()
+    tile._press_pos = QPointF(250, 30)  # Klick auf den Pfeil → Menü, keine Aktion
+    tile._show_menu()
+    assert hits == ["action"] and tile.menu.isVisible()
+    tile.menu.hide()
+
+
+def test_program_window_matching():
+    from alupc.sources import _app_part, find_window
+
+    class W:
+        def __init__(self, d):
+            self.d = d
+
+        def description(self):
+            return self.d
+
+    wins = [W("Folien.pptx - PowerPoint"), W("Neuer Tab — Mozilla Firefox")]
+    assert find_window(wins, "Folien.pptx - PowerPoint").d == "Folien.pptx - PowerPoint"
+    # Browser hat den Tab gewechselt → gleiches Programm wird trotzdem gefunden
+    assert find_window(wins, "Startseite — Mozilla Firefox").d == "Neuer Tab — Mozilla Firefox"
+    assert find_window(wins, "Gibt es nicht") is None
+    assert _app_part("a - b - Word") == "Word"

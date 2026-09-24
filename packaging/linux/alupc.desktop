@@ -8,7 +8,7 @@ Icon=alupc
 Terminal=false
 Categories=Utility;
 Keywords=Monitor;Beamer;Bildschirm;Spiegeln;Szene;
-Actions=Standbild;Schwarz;BildInBild;Bildschirmschoner;Spiegeln;Erweitern;NaechsteSzene;VorherigeSzene;
+Actions=Standbild;Schwarz;BildInBild;Bildschirmschoner;Spiegeln;Erweitern;NaechsteSzene;VorherigeSzene;TimerStartPause;Sperren;
 
 [Desktop Action Standbild]
 Name=Standbild an/aus
@@ -41,3 +41,11 @@ Exec=alupc --befehl naechste_szene
 [Desktop Action VorherigeSzene]
 Name=Vorherige Szene
 Exec=alupc --befehl vorherige_szene
+
+[Desktop Action TimerStartPause]
+Name=Timer starten/pausieren
+Exec=alupc --befehl timer_start_pause
+
+[Desktop Action Sperren]
+Name=Computer sperren
+Exec=alupc --befehl sperren

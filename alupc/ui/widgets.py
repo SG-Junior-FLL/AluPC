@@ -108,7 +108,13 @@ class HoverMixin:
 
 # --------------------------------------------------------------------------- Kachel
 class Tile(HoverMixin, QAbstractButton):
-    """Große Kachel: Symbol im farbigen Kreis, Titel, Untertitel, Zustand (aktiv/Warnung)."""
+    """Große Kachel: Symbol im farbigen Kreis, Titel, Untertitel, Zustand (aktiv/Warnung).
+
+    Mit `set_menu(menu, split=True)` öffnet nur der Pfeil oben rechts das Menü; ein Klick auf
+    den Rest der Kachel löst `activated` aus.
+    """
+
+    activated = Signal()
 
     def __init__(self, icon_name: str, title: str, subtitle: str = "", color: str | None = None, parent=None):
         super().__init__(parent)
@@ -118,6 +124,8 @@ class Tile(HoverMixin, QAbstractButton):
         self.alert = False
         self.badge = ""
         self.menu = None
+        self.split = False
+        self._press_pos = None
         self.setCursor(Qt.PointingHandCursor)
         self.setMinimumSize(QSize(150, 118))
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -127,12 +135,25 @@ class Tile(HoverMixin, QAbstractButton):
 
     hover = Property(float, HoverMixin._get_hover, HoverMixin._set_hover)
 
-    def set_menu(self, menu):
+    def set_menu(self, menu, split: bool = False):
         self.menu = menu
+        self.split = split
+        self.update()
+
+    def menu_zone(self) -> QRectF:
+        return QRectF(self.width() - 62, 0, 62, 92)
+
+    def mousePressEvent(self, e):
+        self._press_pos = e.position()
+        super().mousePressEvent(e)
 
     def _show_menu(self):
-        if self.menu is not None:
+        in_zone = self._press_pos is not None and self.menu_zone().contains(self._press_pos)
+        self._press_pos = None
+        if self.menu is not None and (not self.split or in_zone):
             self.menu.popup(self.mapToGlobal(self.rect().bottomLeft()))
+        else:
+            self.activated.emit()
 
     def set_state(self, active: bool = False, alert: bool = False, badge: str = ""):
         if (active, alert, badge) != (self.active, self.alert, self.badge):
@@ -186,9 +207,17 @@ class Tile(HoverMixin, QAbstractButton):
             p.drawRoundedRect(badge, 11, 11)
             p.setPen(QColor("#ffffff"))
             p.drawText(badge, Qt.AlignCenter, self.badge)
-        elif self.menu is not None:
-            p.setPen(QPen(QColor(t.muted), 1.8, Qt.SolidLine, Qt.RoundCap))
-            cx, cy = r.right() - pad - 6, r.top() + pad + 23
+        if self.menu is not None and (self.split or not self.badge):
+            cx = r.right() - pad - 6
+            cy = r.top() + pad + (46 if (self.badge and self.split) else 23)
+            if self.split:
+                zone = QRectF(cx - 13, cy - 13, 26, 26)
+                ring = QColor(t.muted)
+                ring.setAlphaF(0.25 + 0.35 * self._hover)
+                p.setPen(Qt.NoPen)
+                p.setBrush(ring)
+                p.drawEllipse(zone)
+            p.setPen(QPen(QColor(t.text if self.split else t.muted), 1.8, Qt.SolidLine, Qt.RoundCap))
             p.drawLine(QPointF(cx - 4, cy - 2), QPointF(cx, cy + 2))
             p.drawLine(QPointF(cx, cy + 2), QPointF(cx + 4, cy - 2))
 

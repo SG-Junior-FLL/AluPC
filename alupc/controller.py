@@ -33,7 +33,7 @@ class Controller(QObject):
         self.desktop_note = "Erweitert (normaler zweiter Bildschirm)"
         self.frozen = False
         self.privacy = False
-        self.locked = False
+        self.apply_output_settings()
 
         from .screensaver import ScreensaverManager
 
@@ -97,10 +97,15 @@ class Controller(QObject):
             self.message.emit(f"Konnte nicht auf Erweitern umschalten: {exc}")
 
     # ------------------------------------------------------------ Modi
+    def apply_output_settings(self) -> None:
+        cfg = self.config["output"]
+        self.output.hide_taskbar = bool(cfg.get("hide_taskbar", True))
+        self.output.freeze_layer.badge = bool(cfg.get("freeze_badge", True))
+        self.output.freeze_layer.update()
+        if not self.output.hide_taskbar:
+            self.output.taskbar.restore()
+
     def _guard(self) -> bool:
-        if self.locked:
-            self.message.emit("AluPC ist gesperrt.")
-            return False
         # Jede Bedienung zählt als Aktivität und beendet einen laufenden Bildschirmschoner
         self.screensaver.activity()
         return True
@@ -162,6 +167,10 @@ class Controller(QObject):
         if self.mode == "content" and self.content:
             if self.content.get("mirror"):
                 return "Spiegeln (Monitor 1 wird gezeigt)"
+            if self.content.get("type") == "countdown":
+                from .timer import clock
+
+                return f"Timer {clock.status()}"
             return describe_source(self.content)
         return self.desktop_note
 
@@ -180,7 +189,7 @@ class Controller(QObject):
             return
         if self.mode == "content" and self.output.content is not None:
             self.frozen = True
-            self.output.set_frozen(self.output.snapshot())
+            self.output.set_frozen(self._content_snapshot())
             self.changed.emit()
             return
         if self.screens_overlap():
@@ -190,6 +199,28 @@ class Controller(QObject):
         self.frozen = True
         self.changed.emit()
         self.grabber.grab(self.output_screen())
+
+    def _content_snapshot(self):
+        """Bild für das Standbild. Echtes Bildschirmfoto, wo möglich – das erfasst auch Websites
+        und Videos zuverlässig, die sich per grab() nicht immer abfotografieren lassen."""
+        from .platform.linux_display import is_wayland
+
+        screen = self.output_screen()
+        if screen is not None and not is_wayland() and QGuiApplication.platformName() != "offscreen" \
+                and self.output.isVisible():
+            pixmap = screen.grabWindow(0)
+            if not pixmap.isNull():
+                return pixmap
+        return self.output.snapshot()
+
+    def lock_computer(self) -> None:
+        """Wie Win+L: Computer sperren (Windows) bzw. Bildschirmsperre (Linux)."""
+        from .platform.window_tools import lock_computer
+
+        try:
+            lock_computer()
+        except Exception as exc:  # noqa: BLE001
+            self.message.emit(str(exc))
 
     def _frozen_grab_done(self, image) -> None:
         if self.frozen:
@@ -244,12 +275,63 @@ class Controller(QObject):
             "naechste-szene": lambda: self.step_scene(1),
             "vorherige_szene": lambda: self.step_scene(-1),
             "vorherige-szene": lambda: self.step_scene(-1),
+            "sperren": self.lock_computer,
+            "timer_zeigen": self.show_timer,
+            "timer_start_pause": lambda: self.timer_action("toggle"),
+            "timer_neustart": lambda: self.timer_action("restart"),
+            "timer_plus": lambda: self.timer_action("plus"),
+            "timer_minus": lambda: self.timer_action("minus"),
         }
         action = actions.get(command)
         if action:
             action()
         else:
             self.message.emit(f"Unbekannter Befehl: {command}")
+
+    # ------------------------------------------------------------ Timer
+    def timer_source(self) -> dict:
+        cfg = self.config["timer"]
+        return {"type": "countdown", "minutes": cfg.get("minutes", 5), "seconds": cfg.get("seconds", 0),
+                "mode": cfg.get("mode", "countdown"), "finished_text": cfg.get("finished_text", ""),
+                "warn_colors": cfg.get("warn_colors", True), "size": cfg.get("size", 30),
+                "autostart": False, "shared": True, "background": "#000000", "color": "#ffffff"}
+
+    def show_timer(self) -> None:
+        """Timer im Vollbild auf Monitor 2 zeigen (Zeit läuft dabei unverändert weiter)."""
+        from .timer import clock
+
+        cfg = self.config["timer"]
+        if clock.fresh():
+            clock.set(float(cfg.get("minutes", 5)) * 60 + float(cfg.get("seconds", 0)),
+                      cfg.get("mode", "countdown"), cfg.get("finished_text", ""))
+        self.show_source(self.timer_source())
+
+    def timer_action(self, action: str) -> None:
+        from .timer import clock
+
+        if not self._guard():
+            return
+        cfg = self.config["timer"]
+        if clock.fresh() and action in ("toggle", "restart"):
+            clock.set(float(cfg.get("minutes", 5)) * 60 + float(cfg.get("seconds", 0)),
+                      cfg.get("mode", "countdown"), cfg.get("finished_text", ""))
+        {"toggle": clock.toggle, "restart": clock.restart, "reset": clock.reset,
+         "plus": lambda: clock.add(60), "minus": lambda: clock.add(-60)}[action]()
+        self.changed.emit()
+
+    def timer_visible(self) -> bool:
+        """Zeigt Monitor 2 gerade irgendwo einen Timer (direkt oder in einer Szene)?"""
+        def has(cfg, depth=0):
+            if not cfg or depth > 4:
+                return False
+            if cfg.get("type") == "countdown":
+                return True
+            if cfg.get("type") == "scene":
+                scene = self.config.get_scene(cfg.get("scene"))
+                return any(has(s, depth + 1) for s in (scene or {}).get("slots", []))
+            return False
+
+        return self.mode == "content" and has(self.content)
 
     def toggle_screensaver(self) -> None:
         if self._guard():
@@ -289,4 +371,5 @@ class Controller(QObject):
         self.screensaver.timer.stop()
         self.output.set_screensaver(None)
         self.output.set_content(None)
+        self.output.shutdown()
         self.output.close()

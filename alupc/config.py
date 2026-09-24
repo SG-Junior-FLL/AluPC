@@ -17,6 +17,10 @@ DEFAULT_HOTKEYS = {
     "bildschirmschoner": "Ctrl+Alt+W",
     "naechste_szene": "Ctrl+Alt+PgDown",
     "vorherige_szene": "Ctrl+Alt+PgUp",
+    "timer_start_pause": "Ctrl+Alt+T",
+    "timer_neustart": "",
+    "timer_plus": "",
+    "timer_minus": "",
 }
 
 HOTKEY_LABELS = {
@@ -28,6 +32,10 @@ HOTKEY_LABELS = {
     "bildschirmschoner": "Bildschirmschoner an/aus",
     "naechste_szene": "Nächste Szene",
     "vorherige_szene": "Vorherige Szene",
+    "timer_start_pause": "Timer starten/pausieren",
+    "timer_neustart": "Timer neu starten",
+    "timer_plus": "Timer +1 Minute",
+    "timer_minus": "Timer −1 Minute",
 }
 
 DEFAULTS: dict = {
@@ -41,7 +49,11 @@ DEFAULTS: dict = {
     "hotkeys": dict(DEFAULT_HOTKEYS),
     "privacy": {"text": "", "image": ""},
     "pip": {"opacity": 1.0, "width": 480, "fps": 10},
-    "lock": {"enabled": False, "pin_hash": "", "pin_salt": ""},
+    # Timer (Countdown/Stoppuhr): Voreinstellung für Kachel und Befehle
+    "timer": {"minutes": 5, "seconds": 0, "mode": "countdown", "finished_text": "Zeit ist um!",
+              "warn_colors": True, "size": 30},
+    # Monitor 2: Taskleiste dort ausblenden (Windows), Standbild-Symbol oben rechts
+    "output": {"hide_taskbar": True, "freeze_badge": True},
     "start_minimized": False,
     "appearance": {"mode": "system", "accent": "blau", "fade": True},
     "screensaver": {

@@ -188,40 +188,90 @@ class ScreenSource(SinkView):
 
 # --------------------------------------------------------------------------- Programmfenster
 def capturable_windows():
+    """Fenster, die aufgenommen werden können – ohne AluPCs eigene Fenster (sonst Endlos-Spiegel)."""
     try:
-        return list(QWindowCapture.capturableWindows())
+        windows = list(QWindowCapture.capturableWindows())
     except Exception:  # noqa: BLE001
         return []
+    return [w for w in windows if w.description().strip() and not w.description().startswith("AluPC")]
+
+
+def _app_part(title: str) -> str:
+    """„Dokument – Programmname“ → „Programmname“ (Titel ändern sich oft, der Programmname nicht)."""
+    for sep in (" - ", " — ", " – "):
+        if sep in title:
+            return title.rsplit(sep, 1)[1].strip()
+    return ""
+
+
+def find_window(windows, title: str):
+    exact = next((w for w in windows if w.description() == title), None)
+    if exact is not None or not title:
+        return exact
+    part = next((w for w in windows if title in w.description() or w.description() in title), None)
+    if part is not None:
+        return part
+    app = _app_part(title)
+    return next((w for w in windows if app and _app_part(w.description()) == app), None)
 
 
 class WindowSource(SinkView):
+    """Nimmt ein Programmfenster auf. Verbindet sich neu, wenn das Fenster weg ist, der Titel
+    wechselt (z. B. anderer Browser-Tab) oder eine Weile kein Bild mehr kommt."""
+
     def __init__(self, cfg, parent=None):
         super().__init__(cfg.get("fit", "contain"), parent)
         self.title = cfg.get("title", "")
         self.session = QMediaCaptureSession(self)
         self.capture = QWindowCapture(self)
-        self.capture.errorOccurred.connect(lambda _e, text: self.set_message(f"Programm-Aufnahme: {text}"))
+        self.capture.errorOccurred.connect(self._error)
         self.session.setWindowCapture(self.capture)
         self.session.setVideoSink(self.sink)
+        self.sink.videoFrameChanged.connect(self._got_frame)
+        self._last_frame = 0.0
+        self._started = 0.0
         self._retry = QTimer(self, interval=3000)
         self._retry.timeout.connect(self._attach)
+        self._watch = QTimer(self, interval=2000)
+        self._watch.timeout.connect(self._check)
         self._attach()
 
+    def _got_frame(self, _frame):
+        self._last_frame = time.monotonic()
+
+    def _error(self, _err, text):
+        if self._image is None:
+            self.set_message(f"Programm-Aufnahme: {text} – versuche es erneut …")
+        self.capture.stop()
+        self._retry.start()
+
     def _attach(self):
-        windows = capturable_windows()
-        match = next((w for w in windows if w.description() == self.title), None)
+        match = find_window(capturable_windows(), self.title)
         if match is None:
-            match = next((w for w in windows if self.title and self.title in w.description()), None)
-        if match is None:
-            self.set_message(f"Programm „{self.title}“ ist nicht geöffnet – warte …")
+            if self._image is None:
+                self.set_message(f"Programm „{self.title}“ ist nicht geöffnet – warte …")
             self._retry.start()
             return
         self._retry.stop()
+        self.title = match.description()
+        self.capture.stop()
         self.capture.setWindow(match)
+        self._started = time.monotonic()
         self.capture.start()
+        self._watch.start()
+
+    def _check(self):
+        # 6 s kein neues Bild (Fenster geschlossen, minimiert oder neu erstellt) → neu verbinden
+        now = time.monotonic()
+        if now - max(self._last_frame, self._started) > 6:
+            if self._image is None:
+                self.set_message(f"Kein Bild von „{self.title}“ – ist das Programm minimiert?")
+            self._watch.stop()
+            self._attach()
 
     def stop(self):
         self._retry.stop()
+        self._watch.stop()
         self.capture.stop()
 
 
@@ -339,6 +389,13 @@ class TextBase(QWidget):
     def text(self) -> str:
         return ""
 
+    def fit_text(self, text: str) -> str:
+        """Text, nach dem die Schriftgröße bemessen wird (Ziffern → „8“: Größe springt nicht)."""
+        return text
+
+    def text_color(self) -> QColor:
+        return self.color
+
     def stop(self):
         pass
 
@@ -347,7 +404,8 @@ class TextBase(QWidget):
         p.fillRect(self.rect(), self.background)
         margin = int(self.width() * 0.03)
         area = self.rect().adjusted(margin, 0, -margin, 0)
-        text = self.text()
+        shown = self.text()
+        text = self.fit_text(shown)
         font = QFont()
         size = max(8, int(self.height() * self.size_percent / 100))
         # Schrift verkleinern, bis der Text ins Feld passt
@@ -359,8 +417,8 @@ class TextBase(QWidget):
             if (needed.height() <= area.height() and fits_lines) or size <= 8:
                 break
             size = max(8, int(size * 0.9))
-        p.setPen(self.color)
-        p.drawText(area, Qt.AlignCenter | Qt.TextWordWrap, text)
+        p.setPen(self.text_color())
+        p.drawText(area, Qt.AlignCenter | Qt.TextWordWrap, shown)
         p.end()
 
 
@@ -390,6 +448,9 @@ class ClockSource(TextBase):
             text += "\n" + format_date_de(time.localtime())
         return text
 
+    def fit_text(self, text: str) -> str:
+        return "".join("8" if ch.isdigit() else ch for ch in text)
+
     def paintEvent(self, _event):
         if not self.show_date:
             return super().paintEvent(_event)
@@ -402,7 +463,8 @@ class ClockSource(TextBase):
         now = time.localtime()
         clock = time.strftime("%H:%M:%S" if self.show_seconds else "%H:%M", now)
         date = format_date_de(now)
-        big = fitted_font(p, clock, area.width(), int(self.height() * self.size_percent / 100 * 1.4))
+        template = "".join("8" if ch.isdigit() else ch for ch in clock)  # Größe springt nicht
+        big = fitted_font(p, template, area.width(), int(self.height() * self.size_percent / 100 * 1.4))
         small = fitted_font(p, date, area.width(), max(8, big.pixelSize() // 3))
         h_big = QFontMetrics(big).height()
         h_small = QFontMetrics(small).height()
@@ -438,20 +500,47 @@ def format_date_de(t) -> str:
 
 
 class CountdownSource(TextBase):
+    """Zeigt den gemeinsamen Timer (Countdown oder Stoppuhr) – läuft weiter, auch wenn die
+    Anzeige neu aufgebaut wird. Farbe: letzte Minute orange, letzte 10 s rot, Ende blinkt."""
+
     def __init__(self, cfg, parent=None):
+        from .timer import clock
+
         cfg = {"size": 30, **cfg}
         super().__init__(cfg, parent)
-        self.end = time.monotonic() + float(cfg.get("minutes", 5)) * 60
-        self.finished_text = cfg.get("finished_text", "Zeit ist um!")
-        self.timer = QTimer(self, interval=250)
+        self.clock = clock
+        seconds = float(cfg.get("minutes", 5)) * 60 + float(cfg.get("seconds", 0))
+        mode = cfg.get("mode", "countdown")
+        # Nur neu stellen, wenn der Timer nicht schon läuft (sonst würde er wieder von vorn beginnen).
+        # „shared“ = Timer-Kachel: zeigt den Timer so, wie er gerade steht.
+        if not cfg.get("shared") and not clock.running and (clock.fresh() or clock.finished() or clock.mode != mode
+                                  or abs(clock.duration - seconds) > 0.5):
+            clock.set(seconds, mode, cfg.get("finished_text", "Zeit ist um!"))
+        if cfg.get("autostart", True) and clock.fresh():
+            clock.start()
+        self.warn_colors = bool(cfg.get("warn_colors", True))
+        self.timer = QTimer(self, interval=200)
         self.timer.timeout.connect(self.update)
         self.timer.start()
 
     def text(self):
-        remaining = max(0, int(round(self.end - time.monotonic())))
-        if remaining == 0:
-            return self.finished_text or "00:00"
-        return format_countdown(remaining)
+        return self.clock.text()
+
+    def fit_text(self, text: str) -> str:
+        return "".join("8" if ch.isdigit() else ch for ch in text)
+
+    def text_color(self) -> QColor:
+        if not self.warn_colors:
+            return self.color
+        state = self.clock.urgency()
+        if state == "bald":
+            return QColor("#f59e0b")
+        if state == "gleich":
+            return QColor("#ef4444")
+        if state == "ende":
+            # blinken: halbe Sekunde rot, halbe Sekunde normal
+            return QColor("#ef4444") if int(time.monotonic() * 2) % 2 == 0 else self.color
+        return self.color
 
     def stop(self):
         self.timer.stop()

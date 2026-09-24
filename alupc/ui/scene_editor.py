@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 
 from PySide6.QtCore import QRectF, QSize, Qt
-from PySide6.QtGui import QIcon, QKeySequence, QPainter, QPixmap
+from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -19,12 +19,12 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QHBoxLayout,
-    QKeySequenceEdit,
     QVBoxLayout,
     QWidget,
 )
 
 from ..scenes import LAYOUTS, describe_source, layout_slots, new_scene, resize_slots
+from .hotkey_edit import HotkeyButton
 from .source_picker import SourcePicker
 from . import icons, theme
 from .util import ColorButton
@@ -99,10 +99,9 @@ class SceneEditor(QDialog):
         form = QFormLayout()
         form.addRow("Name:", self.name_edit)
         form.addRow("Hintergrundfarbe:", self.bg_button)
-        self.hotkey_edit = QKeySequenceEdit(QKeySequence(
+        self.hotkey_edit = HotkeyButton(
             config["hotkeys"].get(f"szene:{self.original_name}", "") if self.original_name else "",
-            QKeySequence.PortableText))
-        self.hotkey_edit.setMaximumSequenceLength(1)
+            "Tastenkürzel für diese Szene")
         form.addRow("Tastenkürzel:", self.hotkey_edit)
 
         buttons = QDialogButtonBox()
@@ -204,7 +203,7 @@ class SceneEditor(QDialog):
         self.scene["name"] = name
         self.scene["background"] = self.bg_button.color()
         self.config.put_scene(self.scene, self.original_name)
-        seq = self.hotkey_edit.keySequence().toString(QKeySequence.PortableText)
+        seq = self.hotkey_edit.sequence()
         hotkeys = dict(self.config["hotkeys"])
         if seq:
             hotkeys[f"szene:{name}"] = seq
