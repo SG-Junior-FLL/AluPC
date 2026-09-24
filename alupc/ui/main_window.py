@@ -40,6 +40,8 @@ from .program_dialog import ProgramDialog
 from .scene_editor import SceneEditor
 from .setup_page import SetupPage
 from .source_picker import IMAGE_FILTER, VIDEO_FILTER
+from ..startpage import BUILTIN_TILES, SECTIONS, custom_key, find_custom, ordered_keys, section_of
+from .start_page_dialog import StartPageDialog
 from .widgets import EmptyState, NavButton, SceneCard, StatusCard, Tile, Toast, button, font, page_header
 
 __all__ = ["MainWindow", "app_icon"]
@@ -234,22 +236,36 @@ class MainWindow(QMainWindow):
         lay = QVBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(16)
-        lay.addWidget(page_header("Was sollen die anderen sehen?",
-                                  "Ein Klick auf eine Kachel – und Monitor 2 zeigt es sofort."))
+        top = QHBoxLayout()
+        self.start_header = QWidget()
+        head = QVBoxLayout(self.start_header)
+        head.setContentsMargins(0, 0, 0, 6)
+        head.setSpacing(2)
+        self.start_title = QLabel()
+        self.start_title.setObjectName("PageTitle")
+        self.start_subtitle = QLabel()
+        self.start_subtitle.setObjectName("PageSubtitle")
+        self.start_subtitle.setWordWrap(True)
+        head.addWidget(self.start_title)
+        head.addWidget(self.start_subtitle)
+        top.addWidget(self.start_header, 1)
+        customize = button("Startseite anpassen", "edit")
+        customize.clicked.connect(self.customize_start)
+        top.addWidget(customize, 0, Qt.AlignTop)
+        lay.addLayout(top)
         self.status_card = StatusCard()
         lay.addWidget(self.status_card)
 
         c = self.controller
-        self.t_mirror = Tile("mirror", "Spiegeln", "Zeigt dasselbe wie Monitor 1")
-        self.t_extend = Tile("extend", "Erweitern", "Normaler zweiter Bildschirm")
-        self.t_camera = Tile("camera", "Kamera", "Kamera im Vollbild")
-        self.t_program = Tile("window", "Programm", "Ein Programm zeigen")
-        self.t_web = Tile("globe", "Website", "Website im Vollbild")
-        self.t_media = Tile("image", "Bild / Video", "Bild, Video oder Diashow")
-        self.t_scenes = Tile("scenes", "Meine Szenen", "Eigene Zusammenstellungen")
-        self.t_freeze = Tile("snowflake", "Standbild", "Bild einfrieren", FREEZE_COLOR)
-        self.t_black = Tile("eye_off", "Schwarz", "Sichtschutz", PRIVACY_COLOR)
-        self.t_pip = Tile("pip", "Bild-in-Bild", "Monitor 2 klein anzeigen", PIP_COLOR)
+        # Standard-Kacheln (einmal angelegt, je nach Einstellung angezeigt)
+        self.tiles: dict[str, Tile] = {}
+        for key, (icon_name, title, subtitle, color, _section) in BUILTIN_TILES.items():
+            self.tiles[key] = Tile(icon_name, title, subtitle, color)
+        self.t_mirror, self.t_extend = self.tiles["mirror"], self.tiles["extend"]
+        self.t_camera, self.t_program = self.tiles["camera"], self.tiles["program"]
+        self.t_web, self.t_media, self.t_scenes = self.tiles["website"], self.tiles["media"], self.tiles["scenes"]
+        self.t_freeze, self.t_black, self.t_pip = self.tiles["freeze"], self.tiles["black"], self.tiles["pip"]
+        self.t_saver = self.tiles["screensaver"]
 
         self.t_mirror.clicked.connect(c.mirror)
         self.t_extend.clicked.connect(c.extend)
@@ -259,6 +275,7 @@ class MainWindow(QMainWindow):
         self.t_black.clicked.connect(c.toggle_privacy)
         self.t_freeze.clicked.connect(c.toggle_freeze)
         self.t_pip.clicked.connect(c.toggle_pip)
+        self.t_saver.clicked.connect(c.toggle_screensaver)
         self.camera_menu = QMenu(self)
         media_menu = QMenu(self)
         media_menu.addAction(icons.icon("image", theme.current().text, 18), "Bild …", self.pick_image)
@@ -269,28 +286,76 @@ class MainWindow(QMainWindow):
         self.scene_menu = QMenu(self)
         self.scene_menu.aboutToShow.connect(lambda: self._fill_scene_menu(self.scene_menu))
         self.t_scenes.set_menu(self.scene_menu)
+        self.custom_tiles: dict[str, Tile] = {}
 
-        section = QLabel("Anzeigen")
-        section.setObjectName("SectionTitle")
-        lay.addWidget(section)
-        grid = FlowGrid(min_width=170, max_cols=4)
-        grid.set_items([self.t_mirror, self.t_extend, self.t_camera, self.t_program,
-                        self.t_web, self.t_media, self.t_scenes])
-        lay.addWidget(grid)
-
-        section2 = QLabel("Schnell umschalten")
-        section2.setObjectName("SectionTitle")
-        lay.addWidget(section2)
-        quick = FlowGrid(min_width=170, max_cols=3)
-        quick.set_items([self.t_freeze, self.t_black, self.t_pip])
-        lay.addWidget(quick)
-        hint = QLabel("Tipp: Strg+Alt+S = Standbild · Strg+Alt+B = Schwarz · Strg+Alt+P = Bild-in-Bild")
+        self.section_labels = {}
+        self.section_grids = {}
+        for key, label in SECTIONS.items():
+            title = QLabel(label)
+            title.setObjectName("SectionTitle")
+            grid = FlowGrid(min_width=170, max_cols=4)
+            self.section_labels[key] = title
+            self.section_grids[key] = grid
+            lay.addWidget(title)
+            lay.addWidget(grid)
+        self.start_empty = QLabel("Alle Kacheln sind ausgeblendet – über „Startseite anpassen“ wieder einblenden.")
+        self.start_empty.setObjectName("Muted")
+        lay.addWidget(self.start_empty)
+        hint = QLabel()
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         self.shortcut_hint = hint
         lay.addWidget(hint)
         lay.addStretch(1)
+        self.rebuild_start()
         return page
+
+    def rebuild_start(self):
+        """Startseite nach den Einstellungen neu zusammensetzen."""
+        cfg = self.config["start_page"]
+        self.start_title.setText(cfg.get("title") or "Was sollen die anderen sehen?")
+        self.start_subtitle.setText(cfg.get("subtitle") or "Ein Klick auf eine Kachel – und Monitor 2 zeigt es sofort.")
+        self.status_card.setVisible(bool(cfg.get("show_status", True)))
+        self.shortcut_hint.setVisible(bool(cfg.get("show_hint", True)))
+        # eigene Kacheln neu anlegen
+        for tile in self.custom_tiles.values():
+            tile.deleteLater()
+        self.custom_tiles = {}
+        for tile_cfg in cfg.get("custom", []):
+            tile = Tile(tile_cfg.get("icon", "star"), tile_cfg.get("title", ""), tile_cfg.get("subtitle", ""),
+                        tile_cfg.get("color"))
+            tile.clicked.connect(lambda _=False, i=tile_cfg["id"]: self.controller.run_tile(i))
+            self.custom_tiles[custom_key(tile_cfg)] = tile
+        per_section = {key: [] for key in SECTIONS}
+        keys = ordered_keys(cfg)
+        for key in keys:
+            widget = self.tiles.get(key) or self.custom_tiles.get(key)
+            if widget is not None:
+                per_section.setdefault(section_of(key, cfg), []).append(widget)
+        shown = set()
+        for key, grid in self.section_grids.items():
+            items = per_section.get(key, [])
+            grid.set_items(items)
+            shown.update(items)
+            grid.setVisible(bool(items))
+            self.section_labels[key].setVisible(bool(items))
+        for widget in list(self.tiles.values()) + list(self.custom_tiles.values()):
+            widget.setVisible(widget in shown)
+        self.start_empty.setVisible(not shown)
+        if hasattr(self, "a_freeze"):
+            self.refresh()
+
+    def _apply_hotkeys(self):
+        problems = self.hotkeys.apply(self.config["hotkeys"])
+        for text in problems:
+            self.show_message(text, "warn")
+
+    def customize_start(self):
+        dlg = StartPageDialog(self.config, self)
+        if dlg.exec() == QDialog.Accepted:
+            self.rebuild_start()
+            self.show_message("Startseite gespeichert.", "ok")
+            self._apply_hotkeys()
 
     def _camera_clicked(self):
         devices = QMediaDevices.videoInputs()
@@ -425,6 +490,10 @@ class MainWindow(QMainWindow):
             self._scene_selected(target.scene)
         self._fill_tray_scenes()
         self._mark_live_scene()
+        if hasattr(self, "setup"):
+            self.setup.refresh_scene_lists()
+        if hasattr(self, "a_freeze"):
+            self._apply_hotkeys()
 
     def _scene_selected(self, scene):
         from ..scenes import LAYOUTS, layout_slots
@@ -496,6 +565,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(page_header("Setup", "Monitore, Darstellung, Tastenkürzel und Sperre."))
         self.setup = SetupPage(self.controller, self.hotkeys)
         self.setup.theme_changed.connect(self.apply_theme)
+        self.setup.hotkeys_changed.connect(self.refresh)
         lay.addWidget(self.setup, 1)
         return page
 
@@ -592,6 +662,8 @@ class MainWindow(QMainWindow):
             pills.append(("KEIN MONITOR", t.danger))
         elif c.privacy:
             pills.append(("SCHWARZ", PRIVACY_COLOR))
+        elif c.screensaver.active:
+            pills.append(("BILDSCHIRMSCHONER", "#6366f1"))
         elif c.frozen:
             pills.append(("STANDBILD", FREEZE_COLOR))
         else:
@@ -612,6 +684,13 @@ class MainWindow(QMainWindow):
             (self.t_scenes, typ == "scene"),
         ]:
             tile.set_state(on, badge="AKTIV" if on else "")
+        saver_on = c.screensaver.active
+        self.t_saver.set_state(saver_on, badge="AN" if saver_on else "")
+        for key, tile in self.custom_tiles.items():
+            tcfg = find_custom(self.config["start_page"], key) or {}
+            action = tcfg.get("action") or {}
+            on = action.get("kind") == "source" and c.mode == "content" and c.content == action.get("source")
+            tile.set_state(on, badge="AKTIV" if on else "")
         self.t_freeze.set_state(c.frozen, badge="AN" if c.frozen else "")
         self.t_black.set_state(c.privacy, badge="AN" if c.privacy else "")
         self.t_pip.set_state(pip_on, badge="AN" if pip_on else "")
@@ -619,9 +698,12 @@ class MainWindow(QMainWindow):
         self.a_black.setChecked(c.privacy)
         self.a_pip.setChecked(pip_on)
         hk = self.config["hotkeys"]
-        self.shortcut_hint.setText(
-            f"Tastenkürzel: {hk.get('standbild') or '–'} Standbild · {hk.get('schwarz') or '–'} Schwarz · "
-            f"{hk.get('bild_in_bild') or '–'} Bild-in-Bild".replace("Ctrl", "Strg"))
+        parts = [(hk.get(k), label) for k, label in (("standbild", "Standbild"), ("schwarz", "Schwarz"),
+                                                        ("bild_in_bild", "Bild-in-Bild"),
+                                                        ("bildschirmschoner", "Bildschirmschoner"),
+                                                        ("naechste_szene", "Nächste Szene"))]
+        self.shortcut_hint.setText("Tastenkürzel: " + " · ".join(
+            f"{seq} {label}" for seq, label in parts if seq).replace("Ctrl", "Strg").replace("PgDown", "Bild↓"))
         self._mark_live_scene()
 
     def show_message(self, text, kind: str = ""):

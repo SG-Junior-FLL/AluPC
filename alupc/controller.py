@@ -35,6 +35,11 @@ class Controller(QObject):
         self.privacy = False
         self.locked = False
 
+        from .screensaver import ScreensaverManager
+
+        self.screensaver = ScreensaverManager(self)
+        self.screensaver.changed.connect(self.changed.emit)
+
         app = QGuiApplication.instance()
         app.screenAdded.connect(self._screen_added)
         app.screenRemoved.connect(lambda _s: self.update_screens())
@@ -96,6 +101,8 @@ class Controller(QObject):
         if self.locked:
             self.message.emit("AluPC ist gesperrt.")
             return False
+        # Jede Bedienung zählt als Aktivität und beendet einen laufenden Bildschirmschoner
+        self.screensaver.activity()
         return True
 
     def show_source(self, cfg: dict, remember: bool = True) -> None:
@@ -105,6 +112,7 @@ class Controller(QObject):
             self.message.emit("Kein zweiter Monitor gefunden.")
         self.ensure_extended()
         self._unfreeze()
+        self.screensaver.stop()
         self.output.fade_enabled = bool(self.config["appearance"].get("fade", True))
         self.mode = "content"
         self.content = cfg
@@ -143,6 +151,7 @@ class Controller(QObject):
 
     def _set_desktop(self, note: str) -> None:
         self._unfreeze()
+        self.screensaver.stop()
         self.mode = "desktop"
         self.content = None
         self.desktop_note = note
@@ -219,6 +228,9 @@ class Controller(QObject):
             else:
                 self.message.emit(f"Szene „{name}“ gibt es nicht.")
             return
+        if command.startswith("kachel:"):
+            self.run_tile(command[7:])
+            return
         actions = {
             "standbild": self.toggle_freeze,
             "schwarz": self.toggle_privacy,
@@ -227,6 +239,11 @@ class Controller(QObject):
             "erweitern": self.extend,
             "bild-in-bild": self.toggle_pip,
             "bild_in_bild": self.toggle_pip,
+            "bildschirmschoner": self.toggle_screensaver,
+            "naechste_szene": lambda: self.step_scene(1),
+            "naechste-szene": lambda: self.step_scene(1),
+            "vorherige_szene": lambda: self.step_scene(-1),
+            "vorherige-szene": lambda: self.step_scene(-1),
         }
         action = actions.get(command)
         if action:
@@ -234,11 +251,42 @@ class Controller(QObject):
         else:
             self.message.emit(f"Unbekannter Befehl: {command}")
 
+    def toggle_screensaver(self) -> None:
+        if self._guard():
+            self.screensaver.toggle()
+
+    def step_scene(self, direction: int) -> None:
+        """Zur nächsten/vorherigen eigenen Szene wechseln (in der Reihenfolge der Liste)."""
+        names = self.config.scene_names()
+        if not names:
+            self.message.emit("Es gibt noch keine Szene.")
+            return
+        current = self.content.get("scene") if self.content and self.content.get("type") == "scene" else None
+        if current in names:
+            index = (names.index(current) + direction) % len(names)
+        else:
+            index = 0 if direction > 0 else len(names) - 1
+        self.show_source({"type": "scene", "scene": names[index]})
+
+    def run_tile(self, tile_id: str) -> None:
+        """Eigene Kachel der Startseite ausführen (auch per Tastenkürzel)."""
+        tile = next((t for t in self.config["start_page"].get("custom", []) if t.get("id") == tile_id), None)
+        if tile is None:
+            self.message.emit("Diese Kachel gibt es nicht mehr.")
+            return
+        action = tile.get("action") or {}
+        if action.get("kind") == "command":
+            self.run_command(action.get("command", ""))
+        elif action.get("kind") == "source" and action.get("source"):
+            self.show_source(action["source"])
+
     def toggle_pip(self) -> None:
         if self.pip is not None and self._guard():
             self.pip.toggle()
             self.changed.emit()
 
     def shutdown(self) -> None:
+        self.screensaver.timer.stop()
+        self.output.set_screensaver(None)
         self.output.set_content(None)
         self.output.close()

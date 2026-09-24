@@ -233,3 +233,120 @@ def test_website_source(env):
     controller.show_source({"type": "website", "url": "about:blank"})
     pump()
     assert type(controller.output.content).__name__ == "WebsiteSource"
+
+
+def test_screensaver_styles_and_layers(env, tmp_path):
+    controller, window, _ = env
+    img = QImage(40, 30, QImage.Format_RGB32)
+    img.fill(QColor("#ff8800"))
+    img.save(str(tmp_path / "a.png"))
+    controller.config.put_scene({"name": "S", "layout": "vollbild", "slots": [{"type": "clock"}]})
+    for style in ("uhr", "schweben", "diashow", "farben", "szene"):
+        cfg = dict(controller.config["screensaver"])
+        cfg.update({"style": style, "folder": str(tmp_path), "scene": "S", "text": "Hallo"})
+        controller.config["screensaver"] = cfg
+        controller.toggle_screensaver()
+        pump()
+        assert controller.screensaver.active
+        assert controller.output.isVisible() and controller.output.screensaver is not None
+        controller.output.screensaver.grab()  # Zeichnen darf nicht abstürzen
+        controller.toggle_screensaver()
+        pump()
+        assert not controller.screensaver.active and controller.output.screensaver is None
+    # Sichtschutz liegt immer über dem Bildschirmschoner
+    controller.toggle_screensaver()
+    controller.toggle_privacy()
+    kids = controller.output.children()
+    assert kids.index(controller.output.privacy_layer) > kids.index(controller.output.screensaver)
+    controller.toggle_privacy()
+    # Etwas anzeigen beendet den Bildschirmschoner
+    controller.show_source({"type": "clock"})
+    assert not controller.screensaver.active
+
+
+def test_screensaver_auto_start_and_stop(env):
+    controller, _window, _ = env
+    saver = controller.screensaver
+    controller.extend()
+    controller.config["screensaver"] = {**controller.config["screensaver"], "enabled": True, "minutes": 1}
+    saver.idle_seconds = lambda: 120  # niemand hat seit 2 Minuten etwas gemacht
+    saver.check()
+    assert saver.active and not saver.manual
+    saver.idle_seconds = lambda: 0.5  # Maus bewegt
+    saver.check()
+    assert not saver.active
+    # Modus „nur wenn nichts gezeigt wird“: bei laufendem Inhalt kein Start
+    controller.show_source({"type": "clock"})
+    saver.idle_seconds = lambda: 999
+    saver.check()
+    assert not saver.active
+
+
+def test_custom_tile_and_scene_steps(env):
+    controller, window, _ = env
+    cfg = controller.config
+    cfg.put_scene({"name": "Eins", "layout": "vollbild", "slots": [{"type": "clock"}]})
+    cfg.put_scene({"name": "Zwei", "layout": "vollbild", "slots": [{"type": "text", "text": "2"}]})
+    controller.run_command("naechste_szene")
+    assert controller.content == {"type": "scene", "scene": "Eins"}
+    controller.run_command("naechste_szene")
+    assert controller.content["scene"] == "Zwei"
+    controller.run_command("vorherige_szene")
+    assert controller.content["scene"] == "Eins"
+
+    start = dict(cfg["start_page"])
+    start["custom"] = [
+        {"id": "t1", "title": "Uhr", "icon": "clock", "color": "#10b981", "section": "anzeigen",
+         "action": {"kind": "source", "source": {"type": "clock"}}},
+        {"id": "t2", "title": "Freeze", "icon": "snowflake", "color": "#0ea5e9", "section": "schnell",
+         "action": {"kind": "command", "command": "standbild"}},
+    ]
+    start["tiles"] = ["camera", "custom:t1", "freeze", "custom:t2"]
+    cfg["start_page"] = start
+    window.rebuild_start()
+    pump()
+    assert window.section_grids["anzeigen"].items == [window.tiles["camera"], window.custom_tiles["custom:t1"]]
+    assert window.section_grids["schnell"].items == [window.tiles["freeze"], window.custom_tiles["custom:t2"]]
+    assert window.tiles["mirror"].isHidden()
+    window.custom_tiles["custom:t1"].click()
+    assert controller.content == {"type": "clock"}
+    assert window.custom_tiles["custom:t1"].active
+    controller.run_command("kachel:t2")
+    assert controller.frozen
+    controller.run_command("kachel:t2")
+    assert not controller.frozen
+
+
+def test_start_page_dialog_roundtrip(env):
+    controller, window, _ = env
+    from alupc.ui.start_page_dialog import StartPageDialog
+    from PySide6.QtCore import Qt as _Qt
+
+    dlg = StartPageDialog(controller.config, window)
+    dlg.title.setText("Mein Start")
+    dlg.list.item(0).setCheckState(_Qt.Unchecked)  # erste Kachel (Spiegeln) ausblenden
+    dlg.list.setCurrentRow(1)
+    dlg._move(-1)  # Erweitern nach oben
+    dlg._save()
+    start = controller.config["start_page"]
+    assert start["title"] == "Mein Start"
+    assert start["tiles"][0] == "extend" and "mirror" not in start["tiles"]
+    window.rebuild_start()
+    assert window.start_title.text() == "Mein Start"
+
+
+def test_duplicate_hotkeys_are_reported(env):
+    controller, window, _ = env
+    problems = window.hotkeys.apply({"standbild": "Ctrl+Alt+S", "schwarz": "Ctrl+Alt+S"})
+    assert any("doppelt" in p for p in problems)
+    window.hotkeys.apply(controller.config["hotkeys"])
+
+
+def test_windows_hotkey_mapping():
+    from alupc.hotkeys import MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, to_windows_hotkey
+
+    assert to_windows_hotkey("Ctrl+Alt+S") == (MOD_NOREPEAT | MOD_CONTROL | MOD_ALT, ord("S"))
+    assert to_windows_hotkey("Ctrl+Alt+PgDown") == (MOD_NOREPEAT | MOD_CONTROL | MOD_ALT, 0x22)
+    assert to_windows_hotkey("Shift+F5") == (MOD_NOREPEAT | MOD_SHIFT, 0x74)
+    assert to_windows_hotkey("Ctrl+Alt+1")[1] == ord("1")
+    assert to_windows_hotkey("") is None

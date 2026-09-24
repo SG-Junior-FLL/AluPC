@@ -60,6 +60,7 @@ class OutputWindow(QWidget):
         self.screen_name = ""
         self.fade_enabled = True
         self._fades: list[QWidget] = []
+        self.screensaver: QWidget | None = None
 
     # ------------------------------------------------------------ Inhalt
     def set_content(self, widget: QWidget | None) -> None:
@@ -92,8 +93,8 @@ class OutputWindow(QWidget):
         layer.setGraphicsEffect(effect)
         layer.show()
         layer.raise_()
-        for top in (self.freeze_layer, self.privacy_layer):
-            if top.isVisible():
+        for top in (self.freeze_layer, self.screensaver, self.privacy_layer):
+            if top is not None and top.isVisible():
                 top.raise_()
         anim = QPropertyAnimation(effect, b"opacity", layer)
         anim.setDuration(350)
@@ -120,6 +121,8 @@ class OutputWindow(QWidget):
             self.freeze_layer.setGeometry(self.rect())
             self.freeze_layer.show()
             self.freeze_layer.raise_()
+            if self.screensaver is not None:
+                self.screensaver.raise_()
             self.privacy_layer.raise_()
         self.update_visibility()
 
@@ -133,8 +136,25 @@ class OutputWindow(QWidget):
             self.privacy_layer.hide()
         self.update_visibility()
 
+    def set_screensaver(self, widget: QWidget | None) -> None:
+        """Bildschirmschoner über Inhalt und Standbild legen (Sichtschutz bleibt ganz oben)."""
+        if self.screensaver is not None:
+            self.screensaver.stop()
+            self.screensaver.hide()
+            self.screensaver.deleteLater()
+        self.screensaver = widget
+        if widget is not None:
+            widget.setParent(self)
+            widget.setGeometry(self.rect())
+            widget.show()
+            widget.raise_()
+            if self.privacy_layer.isVisible():
+                self.privacy_layer.raise_()
+        self.update_visibility()
+
     def needed(self) -> bool:
-        return self.content_active or self.freeze_layer.isVisible() or self.privacy_layer.isVisible()
+        return (self.content_active or self.freeze_layer.isVisible() or self.privacy_layer.isVisible()
+                or self.screensaver is not None)
 
     # ------------------------------------------------------------ Monitor
     def place_on(self, screen) -> None:
@@ -160,7 +180,7 @@ class OutputWindow(QWidget):
             self.hide()
 
     def resizeEvent(self, _event):
-        for w in (self.content, self.freeze_layer, self.privacy_layer, *self._fades):
+        for w in (self.content, self.freeze_layer, self.privacy_layer, self.screensaver, *self._fades):
             if w is not None:
                 w.setGeometry(self.rect())
 

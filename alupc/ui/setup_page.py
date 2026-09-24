@@ -202,6 +202,7 @@ class MonitorArrangement(QWidget):
 
 class SetupPage(QScrollArea):
     theme_changed = Signal()
+    hotkeys_changed = Signal()
 
     def __init__(self, controller, hotkeys, parent=None):
         super().__init__(parent)
@@ -220,6 +221,7 @@ class SetupPage(QScrollArea):
         lay.addWidget(self._app_group())
         lay.addWidget(self._privacy_group())
         lay.addWidget(self._pip_group())
+        lay.addWidget(self._screensaver_group())
         lay.addWidget(self._hotkey_group())
         lay.addWidget(self._lock_group())
         lay.addStretch(1)
@@ -643,30 +645,180 @@ class SetupPage(QScrollArea):
         form.addRow("Aktualisierung:", fps)
         return box
 
+    # ================================================================ Bildschirmschoner
+    def _screensaver_group(self):
+        from ..screensaver import STYLES, WHEN
+
+        box = QGroupBox("Bildschirmschoner (Monitor 2)")
+        form = QFormLayout(box)
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(10)
+        cfg = self.config["screensaver"]
+        enabled = QCheckBox("Automatisch starten, wenn niemand den PC benutzt")
+        enabled.setChecked(bool(cfg.get("enabled")))
+        minutes = QSpinBox()
+        minutes.setRange(1, 240)
+        minutes.setSuffix(" Minuten")
+        minutes.setValue(int(cfg.get("minutes", 10)))
+        when = QComboBox()
+        for key, label in WHEN.items():
+            when.addItem(label, key)
+        when.setCurrentIndex(max(0, when.findData(cfg.get("when", "desktop"))))
+        style = QComboBox()
+        for key, label in STYLES.items():
+            style.addItem(label, key)
+        style.setCurrentIndex(max(0, style.findData(cfg.get("style", "uhr"))))
+        text = QLineEdit(cfg.get("text", ""))
+        text.setPlaceholderText("leer = Uhrzeit")
+        image = QLineEdit(cfg.get("image", ""))
+        image.setPlaceholderText("optional: Logo statt Text")
+        img_btn = button("…", "image")
+        folder = QLineEdit(cfg.get("folder", ""))
+        folder_btn = button("…", "slides")
+        interval = QSpinBox()
+        interval.setRange(3, 600)
+        interval.setSuffix(" s")
+        interval.setValue(int(cfg.get("interval", 8)))
+        scene = QComboBox()
+        scene.addItems(self.config.scene_names())
+        scene.setCurrentText(cfg.get("scene", ""))
+        test = button("Jetzt starten / beenden", "moon", primary=True)
+        test.clicked.connect(self.controller.toggle_screensaver)
+        info = QLabel(self.controller.screensaver.idle.describe())
+        info.setObjectName("Muted")
+        info.setWordWrap(True)
+
+        def row(*widgets):
+            r = QHBoxLayout()
+            for w in widgets:
+                r.addWidget(w, 1 if isinstance(w, QLineEdit) else 0)
+            return r
+
+        rows = {
+            "schweben": [("Text:", text), ("Logo:", row(image, img_btn))],
+            "diashow": [("Ordner:", row(folder, folder_btn)), ("Wechsel alle:", interval)],
+            "szene": [("Szene:", scene)],
+        }
+        form.addRow("", enabled)
+        form.addRow("Nach:", minutes)
+        form.addRow("Wann:", when)
+        form.addRow("Stil:", style)
+        for items in rows.values():
+            for label, field in items:
+                form.addRow(label, field)
+        test_row = QHBoxLayout()
+        test_row.addWidget(test)
+        test_row.addStretch(1)
+        form.addRow("", test_row)
+        form.addRow(info)
+
+        def update_rows():
+            current = style.currentData()
+            for key, items in rows.items():
+                for _label, field in items:
+                    form.setRowVisible(field, key == current)
+
+        def save(*_):
+            self.config["screensaver"] = {
+                "enabled": enabled.isChecked(), "minutes": minutes.value(), "when": when.currentData(),
+                "style": style.currentData(), "text": text.text(), "image": image.text(),
+                "folder": folder.text(), "interval": interval.value(), "scene": scene.currentText(),
+            }
+            update_rows()
+
+        def pick_image():
+            path, _ = QFileDialog.getOpenFileName(self, "Logo wählen", image.text(),
+                                                  "Bilder (*.png *.jpg *.jpeg *.bmp *.webp *.svg)")
+            if path:
+                image.setText(path)
+                save()
+
+        def pick_folder():
+            path = QFileDialog.getExistingDirectory(self, "Bilderordner wählen", folder.text())
+            if path:
+                folder.setText(path)
+                save()
+
+        img_btn.clicked.connect(pick_image)
+        folder_btn.clicked.connect(pick_folder)
+        for w in (enabled,):
+            w.toggled.connect(save)
+        for w in (minutes, interval):
+            w.valueChanged.connect(save)
+        for w in (when, style, scene):
+            w.currentIndexChanged.connect(save)
+        for w in (text, image, folder):
+            w.editingFinished.connect(save)
+        self._screensaver_scene_combo = scene
+        update_rows()
+        return box
+
     # ================================================================ Tastenkürzel
     def _hotkey_group(self):
         box = QGroupBox("Tastenkürzel")
         form = QFormLayout(box)
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(8)
+        self.hotkey_edits = {}
         for action, label in HOTKEY_LABELS.items():
-            edit = QKeySequenceEdit(QKeySequence(self.config["hotkeys"].get(action, "")))
+            edit = QKeySequenceEdit(QKeySequence(self.config["hotkeys"].get(action, ""), QKeySequence.PortableText))
             edit.setMaximumSequenceLength(1)
             edit.editingFinished.connect(lambda a=action, e=edit: self._save_hotkey(a, e))
-            form.addRow(label + ":", edit)
+            clear = button("", "x")
+            clear.setToolTip("Tastenkürzel entfernen")
+            clear.clicked.connect(lambda _=False, a=action, e=edit: (e.clear(), self._save_hotkey(a, e)))
+            row = QHBoxLayout()
+            row.addWidget(edit, 1)
+            row.addWidget(clear)
+            form.addRow(label + ":", row)
+            self.hotkey_edits[action] = edit
+        more = QLabel("Eigene Tastenkürzel für <b>Szenen</b> legst du im Szenen-Editor fest, für "
+                      "<b>eigene Kacheln</b> unter Start → „Startseite anpassen“.")
+        more.setWordWrap(True)
+        form.addRow(more)
         if IS_WINDOWS:
             text = "Die Tastenkürzel funktionieren überall in Windows, auch wenn AluPC im Hintergrund ist."
+            form.addRow(QLabel(text))
         else:
-            text = ("In AluPC funktionieren die Tastenkürzel immer. Damit sie überall in KDE gehen: "
-                    "Systemeinstellungen → Tastatur → Kurzbefehle → „Neu hinzufügen“ → „Befehl“, "
-                    "z. B. <tt>alupc --befehl standbild</tt> (auch: schwarz, bild-in-bild, spiegeln, "
-                    "erweitern, szene:Name).")
-        hint = QLabel(text)
-        hint.setWordWrap(True)
-        hint.setTextFormat(Qt.RichText)
-        form.addRow(hint)
+            text = ("In AluPC funktionieren die Tastenkürzel immer. <b>Überall in KDE</b>: Systemeinstellungen "
+                    "→ Tastatur → Kurzbefehle → „AluPC“ – dort stehen Standbild, Schwarz, Bild-in-Bild, "
+                    "Bildschirmschoner, Spiegeln, Erweitern und die Szenenwechsel schon bereit (nach der "
+                    "Installation mit dem .deb-Paket oder install.sh). Oder: „Neu hinzufügen“ → „Befehl“ mit "
+                    "<tt>alupc --befehl standbild</tt> bzw. <tt>alupc --befehl szene:Name</tt>.")
+            hint = QLabel(text)
+            hint.setWordWrap(True)
+            hint.setTextFormat(Qt.RichText)
+            form.addRow(hint)
+            kde = button("KDE-Kurzbefehle öffnen", "keyboard")
+            kde.clicked.connect(self._open_kde_shortcuts)
+            form.addRow("", kde)
         self.hotkey_status = QLabel("")
         self.hotkey_status.setWordWrap(True)
+        self.hotkey_status.setStyleSheet(f"color: {theme.current().warning};")
         form.addRow(self.hotkey_status)
         return box
+
+    def refresh_scene_lists(self):
+        """Szenenliste im Bildschirmschoner aktualisieren (nach Anlegen/Umbenennen/Löschen)."""
+        combo = getattr(self, "_screensaver_scene_combo", None)
+        if combo is None:
+            return
+        current = combo.currentText()
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItems(self.config.scene_names())
+        combo.setCurrentText(current)
+        combo.blockSignals(False)
+
+    def _open_kde_shortcuts(self):
+        import shutil
+        import subprocess
+
+        for cmd in (["systemsettings", "kcm_keys"], ["kcmshell6", "kcm_keys"], ["kcmshell5", "kcm_keys"]):
+            if shutil.which(cmd[0]):
+                subprocess.Popen(cmd)
+                return
+        error_box(self, "Die KDE-Systemeinstellungen wurden nicht gefunden.")
 
     def _save_hotkey(self, action, edit):
         hotkeys = dict(self.config["hotkeys"])
@@ -674,6 +826,7 @@ class SetupPage(QScrollArea):
         self.config["hotkeys"] = hotkeys
         problems = self.hotkeys.apply(hotkeys)
         self.hotkey_status.setText("\n".join(problems))
+        self.hotkeys_changed.emit()
 
     # ================================================================ Sperre
     def _lock_group(self):

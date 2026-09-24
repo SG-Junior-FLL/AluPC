@@ -8,7 +8,7 @@ Icon=alupc
 Terminal=false
 Categories=Utility;
 Keywords=Monitor;Beamer;Bildschirm;Spiegeln;Szene;
-Actions=Standbild;Schwarz;BildInBild;Spiegeln;Erweitern;
+Actions=Standbild;Schwarz;BildInBild;Bildschirmschoner;Spiegeln;Erweitern;NaechsteSzene;VorherigeSzene;
 
 [Desktop Action Standbild]
 Name=Standbild an/aus
@@ -29,3 +29,15 @@ Exec=alupc --befehl spiegeln
 [Desktop Action Erweitern]
 Name=Erweitern
 Exec=alupc --befehl erweitern
+
+[Desktop Action Bildschirmschoner]
+Name=Bildschirmschoner an/aus
+Exec=alupc --befehl bildschirmschoner
+
+[Desktop Action NaechsteSzene]
+Name=Nächste Szene
+Exec=alupc --befehl naechste_szene
+
+[Desktop Action VorherigeSzene]
+Name=Vorherige Szene
+Exec=alupc --befehl vorherige_szene

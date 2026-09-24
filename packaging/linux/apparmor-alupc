@@ -1,0 +1,11 @@
+# AppArmor-Profil für AluPC (installiert vom .deb-Paket).
+# Ubuntu/Kubuntu ab 24.04 verbietet Programmen ohne Profil „User Namespaces“.
+# Die eingebaute Chromium-Engine (Website-Quelle) braucht diese für ihre Sandbox.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile alupc /opt/alupc/** flags=(unconfined) {
+  userns,
+
+  include if exists <local/alupc>
+}

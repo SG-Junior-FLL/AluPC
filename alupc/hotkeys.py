@@ -47,6 +47,16 @@ def to_windows_hotkey(sequence: str) -> tuple[int, int] | None:
     return None
 
 
+def hotkey_label(action: str) -> str:
+    from .config import HOTKEY_LABELS
+
+    if action.startswith("szene:"):
+        return f"Szene „{action[6:]}“"
+    if action.startswith("kachel:"):
+        return "eigene Kachel"
+    return HOTKEY_LABELS.get(action, action)
+
+
 class _WinHotkeyFilter(QAbstractNativeEventFilter):
     def __init__(self, callback):
         super().__init__()
@@ -94,9 +104,16 @@ class HotkeyManager(QObject):
             sc.deleteLater()
         self.shortcuts = []
         self._unregister_windows()
+        seen: dict[str, str] = {}
         for i, (action, seq) in enumerate(hotkeys.items(), start=1):
             if not seq:
                 continue
+            norm = QKeySequence(seq, QKeySequence.PortableText).toString(QKeySequence.PortableText)
+            if norm in seen:
+                problems.append(f"„{seq}“ ist doppelt vergeben ({hotkey_label(seen[norm])} und "
+                                f"{hotkey_label(action)}) – gilt nur für das Erste.")
+                continue
+            seen[norm] = action
             if sys.platform.startswith("win"):
                 if self._register_windows(i, action, seq):
                     continue  # systemweit registriert → kein zusätzliches In-App-Kürzel nötig

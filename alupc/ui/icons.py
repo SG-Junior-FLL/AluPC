@@ -243,6 +243,47 @@ def _draw(name: str, p: QPainter, color: QColor):
             a = math.radians(i * 45)
             p.drawLine(QPointF(12 + 7 * math.cos(a), 12 + 7 * math.sin(a)),
                        QPointF(12 + 9.5 * math.cos(a), 12 + 9.5 * math.sin(a)))
+    elif name == "moon":
+        path = QPainterPath()
+        path.addEllipse(QPointF(12, 12), 8.5, 8.5)
+        cut = QPainterPath()
+        cut.addEllipse(QPointF(16.5, 8.5), 7, 7)
+        p.drawPath(path.subtracted(cut))
+        p.setBrush(fill)
+        p.drawEllipse(QPointF(19, 16), 0.9, 0.9)
+        p.drawEllipse(QPointF(15.5, 19.5), 0.6, 0.6)
+        p.setBrush(Qt.NoBrush)
+    elif name == "star":
+        path = QPainterPath()
+        for i in range(10):
+            r = 9.5 if i % 2 == 0 else 4
+            a = math.radians(-90 + i * 36)
+            pt = QPointF(12 + r * math.cos(a), 12.5 + r * math.sin(a))
+            if i == 0:
+                path.moveTo(pt)
+            else:
+                path.lineTo(pt)
+        path.closeSubpath()
+        p.drawPath(path)
+    elif name == "keyboard":
+        p.drawRoundedRect(QRectF(2, 6, 20, 12), 2.5, 2.5)
+        p.setBrush(fill)
+        for y in (9.5, 12.5):
+            for x in (6, 10, 14, 18):
+                p.drawEllipse(QPointF(x, y), 0.45, 0.45)
+        p.setBrush(Qt.NoBrush)
+        p.drawLine(QPointF(8, 15.3), QPointF(16, 15.3))
+    elif name == "grid":
+        for x, y in ((3, 3), (13, 3), (3, 13), (13, 13)):
+            p.drawRoundedRect(QRectF(x, y, 8, 8), 1.8, 1.8)
+    elif name == "up":
+        p.drawLine(QPointF(12, 19), QPointF(12, 5))
+        p.drawLine(QPointF(12, 5), QPointF(6.5, 10.5))
+        p.drawLine(QPointF(12, 5), QPointF(17.5, 10.5))
+    elif name == "down":
+        p.drawLine(QPointF(12, 5), QPointF(12, 19))
+        p.drawLine(QPointF(12, 19), QPointF(6.5, 13.5))
+        p.drawLine(QPointF(12, 19), QPointF(17.5, 13.5))
     else:  # unbekannt → Kreis
         p.drawEllipse(QPointF(12, 12), 8, 8)
 

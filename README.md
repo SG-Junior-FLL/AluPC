@@ -35,9 +35,28 @@ OBS-Studio-Fenster.
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
 | **Standbild** | friert das Bild auf Monitor 2 ein; du arbeitest auf Monitor 1 unbemerkt weiter |
-| **Bild-in-Bild** | kleines Fenster auf Monitor 1, das live zeigt, was auf Monitor 2 läuft (mit Hinweis „EINGEFROREN“/„SCHWARZ“) |
+| **Bild-in-Bild** | kleines Fenster auf Monitor 1, das live zeigt, was auf Monitor 2 läuft (mit Hinweis „STANDBILD“/„SCHWARZ“) |
+| **Bildschirmschoner** | Uhr, schwebender Text/Logo, Diashow, Farbverlauf oder eigene Szene – automatisch nach X Minuten ohne Maus/Tastatur oder per Klick |
 
 Außerdem:
+
+- **Startseite anpassen** (Knopf oben rechts auf der Startseite): Kacheln ein-/ausblenden und
+  sortieren, eigene Überschrift, Statuskarte an/aus und **eigene Kacheln** – z. B. „Begrüßung“
+  (zeigt eine Szene), „Pausen-Uhr“ (zeigt eine Uhr) oder „Standbild“ (führt einen Befehl aus),
+  jeweils mit eigenem Symbol, eigener Farbe und eigenem Tastenkürzel.
+
+  | Startseite | Anpassen | Eigene Kachel |
+  |---|---|---|
+  | ![Startseite](docs/start-v2.png) | ![Anpassen](docs/startseite-anpassen.png) | ![Eigene Kachel](docs/eigene-kachel.png) |
+
+- **Bildschirmschoner** (Setup → Bildschirmschoner): startet nach 1–240 Minuten ohne Maus/Tastatur
+  (unter Windows und KDE vom System gemeldet) – wahlweise nur, wenn AluPC gerade nichts zeigt, oder
+  immer. Maus bewegen beendet ihn; von Hand gestartet (Kachel/Tastenkürzel) bleibt er, bis man ihn
+  wieder ausschaltet. Sichtschutz liegt immer darüber.
+
+  | Uhr | Farbverlauf |
+  |---|---|
+  | ![Uhr](docs/bildschirmschoner-uhr.png) | ![Farbverlauf](docs/bildschirmschoner-farben.png) |
 
 - **Eigene Szenen** (Seite *Szenen*): Es gibt keine vorgefertigten Szenen. Du wählst eine
   **Layout-Vorlage** (Vollbild, 2 nebeneinander, 2 übereinander, groß + klein in einer Ecke,
@@ -58,15 +77,21 @@ Außerdem:
   | Setup | Finger anlernen | Bild-in-Bild |
   |---|---|---|
   | ![Setup](docs/setup.png) | ![Fingerabdruck](docs/fingerabdruck.png) | ![Bild-in-Bild](docs/bild-in-bild.png) |
-- **Tastenkürzel** (änderbar im Setup):
+- **Tastenkürzel** (änderbar im Setup, jedes auch löschbar):
 
   | Aktion | Standard |
   |---|---|
   | Standbild an/aus | `Strg+Alt+S` |
   | Schwarz an/aus | `Strg+Alt+B` |
   | Bild-in-Bild an/aus | `Strg+Alt+P` |
+  | Bildschirmschoner an/aus | `Strg+Alt+W` |
+  | Nächste / vorherige Szene | `Strg+Alt+Bild↓` / `Strg+Alt+Bild↑` |
   | Spiegeln | `Strg+Alt+M` |
   | Erweitern | `Strg+Alt+E` |
+  | jede Szene | frei wählbar im Szenen-Editor |
+  | jede eigene Kachel | frei wählbar unter „Startseite anpassen“ |
+
+  Doppelt vergebene Kürzel meldet AluPC.
 
 - **Symbol in der Taskleiste** mit Menü (Standbild, Schwarz, Szenen, Sperren …).
   Fenster schließen = AluPC läuft im Hintergrund weiter.
@@ -76,40 +101,48 @@ Außerdem:
 
 ## Installation
 
-### Kubuntu
+Fertige Pakete gibt es unter **[Releases](https://github.com/SG-Junior-FLL/AluPC/releases)**:
+
+| System | Datei | So geht's |
+|---|---|---|
+| **Windows 11** | `AluPC-Setup-….exe` | Doppelklick, installieren – AluPC steht im Startmenü |
+| Windows 11 | `AluPC-windows-portable-….zip` | entpacken, `AluPC.exe` starten |
+| **Kubuntu / Ubuntu 22.04, 24.04+** | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – AluPC steht im Startmenü |
+| Linux x86_64 | `AluPC-linux-x86_64-….tar.gz` | entpacken, `AluPC/AluPC` starten |
+
+Für den Fingerabdruck unter Linux zusätzlich: `sudo apt install fprintd libpam-fprintd`
+(das .deb empfiehlt die Pakete, apt installiert sie normalerweise gleich mit).
+
+**Aus dem Quellcode (Kubuntu):**
 
 ```bash
 git clone https://github.com/SG-Junior-FLL/AluPC.git
 cd AluPC
-./packaging/linux/install.sh
+./packaging/linux/install.sh      # entfernen: ./packaging/linux/uninstall.sh
 ```
 
-Das Skript installiert die nötigen Pakete (`fprintd`, `libpam-fprintd`, `wmctrl`, …), legt
-AluPC in `~/.local/share/alupc` ab und erstellt einen Eintrag im Startmenü.
-Entfernen: `./packaging/linux/uninstall.sh`.
+**Aus dem Quellcode (Windows):** Python 3.10+ installieren, dann
+`packaging\windows\start-aus-quellcode.bat` doppelklicken.
 
-### Windows 11 Pro
-
-- **Installer**: Unter *Actions* → letzter Lauf von „Tests und Windows-Installer“ →
-  Artefakt **AluPC-Windows** herunterladen → `AluPC-Setup-….exe` ausführen.
-  (Bei einem Git-Tag `v…` landet der Installer zusätzlich unter *Releases*.)
-- **Ohne Installer**: Python 3.10+ installieren, dann
-  `packaging\windows\start-aus-quellcode.bat` doppelklicken.
+Jeder Build auf GitHub wird automatisch geprüft: Tests, Start der fertigen Programmdatei,
+unter Windows zusätzlich der installierte Installer und unter Linux das installierte .deb-Paket.
 
 ## Befehle von außen
 
 Ein laufendes AluPC lässt sich von der Kommandozeile steuern:
 
 ```bash
-alupc --befehl standbild      # auch: schwarz, bild-in-bild, spiegeln, erweitern, sperren, zeigen
+alupc --befehl standbild      # auch: schwarz, bild-in-bild, bildschirmschoner, spiegeln, erweitern,
+                              #       naechste_szene, vorherige_szene, sperren, zeigen
 alupc --befehl "szene:Begrüßung"
 alupc --minimiert             # nur mit Symbol in der Taskleiste starten
 ```
 
 **Tastenkürzel überall in KDE:** Unter Windows gelten die Kürzel automatisch systemweit.
-In KDE funktionieren sie innerhalb von AluPC sofort; für systemweite Kürzel:
-*Systemeinstellungen → Tastatur → Kurzbefehle → Neu hinzufügen → Befehl* und z. B.
-`alupc --befehl standbild` eintragen.
+In KDE funktionieren sie innerhalb von AluPC sofort. Für systemweite Kürzel stehen die wichtigsten
+Aktionen nach der Installation unter *Systemeinstellungen → Tastatur → Kurzbefehle → AluPC* bereit
+(Taste zuweisen, fertig). Setup → Tastenkürzel hat dafür den Knopf „KDE-Kurzbefehle öffnen“.
+Für Szenen: *Neu hinzufügen → Befehl* mit `alupc --befehl "szene:Name"`.
 
 ## Fingerabdruck – was geht wo
 
@@ -124,10 +157,9 @@ In KDE funktionieren sie innerhalb von AluPC sofort; für systemweite Kürzel:
 
 ## Ehrliche Grenzen
 
-- **Nicht auf echter Hardware getestet.** Die Logik ist mit automatischen Tests geprüft
-  (inkl. Oberfläche mit zwei virtuellen Monitoren). Echte Monitore, Kameras, Fingerabdruck-
-  sensoren und Windows selbst konnten beim Entwickeln nicht getestet werden. Bitte Fehler
-  mit Meldungstext melden.
+- **Nicht auf echter Hardware getestet.** Die automatischen Tests laufen auf GitHub unter Linux und
+  Windows (inkl. Start der fertigen Programme und der installierten Pakete) – aber ohne echte Monitore,
+  Kameras und Fingerabdrucksensoren. Bitte Fehler mit Screenshot oder Meldungstext melden.
 - **Fingerabdruck unter Linux** geht nur mit Sensoren, die **libfprint** unterstützt.
   Viele neuere Notebook-Sensoren (z. B. manche von Goodix/Synaptics) werden nicht erkannt.
 - **Windows erlaubt Fremdprogrammen nicht**, Finger für die Windows-Anmeldung anzulernen oder
@@ -144,6 +176,12 @@ In KDE funktionieren sie innerhalb von AluPC sofort; für systemweite Kürzel:
 - **Hz/Auflösung**: Wählbar ist nur, was Monitor, Kabel und Grafikkarte melden. Skalierung
   lässt sich unter Windows/X11 nur in den Systemeinstellungen ändern.
 - Die **Sperre** schützt die Bedienung von AluPC, nicht den ganzen Computer.
+- **Bildschirmschoner – Leerlaufzeit**: Unter Windows und KDE meldet das System, wann zuletzt Maus
+  oder Tastatur benutzt wurden. Wo das nicht geht, zählt nur die Bedienung von AluPC (steht im Setup).
+- **Websites unter Kubuntu 24.04+**: Das System erlaubt der eingebauten Chromium-Engine ihre Sandbox
+  nur mit AppArmor-Profil. Das .deb bringt eins mit. Bei `install.sh` oder Start aus dem Quellcode
+  schaltet AluPC die Sandbox der Website-Anzeige deshalb aus (Websites laufen dann mit weniger
+  Schutz – nur vertrauenswürdige Seiten anzeigen).
 
 ## Entwicklung
 
@@ -163,6 +201,8 @@ alupc/
   output_window.py  Vollbild auf Monitor 2 + Standbild-/Sichtschutz-Ebene
   sources.py        Quellen: Kamera, Bildschirm, Programm, Website, Bild, Video, Text, Uhr …
   scenes.py         Layout-Vorlagen und Szenen-Logik
+  screensaver.py    Bildschirmschoner: Stile, Leerlaufzeit (Windows, KDE/GNOME, xprintidle)
+  startpage.py      Startseite: Kacheln, Reihenfolge, eigene Kacheln
   hotkeys.py, ipc.py
   platform/         Systemschicht: Linux (kscreen-doctor/xrandr, KWin/wmctrl, fprintd/PAM)
                     und Windows (Win32-Anzeige-API, Fenster, Windows Biometric Framework)

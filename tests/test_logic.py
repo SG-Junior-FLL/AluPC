@@ -171,3 +171,39 @@ def test_windows_structs_have_correct_size():
     assert ctypes.sizeof(DISPLAY_DEVICEW) == 840
     assert ctypes.sizeof(WINBIO_IDENTITY) == 76
     assert ctypes.sizeof(WINBIO_UNIT_SCHEMA) == 5 * 4 + 5 * 512 + 8
+
+
+def test_startpage_order():
+    from alupc.startpage import DEFAULT_ORDER, all_keys, custom_key, ordered_keys, section_of
+
+    cfg = {"tiles": None, "custom": [{"id": "a1", "title": "X", "section": "schnell"}]}
+    assert ordered_keys(cfg) == DEFAULT_ORDER + ["custom:a1"]
+    cfg["tiles"] = ["camera", "gibts-nicht", "mirror"]
+    keys = ordered_keys(cfg)
+    assert keys == ["camera", "mirror", "custom:a1"]  # unbekannte weg, neue eigene hinten dran
+    full = all_keys(cfg)
+    assert full[:3] == keys and set(full) == set(DEFAULT_ORDER) | {"custom:a1"}
+    assert section_of("freeze", cfg) == "schnell"
+    assert section_of(custom_key(cfg["custom"][0]), cfg) == "schnell"
+
+
+def test_scene_rename_moves_hotkey_and_tiles(tmp_path):
+    cfg = Config(tmp_path / "c.json")
+    cfg.put_scene({"name": "Alt", "layout": "vollbild", "slots": [{"type": "clock"}]})
+    cfg.data["hotkeys"]["szene:Alt"] = "Ctrl+Alt+1"
+    cfg.data["start_page"]["custom"] = [{"id": "k", "action": {"kind": "source",
+                                                               "source": {"type": "scene", "scene": "Alt"}}}]
+    cfg.put_scene({"name": "Neu", "layout": "vollbild", "slots": [{"type": "clock"}]}, old_name="Alt")
+    assert cfg["hotkeys"].get("szene:Neu") == "Ctrl+Alt+1" and "szene:Alt" not in cfg["hotkeys"]
+    assert cfg["start_page"]["custom"][0]["action"]["source"]["scene"] == "Neu"
+    cfg.delete_scene("Neu")
+    assert "szene:Neu" not in cfg["hotkeys"]
+
+
+def test_new_default_hotkeys_merge_into_old_config(tmp_path):
+    path = tmp_path / "c.json"
+    path.write_text(json.dumps({"hotkeys": {"standbild": "Ctrl+Alt+X"}}), encoding="utf-8")
+    cfg = Config(path)
+    assert cfg["hotkeys"]["standbild"] == "Ctrl+Alt+X"  # eigene Einstellung bleibt
+    assert cfg["hotkeys"]["bildschirmschoner"] == "Ctrl+Alt+W"  # neue Standardwerte kommen dazu
+    assert cfg["screensaver"]["style"] == "uhr"

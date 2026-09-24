@@ -168,7 +168,10 @@ QComboBox QAbstractItemView {{ background: {t.surface}; border: 1px solid {t.bor
 QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
     width: 18px; border: none; }}
 
-QCheckBox {{ spacing: 8px; }}
+QCheckBox, QRadioButton {{ spacing: 8px; }}
+QRadioButton::indicator {{ width: 16px; height: 16px; border-radius: 9px; border: 1px solid {t.border};
+    background: {t.surface2}; }}
+QRadioButton::indicator:checked {{ background: {t.accent}; border: 4px solid {t.surface2}; }}
 QCheckBox::indicator {{ width: 18px; height: 18px; border-radius: 5px; border: 1px solid {t.border};
     background: {t.surface2}; }}
 QCheckBox::indicator:checked {{ background: {t.accent}; border-color: {t.accent};

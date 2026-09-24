@@ -14,6 +14,9 @@ DEFAULT_HOTKEYS = {
     "bild_in_bild": "Ctrl+Alt+P",
     "spiegeln": "Ctrl+Alt+M",
     "erweitern": "Ctrl+Alt+E",
+    "bildschirmschoner": "Ctrl+Alt+W",
+    "naechste_szene": "Ctrl+Alt+PgDown",
+    "vorherige_szene": "Ctrl+Alt+PgUp",
 }
 
 HOTKEY_LABELS = {
@@ -22,6 +25,9 @@ HOTKEY_LABELS = {
     "bild_in_bild": "Bild-in-Bild an/aus",
     "spiegeln": "Spiegeln",
     "erweitern": "Erweitern",
+    "bildschirmschoner": "Bildschirmschoner an/aus",
+    "naechste_szene": "Nächste Szene",
+    "vorherige_szene": "Vorherige Szene",
 }
 
 DEFAULTS: dict = {
@@ -38,6 +44,26 @@ DEFAULTS: dict = {
     "lock": {"enabled": False, "pin_hash": "", "pin_salt": ""},
     "start_minimized": False,
     "appearance": {"mode": "system", "accent": "blau", "fade": True},
+    "screensaver": {
+        "enabled": False,
+        "minutes": 10,
+        "style": "uhr",
+        "when": "desktop",
+        "text": "",
+        "image": "",
+        "folder": "",
+        "interval": 8,
+        "scene": "",
+    },
+    # Startseite: tiles = Reihenfolge der sichtbaren Kacheln (None = Standard), custom = eigene Kacheln
+    "start_page": {
+        "title": "",
+        "subtitle": "",
+        "show_status": True,
+        "show_hint": True,
+        "tiles": None,
+        "custom": [],
+    },
 }
 
 
@@ -113,10 +139,18 @@ class Config:
             scenes.append(scene)
         if old_name and old_name != scene["name"]:
             _rename_scene_refs(scenes, old_name, scene["name"])
+            hotkeys = self.data["hotkeys"]
+            if f"szene:{old_name}" in hotkeys:
+                hotkeys[f"szene:{scene['name']}"] = hotkeys.pop(f"szene:{old_name}")
+            for tile in self.data["start_page"].get("custom", []):
+                src = (tile.get("action") or {}).get("source") or {}
+                if src.get("type") == "scene" and src.get("scene") == old_name:
+                    src["scene"] = scene["name"]
         self.save()
 
     def delete_scene(self, name: str) -> None:
         self.data["scenes"] = [s for s in self.data["scenes"] if s["name"] != name]
+        self.data["hotkeys"].pop(f"szene:{name}", None)
         self.save()
 
 
