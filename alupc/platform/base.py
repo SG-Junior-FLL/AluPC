@@ -163,6 +163,7 @@ class WindowInfo:
     id: str
     title: str
     app: str = ""
+    minimized: bool = False
 
 
 class WindowBackend:
@@ -182,6 +183,16 @@ class WindowBackend:
     def move_active_window(self, output_name: str, rect: tuple[int, int, int, int],
                            fullscreen: bool = False) -> None:
         raise NotImplementedError
+
+    # Aufnahme im Hintergrund: Ein minimiertes Fenster zeichnet sich nicht, also gibt es kein Bild.
+    # Wo möglich wird es wiederhergestellt, aber ganz nach hinten gelegt und nicht aktiviert.
+    can_restore_background = False
+
+    def is_minimized(self, title: str) -> bool:
+        return False
+
+    def restore_in_background(self, title: str) -> bool:
+        return False
 
 
 @dataclass

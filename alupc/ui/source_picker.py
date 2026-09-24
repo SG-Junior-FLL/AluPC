@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPlainTextEdit,
+    QSlider,
     QSpinBox,
     QStackedWidget,
     QVBoxLayout,
@@ -72,6 +73,33 @@ def _path_row(filter_text: str | None, folder: bool = False):
 
     btn.clicked.connect(browse)
     return row, edit
+
+
+def volume_row(init: dict):
+    """Lautstärke-Regler + „Ton aus“ für eine einzelne Quelle (Video, Website)."""
+    row = QWidget()
+    lay = QHBoxLayout(row)
+    lay.setContentsMargins(0, 0, 0, 0)
+    slider = QSlider(Qt.Horizontal)
+    slider.setRange(0, 100)
+    slider.setValue(int(init.get("volume", 100)))
+    value = QLabel()
+    value.setMinimumWidth(44)
+    muted = QCheckBox("Ton aus")
+    muted.setChecked(bool(init.get("muted", False)))
+
+    def update():
+        value.setText(f"{slider.value()} %")
+        slider.setEnabled(not muted.isChecked())
+
+    slider.valueChanged.connect(update)
+    muted.toggled.connect(update)
+    update()
+    lay.addWidget(slider, 1)
+    lay.addWidget(value)
+    lay.addWidget(muted)
+    row.slider, row.muted = slider, muted
+    return row, lambda: {"volume": slider.value(), "muted": muted.isChecked()}
 
 
 def _fit_combo(value: str = "contain") -> QComboBox:
@@ -234,11 +262,13 @@ class SourcePicker(QDialog):
         zoom.setRange(0.25, 5.0)
         zoom.setSingleStep(0.1)
         zoom.setValue(float(init.get("zoom", 1.0)))
+        vol, vol_get = volume_row(init)
         form.addRow("Adresse:", url)
         form.addRow("Automatisch neu laden:", reload_s)
         form.addRow("Zoom:", zoom)
+        form.addRow("Lautstärke:", vol)
         return page, lambda: {"url": url.text().strip(), "reload_seconds": reload_s.value(),
-                              "zoom": zoom.value()} if url.text().strip() else None
+                              "zoom": zoom.value(), **vol_get()} if url.text().strip() else None
 
     def _page_image(self, init):
         page, form = self._form()
@@ -255,14 +285,13 @@ class SourcePicker(QDialog):
         edit.setText(init.get("path", ""))
         loop = QCheckBox("Endlos wiederholen")
         loop.setChecked(bool(init.get("loop", True)))
-        muted = QCheckBox("Ton aus")
-        muted.setChecked(bool(init.get("muted", False)))
+        vol, vol_get = volume_row(init)
         fit = _fit_combo(init.get("fit", "contain"))
         form.addRow("Videodatei:", row)
         form.addRow("", loop)
-        form.addRow("", muted)
+        form.addRow("Lautstärke:", vol)
         form.addRow("Anzeige:", fit)
-        return page, lambda: {"path": edit.text(), "loop": loop.isChecked(), "muted": muted.isChecked(),
+        return page, lambda: {"path": edit.text(), "loop": loop.isChecked(), **vol_get(),
                               "fit": fit.currentData()} if edit.text() else None
 
     def _page_slideshow(self, init):

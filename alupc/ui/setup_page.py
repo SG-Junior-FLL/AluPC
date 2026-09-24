@@ -544,18 +544,59 @@ class SetupPage(QWidget):
             swatches.addWidget(b)
         swatches.addStretch(1)
         self._style_swatches(a.get("accent", "blau"))
-        fade = QCheckBox("Weich überblenden, wenn der Inhalt auf Monitor 2 wechselt")
-        fade.setChecked(bool(a.get("fade", True)))
+        from ..transitions import TRANSITIONS
+
+        tr = self.config["transition"]
+        self.transition_combo = QComboBox()
+        for key, label in TRANSITIONS.items():
+            self.transition_combo.addItem(label, key)
+        current = "schnitt" if not a.get("fade", True) else tr.get("type", "blende")
+        self.transition_combo.setCurrentIndex(max(0, self.transition_combo.findData(current)))
+        self.transition_ms = QSpinBox()
+        self.transition_ms.setRange(50, 5000)
+        self.transition_ms.setSingleStep(50)
+        self.transition_ms.setSuffix(" ms")
+        self.transition_ms.setValue(int(tr.get("ms", 400)))
+        try_btn = button("Ausprobieren", "play")
+        try_btn.setToolTip("Zeigt den Übergang einmal auf Monitor 2 (der aktuelle Inhalt bleibt)")
+        try_btn.clicked.connect(self._try_transition)
+        tr_row = QHBoxLayout()
+        tr_row.addWidget(self.transition_combo, 1)
+        tr_row.addWidget(self.transition_ms)
+        tr_row.addWidget(try_btn)
+
+        def save_transition():
+            kind = self.transition_combo.currentData()
+            self.config["transition"] = {"type": kind, "ms": self.transition_ms.value()}
+            self._save_appearance(fade=kind != "schnitt", emit=False)
+            self.transition_ms.setEnabled(kind != "schnitt")
+
+        self.transition_combo.currentIndexChanged.connect(save_transition)
+        self.transition_ms.valueChanged.connect(save_transition)
+        self.transition_ms.setEnabled(current != "schnitt")
 
         def save_mode():
             self._save_appearance(mode=mode.currentData())
 
         mode.currentIndexChanged.connect(save_mode)
-        fade.toggled.connect(lambda v: self._save_appearance(fade=v, emit=False))
         form.addRow("Design:", mode)
         form.addRow("Akzentfarbe:", swatches)
-        form.addRow("", fade)
+        form.addRow("Szenenwechsel:", tr_row)
+        hint = QLabel("Übergang, wenn auf Monitor 2 eine andere Szene oder ein anderer Inhalt erscheint. "
+                      "Jede Szene kann im Szenen-Editor einen eigenen Übergang bekommen.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        form.addRow("", hint)
         return box
+
+    def _try_transition(self):
+        """Aktuellen Inhalt mit dem eingestellten Übergang neu zeigen."""
+        c = self.controller
+        if c.mode == "content" and c.content:
+            c.show_source(c.content, remember=False, sound=False)
+        else:
+            error_box(self, "Auf Monitor 2 läuft gerade kein Inhalt von AluPC – zeige zuerst eine Szene "
+                            "oder Quelle an.")
 
     def _style_swatches(self, active: str):
         for key, b in self._swatches.items():

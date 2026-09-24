@@ -643,3 +643,156 @@ def test_website_favorites_and_browser_control(env):
     pump()
     assert bc.view is None and not bc.save_btn.isEnabled()
     bc.close()
+
+
+# ---------------------------------------------------------------- 0.5: Übergänge, Lautstärke, Programm
+def test_transitions_all_kinds_finish(env):
+    import time
+
+    from alupc.transitions import TRANSITIONS
+
+    controller, _window, _ = env
+    for kind in TRANSITIONS:
+        controller.config["transition"] = {"type": kind, "ms": 120}
+        controller.show_source({"type": "color", "color": "#ff0000"})
+        pump()
+        controller.show_source({"type": "color", "color": "#00ff00"})
+        expected = 0 if kind == "schnitt" else 1
+        assert len(controller.output._fades) == expected, kind
+        end = time.time() + 2
+        while controller.output._fades and time.time() < end:
+            pump()
+            controller.output.grab()  # Zeichnen jeder Übergangsart muss klappen
+        assert controller.output._fades == []
+
+
+def test_scene_transition_overrides_setup(env):
+    controller, _window, _ = env
+    controller.config["transition"] = {"type": "blende", "ms": 400}
+    controller.config.put_scene({"name": "S", "layout": "vollbild", "slots": [{"type": "color"}],
+                                 "transition": {"type": "zoom", "ms": 900}})
+    assert controller.transition_for({"type": "scene", "scene": "S"}) == ("zoom", 900)
+    assert controller.transition_for({"type": "color"}) == ("blende", 400)
+    controller.config["appearance"] = {**controller.config["appearance"], "fade": False}
+    assert controller.transition_for({"type": "scene", "scene": "S"})[0] == "schnitt"
+
+
+def test_media_volume_live(env, tmp_path):
+    controller, window, _ = env
+    controller.show_source({"type": "color"})
+    pump()
+    assert controller.media_state() is None
+    assert window.volume_box.isHidden()
+    controller.show_source({"type": "video", "path": str(tmp_path / "fehlt.mp4"), "volume": 40})
+    pump()
+    assert controller.media_state() == {"volume": 40, "muted": False}
+    assert abs(controller.output.content.audio.volume() - 0.4) < 0.01
+    controller.set_media_volume(volume=70)
+    controller.set_media_volume(muted=True)
+    assert controller.content["volume"] == 70 and controller.content["muted"] is True
+    assert controller.config["last_content"]["volume"] == 70
+    assert controller.output.content.audio.isMuted()
+    pump()
+    assert not window.volume_box.isHidden()
+    assert window.volume_box.mute_btn.isChecked()
+
+    # In einer Szene: gilt für alle Medien darin, auch für Websites
+    controller.config.put_scene({"name": "M", "layout": "nebeneinander", "slots": [
+        {"type": "website", "url": "about:blank", "volume": 30},
+        {"type": "video", "path": str(tmp_path / "fehlt.mp4")}]})
+    controller.show_source({"type": "scene", "scene": "M"})
+    pump()
+    from alupc.sources import media_sources
+
+    assert len(media_sources(controller.output.content)) == 2
+    controller.set_media_volume(volume=55)
+    web = media_sources(controller.output.content)[0]
+    assert web.volume == 55
+    assert controller.media_state()["volume"] == 55
+
+
+def test_capture_programs_filters_system_windows(monkeypatch):
+    from alupc.platform.base import WindowBackend, WindowInfo
+    from alupc.ui import program_dialog
+
+    class Fake:
+        def __init__(self, text):
+            self.text = text
+
+        def description(self):
+            return self.text
+
+    monkeypatch.setattr(program_dialog, "capturable_windows",
+                        lambda: [Fake("Program Manager"), Fake("Editor"), Fake("Editor"), Fake("Film")])
+
+    class Backend(WindowBackend):
+        can_list = True
+
+        def list_windows(self):
+            return [WindowInfo("1", "Editor", "notepad"), WindowInfo("2", "Film", "vlc", minimized=True)]
+
+    programs = program_dialog.capture_programs(Backend())
+    assert [(p.title, p.app, p.minimized) for p in programs] == [("Editor", "notepad", False),
+                                                                  ("Film", "vlc", True)]
+    assert "minimiert" in programs[1].label()
+    # Ohne Fensterliste des Systems: alles zeigen, was Qt aufnehmen kann
+    assert len(program_dialog.capture_programs(WindowBackend())) == 3
+
+
+def test_program_dialog_list_keeps_selection(env, monkeypatch):
+    controller, window, _ = env
+    from alupc.ui import program_dialog
+
+    progs = [program_dialog.Program("A"), program_dialog.Program("B", "app")]
+    monkeypatch.setattr(program_dialog, "capture_programs", lambda _b: list(progs))
+    dialog = program_dialog.ProgramDialog(controller, window)
+    lst = dialog.capture_list
+    assert lst.list.count() == 2
+    lst.list.setCurrentRow(1)
+    progs.insert(0, program_dialog.Program("Neu"))
+    lst.reload()
+    assert lst.selected().title == "B"
+    lst.search.setText("neu")
+    assert lst.selected() is None or lst.selected().title != "B"
+    lst.search.setText("")
+    lst.list.setCurrentRow(2)
+    dialog._do_capture()
+    assert controller.content == {"type": "window", "title": "B"}
+    dialog.deleteLater()
+
+
+def test_window_source_wakes_minimized(env, monkeypatch):
+    from alupc import sources
+    from alupc.platform.base import WindowBackend
+
+    calls = []
+
+    class Backend(WindowBackend):
+        can_restore_background = True
+
+        def is_minimized(self, title):
+            return True
+
+        def restore_in_background(self, title):
+            calls.append(title)
+            return True
+
+    monkeypatch.setattr(sources, "_window_backend", Backend())
+
+    class Win:
+        def description(self):
+            return "Film"
+
+    monkeypatch.setattr(sources, "capturable_windows", lambda: [Win()])
+    src = sources.WindowSource.__new__(sources.WindowSource)
+    sources.SinkView.__init__(src, "contain")
+    src.title = "Film"
+    src.restore_minimized = True
+    src._image = None
+    src.state = "start"
+    assert src._wake_if_minimized() is True
+    assert calls == ["Film"]
+    src.restore_minimized = False
+    assert src._wake_if_minimized() is False
+    assert src.state == "minimiert"
+    assert "minimiert" in src._message

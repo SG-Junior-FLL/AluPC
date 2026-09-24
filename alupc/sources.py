@@ -215,13 +215,41 @@ def find_window(windows, title: str):
     return next((w for w in windows if app and _app_part(w.description()) == app), None)
 
 
+# Einstellungen der Programm-Aufnahme (setzt der Controller aus der Konfiguration)
+window_settings = {"restore_minimized": True}
+_window_backend = None
+
+
+def window_backend():
+    """Plattform-Fensterfunktionen (Windows: minimierte Fenster im Hintergrund wiederherstellen)."""
+    global _window_backend
+    if _window_backend is None:
+        from .platform import create_window_backend
+
+        try:
+            _window_backend = create_window_backend()
+        except Exception:  # noqa: BLE001
+            from .platform.base import WindowBackend
+
+            _window_backend = WindowBackend()
+    return _window_backend
+
+
 class WindowSource(SinkView):
-    """Nimmt ein Programmfenster auf. Verbindet sich neu, wenn das Fenster weg ist, der Titel
-    wechselt (z. B. anderer Browser-Tab) oder eine Weile kein Bild mehr kommt."""
+    """Nimmt ein Programmfenster auf – auch wenn es hinter anderen Fenstern liegt.
+
+    * Fenster geschlossen → wartet, bis das Programm wieder offen ist, und verbindet sich neu
+      (auch wenn sich der Titel ändert, z. B. anderer Browser-Tab).
+    * Fenster minimiert → ein minimiertes Fenster zeichnet sich nicht; unter Windows wird es
+      (einstellbar) im Hintergrund wiederhergestellt, ohne sich nach vorne zu drängen.
+    * Kommen keine neuen Bilder, weil sich im Programm nichts bewegt, bleibt das letzte Bild
+      stehen – früher wurde dann alle paar Sekunden neu verbunden (Flackern).
+    """
 
     def __init__(self, cfg, parent=None):
         super().__init__(cfg.get("fit", "contain"), parent)
         self.title = cfg.get("title", "")
+        self.restore_minimized = bool(cfg.get("restore_minimized", window_settings["restore_minimized"]))
         self.session = QMediaCaptureSession(self)
         self.capture = QWindowCapture(self)
         self.capture.errorOccurred.connect(self._error)
@@ -230,24 +258,32 @@ class WindowSource(SinkView):
         self.sink.videoFrameChanged.connect(self._got_frame)
         self._last_frame = 0.0
         self._started = 0.0
-        self._retry = QTimer(self, interval=3000)
+        self._frames = 0
+        self.state = "start"
+        self._retry = QTimer(self, interval=2000)
         self._retry.timeout.connect(self._attach)
         self._watch = QTimer(self, interval=2000)
         self._watch.timeout.connect(self._check)
         self._attach()
 
-    def _got_frame(self, _frame):
-        self._last_frame = time.monotonic()
+    def _got_frame(self, frame):
+        if frame.isValid():
+            self._last_frame = time.monotonic()
+            self._frames += 1
+            self.state = "live"
 
     def _error(self, _err, text):
+        self.state = "fehler"
         if self._image is None:
             self.set_message(f"Programm-Aufnahme: {text} – versuche es erneut …")
         self.capture.stop()
+        self._watch.stop()
         self._retry.start()
 
     def _attach(self):
         match = find_window(capturable_windows(), self.title)
         if match is None:
+            self.state = "wartet"
             if self._image is None:
                 self.set_message(f"Programm „{self.title}“ ist nicht geöffnet – warte …")
             self._retry.start()
@@ -257,15 +293,44 @@ class WindowSource(SinkView):
         self.capture.stop()
         self.capture.setWindow(match)
         self._started = time.monotonic()
+        self._frames = 0
+        self._wake_if_minimized()
         self.capture.start()
         self._watch.start()
 
+    def _wake_if_minimized(self) -> bool:
+        backend = window_backend()
+        try:
+            if not backend.is_minimized(self.title):
+                return False
+            if self.restore_minimized and backend.can_restore_background:
+                return backend.restore_in_background(self.title)
+        except Exception:  # noqa: BLE001
+            return False
+        self.state = "minimiert"
+        if self._image is None:
+            self.set_message(f"„{self.title}“ ist minimiert – ein minimiertes Programm liefert kein Bild. "
+                             "Bitte wiederherstellen (es darf hinter anderen Fenstern liegen).")
+        return False
+
     def _check(self):
-        # 6 s kein neues Bild (Fenster geschlossen, minimiert oder neu erstellt) → neu verbinden
+        window = self.capture.window()
+        try:
+            gone = not window.isValid()
+        except (AttributeError, RuntimeError):
+            gone = False
+        if gone:  # Fenster geschlossen oder neu erstellt → neu suchen
+            self._watch.stop()
+            self._attach()
+            return
         now = time.monotonic()
-        if now - max(self._last_frame, self._started) > 6:
-            if self._image is None:
-                self.set_message(f"Kein Bild von „{self.title}“ – ist das Programm minimiert?")
+        quiet = now - max(self._last_frame, self._started)
+        if quiet < 4:
+            return
+        if self._wake_if_minimized():
+            return
+        if self._frames == 0 and quiet > 8:
+            # Noch nie ein Bild bekommen → Aufnahme neu starten
             self._watch.stop()
             self._attach()
 
@@ -288,6 +353,9 @@ class WebsiteSource(QWidget):
         layout.addWidget(self.view)
         url = normalize_url(cfg.get("url", ""))
         self.view.setZoomFactor(float(cfg.get("zoom", 1.0) or 1.0))
+        self.volume = int(cfg.get("volume", 100))
+        self.muted = bool(cfg.get("muted", False))
+        self._install_volume_script()
         self.view.load(QUrl(url))
         self._timer = None
         seconds = int(cfg.get("reload_seconds", 0) or 0)
@@ -296,11 +364,51 @@ class WebsiteSource(QWidget):
             self._timer.timeout.connect(self.view.reload)
             self._timer.start()
 
+    def _volume_js(self) -> str:
+        return VOLUME_JS % (max(0, min(100, self.volume)) / 100)
+
+    def _install_volume_script(self):
+        """Lautstärke für alle <video>/<audio> der Seite – auch für später geladene (z. B. YouTube)."""
+        from PySide6.QtWebEngineCore import QWebEngineScript
+
+        page = self.view.page()
+        page.setAudioMuted(self.muted)
+        scripts = page.scripts()
+        for old in scripts.find("alupc-volume"):
+            scripts.remove(old)
+        script = QWebEngineScript()
+        script.setName("alupc-volume")
+        script.setSourceCode(self._volume_js())
+        script.setInjectionPoint(QWebEngineScript.DocumentReady)
+        script.setWorldId(QWebEngineScript.MainWorld)
+        script.setRunsOnSubFrames(True)
+        scripts.insert(script)
+
+    def set_volume(self, volume: int | None = None, muted: bool | None = None) -> None:
+        if volume is not None:
+            self.volume = int(volume)
+        if muted is not None:
+            self.muted = bool(muted)
+        self._install_volume_script()
+        self.view.page().runJavaScript(self._volume_js())
+
     def stop(self):
         if self._timer:
             self._timer.stop()
         self.view.stop()
         self.view.setUrl(QUrl("about:blank"))
+
+
+# Setzt die Lautstärke aller Medien der Seite und merkt sie sich für Medien, die erst später starten
+VOLUME_JS = """(function () {
+  window.__alupcVolume = %.2f;
+  var set = function (m) { try { m.volume = window.__alupcVolume; } catch (e) {} };
+  document.querySelectorAll('video, audio').forEach(set);
+  if (!window.__alupcVolumeHook) {
+    window.__alupcVolumeHook = true;
+    document.addEventListener('play', function (e) { set(e.target); }, true);
+  }
+})();"""
 
 
 def normalize_url(url: str) -> str:
@@ -333,7 +441,7 @@ class VideoSource(SinkView):
         super().__init__(cfg.get("fit", "contain"), parent)
         self.player = QMediaPlayer(self)
         self.audio = QAudioOutput(self)
-        self.audio.setMuted(bool(cfg.get("muted", False)))
+        self.set_volume(int(cfg.get("volume", 100)), bool(cfg.get("muted", False)))
         self.player.setAudioOutput(self.audio)
         self.player.setVideoSink(self.sink)
         self.player.errorOccurred.connect(lambda _e, text: self.set_message(f"Video-Fehler: {text}"))
@@ -341,6 +449,12 @@ class VideoSource(SinkView):
             self.player.setLoops(QMediaPlayer.Infinite)
         self.player.setSource(QUrl.fromLocalFile(cfg.get("path", "")))
         self.player.play()
+
+    def set_volume(self, volume: int | None = None, muted: bool | None = None) -> None:
+        if volume is not None:
+            self.audio.setVolume(max(0, min(100, int(volume))) / 100)
+        if muted is not None:
+            self.audio.setMuted(bool(muted))
 
     def stop(self):
         self.player.stop()
@@ -604,6 +718,18 @@ class SceneSource(QWidget):
     def stop(self):
         for _rect, widget in self.children_sources:
             widget.stop()
+
+
+def media_sources(widget) -> list:
+    """Alle Quellen mit Ton (Video, Website) in einem Inhalt – auch in Szenen-Feldern."""
+    if widget is None:
+        return []
+    if isinstance(widget, SceneSource):
+        found = []
+        for _rect, child in widget.children_sources:
+            found += media_sources(child)
+        return found
+    return [widget] if hasattr(widget, "set_volume") else []
 
 
 # --------------------------------------------------------------------------- Fabrik

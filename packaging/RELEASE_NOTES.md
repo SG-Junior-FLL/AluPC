@@ -8,18 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.4.0)
-- **Töne bei Aktionen** (Setup → Töne): Standbild, Schwarz, neuer Inhalt, Szene, Bildschirmschoner,
-  Timer (Start, Pause, noch 1 Minute, Ende) … – 7 eingebaute Klänge oder eigene Dateien hochladen.
-  Lautstärke und Ausgabegerät (z. B. HDMI des Beamers) einstellbar.
-- **Eigene Kacheln**: jetzt auch mit **eigenem Bildschirmschoner** oder **Timer mit eigener Dauer**,
-  dazu ein eigener Ton pro Kachel.
-- **Website**: gespeicherte Websites (Favoriten), aktuelle Seite „Unter Website speichern“ und ein
-  eigenes Fenster **„Browser steuern“** (Adresse, Zurück/Vor, Zoom, Scrollen, Live-Vorschau, in die
-  man klicken und tippen kann).
-- **Bildschirmschoner**: neuer Stil „Nachricht“ (großer Text, kleine Uhr, Hintergrundbild), Textfarbe.
-- **Setup** in übersichtliche Bereiche aufgeteilt; neue Bereiche „Timer“ und „Töne“.
-- Behoben: Kachel-Timer sprang auf die Standarddauer; Website-Adressen mit `data:` wurden verfälscht.
+### Neu in dieser Version (0.5.0)
+- **Übergänge zwischen Szenen**: Überblenden, über Schwarz, Wegschieben, Wischen, Zoom oder harter
+  Schnitt – Dauer einstellbar (Setup → Darstellung, mit „Ausprobieren“), pro Szene überschreibbar.
+- **Ton pro Medium**: eigene Lautstärke und „Ton aus“ für jedes Video und jede Website (auch in
+  Szenen-Feldern). Live-Regler oben im Hauptfenster und „Ton auf Monitor 2“ im Taskleisten-Menü.
+- **Programm** überarbeitet: Suche, Liste aktualisiert sich selbst, Programmname und „minimiert“ werden
+  angezeigt, Windows-Systemfenster (z. B. „Program Manager“) tauchen nicht mehr auf.
+- **Aufnahme im Hintergrund**: Programm darf hinter anderen Fenstern liegen; minimierte Programme holt
+  AluPC unter Windows automatisch im Hintergrund zurück (ohne sie nach vorne zu holen).
+- Behoben: Aufnahme eines Programms, in dem sich nichts bewegt, wurde alle paar Sekunden neu gestartet
+  (Flackern/„hängt“); „Anklicken (4 Sekunden)“ schloss den Dialog zu früh.
+- Hinweis: Bei gesperrtem Computer (Win+L) zeigt kein Programm etwas auf Monitor 2 – das ist eine
+  Sperre von Windows/KDE, nicht von AluPC.
 
 ### Bekannte Grenzen
 Die automatischen Tests laufen ohne echte Monitore, Kameras und Fingerabdrucksensoren. Bitte Fehler

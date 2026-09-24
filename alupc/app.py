@@ -171,6 +171,13 @@ def self_test(log_path: str) -> int:
         window.browser_control.close()
         controller.run_command("timer_start_pause")
         controller.run_command("timer_start_pause")
+        if controller.windows.can_list:  # Fensterliste (Windows: Win32-Aufrufe) einmal wirklich ausführen
+            wins = controller.windows.list_windows()
+            controller.windows.is_minimized("AluPC-Selbsttest-gibt-es-nicht")
+            lines.append(f"Fenster: {len(wins)}")
+        controller.config["transition"] = {"type": "zoom", "ms": 100}
+        controller.show_source({"type": "text", "text": "Übergang"})
+        controller.set_media_volume(volume=50)
         app.processEvents()
         controller.shutdown()
         lines.append("OK")

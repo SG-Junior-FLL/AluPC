@@ -18,7 +18,9 @@ OBS-Studio-Fenster.
 - **Dunkel, Hell oder wie das System**, dazu 5 **Akzentfarben** (Setup → Darstellung).
 - Alle Symbole sind selbst gezeichnet – sehen unter Kubuntu und Windows gleich scharf aus
   (keine Emojis, die je nach System anders aussehen).
-- **Weiche Überblendung** auf Monitor 2, wenn der Inhalt wechselt (abschaltbar).
+- **Übergänge zwischen Szenen** auf Monitor 2: Überblenden, über Schwarz, Wegschieben, Wischen,
+  Zoom oder harter Schnitt, Dauer einstellbar (Setup → Darstellung); jede Szene kann einen eigenen
+  Übergang haben (Szenen-Editor).
 - Kurze **Hinweise** unten im Fenster statt Fehlerfenster, **Fortschrittsring** beim
   Fingerabdruck, grafische **Monitor-Anordnung** im Setup, **Szenen als Karten** mit Vorschau.
 
@@ -67,6 +69,12 @@ Außerdem:
   2 × 2, 1 groß + 2 klein, Vollbild + Textleiste) und legst in jedes Feld eine Quelle:
   Kamera, Programm, Bildschirm, Website, Bild, Video, Diashow, Text, Uhr, Countdown,
   Farbfläche oder eine andere Szene.
+- **Ton pro Medium**: Videos und Websites haben eine eigene Lautstärke und „Ton aus“ (in der
+  Quelle einstellbar). Läuft etwas mit Ton auf Monitor 2, erscheint oben im Hauptfenster ein
+  Lautstärkeregler, und im Taskleisten-Menü gibt es „Ton auf Monitor 2“.
+- **Programm aufnehmen im Hintergrund**: Das aufgenommene Programm darf hinter anderen Fenstern
+  liegen. Minimierte Programme liefern kein Bild – unter Windows holt AluPC sie (abschaltbar)
+  automatisch zurück, legt sie aber ganz nach hinten, ohne sie zu aktivieren.
 
   | Szenen | Szenen-Editor | Ergebnis auf Monitor 2 |
   |---|---|---|
@@ -203,6 +211,16 @@ Für Szenen: *Neu hinzufügen → Befehl* mit `alupc --befehl "szene:Name"`.
   „Spiegeln“ nutzt deshalb die Aufnahme durch AluPC.
 - **Hz/Auflösung**: Wählbar ist nur, was Monitor, Kabel und Grafikkarte melden. Skalierung
   lässt sich unter Windows/X11 nur in den Systemeinstellungen ändern.
+- **Gesperrter Computer (Win+L / KDE-Sperre)**: Der Sperrbildschirm des Systems liegt über
+  **allen** Monitoren; kein Programm (auch nicht AluPC) kann dann etwas auf Monitor 2 zeigen –
+  auch nicht den Bildschirmschoner. Wer Monitor 2 weiter bespielen will, sperrt nicht, sondern nutzt
+  „Schwarz“ oder den Bildschirmschoner von AluPC.
+- **Programm-Aufnahme**: Windows (Windows Graphics Capture) und X11 nehmen Fenster auch auf, wenn sie
+  verdeckt sind. Minimierte Fenster zeichnen sich nicht: Windows → automatisch im Hintergrund
+  wiederherstellen; Linux/X11 → bitte nicht minimieren. Unter Wayland geht Fensteraufnahme gar nicht.
+  Der Ton eines aufgenommenen Programms wird nicht übertragen (er kommt weiter aus dem Programm).
+- **Website-Lautstärke** wirkt auf `<video>`/`<audio>` der Seite (z. B. YouTube). Töne, die eine Seite
+  anders erzeugt (Web Audio, z. B. manche Spiele), lassen sich nur mit „Ton aus“ abschalten.
 - **Taskleiste ausblenden (Windows)** nutzt die versteckte Taskleiste auf Monitor 2
   („Shell_SecondaryTrayWnd“). Beim Beenden von AluPC wird sie wieder eingeblendet; sollte AluPC
   abstürzen, kommt sie spätestens nach einer Ab-/Anmeldung zurück.

@@ -69,6 +69,11 @@ DEFAULTS: dict = {
     "output": {"hide_taskbar": True, "freeze_badge": True},
     "start_minimized": False,
     "appearance": {"mode": "system", "accent": "blau", "fade": True},
+    # Übergang zwischen Inhalten/Szenen auf Monitor 2 (Art siehe transitions.py); Szenen können
+    # einen eigenen Übergang haben
+    "transition": {"type": "blende", "ms": 400},
+    # Programm-Aufnahme: minimierte Programme im Hintergrund wiederherstellen (nur Windows)
+    "program": {"restore_minimized": True},
     "screensaver": {
         "enabled": False,
         "minutes": 10,

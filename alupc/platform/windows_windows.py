@@ -14,13 +14,23 @@ WS_EX_TOOLWINDOW = 0x00000080
 DWMWA_CLOAKED = 14
 SW_RESTORE = 9
 SW_MAXIMIZE = 3
+SW_SHOWNOACTIVATE = 4
+SWP_NOSIZE = 0x0001
+SWP_NOMOVE = 0x0002
 SWP_NOZORDER = 0x0004
+SWP_NOACTIVATE = 0x0010
 SWP_SHOWWINDOW = 0x0040
+HWND_BOTTOM = 1
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+# Fenster der Windows-Oberfläche selbst (Desktop „Program Manager“, Taskleisten …)
+SHELL_CLASSES = {"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "Windows.UI.Core.CoreWindow",
+                 "ApplicationFrameInputSinkWindow", "Internet Explorer_Hidden"}
 
 
 class WindowsWindowBackend(WindowBackend):
     can_list = True
     can_move_active = True
+    can_restore_background = True
 
     def __init__(self):
         u = self.user32 = ctypes.windll.user32  # type: ignore[attr-defined]
@@ -39,6 +49,14 @@ class WindowsWindowBackend(WindowBackend):
         u.SetWindowPos.argtypes = [HWND, HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                                    wintypes.UINT]
         u.SetForegroundWindow.argtypes = [HWND]
+        u.IsIconic.argtypes = [HWND]
+        u.GetClassNameW.argtypes = [HWND, wintypes.LPWSTR, ctypes.c_int]
+        k = self.kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        k.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        k.OpenProcess.restype = wintypes.HANDLE
+        k.CloseHandle.argtypes = [wintypes.HANDLE]
+        k.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
+                                                 ctypes.POINTER(wintypes.DWORD)]
         try:
             self.dwm = ctypes.windll.dwmapi  # type: ignore[attr-defined]
             self.dwm.DwmGetWindowAttribute.argtypes = [HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
@@ -52,9 +70,28 @@ class WindowsWindowBackend(WindowBackend):
         self.dwm.DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, ctypes.byref(value), ctypes.sizeof(value))
         return value.value != 0
 
+    def _class_name(self, hwnd) -> str:
+        buf = ctypes.create_unicode_buffer(256)
+        self.user32.GetClassNameW(hwnd, buf, 256)
+        return buf.value
+
+    def _exe_name(self, pid: int) -> str:
+        handle = self.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            return ""
+        try:
+            size = wintypes.DWORD(1024)
+            buf = ctypes.create_unicode_buffer(size.value)
+            if not self.kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+                return ""
+            name = buf.value.replace("\\", "/").rsplit("/", 1)[-1]
+            return name[:-4] if name.lower().endswith(".exe") else name
+        finally:
+            self.kernel32.CloseHandle(handle)
+
     def list_windows(self) -> list[WindowInfo]:
         result: list[WindowInfo] = []
-        own_pid = ctypes.windll.kernel32.GetCurrentProcessId()  # type: ignore[attr-defined]
+        own_pid = self.kernel32.GetCurrentProcessId()
 
         @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         def callback(hwnd, _lparam):
@@ -69,11 +106,12 @@ class WindowsWindowBackend(WindowBackend):
                 return True
             pid = wintypes.DWORD()
             self.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-            if pid.value == own_pid:
+            if pid.value == own_pid or self._class_name(hwnd) in SHELL_CLASSES:
                 return True
             buf = ctypes.create_unicode_buffer(length + 1)
             self.user32.GetWindowTextW(hwnd, buf, length + 1)
-            result.append(WindowInfo(id=str(int(hwnd)), title=buf.value))
+            result.append(WindowInfo(id=str(int(hwnd)), title=buf.value, app=self._exe_name(pid.value),
+                                     minimized=bool(self.user32.IsIconic(hwnd))))
             return True
 
         self.user32.EnumWindows(callback, 0)
@@ -97,3 +135,23 @@ class WindowsWindowBackend(WindowBackend):
         if not hwnd:
             raise RuntimeError("Kein aktives Fenster gefunden")
         self._move(hwnd, output_name, rect, fullscreen)
+
+    def _find(self, title: str):
+        for w in self.list_windows():
+            if w.title == title:
+                return int(w.id), w
+        return None, None
+
+    def is_minimized(self, title: str) -> bool:
+        _hwnd, info = self._find(title)
+        return bool(info and info.minimized)
+
+    def restore_in_background(self, title: str) -> bool:
+        """Minimiertes Fenster wiederherstellen, ohne es zu aktivieren, und ganz nach hinten legen –
+        dann zeichnet Windows es wieder und die Aufnahme bekommt Bilder."""
+        hwnd, info = self._find(title)
+        if not hwnd or not info.minimized:
+            return False
+        self.user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
+        self.user32.SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+        return True

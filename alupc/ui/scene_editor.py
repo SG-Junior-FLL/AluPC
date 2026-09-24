@@ -7,6 +7,8 @@ import copy
 from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
+    QComboBox,
+    QSpinBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -103,6 +105,24 @@ class SceneEditor(QDialog):
             config["hotkeys"].get(f"szene:{self.original_name}", "") if self.original_name else "",
             "Tastenkürzel für diese Szene")
         form.addRow("Tastenkürzel:", self.hotkey_edit)
+        from ..transitions import TRANSITIONS
+
+        tr = self.scene.get("transition") or {}
+        self.transition_combo = QComboBox()
+        self.transition_combo.addItem("Standard (wie im Setup eingestellt)", "")
+        for key, label in TRANSITIONS.items():
+            self.transition_combo.addItem(label, key)
+        self.transition_combo.setCurrentIndex(max(0, self.transition_combo.findData(tr.get("type", ""))))
+        self.transition_ms = QSpinBox()
+        self.transition_ms.setRange(0, 5000)
+        self.transition_ms.setSingleStep(50)
+        self.transition_ms.setSuffix(" ms")
+        self.transition_ms.setSpecialValueText("Standard-Dauer")
+        self.transition_ms.setValue(int(tr.get("ms", 0) or 0))
+        tr_row = QHBoxLayout()
+        tr_row.addWidget(self.transition_combo, 1)
+        tr_row.addWidget(self.transition_ms)
+        form.addRow("Übergang zu dieser Szene:", tr_row)
 
         buttons = QDialogButtonBox()
         buttons.addButton(button("Speichern", "check", primary=True), QDialogButtonBox.AcceptRole)
@@ -202,6 +222,11 @@ class SceneEditor(QDialog):
             return
         self.scene["name"] = name
         self.scene["background"] = self.bg_button.color()
+        kind, ms = self.transition_combo.currentData(), self.transition_ms.value()
+        if kind or ms:
+            self.scene["transition"] = {"type": kind, "ms": ms}
+        else:
+            self.scene.pop("transition", None)
         self.config.put_scene(self.scene, self.original_name)
         seq = self.hotkey_edit.sequence()
         hotkeys = dict(self.config["hotkeys"])

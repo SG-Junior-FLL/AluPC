@@ -39,6 +39,7 @@ from . import icons, theme
 from .fingerprint_page import FingerprintPage
 from .icons import app_icon
 from .program_dialog import ProgramDialog
+from .volume_box import VolumeBox
 from .scene_editor import SceneEditor
 from .setup_page import SetupPage
 from .source_picker import IMAGE_FILTER, VIDEO_FILTER
@@ -328,6 +329,8 @@ class MainWindow(QMainWindow):
         top.addWidget(customize, 0, Qt.AlignTop)
         lay.addLayout(top)
         self.status_card = StatusCard()
+        self.volume_box = VolumeBox(self.controller)
+        self.status_card.layout().addWidget(self.volume_box)
         lay.addWidget(self.status_card)
 
         c = self.controller
@@ -344,7 +347,7 @@ class MainWindow(QMainWindow):
         self.t_mirror.clicked.connect(c.mirror)
         self.t_extend.clicked.connect(c.extend)
         self.t_camera.clicked.connect(self._camera_clicked)
-        self.t_program.clicked.connect(lambda: ProgramDialog(c, self).exec())
+        self.t_program.clicked.connect(self.open_program_dialog)
         self.t_web.activated.connect(self.pick_website)
         self.website_menu = QMenu(self)
         self.website_menu.aboutToShow.connect(lambda: self._fill_website_menu(self.website_menu))
@@ -502,6 +505,11 @@ class MainWindow(QMainWindow):
                            lambda n=name: self.controller.show_source({"type": "scene", "scene": n}))
         menu.addSeparator()
         menu.addAction(icons.icon("plus", theme.current().text, 18), "Neue Szene …", self.new_scene)
+
+    def open_program_dialog(self):
+        dialog = ProgramDialog(self.controller, self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)  # nicht bei jedem Öffnen ein Fenster übrig lassen
+        dialog.exec()
 
     def pick_website(self):
         dlg = WebsiteDialog(self.config, self)
@@ -801,6 +809,17 @@ class MainWindow(QMainWindow):
             menu.addAction(act)
         self.tray_timer = menu.addMenu(ic("timer"), "Timer")
         self._fill_timer_menu(self.tray_timer)
+        self.tray_volume = menu.addMenu(ic("sound"), "Ton auf Monitor 2")
+        self.a_mute = QAction(ic("mute"), "Ton aus", menu, checkable=True)
+        self.a_mute.triggered.connect(lambda on: c.set_media_volume(muted=on))
+        self.tray_volume.addAction(self.a_mute)
+        self.tray_volume.addSeparator()
+        self.a_levels = []
+        for level in (100, 75, 50, 25, 10):
+            act = QAction(f"{level} %", menu, checkable=True)
+            act.triggered.connect(lambda _=False, v=level: c.set_media_volume(volume=v, muted=False))
+            self.tray_volume.addAction(act)
+            self.a_levels.append((level, act))
         menu.addSeparator()
         menu.addAction(ic("mirror"), "Spiegeln", c.mirror)
         menu.addAction(ic("extend"), "Erweitern", c.extend)
@@ -884,6 +903,17 @@ class MainWindow(QMainWindow):
         self.activateWindow()
 
     # ================================================================ Status
+    def _sync_tray_volume(self):
+        if not hasattr(self, "tray_volume"):
+            return
+        state = self.controller.media_state()
+        self.tray_volume.menuAction().setVisible(state is not None)
+        if state is None:
+            return
+        self.a_mute.setChecked(state["muted"])
+        for level, act in self.a_levels:
+            act.setChecked(not state["muted"] and state["volume"] == level)
+
     def refresh(self):
         c = self.controller
         t = theme.current()
@@ -916,6 +946,8 @@ class MainWindow(QMainWindow):
         if pip_on:
             pills.append(("BILD-IN-BILD", PIP_COLOR))
         self.status_card.set(icon_name, where, c.describe(), pills)
+        self.volume_box.sync()
+        self._sync_tray_volume()
         self.side_monitor.setText(("● " if out else "○ ") + (out.name() if out else "Kein Monitor 2"))
 
         self.t_mirror.set_state(is_mirror, badge="AKTIV" if is_mirror else "")

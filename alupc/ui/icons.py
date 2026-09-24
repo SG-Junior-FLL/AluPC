@@ -295,6 +295,17 @@ def _draw(name: str, p: QPainter, color: QColor):
         p.drawPath(path)
         p.drawArc(QRectF(10, 8, 7, 8), -60 * 16, 120 * 16)
         p.drawArc(QRectF(9, 4.5, 12, 15), -60 * 16, 120 * 16)
+    elif name == "mute":
+        path = QPainterPath(QPointF(3.5, 9.5))
+        path.lineTo(7.5, 9.5)
+        path.lineTo(12, 5)
+        path.lineTo(12, 19)
+        path.lineTo(7.5, 14.5)
+        path.lineTo(3.5, 14.5)
+        path.closeSubpath()
+        p.drawPath(path)
+        p.drawLine(QPointF(15.5, 9.5), QPointF(20.5, 14.5))
+        p.drawLine(QPointF(20.5, 9.5), QPointF(15.5, 14.5))
     elif name == "back":
         p.drawLine(QPointF(19, 12), QPointF(5, 12))
         p.drawLine(QPointF(5, 12), QPointF(10.5, 6.5))

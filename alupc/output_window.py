@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEasingCurve, QObject, QPropertyAnimation, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QImage, QPixmap
 from PySide6.QtMultimedia import QMediaCaptureSession, QScreenCapture, QVideoSink
-from PySide6.QtWidgets import QGraphicsOpacityEffect, QWidget
+from PySide6.QtWidgets import QWidget
 
 from .platform.linux_display import is_wayland
 from .sources import FrameView, TextSource, load_image
@@ -104,9 +104,11 @@ class OutputWindow(QWidget):
         self.watchdog.start()
 
     # ------------------------------------------------------------ Inhalt
-    def set_content(self, widget: QWidget | None) -> None:
-        if self.fade_enabled and self.isVisible() and self.content is not None and widget is not None:
-            self._crossfade(self.content.grab())
+    def set_content(self, widget: QWidget | None, transition: tuple[str, int] | None = None) -> None:
+        """Neuen Inhalt zeigen. `transition` = (Art, Millisekunden), siehe transitions.py."""
+        kind, ms = transition or (("blende", 350) if self.fade_enabled else ("schnitt", 0))
+        if kind != "schnitt" and self.isVisible() and self.content is not None and widget is not None:
+            self._transition(self.content.grab(), kind, ms)
         if self.content is not None:
             try:
                 self.content.stop()
@@ -123,29 +125,33 @@ class OutputWindow(QWidget):
             widget.lower()
         self.update_visibility()
 
-    def _crossfade(self, old: QPixmap) -> None:
-        """Altes Bild kurz über das neue legen und ausblenden (weicher Wechsel)."""
+    def _transition(self, old: QPixmap, kind: str, ms: int) -> None:
+        """Altes Bild über das neue legen und je nach Art wegnehmen (weicher Wechsel)."""
+        from .transitions import TransitionLayer
+
         if old.isNull():
             return
-        layer = FrameView("stretch", self)
-        layer.set_image(old)
+        for layer in list(self._fades):  # laufenden Übergang sofort beenden
+            layer.anim.stop()
+            layer.hide()
+            layer.deleteLater()
+        self._fades.clear()
+        layer = TransitionLayer(old, kind, self)
         layer.setGeometry(self.rect())
-        effect = QGraphicsOpacityEffect(layer)
-        layer.setGraphicsEffect(effect)
         layer.show()
         layer.raise_()
         for top in (self.freeze_layer, self.screensaver, self.privacy_layer):
             if top is not None and top.isVisible():
                 top.raise_()
-        anim = QPropertyAnimation(effect, b"opacity", layer)
-        anim.setDuration(350)
-        anim.setStartValue(1.0)
-        anim.setEndValue(0.0)
-        anim.setEasingCurve(QEasingCurve.InOutQuad)
-        anim.finished.connect(layer.deleteLater)
-        anim.finished.connect(lambda: self._fades.remove(layer) if layer in self._fades else None)
+
+        def finished():
+            if layer in self._fades:
+                self._fades.remove(layer)
+            layer.deleteLater()
+
+        layer.anim.finished.connect(finished)
         self._fades.append(layer)
-        anim.start()
+        layer.start(ms)
 
     def snapshot(self) -> QPixmap:
         if self.content is not None:

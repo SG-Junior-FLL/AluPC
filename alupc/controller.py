@@ -9,7 +9,7 @@ from .config import Config
 from .output_window import OutputWindow, ScreenGrabber, screen_by_name
 from .platform import create_display_backend, create_fingerprint_backend, create_window_backend
 from .scenes import describe_source
-from .sources import create_source
+from .sources import create_source, media_sources, window_settings
 
 
 class Controller(QObject):
@@ -22,6 +22,7 @@ class Controller(QObject):
         self.display = create_display_backend()
         self.windows = create_window_backend()
         self.fingerprint = create_fingerprint_backend()
+        self._scene_volume: dict | None = None
         self.output = OutputWindow()
         self.grabber = ScreenGrabber(self)
         self.grabber.done.connect(self._frozen_grab_done)
@@ -129,15 +130,51 @@ class Controller(QObject):
         self.ensure_extended()
         self._unfreeze()
         self.screensaver.stop()
-        self.output.fade_enabled = bool(self.config["appearance"].get("fade", True))
         self.mode = "content"
         self.content = cfg
-        self.output.set_content(create_source(cfg, self.config.get_scene))
+        self._scene_volume = None
+        window_settings["restore_minimized"] = bool(self.config["program"].get("restore_minimized", True))
+        self.output.set_content(create_source(cfg, self.config.get_scene), self.transition_for(cfg))
         if remember:
             self.config["last_content"] = cfg
         if sound and remember:
             self.sounds.play_event("szene" if cfg.get("type") == "scene" else "inhalt")
         self.changed.emit()
+
+    # ------------------------------------------------------------ Ton der Medien auf Monitor 2
+    def media_state(self) -> dict | None:
+        """Lautstärke des aktuellen Inhalts (Video/Website, auch in Szenen) – None, wenn ohne Ton."""
+        if self.mode != "content" or not media_sources(self.output.content):
+            return None
+        cfg = self.content or {}
+        if cfg.get("type") == "scene":
+            cfg = self._scene_volume or {}
+        return {"volume": int(cfg.get("volume", 100)), "muted": bool(cfg.get("muted", False))}
+
+    def set_media_volume(self, volume: int | None = None, muted: bool | None = None) -> None:
+        """Lautstärke live ändern. Bei einer einzelnen Quelle wird sie in deren Einstellung gemerkt;
+        in Szenen gilt sie für alle Videos/Websites bis zum nächsten Wechsel."""
+        sources = media_sources(self.output.content)
+        if not sources:
+            return
+        for src in sources:
+            src.set_volume(volume, muted)
+        changes = {k: v for k, v in (("volume", volume), ("muted", muted)) if v is not None}
+        if self.content and self.content.get("type") in ("video", "website"):
+            self.content = {**self.content, **changes}
+            self.config["last_content"] = self.content
+        else:
+            self._scene_volume = {**(self._scene_volume or {}), **changes}
+        self.changed.emit()
+
+    def transition_for(self, cfg: dict | None) -> tuple[str, int]:
+        """Übergang zum neuen Inhalt: Einstellung im Setup, eine Szene kann sie überschreiben."""
+        from .transitions import resolve
+
+        if not self.config["appearance"].get("fade", True):
+            return "schnitt", 0
+        scene = self.config.get_scene(cfg.get("scene")) if cfg and cfg.get("type") == "scene" else None
+        return resolve(self.config["transition"], (scene or {}).get("transition"))
 
     def mirror(self) -> None:
         main = self.main_screen()
