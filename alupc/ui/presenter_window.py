@@ -10,7 +10,6 @@ from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QKeySequence, QPainter, QPainterPath, QPen, QShortcut
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -119,6 +118,8 @@ class PresenterCanvas(QWidget):
         self.update()
 
     def mouseReleaseEvent(self, _e):
+        if self._drawing and self.win.tool in ("pen", "marker"):
+            self.win.controller.laser.end_stroke()
         self._drawing = False
 
     def leaveEvent(self, _e):
@@ -154,7 +155,7 @@ class PresenterCanvas(QWidget):
             pt = QPointF(a.x() + laser.point.x() / laser.width() * a.width(),
                          a.y() + laser.point.y() / laser.height() * a.height())
             r = max(4.0, laser.radius() * a.height() / max(1, laser.height()))
-            paint_dot(p, pt, r, QColor(c.config["laser"].get("color", "#ff2a2a")))
+            paint_dot(p, pt, r, QColor(self.win.color))
         if self.eraser_pos is not None:
             p.setRenderHint(QPainter.Antialiasing)
             p.setPen(QPen(QColor(t.text), 1.5, Qt.DashLine))
@@ -280,18 +281,12 @@ class PresenterWindow(QWidget):
         bar.addWidget(actions_box)
 
         self.canvas = PresenterCanvas(self)
-        self.clear_on_change = QCheckBox("Löschen bei neuem Inhalt")
-        self.clear_on_change.setToolTip("Zeichnungen verschwinden, wenn auf Monitor 2 etwas anderes angezeigt wird")
-        self.clear_on_change.setChecked(bool(controller.config["draw"].get("clear_on_change", True)))
-        self.clear_on_change.toggled.connect(self._save)
-        self.clear_on_close = QCheckBox("Löschen beim Schließen")
-        self.clear_on_close.setChecked(bool(controller.config["draw"].get("clear_on_close", True)))
-        self.clear_on_close.toggled.connect(self._save)
         hint = QLabel("L S M R: Werkzeug · Strg+Z: zurück · Entf: alles weg")
         hint.setObjectName("Muted")
         low = QHBoxLayout()
-        low.addWidget(self.clear_on_change)
-        low.addWidget(self.clear_on_close)
+        keep = QLabel("Zeichnungen bleiben stehen, bis du sie löschst oder die Szene wechselt.")
+        keep.setObjectName("Muted")
+        low.addWidget(keep)
         low.addStretch(1)
         low.addWidget(hint)
 
@@ -406,11 +401,10 @@ class PresenterWindow(QWidget):
         return self.width_slider.value() / 1000  # relativ zur Höhe von Monitor 2
 
     def _save(self, *_):
-        if not hasattr(self, "clear_on_close"):
+        if not hasattr(self, "fps_combo"):
             return
-        self.controller.config["draw"] = {
+        self.controller.config["draw"] = {**self.controller.config["draw"],  # gespeicherte Zeichnungen behalten
             "tool": self.tool, "color": self.color, "width": self.width_slider.value(),
-            "clear_on_change": self.clear_on_change.isChecked(), "clear_on_close": self.clear_on_close.isChecked(),
             "fps": self.fps()}
 
     # ------------------------------------------------------------ Vorschau
@@ -427,8 +421,6 @@ class PresenterWindow(QWidget):
         self._measure.stop()
         self._stop_live()
         self.controller.laser.remote_point(None)
-        if self.clear_on_close.isChecked():
-            self.controller.laser.clear_strokes()
         self.controller.laser.set_remote(False)
         super().hideEvent(e)
 

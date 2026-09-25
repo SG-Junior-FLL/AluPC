@@ -295,12 +295,12 @@ def test_new_builtin_tiles_appear_after_update():
     from alupc.startpage import ordered_keys
 
     old_saved = {"tiles": ["timer", "mirror"], "custom": []}  # Einstellungen von vor dem Update
-    assert ordered_keys(old_saved) == ["timer", "mirror", "laser", "draw"]
+    assert ordered_keys(old_saved) == ["timer", "mirror", "draw"]
     from alupc.startpage import DEFAULT_ORDER
 
     hidden_on_purpose = {"tiles": ["timer", "mirror"], "custom": [], "seen": list(DEFAULT_ORDER)}
     assert ordered_keys(hidden_on_purpose) == ["timer", "mirror"]
-    assert "laser" in ordered_keys({"tiles": None})
+    assert "draw" in ordered_keys({"tiles": None})
 
 
 def test_barrier_lines():
@@ -310,12 +310,12 @@ def test_barrier_lines():
         (1920, 0, 1920, 720), (3200, 0, 3200, 720), (1920, 0, 3200, 0), (1920, 720, 3200, 720)]
 
 
-def test_laser_hotkey_and_command_exist():
+def test_draw_hotkey_and_no_separate_laser():
     from alupc.config import DEFAULT_HOTKEYS, HOTKEY_LABELS
-    from alupc.startpage import COMMANDS
+    from alupc.startpage import BUILTIN_TILES, COMMANDS
 
-    assert DEFAULT_HOTKEYS["laserpointer"] == "Ctrl+Alt+Z"
-    assert "laserpointer" in HOTKEY_LABELS and "laserpointer" in COMMANDS
+    assert "laserpointer" not in DEFAULT_HOTKEYS and "laser" not in BUILTIN_TILES  # Laser nur in „Zeigen & Zeichnen“
+    assert DEFAULT_HOTKEYS["zeichnen"] == "Ctrl+Alt+K" and "zeichnen" in HOTKEY_LABELS and "zeichnen" in COMMANDS
     values = [v for v in DEFAULT_HOTKEYS.values() if v]
     assert len(values) == len(set(values))  # keine doppelten Standard-Kürzel
 
@@ -349,3 +349,62 @@ def test_cheap_usb_sensors_are_named():
         found = detect_usb_sensors(Path(tmp))
     assert len(found) == 1 and "Chipsailing" in found[0][0] and "2541:0236" in found[0][0]
     assert "nicht unterstützt" in found[0][1] and "Windows" in found[0][1]
+
+
+# ---------------------------------------------------------------- 0.10: Mediathek
+def test_media_library(tmp_path):
+    from alupc import media_library as lib
+
+    cfg = Config(tmp_path / "c.json")
+    a = {"type": "image", "path": str(tmp_path / "a.png")}
+    v = {"type": "video", "path": str(tmp_path / "Urlaub.mp4"), "loop": True, "volume": 40}
+    lib.remember(cfg, a)
+    lib.remember(cfg, v)
+    assert [i["title"] for i in lib.recent(cfg)] == ["Urlaub", "a"]  # neuestes zuerst, Titel = Dateiname
+    lib.remember(cfg, a)  # erneut gezeigt → nach oben, nicht doppelt
+    assert [i["title"] for i in lib.recent(cfg)] == ["a", "Urlaub"]
+    lib.save(cfg, v, "Sommerfilm")
+    assert lib.saved(cfg)[0]["title"] == "Sommerfilm" and lib.saved(cfg)[0]["volume"] == 40
+    assert [i["title"] for i in lib.recent(cfg)] == ["a"]  # gespeichert → nicht mehr unter „Zuletzt“
+    assert lib.is_saved(cfg, {"type": "video", "path": v["path"]})
+    lib.save(cfg, {**v, "volume": 80})  # erneut speichern = aktualisieren, kein Duplikat
+    assert len(lib.saved(cfg)) == 1 and lib.saved(cfg)[0]["volume"] == 80
+    lib.rename(cfg, v, "Film")
+    assert lib.saved(cfg)[0]["title"] == "Film"
+    for i in range(20):
+        lib.remember(cfg, {"type": "image", "path": str(tmp_path / f"{i}.png")})
+    assert len(cfg["media"]["recent"]) == lib.RECENT_MAX
+    lib.remove(cfg, v)
+    assert lib.saved(cfg) == []
+    assert lib.file_type("x.JPG") == "image" and lib.file_type("x.mkv") == "video" and lib.file_type("x.txt") is None
+    lib.remember(cfg, {"type": "text", "text": "hallo"})  # keine Medien → nicht merken
+    assert all(i["type"] == "image" for i in lib.recent(cfg))
+    assert not lib.exists({"type": "image", "path": str(tmp_path / "fehlt.png")})
+
+
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="nur Windows")
+def test_windows_mouse_block_hook():
+    from alupc.platform.cursor_native import MouseBlock
+
+    block = MouseBlock()
+    assert block.install((10000, 0, 1920, 1080), (0, 0, 1920, 1080))  # Hook lässt sich einhängen
+    assert block.install((10000, 0, 1920, 1080), (0, 0, 1920, 1080))  # und erneut (Auffrischen)
+    block.uninstall()
+    assert block.hook is None and block.block is None
+
+
+def test_tray_path_matching():
+    from alupc.platform.windows_tray import _matches
+
+    exe = r"C:\Program Files\AluPC\AluPC.exe"
+    assert _matches(r"{6D809377-6AF0-444B-8957-A3773F02200E}\AluPC\AluPC.exe", exe)  # Ordner-GUID statt Pfad
+    assert _matches(r"C:\PROGRAM FILES\ALUPC\ALUPC.EXE", exe)
+    assert not _matches(r"C:\Python312\python.exe", exe)
+    assert not _matches("", exe)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="nur Windows")
+def test_tray_promote_runs():
+    from alupc.platform.windows_tray import promote
+
+    assert promote(r"C:\gibt\es\nicht\AluPC.exe") is False  # kein Eintrag → nichts ändern, kein Absturz

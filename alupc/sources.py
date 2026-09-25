@@ -554,6 +554,7 @@ class VideoSource(SinkView):
         self.player.errorOccurred.connect(lambda _e, text: self.set_message(f"Video-Fehler: {text}"))
         if cfg.get("loop", True):
             self.player.setLoops(QMediaPlayer.Infinite)
+        self.title = Path(cfg.get("path", "")).stem or "Video"
         self.player.setSource(QUrl.fromLocalFile(cfg.get("path", "")))
         self.player.play()
 
@@ -562,6 +563,29 @@ class VideoSource(SinkView):
             self.audio.setVolume(max(0, min(100, int(volume))) / 100)
         if muted is not None:
             self.audio.setMuted(bool(muted))
+
+    # ---- Steuerung (Mediensteuerung im Hauptfenster)
+    def playing(self) -> bool:
+        return self.player.playbackState() == QMediaPlayer.PlayingState
+
+    def toggle_play(self) -> None:
+        if self.playing():
+            self.player.pause()
+        else:
+            self.player.play()
+
+    def duration(self) -> int:
+        return max(0, int(self.player.duration()))
+
+    def position(self) -> int:
+        return max(0, int(self.player.position()))
+
+    def seek_to(self, ms: int) -> None:
+        d = self.duration()
+        self.player.setPosition(max(0, min(int(ms), d - 1 if d else int(ms))))
+
+    def skip(self, ms: int) -> None:
+        self.seek_to(self.position() + ms)
 
     def stop(self):
         self.player.stop()
@@ -844,6 +868,11 @@ class SceneSource(QWidget):
     def stop(self):
         for _rect, widget in self.children_sources:
             widget.stop()
+
+
+def video_sources(widget) -> list:
+    """Alle Videos in einem Inhalt – auch in Feldern eigener Szenen."""
+    return [w for w in media_sources(widget) if isinstance(w, VideoSource)]
 
 
 def media_sources(widget) -> list:

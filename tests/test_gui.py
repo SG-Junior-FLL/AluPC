@@ -1049,62 +1049,6 @@ def test_cursor_stays_home_except_extend(env):
     controller.apply_output_settings()
 
 
-def test_laser_pointer(env):
-    import time
-
-    from PySide6.QtCore import QPoint
-
-    controller, window, _ = env
-    controller.show_source({"type": "color", "color": "#000000"})
-    pump()
-    controller.run_command("laserpointer")
-    pump()
-    laser = controller.laser
-    assert laser.active and laser.isVisible()
-    assert laser.geometry() == controller.output_screen().geometry()
-    window.refresh()
-    assert window.a_laser.isChecked()
-    main, out = controller.main_screen().geometry(), controller.output_screen().geometry()
-    # Maus in der Mitte von Monitor 1 → Punkt in der Mitte von Monitor 2
-    target = laser.target_for(main.center())
-    assert abs(target.x() - out.width() / 2) < 2 and abs(target.y() - out.height() / 2) < 2
-    # Maus direkt auf Monitor 2 („Erweitern“) → Punkt genau dort
-    assert laser.target_for(out.topLeft() + QPoint(10, 20)).toPoint() == QPoint(10, 20)
-    from alupc.cursor import tracker
-
-    tracker()._set(main.topLeft() + QPoint(main.width() // 4, main.height() // 4))
-    laser._moved(tracker().pos)
-    assert laser.point is not None and laser.trail
-    img = laser.grab().toImage()
-    p = laser.point.toPoint()
-    assert img.pixelColor(p).red() > 200
-    end = time.time() + 1
-    while laser.trail and time.time() < end:
-        pump()
-    assert not laser.trail  # Leuchtspur verblasst
-    from alupc.sources import screen_settings
-
-    assert screen_settings["cursor"] is False  # Laser an → kein zusätzlicher Mauszeiger im Spiegelbild
-    controller.run_command("laserpointer")
-    assert not laser.active and not laser.isVisible()
-    assert screen_settings["cursor"] is True
-
-
-def test_laser_follows_mirrored_image_area(env):
-    controller, _window, _ = env
-    controller.mirror()
-    pump()
-    src = controller.output.content
-    img = QImage(400, 400, QImage.Format_RGB32)  # quadratisch → links/rechts schwarze Ränder
-    img.fill(QColor("#ffffff"))
-    src._pending = None
-    src._image = img
-    controller.run_command("laserpointer")
-    laser = controller.laser
-    main, out = controller.main_screen().geometry(), controller.output_screen().geometry()
-    left = laser.target_for(main.topLeft())
-    assert abs(left.x() - (out.width() - out.height()) / 2) < 2  # linker Rand des Bildes, nicht des Monitors
-    controller.run_command("laserpointer")
 
 
 # ---------------------------------------------------------------- 0.8: Zeigen & Zeichnen
@@ -1187,28 +1131,53 @@ def test_presenter_laser_and_drawing(env):
     img = laser.grab().toImage()
     assert img.pixelColor(QPointF(out.width() * 0.55, out.height() * 0.5).toPoint()).red() < 50
     controller.toggle_privacy()
-    # Schließen → Zeichnungen weg, Overlay aus
+    # Schließen → Zeichnung bleibt (erst Szenenwechsel/Löschen entfernt sie)
     win.close()
     pump()
-    assert laser.strokes == [] and not laser.remote and not laser.isVisible()
+    assert laser.strokes and not laser.remote and laser.isVisible()
+    controller.laser.clear_strokes()
+    assert not laser.isVisible()
     assert controller.config["draw"]["tool"] == "eraser"  # zuletzt gewähltes Werkzeug gemerkt
 
 
-def test_drawings_can_stay_when_wanted(env):
+def test_drawings_stay_until_deleted_or_scene_change(env, tmp_path):
     from PySide6.QtCore import QPointF
 
+    from alupc.config import Config
+    from alupc.controller import Controller
+
     controller, window, _ = env
+    controller.show_source({"type": "color", "color": "#123456"})
     window.open_presenter()
-    win = window.presenter
-    win.clear_on_change.setChecked(False)
-    win.clear_on_close.setChecked(False)
-    controller.laser.begin_stroke("pen", "#ff0000", 0.004, QPointF(0.5, 0.5))
-    controller.show_source({"type": "color"})
-    win.close()
+    controller.laser.begin_stroke("pen", "#ff0000", 0.004, QPointF(0.2, 0.2))
+    controller.laser.extend_stroke(QPointF(0.6, 0.6))
+    controller.laser.end_stroke()
+    window.presenter.close()
     pump()
-    assert len(controller.laser.strokes) == 1 and controller.laser.isVisible()  # bleibt auf Monitor 2
+    # Fenster zu → Zeichnung bleibt auf Monitor 2 und ist gespeichert
+    assert len(controller.laser.strokes) == 1 and controller.laser.isVisible()
+    assert len(controller.config["draw"]["strokes"]) == 1
+    # Neustart von AluPC (gleicher Inhalt) → Zeichnung ist wieder da
+    controller.config.save()
+    again = Controller(Config(controller.config.path))
+    again.display.available = lambda: False
+    again.restore_last()
+    assert len(again.laser.strokes) == 1 and again.laser.strokes[0]["points"][0] == (0.2, 0.2)
+    again.shutdown()
+    # Szenenwechsel → weg (auch aus dem Speicher)
+    controller.show_source({"type": "color", "color": "#654321"})
+    assert controller.laser.strokes == [] and controller.config["draw"]["strokes"] == []
+    # von Hand löschen
+    controller.laser.begin_stroke("pen", "#ff0000", 0.004, QPointF(0.5, 0.5))
+    controller.laser.end_stroke()
     controller.run_command("zeichnungen_loeschen")
-    assert controller.laser.strokes == [] and not controller.laser.isVisible()
+    assert controller.laser.strokes == [] and controller.config["draw"]["strokes"] == []
+    # „laserpointer“ (alter Befehl/Tastenkürzel) öffnet jetzt Zeigen & Zeichnen
+    window.presenter.close()
+    controller.run_command("laserpointer")
+    pump()
+    assert window.presenter.isVisible()
+    window.presenter.close()
 
 
 def test_preview_frame_rate_selectable(env):
@@ -1306,3 +1275,187 @@ def test_serial_module_page_and_wizard(env, monkeypatch):
         wiz.deleteLater()
     finally:
         fake.close()
+
+
+# ---------------------------------------------------------------- 0.10: Mediathek
+def test_media_library_dialog(env, tmp_path):
+    import time
+
+    from alupc import media_library as lib
+    from alupc.ui.media_library import MediaLibraryDialog
+
+    controller, window, _ = env
+    paths = []
+    for name, color in (("rot", "#ff0000"), ("blau", "#0000ff")):
+        img = QImage(800, 450, QImage.Format_RGB32)
+        img.fill(QColor(color))
+        path = tmp_path / f"{name}.png"
+        img.save(str(path))
+        paths.append(str(path))
+    lib.save(controller.config, {"type": "image", "path": paths[0]}, "Rotes Bild")
+    lib.save(controller.config, {"type": "video", "path": str(tmp_path / "fehlt.mp4")})
+    controller.show_source({"type": "image", "path": paths[1]})  # → automatisch unter „Zuletzt“
+    pump()
+    dialog = MediaLibraryDialog(controller, window)
+    assert dialog.grid.count() == 3
+    titles = [dialog.grid.item(i).text() for i in range(3)]
+    assert titles == ["fehlt", "Rotes Bild", "blau"]
+    # Filter und Suche
+    dialog._set_filter("video")
+    assert dialog.grid.count() == 1
+    dialog._set_filter("all")
+    dialog.search.setText("rot")
+    assert dialog.grid.count() == 1
+    dialog.search.setText("")
+    # Vorschaubild wird im Hintergrund erzeugt und zwischengespeichert
+    end = time.time() + 5
+    while f"image:{paths[0]}" not in dialog.thumbs.memory and time.time() < end:
+        pump()
+    assert f"image:{paths[0]}" in dialog.thumbs.memory
+    # „Zuletzt“ speichern, dann anzeigen
+    dialog.grid.item(2).setSelected(True)
+    assert dialog.save_btn.isEnabled()
+    dialog.save_selected()
+    assert lib.is_saved(controller.config, {"type": "image", "path": paths[1]})
+    dialog.grid.clearSelection()
+    item = next(dialog.grid.item(i) for i in range(dialog.grid.count()) if dialog.grid.item(i).text() == "Rotes Bild")
+    item.setSelected(True)
+    dialog.show_selected()
+    assert controller.content == {"type": "image", "path": paths[0]}
+    # fehlende Datei lässt sich nicht zeigen
+    dialog = MediaLibraryDialog(controller, window)
+    missing = next(dialog.grid.item(i) for i in range(dialog.grid.count()) if dialog.grid.item(i).text() == "fehlt")
+    missing.setSelected(True)
+    assert not dialog.show_btn.isEnabled()
+    # Menü an der Kachel
+    window._fill_media_menu(window.media_menu)
+    texts = [a.text() for a in window.media_menu.actions()]
+    assert "Rotes Bild" in texts and "Mediathek öffnen …" in texts
+
+
+def test_cursor_rule_depends_on_mode_not_visibility(env):
+    controller, _window, _ = env
+    controller.show_source({"type": "color"})
+    pump()
+    controller.output.hide()  # z. B. kurz beim Umschalten des Monitors
+    assert controller.cursor_should_stay_home()
+    controller.program_moved("Editor")  # Programm direkt auf Monitor 2 = Erweitern → Maus frei
+    assert not controller.cursor_should_stay_home()
+    controller.toggle_privacy()  # Schwarz über dem Desktop → Maus bleibt auf Monitor 1
+    assert controller.cursor_should_stay_home()
+    controller.toggle_privacy()
+    controller.extend()
+    assert not controller.cursor_should_stay_home()
+
+
+# ---------------------------------------------------------------- 0.10: Mediensteuerung
+@pytest.fixture(scope="module")
+def test_video(tmp_path_factory):
+    import subprocess
+    import sys
+
+    path = tmp_path_factory.mktemp("video") / "test.mp4"
+    env = {**os.environ, "QT_QPA_PLATFORM": "offscreen"}
+    proc = subprocess.run([sys.executable, str(HERE / "make_video.py"), str(path)], env=env,
+                          capture_output=True, timeout=120)
+    if proc.returncode != 0 or not path.exists() or path.stat().st_size < 1000:
+        pytest.skip("Testvideo ließ sich hier nicht erzeugen")
+    return str(path)
+
+
+def _until(cond, seconds=8):
+    import time
+
+    end = time.time() + seconds
+    while not cond() and time.time() < end:
+        pump()
+        time.sleep(0.02)
+    return cond()
+
+
+def test_media_bar_controls_video(env, test_video):
+    controller, window, _ = env
+    bar = window.media_bar
+    controller.show_source({"type": "color"})
+    pump()
+    assert bar.isHidden()
+    controller.show_source({"type": "video", "path": test_video, "loop": True, "muted": True})
+    pump()
+    assert not bar.isHidden() and bar.title.text() == "test"
+    video = bar.current()
+    assert _until(lambda: video.duration() > 0), "Video lädt nicht"
+    bar.refresh()
+    assert bar.dur_label.text() == "0:04"
+    bar._toggle()  # Pause
+    assert _until(lambda: not video.playing())
+    bar._seek(2500)  # auf der Zeitleiste springen
+    assert _until(lambda: abs(video.position() - 2500) < 400), video.position()
+    bar._skip(-10_000)  # 10 s zurück → nicht vor den Anfang
+    assert _until(lambda: video.position() < 300), video.position()
+    bar._toggle()
+    assert _until(lambda: video.playing())
+
+
+def test_media_bar_in_scene_with_two_videos(env, test_video):
+    controller, window, _ = env
+    controller.config.put_scene({"name": "Zwei Videos", "layout": "nebeneinander", "slots": [
+        {"type": "video", "path": test_video, "muted": True},
+        {"type": "video", "path": test_video, "muted": True}]})
+    controller.show_source({"type": "scene", "scene": "Zwei Videos"})
+    pump()
+    bar = window.media_bar
+    assert not bar.isHidden() and bar.which.count() == 2 and not bar.which.isHidden()
+    bar.which.setCurrentIndex(1)
+    second = bar.current()
+    assert second is bar.videos[1]
+    assert _until(lambda: second.duration() > 0)
+    bar._toggle()
+    assert _until(lambda: not second.playing())
+    assert bar.videos[0].playing()  # nur das gewählte Video pausiert
+
+
+def test_coding_screensavers(env):
+    import time
+
+    from alupc.screensaver import ScreensaverView
+    from alupc.screensaver_code import SNIPPETS, highlight
+
+    controller, _window, _ = env
+    for style in ("matrix", "code", "terminal", "netz", "sterne"):
+        view = ScreensaverView({"style": style}, controller.config.get_scene)
+        view.resize(640, 360)
+        for _ in range(40):  # ~1,5 s Animation
+            view._last_tick -= 0.04
+            view._tick()
+        img = view.grab().toImage()
+        colors = {img.pixelColor(x, y).name() for x in range(0, 640, 16) for y in range(0, 360, 12)}
+        assert len(colors) > 3, (style, colors)  # es ist wirklich etwas zu sehen
+        view.stop()
+    # Syntaxfarben: Schlüsselwort, Text, Zeichenkette, Kommentar
+    parts = dict((t, c) for t, c in highlight('def zeigen(x):  # "Hallo"', "python"))
+    assert parts["def"] == "keyword" and parts["zeigen"] == "function"
+    assert highlight('print("Hi")  # Kommentar', "python")[-1] == ("# Kommentar", "comment")
+    assert all(len(text) > 100 for _name, _lang, text in SNIPPETS)
+    time.sleep(0)
+
+
+def test_hand_picker(env):
+    from PySide6.QtCore import QEvent
+
+    from alupc.ui.hand_picker import HandPicker
+
+    hands = HandPicker()
+    hands.resize(420, 200)
+    picked = []
+    hands.fingerClicked.connect(picked.append)
+    fingers = {k: tip for k, _path, tip in hands._fingers()}
+    assert len(fingers) == 10
+    for key in ("left-thumb", "right-index-finger", "right-little-finger"):
+        _mouse(hands, QEvent.MouseButtonPress, fingers[key])
+    assert picked == ["left-thumb", "right-index-finger", "right-little-finger"]
+    assert hands.selected == "right-little-finger"
+    hands.set_enrolled({"right-thumb"})
+    img = hands.grab().toImage()
+    tip = fingers["right-thumb"].toPoint()
+    c = img.pixelColor(tip.x(), tip.y() + 10)
+    assert c.green() > c.red()  # angelernter Finger leuchtet grün

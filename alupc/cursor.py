@@ -162,9 +162,14 @@ class CursorGuard(QObject):
         self.main_name = ""
         self._barriers = None
         self.supported = IS_WINDOWS or (sys.platform.startswith("linux") and not is_wayland())
-        # Windows setzt die Begrenzung bei vielen Gelegenheiten zurück (Fensterwechsel, Strg+Alt+Entf …)
-        self._timer = QTimer(self, interval=250)
+        # Windows setzt die Begrenzung bei vielen Gelegenheiten zurück (Fensterwechsel, Strg+Alt+Entf …),
+        # Grafiktablets/Touch umgehen X11-Wände → oft nachsehen und nachkorrigieren
+        self._timer = QTimer(self, interval=50)
+        self._timer.setTimerType(Qt.PreciseTimer)
         self._timer.timeout.connect(self._enforce)
+        self._hook = None
+        self._ticks = 0
+        self.out_name = ""
 
     def set_active(self, on: bool, main_screen=None, out_screen=None) -> None:
         on = bool(on and self.supported and main_screen is not None and out_screen is not None
@@ -174,6 +179,7 @@ class CursorGuard(QObject):
             self.main_rect = main_screen.geometry()
             self.out_rect = out_screen.geometry()
             self.main_name = main_screen.name()
+            self.out_name = out_screen.name()
             self._dpr = out_screen.devicePixelRatio()
         if on == self.active and not on:
             return
@@ -206,6 +212,7 @@ class CursorGuard(QObject):
                 rect = monitor_rect(self.main_name)
                 if rect:
                     clip_cursor(rect)
+                    self._install_hook(rect)
             else:
                 from .platform.cursor_native import X11Barriers, is_x11
 
@@ -218,9 +225,23 @@ class CursorGuard(QObject):
         except Exception:  # noqa: BLE001
             pass
 
+    def _install_hook(self, home):
+        from .platform.cursor_native import MouseBlock
+        from .platform.windows_display import monitor_rect
+
+        block = monitor_rect(self.out_name)
+        if not block:
+            return
+        if self._hook is None:
+            self._hook = MouseBlock()
+        # alle ~3 s neu einhängen (falls Windows den Hook still entfernt hat)
+        if self._hook.hook is None or self._hook.block != block or self._ticks % 60 == 0:
+            self._hook.install(block, home)
+
     def _enforce(self):
         if not self.active:
             return
+        self._ticks += 1
         if IS_WINDOWS:
             self._apply()
         # Sicherheitsnetz für alle Systeme: Maus doch auf Monitor 2 (z. B. per Tastatur verschoben)?
@@ -235,6 +256,8 @@ class CursorGuard(QObject):
                 from .platform.cursor_native import clip_cursor
 
                 clip_cursor(None)
+                if self._hook is not None:
+                    self._hook.uninstall()
             elif self._barriers is not None:
                 self._barriers.clear()
         except Exception:  # noqa: BLE001

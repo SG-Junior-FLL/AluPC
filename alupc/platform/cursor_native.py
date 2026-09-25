@@ -125,6 +125,99 @@ if IS_WINDOWS:
         _cache[key] = result
         return result
 
+    class _MSLLHOOKSTRUCT(ctypes.Structure):
+        _fields_ = [("pt", wintypes.POINT), ("mouseData", wintypes.DWORD), ("flags", wintypes.DWORD),
+                    ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+    _HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+    WH_MOUSE_LL = 14
+    WM_MOUSEMOVE = 0x0200
+
+    class MouseBlock:
+        """Systemweite Maus-Sperre (Low-Level-Hook): Jede Bewegung, die auf Monitor 2 landen würde, wird
+        abgefangen und an den Rand von Monitor 1 gesetzt. Ergänzt ClipCursor, das Windows bei manchen
+        Ereignissen (Fensterwechsel, Strg+Alt+Entf …) selbst zurücksetzt.
+
+        Läuft in einem eigenen Thread mit eigener Nachrichtenschleife: Windows ruft den Hook für JEDE
+        Mausbewegung am PC auf und wartet darauf – wäre er im (manchmal beschäftigten) Oberflächen-Thread,
+        würde die Maus am ganzen PC ruckeln."""
+
+        WM_QUIT = 0x0012
+        WM_APP_REHOOK = 0x8001
+
+        def __init__(self):
+            import threading
+
+            u = self.u = ctypes.windll.user32  # type: ignore[attr-defined]
+            u.SetWindowsHookExW.argtypes = [ctypes.c_int, _HOOKPROC, wintypes.HINSTANCE, wintypes.DWORD]
+            u.SetWindowsHookExW.restype = wintypes.HHOOK
+            u.CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
+            u.CallNextHookEx.restype = ctypes.c_ssize_t
+            u.UnhookWindowsHookEx.argtypes = [wintypes.HHOOK]
+            u.SetCursorPos.argtypes = [ctypes.c_int, ctypes.c_int]
+            u.GetMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT]
+            u.PostThreadMessageW.argtypes = [wintypes.DWORD, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+            k = self.k = ctypes.windll.kernel32  # type: ignore[attr-defined]
+            k.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+            k.GetModuleHandleW.restype = wintypes.HMODULE
+            self.module = k.GetModuleHandleW(None)
+            self.hook = None
+            self.block = None  # (x, y, b, h) Monitor 2 in echten Bildpunkten
+            self.home = None   # Monitor 1
+            self._proc = _HOOKPROC(self._callback)  # Verweis behalten, sonst räumt Python ihn weg
+            self._thread = None
+            self._thread_id = 0
+            self._ready = threading.Event()
+            self._threading = threading
+
+        def _callback(self, code, wparam, lparam):
+            try:
+                block, home = self.block, self.home
+                if code == 0 and wparam == WM_MOUSEMOVE and block and home:
+                    info = ctypes.cast(lparam, ctypes.POINTER(_MSLLHOOKSTRUCT)).contents
+                    x, y = info.pt.x, info.pt.y
+                    bx, by, bw, bh = block
+                    if bx <= x < bx + bw and by <= y < by + bh:
+                        hx, hy, hw, hh = home
+                        self.u.SetCursorPos(min(max(x, hx), hx + hw - 1), min(max(y, hy), hy + hh - 1))
+                        return 1  # Bewegung auf Monitor 2 verschlucken
+            except Exception:  # noqa: BLE001 - im Hook darf nie etwas hochgehen
+                pass
+            return self.u.CallNextHookEx(None, code, wparam, lparam)
+
+        def _run(self):
+            self._thread_id = self.k.GetCurrentThreadId()
+            self.hook = self.u.SetWindowsHookExW(WH_MOUSE_LL, self._proc, self.module, 0)
+            self._ready.set()
+            msg = wintypes.MSG()
+            while self.u.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+                if msg.message == self.WM_APP_REHOOK:  # neu einhängen (falls Windows ihn entfernt hat)
+                    if self.hook:
+                        self.u.UnhookWindowsHookEx(self.hook)
+                    self.hook = self.u.SetWindowsHookExW(WH_MOUSE_LL, self._proc, self.module, 0)
+            if self.hook:
+                self.u.UnhookWindowsHookEx(self.hook)
+                self.hook = None
+
+        def install(self, block, home) -> bool:
+            self.block, self.home = block, home
+            if self._thread is None or not self._thread.is_alive():
+                self._ready.clear()
+                self._thread = self._threading.Thread(target=self._run, name="alupc-maus-sperre", daemon=True)
+                self._thread.start()
+                self._ready.wait(2)
+            else:
+                self.u.PostThreadMessageW(self._thread_id, self.WM_APP_REHOOK, 0, 0)
+            return bool(self.hook)
+
+        def uninstall(self, keep_rects: bool = False) -> None:
+            if not keep_rects:
+                self.block = self.home = None
+            if self._thread is not None and self._thread.is_alive():
+                self.u.PostThreadMessageW(self._thread_id, self.WM_QUIT, 0, 0)
+                self._thread.join(2)
+            self._thread = None
+
     def clip_cursor(rect) -> bool:
         """Maus auf `rect` (x, y, breite, höhe in echten Bildpunkten) begrenzen; None = frei."""
         u, _g = _win()

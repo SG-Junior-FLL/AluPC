@@ -92,6 +92,14 @@ def creates_cycle(scenes: list[dict], scene_name: str, candidate: str) -> bool:
     return False
 
 
+def _short(cfg: dict, key: str) -> str:
+    import ntpath
+    import posixpath
+
+    value = str(cfg.get(key) or "")
+    return cfg.get("title") or posixpath.basename(ntpath.basename(value.rstrip("/\\"))) or value
+
+
 def describe_source(cfg: dict | None) -> str:
     """Kurze, lesbare Beschreibung einer Quelle."""
     if not cfg:
@@ -105,12 +113,13 @@ def describe_source(cfg: dict | None) -> str:
         return f"Programm: {cfg.get('title')}"
     if t == "website":
         return f"Website: {cfg.get('url')}"
+    # Nur den Namen zeigen (Titel aus der Mediathek oder Dateiname) – der ganze Pfad ist zu lang
     if t == "image":
-        return f"Bild: {cfg.get('path')}"
+        return f"Bild: {_short(cfg, 'path')}"
     if t == "video":
-        return f"Video: {cfg.get('path')}"
+        return f"Video: {_short(cfg, 'path')}"
     if t == "slideshow":
-        return f"Diashow: {cfg.get('folder')}"
+        return f"Diashow: {_short(cfg, 'folder')}"
     if t == "text":
         text = (cfg.get("text") or "").replace("\n", " ")
         return f"Text: {text[:40]}"

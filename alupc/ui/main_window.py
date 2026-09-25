@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import sys
 
 from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QAction
@@ -39,6 +40,7 @@ from . import icons, theme
 from .fingerprint_page import FingerprintPage
 from .icons import app_icon
 from .program_dialog import ProgramDialog
+from .media_bar import MediaBar
 from .volume_box import VolumeBox
 from .scene_editor import SceneEditor
 from .setup_page import SetupPage
@@ -358,6 +360,8 @@ class MainWindow(QMainWindow):
         self.volume_box = VolumeBox(self.controller)
         self.status_card.layout().addWidget(self.volume_box)
         lay.addWidget(self.status_card)
+        self.media_bar = MediaBar(self.controller)
+        lay.addWidget(self.media_bar)
 
         c = self.controller
         # Standard-Kacheln (einmal angelegt, je nach Einstellung angezeigt)
@@ -369,17 +373,14 @@ class MainWindow(QMainWindow):
         self.t_web, self.t_media, self.t_scenes = self.tiles["website"], self.tiles["media"], self.tiles["scenes"]
         self.t_freeze, self.t_black, self.t_pip = self.tiles["freeze"], self.tiles["black"], self.tiles["pip"]
         self.t_saver = self.tiles["screensaver"]
-        self.t_laser = self.tiles["laser"]
-        self.t_laser.activated.connect(c.toggle_laser)
-        laser_menu = QMenu(self)
-        laser_menu.addAction(icons.icon("laser", theme.current().text, 18), "Laserpointer an / aus", c.toggle_laser)
-        laser_menu.addAction(icons.icon("edit", theme.current().text, 18), "Zeigen & Zeichnen (Fenster) …",
-                             self.open_presenter)
-        laser_menu.addAction(icons.icon("trash", theme.current().text, 18), "Zeichnungen auf Monitor 2 löschen",
-                             c.laser.clear_strokes)
-        self.t_laser.set_menu(laser_menu, split=True)
         self.t_draw = self.tiles["draw"]
-        self.t_draw.clicked.connect(self.open_presenter)
+        self.t_draw.activated.connect(self.open_presenter)
+        draw_menu = QMenu(self)
+        draw_menu.addAction(icons.icon("edit", theme.current().text, 18), "Zeigen & Zeichnen öffnen …",
+                            self.open_presenter)
+        draw_menu.addAction(icons.icon("trash", theme.current().text, 18), "Zeichnungen auf Monitor 2 löschen",
+                            c.laser.clear_strokes)
+        self.t_draw.set_menu(draw_menu, split=True)
 
         self.t_mirror.clicked.connect(c.mirror)
         self.t_extend.clicked.connect(c.extend)
@@ -409,12 +410,10 @@ class MainWindow(QMainWindow):
         self._timer_tick.timeout.connect(self._update_timer_ui)
         self._timer_tick.start()
         self.camera_menu = QMenu(self)
-        media_menu = QMenu(self)
-        media_menu.addAction(icons.icon("image", theme.current().text, 18), "Bild …", self.pick_image)
-        media_menu.addAction(icons.icon("video", theme.current().text, 18), "Video …", self.pick_video)
-        media_menu.addAction(icons.icon("slides", theme.current().text, 18), "Diashow aus Ordner …",
-                             self.pick_slideshow)
-        self.t_media.set_menu(media_menu)
+        self.media_menu = QMenu(self)
+        self.media_menu.aboutToShow.connect(lambda: self._fill_media_menu(self.media_menu))
+        self.t_media.set_menu(self.media_menu, split=True)
+        self.t_media.activated.connect(self.open_media_library)
         self.scene_menu = QMenu(self)
         self.scene_menu.aboutToShow.connect(lambda: self._fill_scene_menu(self.scene_menu))
         self.t_scenes.set_menu(self.scene_menu)
@@ -641,6 +640,46 @@ class MainWindow(QMainWindow):
         save.setEnabled(self.controller.current_web_view() is not None)
         menu.addAction(icons.icon("plus", t.text, 18), "Website öffnen / verwalten …", self.pick_website)
 
+    def open_media_library(self):
+        from .media_library import MediaLibraryDialog
+
+        dialog = MediaLibraryDialog(self.controller, self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.exec()
+
+    def _fill_media_menu(self, menu):
+        from .. import media_library as lib
+
+        t = theme.current()
+        menu.clear()
+        kinds = {"image": "image", "video": "video", "slideshow": "slides"}
+        items = lib.saved(self.config)[:10]
+        for item in items:
+            cfg = {k: v for k, v in item.items() if k != "title"}
+            act = menu.addAction(icons.icon(kinds.get(item.get("type"), "image"), t.text, 18), item.get("title", ""),
+                                 lambda c=cfg: self.controller.show_source(c))
+            act.setEnabled(lib.exists(item))
+        if not items:
+            act = menu.addAction("Noch nichts in der Mediathek gespeichert")
+            act.setEnabled(False)
+        recent = lib.recent(self.config)[:5]
+        if recent:
+            sub = menu.addMenu(icons.icon("clock", t.text, 18), "Zuletzt gezeigt")
+            for item in recent:
+                cfg = {k: v for k, v in item.items() if k != "title"}
+                act = sub.addAction(icons.icon(kinds.get(item.get("type"), "image"), t.text, 18),
+                                    item.get("title", ""), lambda c=cfg: self.controller.show_source(c))
+                act.setEnabled(lib.exists(item))
+        menu.addSeparator()
+        menu.addAction(icons.icon("image", t.text, 18), "Bild öffnen …", self.pick_image)
+        menu.addAction(icons.icon("video", t.text, 18), "Video öffnen …", self.pick_video)
+        menu.addAction(icons.icon("slides", t.text, 18), "Diashow aus Ordner …", self.pick_slideshow)
+        current = self.controller.current_media()
+        save = menu.addAction(icons.icon("bookmark", t.text, 18), "Aktuelles in der Mediathek speichern",
+                              lambda: self.controller.save_media(current))
+        save.setEnabled(current is not None and not lib.is_saved(self.config, current))
+        menu.addAction(icons.icon("grid", t.text, 18), "Mediathek öffnen …", self.open_media_library)
+
     def pick_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Bild wählen", "", IMAGE_FILTER)
         if path:
@@ -834,6 +873,7 @@ class MainWindow(QMainWindow):
                 t = theme.current()
                 color = "#ffffff" if b.property("primary") else (t.danger if b.property("danger") else t.text)
                 b.setIcon(icons.icon(name, color, 18))
+        self.media_bar.apply_theme()
         self.refresh()
         for w in self.findChildren(QWidget):
             w.update()
@@ -858,11 +898,9 @@ class MainWindow(QMainWindow):
         self.a_saver.triggered.connect(lambda _=False: c.toggle_screensaver())
         self.a_pip = QAction(ic("pip"), "Bild-in-Bild", menu, checkable=True)
         self.a_pip.triggered.connect(lambda _=False: c.toggle_pip())
-        self.a_laser = QAction(ic("laser"), "Laserpointer", menu, checkable=True)
-        self.a_laser.triggered.connect(lambda _=False: c.toggle_laser())
         self.a_draw = QAction(ic("edit"), "Zeigen & Zeichnen …", menu)
         self.a_draw.triggered.connect(self.open_presenter)
-        for act in (self.a_freeze, self.a_black, self.a_saver, self.a_pip, self.a_laser, self.a_draw):
+        for act in (self.a_freeze, self.a_black, self.a_saver, self.a_pip, self.a_draw):
             menu.addAction(act)
         self.tray_timer = menu.addMenu(ic("timer"), "Timer")
         self._fill_timer_menu(self.tray_timer)
@@ -892,6 +930,29 @@ class MainWindow(QMainWindow):
         self._fill_tray_scenes()
         if QSystemTrayIcon.isSystemTrayAvailable():
             self.tray.show()
+            if sys.platform.startswith("win"):
+                # Windows 11 legt das Symbol erst später in seine Liste → dann direkt sichtbar schalten
+                QTimer.singleShot(4000, self._promote_tray)
+                QTimer.singleShot(20000, self._promote_tray)
+
+    def _promote_tray(self):
+        """Einmal pro Programmpfad: AluPC-Symbol direkt in der Taskleiste statt hinter dem Pfeil."""
+        import os
+
+        from ..platform.windows_tray import promote
+
+        exe = os.path.realpath(sys.executable)
+        done = self.config["tray"].get("promoted_for", "")
+        if done == exe or not getattr(sys, "frozen", False):
+            return
+        try:
+            if promote(exe):
+                self.config["tray"] = {**self.config["tray"], "promoted_for": exe}
+                # neu anmelden, damit Explorer die Einstellung sofort übernimmt
+                self.tray.hide()
+                self.tray.show()
+        except Exception:  # noqa: BLE001
+            pass
 
     def _fill_timer_menu(self, menu):
         c = self.controller
@@ -991,10 +1052,11 @@ class MainWindow(QMainWindow):
             pills.append(("LIVE", t.success))
         if pip_on:
             pills.append(("BILD-IN-BILD", PIP_COLOR))
-        if c.laser.active:
-            pills.append(("LASER", "#ef4444"))
+        if c.laser.strokes:
+            pills.append(("ZEICHNUNG", "#f97316"))
         self.status_card.set(icon_name, where, c.describe(), pills)
         self.volume_box.sync()
+        self.media_bar.sync()
         self._sync_tray_volume()
         self.side_monitor.setText(("● " if out else "○ ") + (out.name() if out else "Kein Monitor 2"))
 
@@ -1011,7 +1073,6 @@ class MainWindow(QMainWindow):
             tile.set_state(on, badge="AKTIV" if on else "")
         saver_on = c.screensaver.active
         self.t_saver.set_state(saver_on, badge="AN" if saver_on else "")
-        self.t_laser.set_state(c.laser.active, badge="AN" if c.laser.active else "")
         drawing = bool(getattr(self, "presenter", None) and self.presenter.isVisible())
         self.t_draw.set_state(drawing, badge="OFFEN" if drawing else "")
         for key, tile in self.custom_tiles.items():
@@ -1027,7 +1088,6 @@ class MainWindow(QMainWindow):
         self.a_freeze.setChecked(c.frozen)
         self.a_black.setChecked(c.privacy)
         self.a_pip.setChecked(pip_on)
-        self.a_laser.setChecked(c.laser.active)
         self.a_saver.setChecked(c.screensaver.active)
         self.a_status.setText(f"Monitor 2: {c.describe()}"[:70])
         self.tray.setToolTip(f"{APP_NAME} – Monitor 2: {c.describe()}")

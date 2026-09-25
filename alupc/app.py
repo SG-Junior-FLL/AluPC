@@ -8,7 +8,7 @@ import sys
 
 from . import APP_NAME, __version__
 
-COMMANDS_HELP = ("standbild, schwarz, bild-in-bild, bildschirmschoner, laserpointer, zeichnen, spiegeln, erweitern, "
+COMMANDS_HELP = ("standbild, schwarz, bild-in-bild, bildschirmschoner, zeichnen, spiegeln, erweitern, "
                  "naechste_szene, "
                  "vorherige_szene, sperren (Computer), zeigen, szene:NAME")
 
@@ -203,8 +203,6 @@ def self_test(log_path: str) -> int:
         from .platform.cursor_native import cursor_image
 
         cursor_image()
-        controller.run_command("laserpointer")
-        controller.run_command("laserpointer")
         controller.update_cursor_guard()
         for page in range(len(window.pages)):  # auch die erst beim Öffnen gebauten Seiten prüfen
             window._go(page)

@@ -21,7 +21,6 @@ DEFAULT_HOTKEYS = {
     "timer_neustart": "",
     "timer_plus": "",
     "timer_minus": "",
-    "laserpointer": "Ctrl+Alt+Z",
     "zeichnen": "Ctrl+Alt+K",
 }
 
@@ -38,7 +37,6 @@ HOTKEY_LABELS = {
     "timer_neustart": "Timer neu starten",
     "timer_plus": "Timer +1 Minute",
     "timer_minus": "Timer −1 Minute",
-    "laserpointer": "Laserpointer an/aus",
     "zeichnen": "Zeigen & Zeichnen (Fenster)",
 }
 
@@ -69,18 +67,23 @@ DEFAULTS: dict = {
     },
     # Gespeicherte Websites (Favoriten) für die Kachel „Website“
     "websites": {"favorites": []},
+    # Mediathek: gespeicherte und zuletzt gezeigte Bilder, Videos, Diashows (siehe media_library.py)
+    "media": {"saved": [], "recent": []},
     # Monitor 2: Taskleiste dort ausblenden (Windows), Standbild-Symbol oben rechts
     "output": {"hide_taskbar": True, "freeze_badge": True,
                # Mauszeiger beim Spiegeln ins Bild zeichnen (die Aufnahme enthält ihn nicht)
                "mirror_cursor": True,
                # Maus bleibt auf Monitor 1, außer bei „Erweitern“ (dort ist Monitor 2 ein normaler Bildschirm)
                "confine_cursor": True},
-    # Laserpointer auf Monitor 2 (folgt der Maus auf Monitor 1)
-    "laser": {"color": "#ff2a2a", "size": 100, "trail": True},
+    # Laserpunkt (im Fenster „Zeigen & Zeichnen“; Farbe = gewählte Zeichenfarbe)
+    "laser": {"size": 100, "trail": True},
     # Fenster „Zeigen & Zeichnen“: Werkzeug, Farbe, Stärke; Zeichnungen automatisch löschen
-    "draw": {"tool": "laser", "color": "#ef4444", "width": 4, "clear_on_change": True, "clear_on_close": True,
-             "fps": 30},
+    "draw": {"tool": "laser", "color": "#ef4444", "width": 4, "fps": 30,
+             # gespeicherte Zeichnungen und zu welchem Inhalt sie gehören (bleiben über Neustarts)
+             "strokes": [], "strokes_for": ""},
     "start_minimized": False,
+    # Windows 11: AluPC-Symbol wurde für diesen Programmpfad schon direkt in die Taskleiste gelegt
+    "tray": {"promoted_for": ""},
     "appearance": {"mode": "system", "accent": "blau", "fade": True},
     # Übergang zwischen Inhalten/Szenen auf Monitor 2 (Art siehe transitions.py); Szenen können
     # einen eigenen Übergang haben

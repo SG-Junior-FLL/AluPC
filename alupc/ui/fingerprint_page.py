@@ -22,6 +22,7 @@ from ..platform import IS_WINDOWS
 from ..platform.base import FINGERS
 from . import icons, theme
 from .util import error_box, run_async
+from .hand_picker import HandPicker, finger_keys_from
 from .widgets import Banner, ProgressRing, button, font
 
 
@@ -122,8 +123,14 @@ class FingerprintPage(QWidget):
 
         finger_box = QGroupBox("Finger")
         fl = QVBoxLayout(finger_box)
+        hint = QLabel("Finger anklicken zum Auswählen · grün = schon angelernt")
+        hint.setObjectName("Muted")
+        fl.addWidget(hint)
+        self.hands = HandPicker()
+        self.hands.fingerClicked.connect(self._finger_clicked)
+        fl.addWidget(self.hands)
         self.enrolled = QListWidget()
-        self.enrolled.setMaximumHeight(170)
+        self.enrolled.setMaximumHeight(96)
         caption = QLabel("Angelernte Finger")
         caption.setObjectName("Muted")
         fl.addWidget(caption)
@@ -133,6 +140,7 @@ class FingerprintPage(QWidget):
         self.finger_combo = QComboBox()
         for key, label in FINGERS:
             self.finger_combo.addItem(label, key)
+        self.finger_combo.currentIndexChanged.connect(self._combo_changed)
         self.enroll_btn = button("Finger anlernen …", "fingerprint", primary=True)
         self.enroll_btn.clicked.connect(self.enroll)
         enroll_row.addWidget(self.finger_combo, 1)
@@ -181,13 +189,34 @@ class FingerprintPage(QWidget):
         self._set_enabled(False)
         QTimer.singleShot(0, self.reload)
 
+    # ------------------------------------------------------------ Finger wählen
+    def _finger_clicked(self, finger: str):
+        i = self.finger_combo.findData(finger)
+        if i >= 0:
+            self.finger_combo.setCurrentIndex(i)
+        # angelernten Finger auch in der Liste markieren (zum Löschen)
+        for row in range(self.enrolled.count()):
+            item = self.enrolled.item(row)
+            if finger in finger_keys_from(self.backend, [item.data(Qt.UserRole)]):
+                self.enrolled.setCurrentItem(item)
+                break
+
+    def _combo_changed(self, _i):
+        finger = self.finger_combo.currentData()
+        self.hands.set_selected(finger)
+        if self.backend.can_enroll:
+            name = self.finger_combo.currentText()
+            self.enroll_btn.setText(f"{name} anlernen …")
+
     # ------------------------------------------------------------ Laden
     def _apply_capabilities(self):
         """Oberfläche an den gefundenen Sensor anpassen (Modul am seriellen Anschluss ↔ System)."""
         b = self.backend
         serial = bool(getattr(b, "is_serial", False))
         self.finger_combo.setVisible(b.can_enroll)
-        self.enroll_btn.setText("Finger anlernen …" if b.can_enroll else "Finger anlernen (Windows Hello öffnen) …")
+        self.hands.setVisible(b.can_enroll)
+        self.enroll_btn.setText(f"{self.finger_combo.currentText()} anlernen …" if b.can_enroll
+                                else "Finger anlernen (Windows Hello öffnen) …")
         self.delete_btn.setVisible(b.can_delete)
         self.delete_all_btn.setVisible(b.can_delete)
         self.hello_note.setVisible(IS_WINDOWS and not serial)
@@ -256,6 +285,7 @@ class FingerprintPage(QWidget):
                 item = QListWidgetItem(icons.icon("fingerprint", theme.current().accent, 20), self.backend.finger_label(f))
                 item.setData(Qt.UserRole, f)
                 self.enrolled.addItem(item)
+            self.hands.set_enrolled(finger_keys_from(self.backend, fingers))
 
         def failed(text):
             self.enrolled.clear()

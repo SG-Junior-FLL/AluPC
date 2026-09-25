@@ -21,6 +21,11 @@ STYLES = {
     "schweben": "Schwebender Text oder Logo",
     "diashow": "Diashow aus einem Ordner",
     "farben": "Farbverlauf (ruhige Animation)",
+    "matrix": "Matrix – grüner Code-Regen",
+    "code": "Code-Editor – Programmcode tippt sich selbst",
+    "terminal": "Terminal – Befehle, Tests und Build laufen durch",
+    "netz": "Netzwerk – verbundene Punkte (Plexus)",
+    "sterne": "Sternenflug – Warp durchs All",
     "szene": "Eine eigene Szene",
 }
 WHEN = {
@@ -156,7 +161,12 @@ class ScreensaverView(QWidget):
             self.child = create_source({"type": "scene", "scene": cfg["scene"]}, scene_lookup, 0, self)
             self.child.show()
         self.text_color = QColor(cfg.get("color") or "#e8ecf3")
-        fps = {"uhr": 2, "nachricht": 2, "diashow": 30, "schweben": 50, "farben": 25}.get(self.style_, 0)
+        from . import screensaver_code
+
+        self.effect = screensaver_code.create(self.style_, self.rng, cfg)
+        self._last_tick = time.monotonic()
+        fps = {"uhr": 2, "nachricht": 2, "diashow": 30, "schweben": 50, "farben": 25,
+               **screensaver_code.FPS}.get(self.style_, 0)
         self.timer = QTimer(self, interval=int(1000 / fps) if fps else 1000)
         self.timer.timeout.connect(self._tick)
         if fps:
@@ -180,6 +190,10 @@ class ScreensaverView(QWidget):
         self.switched = time.monotonic()
 
     def _tick(self):
+        now = time.monotonic()
+        dt, self._last_tick = min(0.2, now - self._last_tick), now
+        if self.effect is not None and self.width() > 0 and self.height() > 0:
+            self.effect.tick(dt, self.width(), self.height())
         if self.style_ == "diashow" and time.monotonic() - self.switched > max(3, int(self.cfg.get("interval", 8))):
             self._next_image()
         if self.style_ == "schweben":
@@ -221,6 +235,10 @@ class ScreensaverView(QWidget):
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         p.fillRect(self.rect(), Qt.black)
         t = time.monotonic() - self.t0
+        if self.effect is not None:
+            self.effect.paint(p, self.width(), self.height())
+            p.end()
+            return
         {"uhr": self._paint_clock, "schweben": self._paint_float, "diashow": self._paint_slides,
          "farben": self._paint_colors, "nachricht": self._paint_message}.get(self.style_, lambda *_: None)(p, t)
         p.end()

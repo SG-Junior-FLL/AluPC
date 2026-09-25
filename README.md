@@ -33,14 +33,13 @@ OBS-Studio-Fenster.
 | **Kamera** | eine Kamera im Vollbild – bei nur einer Kamera sofort, sonst Auswahl |
 | **Programm** | ein Programm zeigen: *Anzeigen (Aufnahme)* oder *Fenster wirklich verschieben* |
 | **Website** | Adresse eingeben oder gespeicherte Website wählen → Vollbild. Pfeil an der Kachel: gespeicherte Websites, **Browser steuern** (eigenes Fenster: Adresse, Zurück/Vor, Zoom, Scrollen, Live-Vorschau zum Klicken und Tippen), aktuelle Seite **unter „Website“ speichern** |
-| **Bild / Video** | Bild, Video (Endlosschleife) oder Diashow aus einem Ordner |
+| **Bild / Video** | **Mediathek** mit Vorschaubildern: gespeicherte Bilder, Videos und Diashows, dazu automatisch „Zuletzt gezeigt“; Filter, Suche, Umbenennen. Pfeil an der Kachel: gespeicherte Einträge direkt starten. Läuft ein Video (auch in einer eigenen Szene), erscheint oben eine **Mediensteuerung**: Pause/Weiter, ±10 Sekunden, Zeitleiste zum Springen |
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
 | **Standbild** | friert das Bild auf Monitor 2 ein; du arbeitest auf Monitor 1 unbemerkt weiter |
 | **Bild-in-Bild** | kleines Fenster auf Monitor 1, das live zeigt, was auf Monitor 2 läuft (mit Hinweis „STANDBILD“/„SCHWARZ“) |
 | **Bildschirmschoner** | Uhr, schwebender Text/Logo, Diashow, Farbverlauf oder eigene Szene – automatisch nach X Minuten ohne Maus/Tastatur oder per Klick |
-| **Laserpointer** | roter Leuchtpunkt auf Monitor 2: die Maus auf Monitor 1 steuert ihn (wie ein Touchpad; beim Spiegeln genau an der gespiegelten Stelle). Farbe, Größe, Leuchtspur im Setup |
-| **Zeigen & Zeichnen** | eigenes Fenster auf Monitor 1 mit Live-Bild von Monitor 2: darin mit dem **Laserpointer** zeigen oder mit **Stift/Textmarker** in 8 Farben (+ eigene) kritzeln, Radierer, Rückgängig, Alles löschen – erscheint sofort auf Monitor 2. Vorschau mit 10–60 Bildern/s (Standard 30). Öffnen über Kachel, Pfeil an der Laserpointer-Kachel, Taskleisten-Menü oder `Strg+Alt+K` |
+| **Zeigen & Zeichnen** | eigenes Fenster auf Monitor 1 mit Live-Bild von Monitor 2: darin mit dem **Laserpointer** zeigen oder mit **Stift/Textmarker** in 8 Farben (+ eigene) kritzeln, Radierer, Rückgängig, Alles löschen – erscheint sofort auf Monitor 2. **Zeichnungen bleiben stehen** (auch nach Schließen des Fensters und Neustart), bis man sie löscht oder die Szene wechselt. Vorschau mit 10–60 Bildern/s. Öffnen über Kachel, Taskleisten-Menü oder `Strg+Alt+K` |
 
 Außerdem:
 
@@ -106,7 +105,6 @@ Außerdem:
   | Bildschirmschoner an/aus | `Strg+Alt+W` |
   | Nächste / vorherige Szene | `Strg+Alt+Bild↓` / `Strg+Alt+Bild↑` |
   | Timer Start/Pause | `Strg+Alt+T` (Neustart, ±1 Minute frei belegbar) |
-  | Laserpointer an/aus | `Strg+Alt+Z` |
   | Zeigen & Zeichnen | `Strg+Alt+K` |
   | Spiegeln | `Strg+Alt+M` |
   | Erweitern | `Strg+Alt+E` |
@@ -274,9 +272,10 @@ kennen sie nicht – AluPC steuert sie direkt. Steckt so ein Modul, nimmt AluPC 
 - **Mauszeiger beim Spiegeln**: Unter Windows und X11 zeichnet AluPC den Zeiger selbst ins Bild (mit
   seiner echten Form). Unter KDE/Wayland liefert KWin ihn mit. Mit der normalen Wayland-Aufnahme
   (Start aus dem Quellcode) hängt es vom System ab, ob er zu sehen ist.
-- **Laserpointer unter Wayland** braucht KDE (ein kleines KWin-Skript meldet die Mausposition); auf
-  anderen Wayland-Oberflächen geht er nicht. Unter X11 braucht der durchsichtige Punkt einen
-  Compositor (bei Kubuntu Standard).
+- **Maus zu 100 % auf Monitor 1**: Windows – ClipCursor plus systemweite Maus-Sperre (fängt jede
+  Bewegung auf Monitor 2 ab, auch wenn Windows die Begrenzung kurz aufhebt). X11 – Wände plus
+  Nachkorrektur alle 50 ms. **Wayland (Kubuntu-Standard): nicht möglich.** Wer das braucht, wählt
+  beim Anmelden unten links die Sitzung **„Plasma (X11)“**.
 - **Bildschirmschoner – Leerlaufzeit**: Unter Windows und KDE meldet das System, wann zuletzt Maus
   oder Tastatur benutzt wurden. Wo das nicht geht, zählt nur die Bedienung von AluPC (steht im Setup).
 - **Websites unter Kubuntu 24.04+**: Das System erlaubt der eingebauten Chromium-Engine ihre Sandbox

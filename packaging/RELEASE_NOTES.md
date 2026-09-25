@@ -8,6 +8,23 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.10.0)
+- **Mediathek** (Kachel „Bild / Video“): gespeicherte Bilder, Videos und Diashows mit Vorschaubildern,
+  „Zuletzt gezeigt“ automatisch, Filter, Suche, Umbenennen; Pfeil an der Kachel startet Gespeichertes direkt.
+- **Mediensteuerung**: Läuft ein Video – auch in einer eigenen Szene –, erscheint oben im Hauptfenster
+  Pause/Weiter, ±10 s und eine Zeitleiste zum Springen (bei mehreren Videos wählbar).
+- **Neue Bildschirmschoner**: Matrix, Code-Editor (Code tippt sich selbst), Terminal (Build-/Test-Log),
+  Netzwerk, Sternenflug.
+- **Zeigen & Zeichnen**: Der Laserpointer ist jetzt nur noch dort (keine eigene Kachel mehr, Farbe =
+  Zeichenfarbe). **Zeichnungen bleiben gespeichert** – auch nach Schließen und Neustart – bis man sie
+  löscht oder die Szene wechselt.
+- **Fingerabdruck**: Finger per Klick auf eine Handgrafik wählen; angelernte Finger leuchten grün.
+- **Maus zu 100 % auf Monitor 1** (außer Erweitern): Windows zusätzlich mit systemweiter Maus-Sperre;
+  X11 schneller nachkorrigiert; die Sperre hängt nur noch vom Modus ab. (Wayland: nicht möglich.)
+- **Windows 11**: AluPC-Symbol direkt in der Taskleiste statt hinter dem Pfeil (einmalig; lässt sich in
+  Windows wieder ändern).
+- Statuskarte zeigt bei Medien nur den Namen statt des ganzen Pfads.
+
 ### Neu in dieser Version (0.9.1)
 - **Fingerabdruckmodul: Anmeldung auch bei mehreren Benutzerkonten** – nach einer deutlichen Warnung
   und ausdrücklicher Bestätigung. Jeder Benutzer verwaltet nur seine eigenen Finger: fremde Finger

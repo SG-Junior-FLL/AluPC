@@ -11,15 +11,14 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "camera": ("camera", "Kamera", "Kamera im Vollbild", None, "anzeigen"),
     "program": ("window", "Programm", "Ein Programm zeigen", None, "anzeigen"),
     "website": ("globe", "Website", "Öffnen · ▾ Gespeicherte, Browser steuern", None, "anzeigen"),
-    "media": ("image", "Bild / Video", "Bild, Video oder Diashow", None, "anzeigen"),
+    "media": ("image", "Bild / Video", "Mediathek · ▾ Gespeicherte, Zuletzt", None, "anzeigen"),
     "scenes": ("scenes", "Meine Szenen", "Eigene Zusammenstellungen", None, "anzeigen"),
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),
     "black": ("eye_off", "Schwarz", "Sichtschutz", "#64748b", "schnell"),
     "pip": ("pip", "Bild-in-Bild", "Monitor 2 klein anzeigen", "#8b5cf6", "schnell"),
     "screensaver": ("moon", "Bildschirmschoner", "Starten / beenden · ▾ Einstellungen", "#6366f1", "schnell"),
     "timer": ("timer", "Timer", "Start / Pause · ▾ mehr", "#f43f5e", "schnell"),
-    "laser": ("laser", "Laserpointer", "An / aus · ▾ Zeigen & Zeichnen", "#ef4444", "schnell"),
-    "draw": ("edit", "Zeigen & Zeichnen", "Monitor 2 sehen, zeigen, kritzeln", "#f97316", "schnell"),
+    "draw": ("edit", "Zeigen & Zeichnen", "Laserpointer, Stift, Marker · ▾ löschen", "#f97316", "schnell"),
 }
 DEFAULT_ORDER = list(BUILTIN_TILES)
 # Kacheln, die es schon vor dem Merken von „seen“ gab (für ältere Einstellungen)
@@ -43,7 +42,6 @@ COMMANDS = {
     "timer_neustart": "Timer neu starten",
     "timer_plus": "Timer +1 Minute",
     "timer_minus": "Timer −1 Minute",
-    "laserpointer": "Laserpointer an/aus",
     "zeichnen": "Zeigen & Zeichnen (Fenster öffnen)",
 }
 

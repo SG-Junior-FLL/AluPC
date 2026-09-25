@@ -42,6 +42,7 @@ class Controller(QObject):
         self.cursor_guard = CursorGuard(self)
         self.laser = LaserWindow(self)
         self.output.after_raise.append(self.laser.raise_above)
+        self.laser.changed_cb = self.save_drawings
         self.changed.connect(self.update_cursor_guard)
         self.apply_output_settings()
 
@@ -102,38 +103,49 @@ class Controller(QObject):
 
     def update_screens(self) -> None:
         self.output.place_on(self.output_screen())
-        if self.laser.active:
+        if self.laser.needed():
             self.laser.place()
         self.changed.emit()
 
     # ------------------------------------------------------------ Maus
     def cursor_should_stay_home(self) -> bool:
         """Maus auf Monitor 1 festhalten? Ja, solange Monitor 2 nicht der normale Desktop („Erweitern“) ist."""
-        return bool(self.config["output"].get("confine_cursor", True)) and self.output.needed() \
-            and self.output.isVisible()
+        # Nur der Modus zählt – nicht, ob das Fenster auf Monitor 2 gerade (z. B. beim Umschalten) kurz
+        # unsichtbar ist. „Programm direkt auf Monitor 2“ ist Erweitern → dort darf die Maus hin.
+        saver = getattr(self, "screensaver", None)
+        showing = self.mode == "content" or self.frozen or self.privacy or bool(saver and saver.active)
+        return bool(self.config["output"].get("confine_cursor", True)) and showing \
+            and self.output_screen() is not None
 
     def update_cursor_guard(self) -> None:
         self.cursor_guard.set_active(self.cursor_should_stay_home(), self.main_screen(), self.output_screen())
 
-    def toggle_laser(self) -> None:
-        from .cursor import tracker
+    # ------------------------------------------------------------ Zeichnungen
+    def _content_key(self) -> str:
+        import json
 
-        on = self.laser.set_active(not self.laser.active)
-        if on and not tracker().available():
-            self.laser.set_active(False)
-            self.message.emit("Laserpointer: Die Mausposition ist auf diesem System nicht abfragbar "
-                              "(Wayland ohne KDE).")
-            on = False
-        self._apply_cursor_settings()
-        if on:
-            self.message.emit("Laserpointer an – die Maus auf Monitor 1 steuert den roten Punkt auf Monitor 2.")
+        return json.dumps(self.content, sort_keys=True) if self.mode == "content" and self.content else "desktop"
+
+    def save_drawings(self) -> None:
+        """Zeichnungen merken – sie bleiben, bis man sie löscht oder etwas anderes auf Monitor 2 kommt
+        (auch über einen Neustart von AluPC hinweg)."""
+        strokes = [dict(s, points=[list(p) for p in s["points"]]) for s in self.laser.strokes]
+        self.config["draw"] = {**self.config["draw"], "strokes": strokes,
+                               "strokes_for": self._content_key() if strokes else ""}
         self.changed.emit()
+
+    def _restore_drawings(self) -> None:
+        d = self.config["draw"]
+        if d.get("strokes") and d.get("strokes_for") == self._content_key():
+            self.laser.strokes = [dict(s, points=[tuple(p) for p in s.get("points", [])]) for s in d["strokes"]]
+            self.laser.place()
+            self.laser.update()
 
     def _apply_cursor_settings(self) -> None:
         """Mauszeiger beim Spiegeln einzeichnen – aber nicht, wenn der Laserpointer an ist."""
         from .sources import ScreenSource, screen_settings
 
-        show = bool(self.config["output"].get("mirror_cursor", True)) and not self.laser.active
+        show = bool(self.config["output"].get("mirror_cursor", True))
         screen_settings["cursor"] = show
         content = self.output.content
         if isinstance(content, ScreenSource):
@@ -186,6 +198,9 @@ class Controller(QObject):
         self.output.set_content(create_source(cfg, self.config.get_scene), self.transition_for(cfg))
         if remember:
             self.config["last_content"] = cfg
+            from . import media_library
+
+            media_library.remember(self.config, cfg)
         if sound and remember:
             self.sounds.play_event("szene" if cfg.get("type") == "scene" else "inhalt")
         self.changed.emit()
@@ -264,8 +279,8 @@ class Controller(QObject):
         self._set_desktop(f"Programm direkt auf Monitor 2: {title}")
 
     def _content_switched(self) -> None:
-        """Neuer Inhalt auf Monitor 2 → alte Zeichnungen weg (einstellbar)."""
-        if self.config["draw"].get("clear_on_change", True):
+        """Neuer Inhalt auf Monitor 2 (Szenenwechsel) → alte Zeichnungen weg."""
+        if self.laser.strokes:
             self.laser.clear_strokes()
 
     def _set_desktop(self, note: str) -> None:
@@ -293,6 +308,7 @@ class Controller(QObject):
         last = self.config["last_content"]
         if last and self.config["restore_last_content"]:
             self.show_source(last, remember=False)
+        self._restore_drawings()  # Zeichnungen zum wiederhergestellten Inhalt wieder anzeigen
 
     # ------------------------------------------------------------ Standbild
     def toggle_freeze(self) -> None:
@@ -341,6 +357,18 @@ class Controller(QObject):
             return content.view
         found = content.findChildren(WebsiteSource)
         return found[0].view if found else None
+
+    def current_media(self) -> dict | None:
+        """Bild/Video/Diashow, die gerade auf Monitor 2 läuft (sonst None)."""
+        cfg = self.content if self.mode == "content" else None
+        return cfg if cfg and cfg.get("type") in ("image", "video", "slideshow") else None
+
+    def save_media(self, cfg: dict, title: str | None = None) -> None:
+        from . import media_library
+
+        item = media_library.save(self.config, cfg, title)
+        self.message.emit(f"„{item['title']}“ in der Mediathek gespeichert.")
+        self.changed.emit()
 
     def save_website(self, title: str, url: str) -> None:
         favs = [f for f in self.config["websites"].get("favorites", []) if f.get("url") != url]
@@ -418,8 +446,9 @@ class Controller(QObject):
             "timer_neustart": lambda: self.timer_action("restart"),
             "timer_plus": lambda: self.timer_action("plus"),
             "timer_minus": lambda: self.timer_action("minus"),
-            "laserpointer": self.toggle_laser,
-            "laser": self.toggle_laser,
+            # Laserpointer gibt es nur noch im Fenster „Zeigen & Zeichnen“
+            "laserpointer": self.presenter_requested.emit,
+            "laser": self.presenter_requested.emit,
             "zeichnen": self.presenter_requested.emit,
             "zeichnungen_loeschen": lambda: self.laser.clear_strokes(),
         }
@@ -556,7 +585,6 @@ class Controller(QObject):
 
     def shutdown(self) -> None:
         self._timer_watch.stop()
-        self.laser.set_active(False)
         self.laser.close()
         self.cursor_guard.shutdown()
         from .cursor import tracker

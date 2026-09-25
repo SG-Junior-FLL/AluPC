@@ -95,6 +95,11 @@ class LaserWindow(QWidget):
         self._kde_done = False
         self.remote = False  # Laserpunkt kommt aus dem Fenster „Zeigen & Zeichnen“
         self.strokes: list[dict] = []
+        self.changed_cb = None  # wird nach jeder Änderung der Zeichnungen aufgerufen (Speichern)
+
+    def _changed(self):
+        if self.changed_cb is not None:
+            self.changed_cb()
 
     def needed(self) -> bool:
         return self.active or self.remote or bool(self.strokes)
@@ -261,17 +266,23 @@ class LaserWindow(QWidget):
         self.update(QRectF(min(xs) - pad, min(ys) - pad, max(xs) - min(xs) + 2 * pad,
                            max(ys) - min(ys) + 2 * pad).toAlignedRect())
 
+    def end_stroke(self) -> None:
+        """Maustaste losgelassen → Strich fertig → speichern."""
+        self._changed()
+
     def undo(self) -> None:
         if self.strokes:
             self.strokes.pop()
             self.update()
             self.place()
+            self._changed()
 
     def clear_strokes(self) -> None:
         if self.strokes:
             self.strokes = []
             self.update()
             self.place()
+            self._changed()
 
     def erase_at(self, norm: QPointF, radius: float) -> bool:
         """Striche entfernen, die den Radierer (Radius relativ zur Höhe) berühren."""
@@ -287,6 +298,7 @@ class LaserWindow(QWidget):
             self.strokes = keep
             self.update()
             self.place()
+            self._changed()
         return changed
 
     # ------------------------------------------------------------ Zeichnen
@@ -310,7 +322,8 @@ class LaserWindow(QWidget):
         if self.strokes:
             paint_strokes(p, self.strokes, QRectF(self.rect()))
         cfg = self.controller.config["laser"]
-        color = QColor(cfg.get("color", "#ff2a2a"))
+        # Laser in der gerade gewählten Zeichenfarbe (eigene Laser-Einstellungen gibt es nicht mehr)
+        color = QColor(self.controller.config["draw"].get("color", "#ef4444"))
         r = self.radius()
         p.setRenderHint(QPainter.Antialiasing)
         p.setPen(Qt.NoPen)

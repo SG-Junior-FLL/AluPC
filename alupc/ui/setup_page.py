@@ -32,7 +32,7 @@ from ..config import HOTKEY_LABELS
 from ..platform import IS_WINDOWS, autostart, session_info
 from ..platform.base import ROTATIONS, clone_outputs, place, side_of
 from . import icons, theme
-from .util import ColorButton, error_box, run_async
+from .util import error_box, run_async
 from .hotkey_edit import HotkeyButton
 from .widgets import button, font, rounded
 
@@ -203,7 +203,7 @@ class SetupPage(QWidget):
 
     SECTIONS = [
         ("monitor", "Monitore", "Auflösung, Hz, Anordnung"),
-        ("pip", "Monitor 2", "Maus, Laserpointer, Standbild, Sichtschutz, Bild-in-Bild"),
+        ("pip", "Monitor 2", "Maus, Standbild, Sichtschutz, Bild-in-Bild"),
         ("palette", "Darstellung", "Design und Akzentfarbe"),
         ("moon", "Bildschirmschoner", "Stil, Zeit, Verhalten"),
         ("timer", "Timer", "Dauer, Art, Warnfarben"),
@@ -947,31 +947,6 @@ class SetupPage(QWidget):
             note.setWordWrap(True)
             lay.addWidget(note)
 
-        # Laserpointer
-        laser = self.config["laser"]
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Laserpointer:"))
-        color = ColorButton(laser.get("color", "#ff2a2a"))
-        size = QSpinBox()
-        size.setRange(40, 300)
-        size.setSingleStep(10)
-        size.setSuffix(" % Größe")
-        size.setValue(int(laser.get("size", 100)))
-        trail = QCheckBox("Leuchtspur")
-        trail.setChecked(bool(laser.get("trail", True)))
-
-        def save_laser(*_):
-            self.config["laser"] = {"color": color.color(), "size": size.value(), "trail": trail.isChecked()}
-            self.controller.laser.update()
-
-        color.changed.connect(save_laser)
-        size.valueChanged.connect(save_laser)
-        trail.toggled.connect(save_laser)
-        row.addWidget(color)
-        row.addWidget(size)
-        row.addWidget(trail)
-        row.addStretch(1)
-        lay.addLayout(row)
         hint = QLabel("„Computer sperren“ (Seitenleiste, Taskleisten-Symbol, Befehl „sperren“) sperrt den "
                       "ganzen Computer wie Win+L. Der Sperrbildschirm des Systems liegt dann über allen "
                       "Monitoren – auch Monitor 2 zeigt so lange nichts von AluPC.")
