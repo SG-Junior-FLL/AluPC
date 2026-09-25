@@ -147,6 +147,10 @@ QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {t.bord
 #SectionTitle {{ font-size: 11pt; font-weight: 700; }}
 
 #Card, QGroupBox {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 14px; }}
+#Hero {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {t.surface}, stop:1 {t.accent_soft(0.10)});
+        border: 1px solid {t.border}; border-radius: 20px; }}
+QPushButton#Chip {{ border-radius: 17px; padding: 7px 14px; background: {t.surface2}; font-weight: 600; }}
+QPushButton#Chip:checked {{ background: {t.accent}; border-color: {t.accent}; color: #ffffff; }}
 QGroupBox {{ margin-top: 22px; padding: 14px 14px 12px 14px; font-weight: 700; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 14px; top: 2px; padding: 0 4px; color: {t.text}; }}
 

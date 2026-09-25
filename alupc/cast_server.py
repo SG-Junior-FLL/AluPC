@@ -282,7 +282,8 @@ def _make_handler(server: CastServer):
                 elif u.path == "/api/cmd":
                     cmd = str(data.get("cmd", ""))
                     if not (cmd in ALLOWED_COMMANDS or cmd.startswith("szene:")
-                            or re.fullmatch(r"lautstaerke:\d{1,3}", cmd)):
+                            or re.fullmatch(r"lautstaerke:\d{1,3}", cmd)
+                            or re.fullmatch(r"taste:(weiter|zurueck|rechts|links|start|ende|schwarz|leer)", cmd)):
                         self._json(400, {"error": "Unbekannter Befehl"})
                         return
                     server.request.emit({"kind": "cmd", "cmd": cmd})

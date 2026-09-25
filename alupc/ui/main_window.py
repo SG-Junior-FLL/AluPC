@@ -366,13 +366,32 @@ class MainWindow(QMainWindow):
         self.stop_btn = button("Beenden", "x")
         self.stop_btn.setToolTip("AluPC-Anzeige beenden – Monitor 2 wird wieder ein normaler Bildschirm (Erweitern)")
         self.stop_btn.clicked.connect(self.controller.extend)
-        self.status_card.actions.addWidget(self.stop_btn)
+        self.status_card.actions.addWidget(self.stop_btn, 0, Qt.AlignRight)
+        # Schnellschalter direkt beim Live-Bild (statt eigener Kacheln)
+        self.chips = {}
+        for key, icon_name, text, slot, tip in [
+            ("black", "eye_off", "Schwarz", self.controller.toggle_privacy, "Sichtschutz an/aus (Strg+Alt+B)"),
+            ("freeze", "snowflake", "Standbild", self.controller.toggle_freeze, "Bild einfrieren (Strg+Alt+S)"),
+            ("pip", "pip", "Bild-in-Bild", self.controller.toggle_pip, "Monitor 2 klein auf Monitor 1"),
+            ("draw", "edit", "Zeichnen", self.open_presenter, "Zeigen & Zeichnen (Strg+Alt+K)"),
+        ]:
+            chip = QPushButton(text)
+            chip.setObjectName("Chip")
+            chip.setCheckable(True)
+            chip.setCursor(Qt.PointingHandCursor)
+            chip.setToolTip(tip)
+            chip.setProperty("iconName", icon_name)
+            chip.setIcon(icons.icon(icon_name, theme.current().text, 16))
+            chip.clicked.connect(slot)
+            self.chips[key] = chip
+            self.status_card.chips.addWidget(chip)
         # Live-Vorschau von Monitor 2 in der Statuskarte (nur wenn die Startseite zu sehen ist)
         self._preview_timer = QTimer(self, interval=1000)
         self._preview_timer.timeout.connect(self._update_preview)
         self._preview_timer.start()
         self.volume_box = VolumeBox(self.controller)
-        self.status_card.layout().addWidget(self.volume_box)
+        self.status_card.actions.addStretch(1)
+        self.status_card.actions.addWidget(self.volume_box)
         lay.addWidget(self.status_card)
         self.media_bar = MediaBar(self.controller)
         lay.addWidget(self.media_bar)
@@ -457,7 +476,7 @@ class MainWindow(QMainWindow):
         for key, label in SECTIONS.items():
             title = QLabel(label)
             title.setObjectName("SectionTitle")
-            grid = FlowGrid(min_width=170, max_cols=4)
+            grid = FlowGrid(min_width=270, max_cols=4, spacing=12)
             self.section_labels[key] = title
             self.section_grids[key] = grid
             lay.addWidget(title)
@@ -1130,7 +1149,8 @@ class MainWindow(QMainWindow):
         image = None
         if out.isVisible() and (c.mode == "content" or c.privacy or c.frozen or c.screensaver.active):
             dpr = card.preview.devicePixelRatioF()
-            image = grab_scaled(out, QSize(int(128 * dpr), int(72 * dpr)))
+            pw, ph = card.preview.width(), card.preview.height()
+            image = grab_scaled(out, QSize(int(pw * dpr), int(ph * dpr)))
         card.preview.set(image, card.preview.icon_name)
 
     def refresh(self):
@@ -1211,6 +1231,13 @@ class MainWindow(QMainWindow):
         self.t_freeze.set_state(c.frozen, badge="AN" if c.frozen else "")
         self.t_black.set_state(c.privacy, badge="AN" if c.privacy else "")
         self.t_pip.set_state(pip_on, badge="AN" if pip_on else "")
+        drawing_now = bool(getattr(self, "presenter", None) and self.presenter.isVisible())
+        for key, on in (("black", c.privacy), ("freeze", c.frozen), ("pip", pip_on), ("draw", drawing_now)):
+            chip = self.chips[key]
+            if chip.isChecked() != bool(on):
+                chip.setChecked(bool(on))
+            color = "#ffffff" if on else theme.current().text
+            chip.setIcon(icons.icon(chip.property("iconName"), color, 16))
         self.a_freeze.setChecked(c.frozen)
         self.a_black.setChecked(c.privacy)
         self.a_pip.setChecked(pip_on)

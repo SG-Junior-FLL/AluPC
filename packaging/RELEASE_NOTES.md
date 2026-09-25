@@ -8,6 +8,35 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.15.0) – Reparaturen: AirPlay, Spiegeln, Miracast
+- **AirPlay repariert:** UxPlay (Kubuntu 24.04: Version 1.68) öffnet sein Bild-Fenster erst, wenn sich das
+  iPhone verbindet – AluPC hat es bisher nur 15 Sekunden lang gesucht (unter KDE sogar gar nicht richtig)
+  und dann aufgegeben. Jetzt wird es dauerhaft verfolgt und bei jeder Verbindung auf Monitor 2 gelegt.
+  Feste Ports (Firewall), und die Einrichtung installiert/aktiviert auch **avahi** (ohne den findet das
+  iPhone den PC nicht), GStreamer-Decoder und öffnet die Firewall. Scheitert UxPlay, sagt AluPC warum.
+  Geprüft mit dem echten UxPlay 1.68: „AluPC (Rechnername)“ erscheint im Netz als AirPlay-Gerät.
+- **Spiegeln repariert:** Liefert die Bildaufnahme kein Bild (4 s) oder scheitert sie schon beim Start,
+  spiegelt AluPC automatisch **über das Betriebssystem** (Windows wie Win+P, KDE per kscreen-doctor).
+  Das `.deb` bringt jetzt alle X11-Bibliotheken mit (ohne sie startete Qt unter X11 evtl. gar nicht).
+- **Miracast:** prüft vorher, ob WLAN-Adapter/Treiber „Drahtlose Anzeige“ können – viele Desktop-PCs
+  (ohne WLAN) können grundsätzlich kein Miracast; AluPC sagt das jetzt klar.
+- **Ersteinrichtung:** Beim ersten Start richtet ein Assistent mit einem Klick alles ein (Monitore,
+  Spiegel-Test, Handy-Programme, Name/Code, Autostart). Das **.deb** installiert UxPlay, scrcpy,
+  GStreamer und avahi gleich mit; **Setup.exe** installiert optional scrcpy/Bonjour (winget) und den
+  Miracast-Empfänger.
+- **Diagnose kopieren** (Setup → Allgemein): prüft alles und kopiert das Ergebnis – zum Weitergeben.
+- **Aufgeräumt:** Links nur noch Start, Szenen, Setup, Fingerabdruck. Handy-Einrichtung über die
+  Handy-Kacheln (Pfeil), RGB & Lüfter im Setup.
+- **Neues Design:** großer Monitor-2-Bereich mit Live-Bild und Schaltern (Schwarz, Standbild,
+  Bild-in-Bild, Zeichnen, Beenden); kompakte Kacheln mit Symbol links.
+- **Handy-Oberfläche neu:** App-Look mit echten Symbolen, drei Reiter; neu **„Präsentation“**:
+  Folien weiter/zurück, Start, Schwarz, Ende – steuert PowerPoint, Impress, PDF am PC (Windows und
+  Kubuntu-X11; unter Wayland nicht möglich).
+- Behoben: adb (Android-Erkennung) konnte AluPC/Diagnose einfrieren lassen.
+- **Ehrlich:** Geprüft mit echtem UxPlay, echter X11-Aufnahme und echten Tastendrücken unter X11 – aber
+  nicht mit echtem iPhone, Android-Handy, Miracast-Gerät oder deinem PC. Wenn etwas nicht geht:
+  Setup → Allgemein → „Diagnose kopieren“ und den Text schicken.
+
 ### Neu in dieser Version (0.14.1)
 - **Eigene Kacheln je Handy-Weg** in der neuen Rubrik „Handy“ auf der Startseite: **AirPlay**
   (iPhone & iPad), **Handy-Stream** (Android per USB), **Handy-Steuerung** (QR-Code, zeigt „LÄUFT“,

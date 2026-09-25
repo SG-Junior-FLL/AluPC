@@ -241,6 +241,20 @@ kennen sie nicht – AluPC steuert sie direkt. Steckt so ein Modul, nimmt AluPC 
   mit dem installierten .deb (Programmdatei gehört root), nicht mit der portablen Version.
 - Getestet ist der Treiber gegen ein nachgebautes Modul (gleiches Protokoll), nicht gegen ein echtes.
 
+## Wenn etwas nicht geht
+
+**Setup → Allgemein → „Diagnose kopieren“** prüft Monitore, macht eine kurze Probe-Aufnahme fürs Spiegeln,
+prüft AirPlay (UxPlay, avahi/Bonjour), Android (scrcpy, adb), Miracast (WLAN-Treiber), RGB und Lüfter –
+und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“** daneben richtet alles neu ein.
+
+- **Spiegeln zeigt nichts:** AluPC schaltet nach 4 s ohne Bild selbst auf das Spiegeln des
+  Betriebssystems um. Unter Kubuntu/Wayland fragt das System beim ersten Mal, welcher Bildschirm geteilt
+  werden soll (mit dem .deb unter KDE nicht nötig).
+- **iPhone findet den PC nicht:** gleiches WLAN? Unter Kubuntu muss der Dienst avahi laufen, unter
+  Windows „Bonjour“ installiert sein – „Ersteinrichtung starten“ erledigt das. Schul-/Gäste-WLANs
+  trennen Geräte oft voneinander, dann geht AirPlay dort nicht.
+- **Miracast:** braucht Windows mit WLAN-Adapter, der „Drahtlose Anzeige“ kann (die Diagnose zeigt es).
+
 ## Ehrliche Grenzen
 
 - **Nicht auf echter Hardware getestet.** Die automatischen Tests laufen auf GitHub unter Linux und

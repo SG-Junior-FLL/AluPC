@@ -1,7 +1,8 @@
 """Die Seite, die das Handy im Browser öffnet (AluCast). Eine Datei, ohne Internet, ohne App.
 
-Zwei Reiter: „Steuern“ (Live-Bild von Monitor 2 mit Laserpointer per Finger, Schnellknöpfe, Szenen,
-Timer, Video, Lautstärke, RGB) und „Senden“ (Foto/Video, Link, Text).
+Drei Reiter: „Steuern“ (Live-Bild mit Laserpointer per Finger, Schalter, Szenen, Timer, Video, Lautstärke,
+RGB), „Präsentation“ (Folien weiter/zurück als Fernbedienung, großer Laser) und „Senden“ (Foto/Video,
+Link, Text).
 """
 
 PAGE = r"""<!doctype html>
@@ -9,76 +10,116 @@ PAGE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#1e1b4b">
+<meta name="theme-color" content="#0b1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>AluCast – AluPC-Fernbedienung</title>
 <style>
-:root { --bg:#f1f5f9; --card:#ffffff; --text:#0f172a; --muted:#64748b; --line:#e2e8f0; --accent:#2563eb;
-        --accent2:#1d4ed8; --bad:#dc2626; --chip:#eef2ff; --on:#2563eb; }
-@media (prefers-color-scheme: dark) {
-  :root { --bg:#0b1120; --card:#131c2e; --text:#e2e8f0; --muted:#94a3b8; --line:#1e293b; --accent:#3b82f6;
-          --accent2:#93c5fd; --chip:#1e293b; --on:#3b82f6; }
+:root { --bg:#0b1020; --card:rgba(255,255,255,.055); --card2:rgba(255,255,255,.09); --text:#eef2ff; --muted:#94a3b8;
+        --line:rgba(255,255,255,.09); --accent:#6366f1; --accent2:#22d3ee; --on:linear-gradient(135deg,#6366f1,#8b5cf6);
+        --bad:#ef4444; --ok:#22c55e; }
+@media (prefers-color-scheme: light) {
+  :root { --bg:#eef2f7; --card:#ffffff; --card2:#f1f5f9; --text:#0f172a; --muted:#64748b; --line:#e2e8f0; }
 }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html, body { margin:0; }
-body { font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text);
-       padding:0 12px calc(86px + env(safe-area-inset-bottom)); -webkit-user-select:none; user-select:none; }
-header { position:sticky; top:0; z-index:5; margin:0 -12px 12px; padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
-         background:linear-gradient(135deg,#1d4ed8,#7c3aed); color:#fff; display:flex; align-items:center; gap:10px; }
-header .dot { width:10px; height:10px; border-radius:50%; background:#94a3b8; flex:none; }
-header .dot.on { background:#22c55e; box-shadow:0 0 0 4px rgba(34,197,94,.25); }
-header h1 { margin:0; font-size:17px; }
-header .now { font-size:12.5px; opacity:.9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:14px; margin-bottom:12px; }
-.card h2 { margin:0 0 10px; font-size:12.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.7px; }
+body { font:16px/1.4 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif; color:var(--text); min-height:100vh;
+       background:radial-gradient(120% 60% at 50% -10%, rgba(99,102,241,.35), transparent 60%), var(--bg);
+       padding:0 14px calc(92px + env(safe-area-inset-bottom)); -webkit-user-select:none; user-select:none; }
+svg.i { width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.9; stroke-linecap:round;
+        stroke-linejoin:round; flex:none; }
+header { display:flex; align-items:center; gap:12px; padding:calc(14px + env(safe-area-inset-top)) 2px 12px; }
+.logo { width:40px; height:40px; border-radius:12px; background:var(--on); display:grid; place-items:center; color:#fff;
+        box-shadow:0 6px 20px rgba(99,102,241,.45); }
+.logo svg { width:24px; height:24px; }
+header .t { min-width:0; flex:1; }
+header h1 { margin:0; font-size:18px; letter-spacing:.2px; }
+header .now { font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dot { width:9px; height:9px; border-radius:50%; background:#64748b; display:inline-block; margin-right:6px; }
+.dot.on { background:var(--ok); box-shadow:0 0 0 4px rgba(34,197,94,.22); }
+.card { background:var(--card); border:1px solid var(--line); border-radius:22px; padding:14px; margin-bottom:12px;
+        backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+.card h2 { margin:0 0 10px; font-size:12px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.8px; }
 .row { display:flex; gap:8px; }
 .row > * { flex:1 1 0; min-width:0; }
 .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-button, .btn { appearance:none; border:0; border-radius:14px; padding:12px 8px; font:inherit; font-weight:600; font-size:14.5px;
-         background:var(--chip); color:var(--text); cursor:pointer; text-align:center; display:block; overflow-wrap:anywhere; }
-.tile { display:flex; flex-direction:column; align-items:center; gap:4px; padding:12px 4px; }
-.tile .i { font-size:22px; line-height:1; }
-.tile.on, button.on { background:var(--on); color:#fff; box-shadow:0 4px 14px rgba(37,99,235,.35); }
-button.primary, .btn.primary { background:var(--accent); color:#fff; }
-button:active, .btn:active { transform:scale(.96); }
-input[type=text], input[type=url], textarea { width:100%; border:1px solid var(--line); border-radius:12px; padding:12px;
-         font:inherit; background:var(--bg); color:var(--text); -webkit-user-select:text; user-select:text; }
-textarea { min-height:70px; resize:vertical; }
+button, .btn { appearance:none; border:0; border-radius:16px; padding:13px 8px; font:inherit; font-weight:650; font-size:14.5px;
+         background:var(--card2); color:var(--text); cursor:pointer; text-align:center; display:flex; align-items:center;
+         justify-content:center; gap:8px; transition:transform .08s, background .2s; }
+.tile { flex-direction:column; gap:6px; padding:14px 4px; font-size:13.5px; }
+.tile svg.i { width:26px; height:26px; }
+button.on, .tile.on { background:var(--on); color:#fff; box-shadow:0 8px 22px rgba(99,102,241,.4); }
+button.primary, .btn.primary { background:var(--on); color:#fff; }
+button:active, .btn:active { transform:scale(.95); }
+input[type=text], input[type=url], textarea { width:100%; border:1px solid var(--line); border-radius:14px; padding:13px;
+         font:inherit; background:var(--card2); color:var(--text); -webkit-user-select:text; user-select:text; outline:none; }
+textarea { min-height:80px; resize:vertical; }
 input[type=file] { display:none; }
-input[type=range] { width:100%; accent-color:var(--accent); height:28px; }
+input[type=range] { width:100%; accent-color:#8b5cf6; height:30px; }
 .hint { color:var(--muted); font-size:12.5px; margin-top:8px; }
 .bar { height:8px; border-radius:4px; background:var(--line); overflow:hidden; margin-top:10px; display:none; }
-.bar > div { height:100%; width:0; background:var(--accent); transition:width .15s; }
+.bar > div { height:100%; width:0; background:var(--on); transition:width .15s; }
 .scenes { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; margin-top:8px; }
-/* Live-Bild mit Laserpointer */
-.preview { position:relative; border-radius:14px; overflow:hidden; background:#000; aspect-ratio:16/9; touch-action:none; }
+.preview { position:relative; border-radius:16px; overflow:hidden; background:#000; aspect-ratio:16/9; touch-action:none;
+           box-shadow:0 10px 30px rgba(0,0,0,.35); }
 .preview img { width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
-.preview .laser { position:absolute; width:22px; height:22px; margin:-11px 0 0 -11px; border-radius:50%;
-                  background:radial-gradient(circle,#fff 0 20%,#ef4444 35%,rgba(239,68,68,0) 70%); display:none; pointer-events:none; }
-.preview .badge { position:absolute; left:8px; top:8px; background:rgba(0,0,0,.55); color:#fff; font-size:11px;
-                  font-weight:700; padding:3px 8px; border-radius:999px; letter-spacing:.4px; }
-.timer { font-size:34px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums; margin:2px 0 10px; }
-/* Reiter unten */
-nav { position:fixed; left:0; right:0; bottom:0; z-index:6; display:flex; background:var(--card); border-top:1px solid var(--line);
-      padding:6px 10px calc(6px + env(safe-area-inset-bottom)); gap:8px; }
-nav button { flex:1; background:transparent; color:var(--muted); padding:8px 4px; font-size:13px; display:flex;
-             flex-direction:column; align-items:center; gap:2px; }
-nav button .i { font-size:21px; }
-nav button.sel { color:var(--accent); background:var(--chip); }
-.page { display:none; }
+.preview .laser { position:absolute; width:26px; height:26px; margin:-13px 0 0 -13px; border-radius:50%;
+                  background:radial-gradient(circle,#fff 0 18%,#ef4444 34%,rgba(239,68,68,0) 70%); display:none; pointer-events:none; }
+.badge { position:absolute; left:10px; top:10px; background:rgba(0,0,0,.55); color:#fff; font-size:11px; font-weight:700;
+         padding:4px 9px; border-radius:999px; letter-spacing:.4px; display:flex; align-items:center; gap:6px; }
+.badge i { width:7px; height:7px; border-radius:50%; background:#ef4444; display:inline-block; animation:pulse 1.6s infinite; }
+@keyframes pulse { 50% { opacity:.3; } }
+.timer { font-size:40px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums; margin:0 0 10px; letter-spacing:1px; }
+.big { font-size:30px; letter-spacing:8px; text-align:center; }
+/* Präsentation: riesige Knöpfe, mit dem Daumen blind bedienbar */
+.clicker { display:grid; grid-template-columns:1fr 1.6fr; gap:10px; }
+.clicker button { min-height:150px; font-size:17px; flex-direction:column; border-radius:24px; }
+.clicker button svg.i { width:40px; height:40px; }
+nav { position:fixed; left:12px; right:12px; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:6; display:flex; gap:6px;
+      background:rgba(15,23,42,.72); border:1px solid rgba(255,255,255,.08); border-radius:22px; padding:6px;
+      backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); box-shadow:0 12px 30px rgba(0,0,0,.35); }
+nav button { flex:1; background:transparent; color:#cbd5e1; padding:8px 4px; font-size:12px; flex-direction:column; gap:3px; border-radius:16px; }
+nav button.sel { background:var(--on); color:#fff; }
+.page { display:none; animation:fade .18s ease; }
 .page.sel { display:block; }
-.toast { position:fixed; left:50%; bottom:calc(90px + env(safe-area-inset-bottom)); transform:translateX(-50%);
+@keyframes fade { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+.toast { position:fixed; left:50%; bottom:calc(96px + env(safe-area-inset-bottom)); transform:translateX(-50%);
          background:#0f172a; color:#fff; padding:10px 16px; border-radius:999px; font-size:14px; opacity:0;
          transition:opacity .2s; pointer-events:none; max-width:90vw; z-index:9; }
-.toast.show { opacity:.95; }
+.toast.show { opacity:.96; }
 .toast.bad { background:var(--bad); }
-#login { display:none; }
-.big { font-size:28px; letter-spacing:6px; text-align:center; }
+#login { display:none; margin-top:20px; }
 .hide { display:none !important; }
 </style>
 </head>
 <body>
-<header><span class="dot" id="dot"></span><div style="min-width:0"><h1>AluPC</h1><div class="now" id="now">Verbinde …</div></div></header>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-logo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></symbol>
+  <symbol id="i-black" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 22 12a17 17 0 0 1-3.2 4M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/></symbol>
+  <symbol id="i-freeze" viewBox="0 0 24 24"><path d="M12 2v20M4.9 4.9l14.2 14.2M2 12h20M4.9 19.1L19.1 4.9M9 3l3 2 3-2M9 21l3-2 3 2"/></symbol>
+  <symbol id="i-mirror" viewBox="0 0 24 24"><rect x="2" y="4" width="8" height="7" rx="1.5"/><rect x="14" y="4" width="8" height="7" rx="1.5"/><path d="M7 18h10M15 16l2 2-2 2M9 16l-2 2 2 2"/></symbol>
+  <symbol id="i-extend" viewBox="0 0 24 24"><rect x="2" y="5" width="11" height="9" rx="1.5"/><rect x="15" y="5" width="7" height="9" rx="1.5"/><path d="M7 18h10"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+  <symbol id="i-erase" viewBox="0 0 24 24"><path d="M7 21h10M5 15l9-9 5 5-9 9H7z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5v14l11-7z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+  <symbol id="i-back10" viewBox="0 0 24 24"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></symbol>
+  <symbol id="i-fwd10" viewBox="0 0 24 24"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></symbol>
+  <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+  <symbol id="i-slides" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M10 8l4 2-4 2z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></symbol>
+</svg>
+<header><div class="logo"><svg class="i"><use href="#i-logo"/></svg></div>
+  <div class="t"><h1>AluPC</h1><div class="now"><span class="dot" id="dot"></span><span id="now">Verbinde …</span></div></div></header>
 
 <div class="card" id="login">
   <h2>Code eingeben</h2>
@@ -90,34 +131,34 @@ nav button.sel { color:var(--accent); background:var(--chip); }
 <div id="main">
 <!-- ============================================================ Steuern -->
 <div class="page sel" id="p-steuern">
-  <div class="card">
+  <div class="card" style="padding:10px">
     <div class="preview" id="preview"><img id="prev" alt=""><div class="laser" id="laser"></div>
-      <span class="badge">LIVE · Finger = Laserpointer</span></div>
+      <span class="badge"><i></i>LIVE · Finger = Laser</span></div>
   </div>
   <div class="card">
     <div class="grid">
-      <button class="tile" id="b-schwarz" onclick="cmd('schwarz')"><span class="i">⬛</span>Schwarz</button>
-      <button class="tile" id="b-standbild" onclick="cmd('standbild')"><span class="i">❄️</span>Standbild</button>
-      <button class="tile" id="b-spiegeln" onclick="cmd('spiegeln')"><span class="i">🪞</span>Spiegeln</button>
-      <button class="tile" id="b-erweitern" onclick="cmd('erweitern')"><span class="i">🖥️</span>Erweitern</button>
-      <button class="tile" id="b-schoner" onclick="cmd('bildschirmschoner')"><span class="i">🌙</span>Schoner</button>
-      <button class="tile" onclick="cmd('zeichnungen_loeschen')"><span class="i">🧽</span>Radieren</button>
+      <button class="tile" id="b-schwarz" onclick="cmd('schwarz')"><svg class="i"><use href="#i-black"/></svg>Schwarz</button>
+      <button class="tile" id="b-standbild" onclick="cmd('standbild')"><svg class="i"><use href="#i-freeze"/></svg>Standbild</button>
+      <button class="tile" onclick="cmd('zeichnungen_loeschen')"><svg class="i"><use href="#i-erase"/></svg>Radieren</button>
+      <button class="tile" id="b-spiegeln" onclick="cmd('spiegeln')"><svg class="i"><use href="#i-mirror"/></svg>Spiegeln</button>
+      <button class="tile" id="b-erweitern" onclick="cmd('erweitern')"><svg class="i"><use href="#i-extend"/></svg>Erweitern</button>
+      <button class="tile" id="b-schoner" onclick="cmd('bildschirmschoner')"><svg class="i"><use href="#i-moon"/></svg>Schoner</button>
     </div>
   </div>
   <div class="card">
     <h2>Szenen</h2>
     <div class="row">
-      <button onclick="cmd('vorherige_szene')">◀ Zurück</button>
-      <button onclick="cmd('naechste_szene')">Weiter ▶</button>
+      <button onclick="cmd('vorherige_szene')"><svg class="i"><use href="#i-prev"/></svg>Zurück</button>
+      <button onclick="cmd('naechste_szene')">Weiter<svg class="i"><use href="#i-next"/></svg></button>
     </div>
     <div class="scenes" id="scenes"></div>
   </div>
   <div class="card" id="c-video">
     <h2>Video</h2>
     <div class="row">
-      <button onclick="cmd('video_zurueck')">⏪ 10 s</button>
-      <button class="primary" onclick="cmd('video_pause')">⏯ Pause</button>
-      <button onclick="cmd('video_vor')">10 s ⏩</button>
+      <button onclick="cmd('video_zurueck')"><svg class="i"><use href="#i-back10"/></svg>10 s</button>
+      <button class="primary" onclick="cmd('video_pause')"><svg class="i"><use href="#i-pause"/></svg>Pause</button>
+      <button onclick="cmd('video_vor')">10 s<svg class="i"><use href="#i-fwd10"/></svg></button>
     </div>
   </div>
   <div class="card" id="c-vol">
@@ -128,32 +169,54 @@ nav button.sel { color:var(--accent); background:var(--chip); }
     <h2>Timer</h2>
     <div class="timer" id="timer">–</div>
     <div class="row">
-      <button onclick="cmd('timer_minus')">− 1 min</button>
-      <button class="primary" onclick="cmd('timer_start_pause')">⏯ Start</button>
-      <button onclick="cmd('timer_plus')">+ 1 min</button>
+      <button onclick="cmd('timer_minus')">− 1</button>
+      <button class="primary" onclick="cmd('timer_start_pause')"><svg class="i"><use href="#i-play"/></svg>Start</button>
+      <button onclick="cmd('timer_plus')">+ 1</button>
     </div>
     <div class="row" style="margin-top:8px">
-      <button onclick="cmd('timer_zeigen')">⏱ Auf Monitor 2</button>
-      <button onclick="cmd('timer_neustart')">↺ Neu</button>
+      <button onclick="cmd('timer_zeigen')"><svg class="i"><use href="#i-timer"/></svg>Zeigen</button>
+      <button onclick="cmd('timer_neustart')">Neu</button>
     </div>
   </div>
   <div class="card" id="c-rgb">
     <h2>RGB-Licht</h2>
     <div class="row">
-      <button id="r-farbe" onclick="cmd('rgb_farbe')">🎨 Farbe</button>
-      <button id="r-monitor2" onclick="cmd('rgb_monitor2')">🖥️ Wie Monitor 2</button>
-      <button id="r-aus" onclick="cmd('rgb_aus')">⚫ Aus</button>
+      <button id="r-farbe" onclick="cmd('rgb_farbe')"><svg class="i"><use href="#i-bulb"/></svg>Farbe</button>
+      <button id="r-monitor2" onclick="cmd('rgb_monitor2')">Wie Bild</button>
+      <button id="r-aus" onclick="cmd('rgb_aus')">Aus</button>
     </div>
   </div>
+</div>
+
+<!-- ============================================================ Präsentation -->
+<div class="page" id="p-praesi">
+  <div class="card" style="padding:10px">
+    <div class="preview" id="preview2"><img id="prev2" alt=""><div class="laser" id="laser2"></div>
+      <span class="badge"><i></i>Finger = Laser</span></div>
+  </div>
+  <div class="card" id="c-keys">
+    <div class="clicker">
+      <button onclick="key('zurueck')"><svg class="i"><use href="#i-prev"/></svg>Zurück</button>
+      <button class="primary" onclick="key('weiter')"><svg class="i"><use href="#i-next"/></svg>Weiter</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button onclick="key('start')"><svg class="i"><use href="#i-play"/></svg>Start</button>
+      <button onclick="key('schwarz')"><svg class="i"><use href="#i-black"/></svg>Schwarz</button>
+      <button onclick="key('ende')"><svg class="i"><use href="#i-stop"/></svg>Ende</button>
+    </div>
+    <div class="hint">Steuert PowerPoint, LibreOffice Impress, PDF-Anzeigen … – das Programm muss am PC im Vordergrund sein.</div>
+  </div>
+  <div class="card hide" id="c-nokeys"><div class="hint" style="margin:0">Folien per Handy gehen unter Wayland nicht –
+    am PC die Sitzung „Plasma (X11)“ wählen. Laserpointer und alles andere funktionieren trotzdem.</div></div>
 </div>
 
 <!-- ============================================================ Senden -->
 <div class="page" id="p-senden">
   <div class="card">
-    <h2>Foto oder Video zeigen</h2>
+    <h2>Foto oder Video</h2>
     <div class="row">
-      <label class="btn primary" for="cam">📷 Foto machen</label>
-      <label class="btn" for="gal">🖼️ Aus Galerie</label>
+      <label class="btn primary" for="cam"><svg class="i"><use href="#i-camera"/></svg>Foto machen</label>
+      <label class="btn" for="gal"><svg class="i"><use href="#i-image"/></svg>Galerie</label>
     </div>
     <input type="file" id="cam" accept="image/*" capture="environment">
     <input type="file" id="gal" accept="image/*,video/*">
@@ -161,22 +224,23 @@ nav button.sel { color:var(--accent); background:var(--chip); }
     <div class="hint" id="upinfo">Wird sofort auf Monitor 2 gezeigt.</div>
   </div>
   <div class="card">
-    <h2>Link zeigen</h2>
-    <input type="url" id="url" placeholder="https://… (z. B. YouTube-Link)" autocomplete="off">
-    <button class="primary" style="width:100%;margin-top:8px" onclick="sendLink()">Auf Monitor 2 öffnen</button>
+    <h2>Link</h2>
+    <input type="url" id="url" placeholder="https://… (z. B. YouTube)" autocomplete="off">
+    <button class="primary" style="width:100%;margin-top:8px" onclick="sendLink()"><svg class="i"><use href="#i-link"/></svg>Auf Monitor 2 öffnen</button>
     <div class="hint">YouTube: „Teilen → Link kopieren“ und hier einfügen – läuft im Vollbild.</div>
   </div>
   <div class="card">
-    <h2>Text zeigen</h2>
+    <h2>Text</h2>
     <textarea id="text" placeholder="Text für Monitor 2"></textarea>
-    <button style="width:100%;margin-top:8px" onclick="sendText()">Text anzeigen</button>
+    <button style="width:100%;margin-top:8px" onclick="sendText()"><svg class="i"><use href="#i-text"/></svg>Anzeigen</button>
   </div>
 </div>
 </div>
 
 <nav id="nav">
-  <button class="sel" data-p="steuern" onclick="tab('steuern')"><span class="i">🎛️</span>Steuern</button>
-  <button data-p="senden" onclick="tab('senden')"><span class="i">📤</span>Senden</button>
+  <button class="sel" data-p="steuern" onclick="tab('steuern')"><svg class="i"><use href="#i-sliders"/></svg>Steuern</button>
+  <button data-p="praesi" onclick="tab('praesi')"><svg class="i"><use href="#i-slides"/></svg>Präsentation</button>
+  <button data-p="senden" onclick="tab('senden')"><svg class="i"><use href="#i-send"/></svg>Senden</button>
 </nav>
 <div class="toast" id="toast"></div>
 
@@ -195,7 +259,7 @@ function tab(name) {
   current = name;
   for (const b of document.querySelectorAll("nav button")) b.classList.toggle("sel", b.dataset.p === name);
   for (const p of document.querySelectorAll(".page")) p.classList.toggle("sel", p.id === "p-" + name);
-  window.scrollTo(0, 0);
+  window.scrollTo(0, 0); loadPreview();
 }
 function toast(text, bad) {
   const t = $("toast"); t.textContent = text; t.className = "toast show" + (bad ? " bad" : "");
@@ -224,6 +288,7 @@ async function post(path, obj, okText) {
   catch (e) { toast(e.message, true); }
 }
 function cmd(c) { buzz(); post("/api/cmd", { cmd: c }); }
+function key(k) { buzz(); post("/api/cmd", { cmd: "taste:" + k }); }
 function sendLink() {
   const u = $("url").value.trim(); if (!u) return;
   post("/api/link", { url: u }, "Wird geöffnet …"); $("url").value = "";
@@ -240,7 +305,7 @@ async function refresh() {
     const s = await api("/api/status");
     showLogin(false);
     $("dot").classList.add("on");
-    $("now").textContent = "Monitor 2: " + s.now;
+    $("now").textContent = s.now;
     const f = s.flags || {};
     for (const [id, on] of [["b-schwarz", f.schwarz], ["b-standbild", f.standbild], ["b-spiegeln", f.spiegeln],
                             ["b-erweitern", f.erweitern], ["b-schoner", f.schoner]]) $(id).classList.toggle("on", !!on);
@@ -250,6 +315,8 @@ async function refresh() {
     $("timer").textContent = s.timer || "–";
     $("c-rgb").classList.toggle("hide", !s.rgb);
     for (const m of ["farbe", "monitor2", "aus"]) $("r-" + m).classList.toggle("on", s.rgb === m);
+    $("c-keys").classList.toggle("hide", s.keys === false);
+    $("c-nokeys").classList.toggle("hide", s.keys !== false);
     const key = s.scenes.join("\n") + "|" + (s.scene || "");
     if (key !== scenesKey) {
       scenesKey = key; const box = $("scenes"); box.innerHTML = "";
@@ -266,16 +333,16 @@ async function refresh() {
   }
 }
 
-// ---- Live-Bild (nur, solange „Steuern“ offen und die Seite sichtbar ist)
+// ---- Live-Bild (nur, solange ein Reiter mit Bild offen und die Seite sichtbar ist)
 let prevUrl = null, prevBusy = false;
 async function loadPreview() {
-  if (!code || prevBusy || current !== "steuern" || document.hidden) return;
+  if (!code || prevBusy || current === "senden" || document.hidden) return;
   prevBusy = true;
   try {
     const r = await fetch("/api/preview", { headers: { "X-AluPC-Code": code } });
     if (r.ok) {
       const url = URL.createObjectURL(await r.blob());
-      $("prev").src = url;
+      $("prev").src = url; $("prev2").src = url;
       if (prevUrl) URL.revokeObjectURL(prevUrl);
       prevUrl = url;
     }
@@ -283,29 +350,31 @@ async function loadPreview() {
   prevBusy = false;
 }
 
-// ---- Laserpointer: Finger auf dem Live-Bild
+// ---- Laserpointer: Finger auf dem Live-Bild (immer nur die neueste Position schicken)
 let pending = null, sending = false;
 function sendLaser(obj) { pending = obj; if (!sending) flushLaser(); }
-function flushLaser() {  // immer nur die neueste Position schicken – so bleibt der Punkt flüssig
+function flushLaser() {
   if (!pending) return;
   sending = true; const body = JSON.stringify(pending); pending = null;
   fetch("/api/laser", { method: "POST", headers: { "X-AluPC-Code": code, "Content-Type": "application/json" }, body })
     .catch(() => {}).finally(() => setTimeout(() => { sending = false; flushLaser(); }, 25));
 }
-function point(e) {
-  const box = $("preview").getBoundingClientRect();
-  const t = e.touches ? e.touches[0] : e;
-  const x = Math.min(1, Math.max(0, (t.clientX - box.left) / box.width));
-  const y = Math.min(1, Math.max(0, (t.clientY - box.top) / box.height));
-  const l = $("laser"); l.style.display = "block"; l.style.left = (x * 100) + "%"; l.style.top = (y * 100) + "%";
-  sendLaser({ x, y });
+function laserOn(pv, dot) {
+  function point(e) {
+    const box = pv.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (e.clientX - box.left) / box.width));
+    const y = Math.min(1, Math.max(0, (e.clientY - box.top) / box.height));
+    dot.style.display = "block"; dot.style.left = (x * 100) + "%"; dot.style.top = (y * 100) + "%";
+    sendLaser({ x, y });
+  }
+  function release() { dot.style.display = "none"; sendLaser({ up: true }); }
+  pv.addEventListener("pointerdown", e => { pv.setPointerCapture(e.pointerId); point(e); });
+  pv.addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") point(e); });
+  pv.addEventListener("pointerup", release);
+  pv.addEventListener("pointercancel", release);
 }
-function release() { $("laser").style.display = "none"; sendLaser({ up: true }); }
-const pv = $("preview");
-pv.addEventListener("pointerdown", e => { pv.setPointerCapture(e.pointerId); point(e); });
-pv.addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") point(e); });
-pv.addEventListener("pointerup", release);
-pv.addEventListener("pointercancel", release);
+laserOn($("preview"), $("laser"));
+laserOn($("preview2"), $("laser2"));
 
 // Fotos: sehr große Bilder und HEIC (iPhone) vor dem Senden in JPEG umwandeln
 function prepare(file) {

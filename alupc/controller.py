@@ -536,6 +536,7 @@ class Controller(QObject):
             "sound": state is not None,
             "video": bool(video_sources(self.output.content)) if self.mode == "content" else False,
             "timer": clock.text(),
+            "keys": __import__("alupc.platform.keys", fromlist=["available"]).available(),
             "rgb": rgb,
             "flags": {"schwarz": self.privacy, "standbild": self.frozen, "schoner": self.screensaver.active,
                       "spiegeln": bool(self.mode == "content" and content.get("mirror")),
@@ -619,7 +620,13 @@ class Controller(QObject):
         elif kind == "cmd":
             cmd = req.get("cmd", "")
             videos = video_sources(self.output.content) if self.mode == "content" else []
-            if cmd.startswith("lautstaerke:"):
+            if cmd.startswith("taste:"):  # Präsentations-Fernbedienung: Taste ans aktive Programm
+                from .platform import keys
+
+                if not keys.send(cmd.split(":", 1)[1]):
+                    self.message.emit("Tasten vom Handy gehen unter Wayland nicht – bitte die X11-Sitzung nutzen "
+                                      "(Anmeldebildschirm: „Plasma (X11)“).")
+            elif cmd.startswith("lautstaerke:"):
                 self.set_media_volume(volume=max(0, min(100, int(cmd.split(":", 1)[1]))), muted=False)
             elif cmd.startswith("video_"):
                 if videos:

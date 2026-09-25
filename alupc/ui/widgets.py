@@ -127,8 +127,8 @@ class Tile(HoverMixin, QAbstractButton):
         self.split = False
         self._press_pos = None
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumSize(QSize(150, 118))
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setMinimumSize(QSize(200, 78))
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setToolTip(subtitle)
         self._init_hover()
         self.clicked.connect(self._show_menu)
@@ -141,7 +141,7 @@ class Tile(HoverMixin, QAbstractButton):
         self.update()
 
     def menu_zone(self) -> QRectF:
-        return QRectF(self.width() - 62, 0, 62, 92)
+        return QRectF(self.width() - 54, 0, 54, self.height())
 
     def mousePressEvent(self, e):
         self._press_pos = e.position()
@@ -161,7 +161,7 @@ class Tile(HoverMixin, QAbstractButton):
             self.update()
 
     def sizeHint(self):
-        return QSize(180, 132)
+        return QSize(240, 82)
 
     def paintEvent(self, _e):
         t = theme.current()
@@ -192,9 +192,9 @@ class Tile(HoverMixin, QAbstractButton):
         if self.isDown():
             p.fillPath(rounded(r, 16), QColor(0, 0, 0, 30))
 
-        # Symbol im Kreis
-        pad = 16
-        chip = QRectF(r.left() + pad, r.top() + pad, 46, 46)
+        # Symbol links im Quadrat
+        pad = 14
+        chip = QRectF(r.left() + pad, r.center().y() - 22, 44, 44)
         p.setPen(Qt.NoPen)
         if self.active or self.alert:  # aktiv: kräftiger Verlauf
             grad = QLinearGradient(chip.topLeft(), chip.bottomRight())
@@ -205,51 +205,52 @@ class Tile(HoverMixin, QAbstractButton):
             chip_col = QColor(accent)
             chip_col.setAlphaF((0.18 if t.dark else 0.12) + 0.08 * self._hover)
             p.setBrush(chip_col)
-        p.drawRoundedRect(chip, 13, 13)
+        p.drawRoundedRect(chip, 12, 12)
         icon_col = "#ffffff" if (self.active or self.alert) else accent.name()
         icons.paint(p, self.icon_name, chip.adjusted(11, 11, -11, -11), icon_col, 2.0)
 
-        # Zustand oben rechts
-        if self.badge:
-            f = font(8, QFont.Bold)
-            p.setFont(f)
-            fm = QFontMetrics(f)
-            bw = fm.horizontalAdvance(self.badge) + 16
-            # neben dem Menü-Pfeil (falls vorhanden), sonst ganz rechts
-            right = r.right() - pad - (34 if (self.menu is not None and self.split) else 0)
-            badge = QRectF(right - bw, r.top() + pad + 12, bw, 22)
-            p.setBrush(accent)
-            p.drawRoundedRect(badge, 11, 11)
-            p.setPen(QColor("#ffffff"))
-            p.drawText(badge, Qt.AlignCenter, self.badge)
-        if self.menu is not None and (self.split or not self.badge):
-            cx = r.right() - pad - 6
-            cy = r.top() + pad + 23
+        right = r.right() - pad
+        # Menü-Pfeil rechts mittig
+        if self.menu is not None:
+            cx, cy = right - 10, r.center().y()
             if self.split:
-                zone = QRectF(cx - 13, cy - 13, 26, 26)
                 ring = QColor(t.muted)
-                ring.setAlphaF(0.25 + 0.35 * self._hover)
+                ring.setAlphaF(0.16 + 0.3 * self._hover)
                 p.setPen(Qt.NoPen)
                 p.setBrush(ring)
-                p.drawEllipse(zone)
+                p.drawEllipse(QRectF(cx - 13, cy - 13, 26, 26))
             p.setPen(QPen(QColor(t.text if self.split else t.muted), 1.8, Qt.SolidLine, Qt.RoundCap))
             p.drawLine(QPointF(cx - 4, cy - 2), QPointF(cx, cy + 2))
             p.drawLine(QPointF(cx, cy + 2), QPointF(cx + 4, cy - 2))
+            right -= 34
+        # Zustand (z. B. AKTIV) klein oben rechts
+        if self.badge:
+            f = font(7.5, QFont.Bold)
+            p.setFont(f)
+            bw = QFontMetrics(f).horizontalAdvance(self.badge) + 14
+            badge = QRectF(r.right() - pad - bw, r.top() + 7, bw, 18)
+            p.setPen(Qt.NoPen)
+            p.setBrush(accent)
+            p.drawRoundedRect(badge, 9, 9)
+            p.setPen(QColor("#ffffff"))
+            p.drawText(badge, Qt.AlignCenter, self.badge)
 
-        # Texte
-        p.setPen(QColor(t.text))
-        tf = font(12, QFont.DemiBold)
+        # Texte rechts vom Symbol
+        left = chip.right() + 12
+        width = max(20.0, right - left - 4)
+        tf = font(11.5, QFont.DemiBold)
         p.setFont(tf)
-        text_top = chip.bottom() + 12
-        p.drawText(QRectF(r.left() + pad, text_top, r.width() - 2 * pad, 24), Qt.AlignLeft | Qt.AlignVCenter,
-                   self.title)
-        if self.subtitle and r.height() > 120:
+        p.setPen(QColor(t.text))
+        title = QFontMetrics(tf).elidedText(self.title, Qt.ElideRight, int(width))
+        has_sub = bool(self.subtitle)
+        p.drawText(QRectF(left, r.center().y() - (21 if has_sub else 11), width, 22), Qt.AlignLeft | Qt.AlignVCenter,
+                   title)
+        if has_sub:
             p.setPen(QColor(t.muted))
-            sf = font(9)
+            sf = font(8.8)
             p.setFont(sf)
-            sub = QFontMetrics(sf).elidedText(self.subtitle, Qt.ElideRight, int(r.width() - 2 * pad))
-            p.drawText(QRectF(r.left() + pad, text_top + 24, r.width() - 2 * pad, 20),
-                       Qt.AlignLeft | Qt.AlignVCenter, sub)
+            sub = QFontMetrics(sf).elidedText(self.subtitle, Qt.ElideRight, int(width))
+            p.drawText(QRectF(left, r.center().y() + 1, width, 20), Qt.AlignLeft | Qt.AlignVCenter, sub)
         p.end()
 
 
@@ -334,7 +335,7 @@ class PreviewThumb(QWidget):
         super().__init__(parent)
         self.image = None
         self.icon_name = "monitor"
-        self.setFixedSize(128, 72)
+        self.setFixedSize(272, 153)
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip("Live-Vorschau von Monitor 2 – Klick öffnet Bild-in-Bild")
 
@@ -353,7 +354,7 @@ class PreviewThumb(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        path = rounded(r, 10)
+        path = rounded(r, 14)
         if self.image is not None:
             p.fillPath(path, QColor("#000000"))
             p.save()
@@ -369,7 +370,7 @@ class PreviewThumb(QWidget):
             soft.setAlphaF(0.14 if t.dark else 0.10)
             p.fillPath(path, QColor(t.surface2))
             p.fillPath(path, soft)
-            s = 30
+            s = 46
             icons.paint(p, self.icon_name, QRectF(r.center().x() - s / 2, r.center().y() - s / 2, s, s), t.accent, 1.9)
         p.setPen(QPen(QColor(t.border), 1))
         p.drawPath(path)
@@ -377,23 +378,23 @@ class PreviewThumb(QWidget):
 
 
 class StatusCard(QWidget):
-    """Oben im Hauptfenster: Was sehen die anderen gerade auf Monitor 2? (mit Live-Vorschau)"""
+    """Oben im Hauptfenster: Monitor 2 groß – Live-Bild, was läuft, Schnellschalter (Schwarz, Standbild …)."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("Card")
+        self.setObjectName("Hero")
         self.setAttribute(Qt.WA_StyledBackground, True)
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(14, 12, 18, 12)
-        lay.setSpacing(16)
+        lay.setContentsMargins(16, 16, 20, 16)
+        lay.setSpacing(20)
         self.preview = PreviewThumb()
         text = QVBoxLayout()
-        text.setSpacing(2)
+        text.setSpacing(4)
         self.caption = QLabel()
         self.caption.setObjectName("Muted")
         self.caption.setFont(font(8.5, QFont.DemiBold))
         self.title = QLabel()
-        self.title.setFont(font(14, QFont.Bold))
+        self.title.setFont(font(17, QFont.Bold))
         self.title.setWordWrap(True)
         self.pills = QHBoxLayout()
         self.pills.setSpacing(6)
@@ -401,12 +402,19 @@ class StatusCard(QWidget):
         pill_row.setSpacing(0)
         pill_row.addLayout(self.pills)
         pill_row.addStretch(1)
+        self.chips = QHBoxLayout()  # Schnellschalter (werden vom Hauptfenster eingesetzt)
+        self.chips.setSpacing(8)
+        chip_row = QHBoxLayout()
+        chip_row.addLayout(self.chips)
+        chip_row.addStretch(1)
         text.addStretch(1)
         text.addWidget(self.caption)
         text.addWidget(self.title)
         text.addLayout(pill_row)
+        text.addSpacing(8)
+        text.addLayout(chip_row)
         text.addStretch(1)
-        self.actions = QHBoxLayout()
+        self.actions = QVBoxLayout()
         self.actions.setSpacing(8)
         lay.addWidget(self.preview)
         lay.addLayout(text, 1)

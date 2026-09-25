@@ -2,7 +2,7 @@
 ; Wird von GitHub Actions gebaut (siehe .github/workflows/build.yml).
 
 #ifndef AppVersion
-  #define AppVersion "0.14.1"
+  #define AppVersion "0.15.0"
 #endif
 
 [Setup]

@@ -175,7 +175,7 @@ def test_windows_structs_have_correct_size():
 
 
 def test_startpage_order():
-    from alupc.startpage import DEFAULT_ORDER, all_keys, custom_key, ordered_keys, section_of
+    from alupc.startpage import BUILTIN_TILES, DEFAULT_ORDER, all_keys, custom_key, ordered_keys, section_of
 
     cfg = {"tiles": None, "custom": [{"id": "a1", "title": "X", "section": "schnell"}]}
     assert ordered_keys(cfg) == DEFAULT_ORDER + ["custom:a1"]
@@ -184,7 +184,8 @@ def test_startpage_order():
     keys = ordered_keys(cfg)
     assert keys == ["camera", "mirror", "custom:a1"]  # unbekannte weg, neue eigene hinten dran
     full = all_keys(cfg)
-    assert full[:3] == keys and set(full) == set(DEFAULT_ORDER) | {"custom:a1"}
+    assert full[:3] == keys and set(full) == set(BUILTIN_TILES) | {"custom:a1"}  # auch ausgeblendete wählbar
+    assert "freeze" not in DEFAULT_ORDER  # Schwarz/Standbild/PiP sind Schalter beim Live-Bild
     assert section_of("freeze", cfg) == "schnell"
     assert section_of(custom_key(cfg["custom"][0]), cfg) == "schnell"
 
@@ -292,16 +293,20 @@ def test_portable_registers_itself(tmp_path, monkeypatch):
 
 # ---------------------------------------------------------------- 0.7: Maus, Laserpointer
 def test_new_builtin_tiles_appear_after_update():
-    from alupc.startpage import ordered_keys
+    from alupc.startpage import all_keys, ordered_keys
 
     old_saved = {"tiles": ["timer", "mirror"], "custom": []}  # Einstellungen von vor dem Update
-    assert ordered_keys(old_saved) == ["timer", "mirror", "airplay", "handy_stream", "handy_remote", "miracast",
-                                       "draw"]
+    import sys
+
+    expected = ["timer", "mirror", "airplay", "handy_stream", "handy_remote"]
+    if sys.platform.startswith("win"):
+        expected.append("miracast")
+    assert ordered_keys(old_saved) == expected
     from alupc.startpage import DEFAULT_ORDER
 
     hidden_on_purpose = {"tiles": ["timer", "mirror"], "custom": [], "seen": list(DEFAULT_ORDER)}
     assert ordered_keys(hidden_on_purpose) == ["timer", "mirror"]
-    assert "draw" in ordered_keys({"tiles": None})
+    assert "draw" in all_keys({"tiles": None})  # ausgeblendet, aber wählbar (Zeichnen ist ein Schalter oben)
 
 
 def test_barrier_lines():
@@ -721,3 +726,14 @@ def test_miracast_wifi_support_parse():
     assert parse_wireless_display(en) is True
     assert parse_wireless_display(de) is False
     assert parse_wireless_display("Es ist keine Drahtlosschnittstelle im System vorhanden.") is None
+
+
+def test_presentation_keys():
+    from alupc.platform import keys
+
+    assert set(keys.KEYS) >= {"weiter", "zurueck", "start", "ende", "schwarz"}
+    try:
+        keys.send("rm -rf")
+        raise AssertionError("unbekannte Taste muss abgelehnt werden")
+    except ValueError:
+        pass

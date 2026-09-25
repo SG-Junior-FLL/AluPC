@@ -82,7 +82,7 @@ jobs:
           plugin=$(find /opt/alupc -name libqxcb.so | head -1)
           ldd "$plugin" $(dirname "$plugin")/../../lib/libQt6XcbQpa.so.6 2>/dev/null | grep "not found" | sort -u | sed 's/^/::warning title=Linux-X11-Bibliotheken fehlen::/' || true
           set +e
-          xvfb-run -a -s "-screen 0 1920x1080x24" env QT_QPA_PLATFORM=xcb alupc --selbsttest "$RUNNER_TEMP/x11.txt" > "$RUNNER_TEMP/x11.out" 2>&1
+          xvfb-run -a -s "-screen 0 1920x1080x24" env QT_QPA_PLATFORM=xcb /opt/alupc/AluPC --selbsttest "$RUNNER_TEMP/x11.txt" > "$RUNNER_TEMP/x11.out" 2>&1
           echo "::notice title=Linux-X11-Diagnose::Exit-Code $?"
           if grep -q '^DIAG' "$RUNNER_TEMP/x11.txt" 2>/dev/null; then
             grep '^DIAG' "$RUNNER_TEMP/x11.txt" | sed 's/^DIAG /::notice title=Linux-X11-Diagnose::/'

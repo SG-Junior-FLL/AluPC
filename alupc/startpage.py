@@ -25,12 +25,16 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "timer": ("timer", "Timer", "Start/Pause · Pfeil: mehr", "#f43f5e", "schnell"),
     "draw": ("edit", "Zeigen & Zeichnen", "Laser, Stift, Marker", "#f97316", "schnell"),
 }
-DEFAULT_ORDER = list(BUILTIN_TILES)
+# Schwarz, Standbild, Bild-in-Bild sind jetzt Schalter oben beim Live-Bild – als Kachel nur noch auf Wunsch
+HIDDEN_BY_DEFAULT = {"freeze", "black", "pip", "draw"}
+if not __import__("sys").platform.startswith("win"):
+    HIDDEN_BY_DEFAULT.add("miracast")  # Miracast-Empfang gibt es nur unter Windows
+DEFAULT_ORDER = [k for k in BUILTIN_TILES if k not in HIDDEN_BY_DEFAULT]
 # Kacheln, die es schon vor dem Merken von „seen“ gab (für ältere Einstellungen)
 LEGACY_TILES = ["mirror", "extend", "camera", "program", "website", "media", "scenes", "freeze", "black",
                 "pip", "screensaver", "timer"]
 
-SECTIONS = {"anzeigen": "Anzeigen", "handy": "Handy", "schnell": "Schnell umschalten"}
+SECTIONS = {"anzeigen": "Anzeigen", "handy": "Handy", "schnell": "Werkzeuge"}
 
 # Befehle, die eine eigene Kachel ausführen kann
 COMMANDS = {
@@ -103,7 +107,7 @@ def ordered_keys(start_cfg: dict) -> list[str]:
 def all_keys(start_cfg: dict) -> list[str]:
     """Alle Kacheln (auch ausgeblendete): erst die sichtbaren in Reihenfolge, dann der Rest."""
     visible = ordered_keys(start_cfg)
-    rest = [k for k in DEFAULT_ORDER if k not in visible]
+    rest = [k for k in BUILTIN_TILES if k not in visible]  # auch standardmäßig ausgeblendete
     rest += [custom_key(t) for t in start_cfg.get("custom", []) if custom_key(t) not in visible]
     return visible + rest
 
