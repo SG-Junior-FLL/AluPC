@@ -1865,16 +1865,18 @@ def test_hardware_page_rgb_and_fans(env, tmp_path, monkeypatch):
     pump()
     page = window.findChild(__import__("alupc.ui.hardware_page", fromlist=["HardwarePage"]).HardwarePage)
     assert page is not None
-    # Temperaturen/Lüfter aus dem (nachgebauten) sysfs
-    assert "nct6798/SYSTIN" in page.temp_bars and page.temp_bars["nct6798/SYSTIN"].value == 41.5
-    assert page.fan_labels["nct6798/Lüfter 1"].text() == "812 U/min"
-    assert controller.config["fans"]["original"] == {"nct6798/pwm1": 5}  # Automatik-Modus gemerkt
-    key, slider, auto = page.pwm_rows["hwmon3/pwm2"]
-    slider.setValue(60)
-    assert page.fan_request() == "hwmon3/pwm1=auto:5,hwmon3/pwm2=153"
-    (hw / "temp1_input").write_text("83000\n")
-    page._update_sensors()
-    assert page.temp_bars["nct6798/SYSTIN"].value == 83.0
+    if sys.platform.startswith("win"):  # Windows: keine Lüfter-Schnittstelle → ehrlicher Hinweis
+        assert "FanControl" in page.fan_status.label.text() and not page.pwm_rows
+    else:
+        assert "nct6798/SYSTIN" in page.temp_bars and page.temp_bars["nct6798/SYSTIN"].value == 41.5
+        assert page.fan_labels["nct6798/Lüfter 1"].text() == "812 U/min"
+        assert controller.config["fans"]["original"] == {"nct6798/pwm1": 5}  # Automatik-Modus gemerkt
+        key, slider, auto = page.pwm_rows["hwmon3/pwm2"]
+        slider.setValue(60)
+        assert page.fan_request() == "hwmon3/pwm1=auto:5,hwmon3/pwm2=153"
+        (hw / "temp1_input").write_text("83000\n")
+        page._update_sensors()
+        assert page.temp_bars["nct6798/SYSTIN"].value == 83.0
     # RGB: verbinden, Farbe wählen, Gerät abwählen, aus
     controller.rgb.connect_async()
     assert _until(lambda: controller.rgb.connected, 5)
