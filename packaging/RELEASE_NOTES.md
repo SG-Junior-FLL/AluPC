@@ -8,6 +8,13 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.14.1)
+- **Eigene Kacheln je Handy-Weg** in der neuen Rubrik „Handy“ auf der Startseite: **AirPlay**
+  (iPhone & iPad), **Handy-Stream** (Android per USB), **Handy-Steuerung** (QR-Code, zeigt „LÄUFT“,
+  solange Handys verbinden können) und **Miracast** – Klick startet sofort, der Pfeil zeigt Optionen
+  (z. B. neuer Code, beenden) und „Einrichten und Hilfe“. Unter Linux steht bei Miracast ehrlich
+  „Nur unter Windows“. Die bisherige Sammelkachel „Handy“ entfällt; die Seite „Handy“ bleibt.
+
 ### Neu in dieser Version (0.14.0)
 - **Neue Seite „Handy“** (links in der Leiste, auch per Klick auf die Kachel „Handy“): vier klar getrennte
   Karten – **Jedes Handy** (Browser/QR-Code), **iPhone & iPad** (AirPlay), **Android** (USB) und

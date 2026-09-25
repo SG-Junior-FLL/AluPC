@@ -1540,7 +1540,7 @@ def test_airplay_source_shows_stream(env, tmp_path):
     assert c.red() > 150 and c.green() < 90, c.name()  # rotes Testbild
     assert controller.airplay.pin_code == "4711"
     pump()
-    assert window.t_handy.active and not window.t_extend.active
+    assert window.t_airplay.active and not window.t_extend.active
     controller.extend()  # etwas anderes → UxPlay wird (verzögert) beendet
     assert _until(lambda: not controller.airplay.running(), 5)
 
@@ -1570,7 +1570,7 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
     assert _until(lambda: moved, 5) and moved[0][0] == "AluPC" and moved[0][2] == (1920, 0, 1280, 720)
     assert not controller.cursor_should_stay_home()
     pump()
-    assert window.t_handy.active and not window.t_extend.active and not window.t_program.active
+    assert window.t_airplay.active and not window.t_extend.active and not window.t_program.active
     controller.start_android()
     pump()
     assert controller.desktop_note.startswith("Android")
@@ -1598,7 +1598,7 @@ def test_handy_page_airplay_settings(env, tmp_path):
     assert controller.config["handy"]["pin"] == "2468"
     page.pin_mode.setCurrentIndex(page.pin_mode.findData("zufall"))
     assert controller.config["handy"]["pin"] == "zufall" and page.pin.isHidden()
-    assert "handy" in window.tiles
+    assert {"airplay", "handy_stream", "handy_remote", "miracast"} <= set(window.tiles)
     controller.start_airplay()  # UxPlay fehlt → nur Hinweis, nichts kaputt
     pump()
 
@@ -1723,7 +1723,7 @@ def test_alucast_end_to_end(env, tmp_path):
     colors = {img.pixelColor(x, y).name() for x in range(0, img.width(), 8) for y in range(0, img.height(), 8)}
     assert "#ffffff" in colors and "#000000" in colors  # QR-Code ist zu sehen
     pump()
-    assert window.t_handy.active
+    assert window.t_remote.active and window.t_remote.badge == "LÄUFT"
     base = f"http://127.0.0.1:{port}"
     ok = {"X-AluPC-Code": "123456"}
 
@@ -1772,8 +1772,9 @@ def test_handy_page_cards_and_auto_setup(env, tmp_path, monkeypatch):
 
     controller, window, _ = env
     controller.config["cast"] = {**controller.config["cast"], "port": _free_tcp_port()}
-    # Kachel „Handy“: Klick öffnet die Handy-Seite
-    window.t_handy.activated.emit()
+    # Pfeil-Menü jeder Handy-Kachel führt zur Handy-Seite
+    window._fill_handy_menu(window.handy_menus["airplay"], "airplay")
+    window.handy_menus["airplay"].actions()[-1].trigger()
     pump()
     assert window.stack.currentIndex() == PAGE_HANDY
     page = window.handy_page
@@ -1801,9 +1802,10 @@ def test_handy_page_cards_and_auto_setup(env, tmp_path, monkeypatch):
     assert controller.config["handy"]["airplay_name"].startswith("AluPC (")
     assert controller.config["handy"]["setup_done"] is True
     assert page.setup_btn.isVisible()  # Plan (nachgestellt) meldet weiter etwas → Knopf bleibt
-    window._fill_handy_menu(window.handy_menu)
-    texts = [a.text() for a in window.handy_menu.actions()]
-    assert texts[0].startswith("Jedes Handy") and "Handy-Seite öffnen …" in texts
+    menu = window.handy_menus["handy_remote"]
+    window._fill_handy_menu(menu, "handy_remote")
+    texts = [a.text() for a in menu.actions()]
+    assert texts[0] == "QR-Code auf Monitor 2 zeigen" and texts[-1].startswith("Einrichten und Hilfe")
     controller.start_miracast()  # Linux: nur Hinweis
     pump()
 
@@ -1964,3 +1966,27 @@ def test_phone_remote_preview_laser_and_flags(env):
     assert _http("POST", base + "/api/laser", json.dumps({"x": 3, "y": 0}).encode(), ok)[0] == 400
     assert _http("POST", base + "/api/laser", json.dumps({"x": "a"}).encode(), ok)[0] == 400
     controller.stop_cast()
+
+
+# ---------------------------------------------------------------- 0.14.1: eigene Kacheln je Handy-Weg
+def test_handy_tiles_start_each_way(env):
+    from alupc.startpage import section_of
+
+    controller, window, _ = env
+    controller.config["cast"] = {**controller.config["cast"], "port": _free_tcp_port()}
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": "", "scrcpy_path": ""}
+    assert all(section_of(k, {}) == "handy" for k in ("airplay", "handy_stream", "handy_remote", "miracast"))
+    messages = []
+    controller.message.connect(messages.append)
+    window.t_remote.activated.emit()  # Handy-Steuerung: QR-Code auf Monitor 2
+    pump()
+    assert controller.cast.running() and controller.content == {"type": "cast"}
+    assert window.t_remote.badge == "LÄUFT"
+    if not controller.airplay.binary():
+        window.t_airplay.activated.emit()
+        assert any("UxPlay fehlt" in m for m in messages)
+    window.t_miracast.activated.emit()
+    pump()
+    controller.stop_cast()
+    pump()
+    assert window.t_remote.badge == ""

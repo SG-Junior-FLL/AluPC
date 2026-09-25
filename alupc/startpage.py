@@ -12,8 +12,12 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "program": ("window", "Programm", "Ein Programm zeigen", None, "anzeigen"),
     "website": ("globe", "Website", "Öffnen · Pfeil: Favoriten", None, "anzeigen"),
     "media": ("image", "Bild / Video", "Mediathek · Pfeil: Zuletzt", None, "anzeigen"),
-    "handy": ("phone", "Handy", "iPhone, Android, QR · Pfeil: starten", None, "anzeigen"),
     "scenes": ("scenes", "Meine Szenen", "Bearbeiten · Pfeil: starten", None, "anzeigen"),
+    # Handy → Monitor 2: jeder Weg mit eigener Kachel
+    "airplay": ("phone", "AirPlay", "iPhone & iPad · Pfeil: mehr", "#0ea5e9", "handy"),
+    "handy_stream": ("phone", "Handy-Stream", "Android per USB · Pfeil: mehr", "#22c55e", "handy"),
+    "handy_remote": ("qr", "Handy-Steuerung", "QR-Code scannen · Pfeil: mehr", "#8b5cf6", "handy"),
+    "miracast": ("cast", "Miracast", "Smart View, Win+K · Pfeil: mehr", "#f97316", "handy"),
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),
     "black": ("eye_off", "Schwarz", "Sichtschutz", "#64748b", "schnell"),
     "pip": ("pip", "Bild-in-Bild", "Monitor 2 klein anzeigen", "#8b5cf6", "schnell"),
@@ -26,7 +30,7 @@ DEFAULT_ORDER = list(BUILTIN_TILES)
 LEGACY_TILES = ["mirror", "extend", "camera", "program", "website", "media", "scenes", "freeze", "black",
                 "pip", "screensaver", "timer"]
 
-SECTIONS = {"anzeigen": "Anzeigen", "schnell": "Schnell umschalten"}
+SECTIONS = {"anzeigen": "Anzeigen", "handy": "Handy", "schnell": "Schnell umschalten"}
 
 # Befehle, die eine eigene Kachel ausführen kann
 COMMANDS = {

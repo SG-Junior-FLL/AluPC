@@ -278,6 +278,7 @@ class MainWindow(QMainWindow):
         controller.message.connect(self.show_message)
         controller.presenter_requested.connect(self.open_presenter)
         controller.settings_imported.connect(self._settings_imported)
+        controller.cast.state_changed.connect(self.refresh)  # Kachel „Handy-Steuerung“: LÄUFT an/aus
         self.refresh()
 
     # ================================================================ Seitenleiste
@@ -402,11 +403,22 @@ class MainWindow(QMainWindow):
         draw_menu.addAction(icons.icon("trash", theme.current().text, 18), "Zeichnungen auf Monitor 2 löschen",
                             c.laser.clear_strokes)
         self.t_draw.set_menu(draw_menu, split=True)
-        self.t_handy = self.tiles["handy"]
-        self.t_handy.activated.connect(lambda: self._go(PAGE_HANDY))
-        self.handy_menu = QMenu(self)
-        self.handy_menu.aboutToShow.connect(lambda: self._fill_handy_menu(self.handy_menu))
-        self.t_handy.set_menu(self.handy_menu, split=True)
+        # Handy: eigene Kachel je Weg – Klick startet, Pfeil zeigt Optionen und die Handy-Seite
+        self.t_airplay, self.t_stream = self.tiles["airplay"], self.tiles["handy_stream"]
+        self.t_remote, self.t_miracast = self.tiles["handy_remote"], self.tiles["miracast"]
+        if not sys.platform.startswith("win"):
+            self.t_miracast.subtitle = "Nur unter Windows"
+            self.t_miracast.setToolTip("Miracast-Empfang gibt es nur unter Windows")
+        self.handy_menus = {}
+        for key, tile, start in [("airplay", self.t_airplay, c.start_airplay),
+                                 ("handy_stream", self.t_stream, c.start_android),
+                                 ("handy_remote", self.t_remote, c.start_cast),
+                                 ("miracast", self.t_miracast, c.start_miracast)]:
+            tile.activated.connect(start)
+            menu = QMenu(self)
+            menu.aboutToShow.connect(lambda m=menu, k=key: self._fill_handy_menu(m, k))
+            tile.set_menu(menu, split=True)
+            self.handy_menus[key] = menu
 
         self.t_mirror.clicked.connect(c.mirror)
         self.t_extend.clicked.connect(c.extend)
@@ -620,19 +632,24 @@ class MainWindow(QMainWindow):
         if ok:
             self.controller.save_website(name.strip() or title, view.url().toString())
 
-    def _fill_handy_menu(self, menu):
+    def _fill_handy_menu(self, menu, key: str):
+        """Pfeil-Menü einer Handy-Kachel."""
         c = self.controller
         col = theme.current().text
         menu.clear()
-        menu.addAction(icons.icon("qr", col, 18), "Jedes Handy – QR-Code zeigen", c.start_cast)
-        menu.addAction(icons.icon("phone", col, 18), "iPhone & iPad (AirPlay)", c.start_airplay)
-        menu.addAction(icons.icon("phone", col, 18), "Android (USB)", c.start_android)
-        if sys.platform.startswith("win"):
-            menu.addAction(icons.icon("cast", col, 18), "Miracast", c.start_miracast)
+        page = ("sliders", "Einrichten und Hilfe (Handy-Seite) …", lambda: self._go(PAGE_HANDY))
+        items = {
+            "airplay": [("phone", "Auf Monitor 2 zeigen", c.start_airplay)],
+            "handy_stream": [("phone", "Android-Bild auf Monitor 2", c.start_android)],
+            "handy_remote": [("qr", "QR-Code auf Monitor 2 zeigen", c.start_cast)]
+            + ([("x", "Handy-Steuerung beenden", c.stop_cast)] if c.cast.running() else [])
+            + [("refresh", "Neuer Code (alter QR-Code ungültig)", c.cast.renew_code)],
+            "miracast": [("cast", "Auf Monitor 2 zeigen", c.start_miracast)],
+        }[key]
+        for icon_name, text, slot in items:
+            menu.addAction(icons.icon(icon_name, col, 18), text, slot)
         menu.addSeparator()
-        if c.cast.running():
-            menu.addAction(icons.icon("x", col, 18), "QR-Empfang beenden", c.stop_cast)
-        menu.addAction(icons.icon("sliders", col, 18), "Handy-Seite öffnen …", lambda: self._go(PAGE_HANDY))
+        menu.addAction(icons.icon(page[0], col, 18), page[1], page[2])
 
     def open_presenter(self):
         """Fenster „Zeigen & Zeichnen“ auf Monitor 1 öffnen (bzw. nach vorne holen)."""
@@ -1173,9 +1190,13 @@ class MainWindow(QMainWindow):
             (self.t_web, typ == "website"),
             (self.t_media, typ in ("image", "video", "slideshow")),
             (self.t_scenes, typ == "scene"),
-            (self.t_handy, typ in ("airplay", "cast") or handy_desktop),
+            (self.t_airplay, typ == "airplay" or (c.mode == "desktop" and c.desktop_note.startswith("iPhone"))),
+            (self.t_stream, c.mode == "desktop" and c.desktop_note.startswith("Android")),
+            (self.t_miracast, c.mode == "desktop" and c.desktop_note.startswith("Miracast")),
         ]:
             tile.set_state(on, badge="AKTIV" if on else "")
+        remote_on = c.cast.running()  # Handy-Steuerung: „LÄUFT“, solange Handys verbinden können
+        self.t_remote.set_state(remote_on or typ == "cast", badge="LÄUFT" if remote_on else "")
         saver_on = c.screensaver.active
         self.t_saver.set_state(saver_on, badge="AN" if saver_on else "")
         drawing = bool(getattr(self, "presenter", None) and self.presenter.isVisible())
