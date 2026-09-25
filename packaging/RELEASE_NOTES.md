@@ -8,6 +8,24 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.12.0)
+- **AluCast – eigener Handy-Empfang ohne App** (Kachel „Handy“ – Klick): QR-Code auf Monitor 2
+  scannen, dann vom iPhone oder Android **Fotos (auch direkt fotografieren), Videos, Links (YouTube im
+  Vollbild) und Text** senden und Monitor 2 **fernsteuern** (Szenen, Schwarz, Standbild, Video,
+  Lautstärke). Geschützt mit 6-stelligem Code, Sperre nach Fehlversuchen.
+- **Miracast (Windows)**: AluPC startet Windows' eigenen Empfänger „Drahtlose Anzeige“ (installiert ihn
+  bei Bedarf nach) und legt ihn im Vollbild auf Monitor 2 – z. B. für Samsung „Smart View“ oder
+  Laptops mit Windows+K.
+- **Kamera-Optionen**: Kamera-Leiste mit Zoom 1–5×, Ausschnitt verschieben, Spiegeln, Drehen,
+  Helligkeit; pro Kamera gespeichert; schärferes Kamerabild (bis Full HD). Tastenkürzel/Befehle
+  `kamera_zoom_plus`, `kamera_zoom_minus`, `kamera_zoom_aus`.
+- Einrichten-Dialog „Handy“ jetzt mit Reitern: Browser (QR-Code), iPhone (AirPlay), Android, Miracast.
+- **Ehrlich:** Einen eigenen AirPlay/Chromecast-Empfänger kann AluPC nicht nachbauen (Apple-FairPlay-
+  Verschlüsselung bzw. Google-Zertifikate). AluCast überträgt deshalb **nicht den Handy-Bildschirm**,
+  sondern Fotos, Videos, Links und Text. Miracast nur unter Windows. Nicht mit echten Handys getestet –
+  getestet sind die Handy-Webseite in einem Handy-Browser-Simulator (iPhone- und Pixel-Größe) und der
+  Webserver mit echten Anfragen.
+
 ### Neu in dieser Version (0.11.0)
 - **Handy → Monitor 2** (neue Kachel „Handy“, auch im Taskleisten-Menü):
   - **iPhone/iPad per AirPlay** über das freie UxPlay: am iPhone Kontrollzentrum →

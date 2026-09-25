@@ -12,7 +12,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "program": ("window", "Programm", "Ein Programm zeigen", None, "anzeigen"),
     "website": ("globe", "Website", "Öffnen · ▾ Gespeicherte, Browser steuern", None, "anzeigen"),
     "media": ("image", "Bild / Video", "Mediathek · ▾ Gespeicherte, Zuletzt", None, "anzeigen"),
-    "handy": ("phone", "Handy", "iPhone (AirPlay) · ▾ Android, Einrichten", None, "anzeigen"),
+    "handy": ("phone", "Handy", "QR-Code scannen · ▾ AirPlay, Android, Miracast", None, "anzeigen"),
     "scenes": ("scenes", "Meine Szenen", "Eigene Zusammenstellungen", None, "anzeigen"),
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),
     "black": ("eye_off", "Schwarz", "Sichtschutz", "#64748b", "schnell"),
@@ -44,6 +44,9 @@ COMMANDS = {
     "timer_plus": "Timer +1 Minute",
     "timer_minus": "Timer −1 Minute",
     "zeichnen": "Zeigen & Zeichnen (Fenster öffnen)",
+    "kamera_zoom_plus": "Kamera hineinzoomen",
+    "kamera_zoom_minus": "Kamera herauszoomen",
+    "kamera_zoom_aus": "Kamera-Zoom zurück auf 1×",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann

@@ -1601,3 +1601,189 @@ def test_handy_dialog_and_tile(env, tmp_path):
     assert "handy" in window.tiles
     controller.start_airplay()  # UxPlay fehlt → nur Hinweis, nichts kaputt
     pump()
+
+
+# ---------------------------------------------------------------- 0.12: Kamera-Optionen
+def _quadrants(w=200, h=100):
+    from PySide6.QtGui import QPainter
+
+    img = QImage(w, h, QImage.Format_RGB32)
+    p = QPainter(img)
+    p.fillRect(0, 0, w // 2, h // 2, QColor("#ff0000"))       # oben links rot
+    p.fillRect(w // 2, 0, w // 2, h // 2, QColor("#00ff00"))  # oben rechts grün
+    p.fillRect(0, h // 2, w // 2, h // 2, QColor("#0000ff"))  # unten links blau
+    p.fillRect(w // 2, h // 2, w // 2, h // 2, QColor("#ffff00"))  # unten rechts gelb
+    p.end()
+    return img
+
+
+def test_camera_options_and_bar(env, monkeypatch):
+    from PySide6.QtMultimedia import QVideoFrame
+
+    from alupc.sources import CameraSource
+
+    controller, window, _ = env
+    cam = CameraSource({"device_id": "gibt-es-nicht", "name": "Test"})
+    cam.device_id, cam.name = "testcam", "Testkamera"
+    monkeypatch.setattr(controller, "cameras_on_output", lambda: [cam])
+    cam.sink.setVideoFrame(QVideoFrame(_quadrants()))
+    img = cam.image()
+    assert img is not None and img.size().width() == 200
+
+    def color(x, y):
+        return cam.image().pixelColor(x, y).name()
+
+    controller.set_camera_option("testcam", zoom=2.0, x=0.0, y=0.0)  # Ausschnitt oben links
+    assert cam.image().width() == 100 and color(50, 25) == "#ff0000"
+    opts = controller.config["camera"]["testcam"]
+    assert opts["x"] == 0.25 and opts["y"] == 0.25  # am Rand begrenzt und gespeichert
+    controller.set_camera_option("testcam", zoom=1.0, mirror=True)
+    assert color(10, 10) == "#00ff00"  # gespiegelt: grün jetzt links
+    controller.set_camera_option("testcam", mirror=False, rotate=90)
+    assert cam.image().width() == 100 and cam.image().height() == 200
+    assert color(90, 10) == "#ff0000"  # 90° gedreht: oben links wandert nach oben rechts
+
+    # Leiste im Hauptfenster
+    controller.reset_camera("testcam")
+    bar = window.camera_bar
+    bar.sync()
+    assert not bar.isHidden() and bar.title.text() == "Testkamera"
+    assert not bar.left.isEnabled()  # ohne Zoom nichts zu verschieben
+    bar._zoom_by(2.0)
+    assert cam.options()["zoom"] == 2.0 and bar.zoom.value() == 200 and bar.zoom_label.text() == "2,0×"
+    assert bar.left.isEnabled()
+    bar._pan(1, 0)
+    assert cam.options()["x"] > 0.5
+    bar._flip()
+    assert cam.options()["mirror"] and bar.flip.isChecked()
+    x = cam.options()["x"]
+    bar._pan(1, 0)  # gespiegelt: „rechts“ im Bild ist links in der Kamera
+    assert cam.options()["x"] < x
+    bar._rotate()
+    assert cam.options()["rotate"] == 90
+    controller.camera_zoom(1.25)
+    assert cam.options()["zoom"] == 2.5
+    controller.run_command("kamera_zoom_aus")
+    assert cam.options()["zoom"] == 1.0
+    bar._reset()
+    assert cam.options()["rotate"] == 0 and not cam.options()["mirror"]
+    monkeypatch.undo()
+    bar.sync()
+    assert bar.isHidden()
+    cam.deleteLater()
+
+
+# ---------------------------------------------------------------- 0.12: AluCast (Handy per Browser)
+def _free_tcp_port():
+    import socket
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def _http(method, url, body=None, headers=None, timeout=10):
+    """Anfrage in einem Thread schicken und dabei Qt weiterlaufen lassen (Server meldet sich per Signal)."""
+    import threading
+    import urllib.error
+    import urllib.request
+
+    result = {}
+
+    def run():
+        req = urllib.request.Request(url, data=body, method=method, headers=headers or {})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                result["status"], result["body"] = r.status, r.read()
+        except urllib.error.HTTPError as e:
+            result["status"], result["body"] = e.code, e.read()
+        except Exception as e:  # noqa: BLE001
+            result["status"], result["body"] = 0, str(e).encode()
+
+    t = threading.Thread(target=run)
+    t.start()
+    assert _until(lambda: not t.is_alive(), timeout + 2)
+    pump(10)
+    return result["status"], result["body"]
+
+
+def test_alucast_end_to_end(env, tmp_path):
+    import json
+
+    controller, window, _ = env
+    port = _free_tcp_port()
+    controller.config["cast"] = {**controller.config["cast"], "port": port, "code": "123456"}
+    controller.start_cast()
+    pump()
+    assert controller.cast.running() and controller.content == {"type": "cast"}
+    assert controller.config["cast"]["autostart"] is True
+    view = controller.output.content
+    assert view.qr().width() > 20
+    img = view.grab().toImage()
+    colors = {img.pixelColor(x, y).name() for x in range(0, img.width(), 8) for y in range(0, img.height(), 8)}
+    assert "#ffffff" in colors and "#000000" in colors  # QR-Code ist zu sehen
+    pump()
+    assert window.t_handy.active
+    base = f"http://127.0.0.1:{port}"
+    ok = {"X-AluPC-Code": "123456"}
+
+    status, body = _http("GET", base + "/")
+    assert status == 200 and b"AluCast" in body
+    assert _http("GET", base + "/api/status")[0] == 403
+    status, body = _http("GET", base + "/api/status", headers=ok)
+    assert status == 200 and "Handy-Empfang" in json.loads(body)["now"]
+
+    # Foto senden → erscheint auf Monitor 2 und liegt im Ordner „Vom Handy“
+    png = tmp_path / "rot.png"
+    q = QImage(40, 30, QImage.Format_RGB32)
+    q.fill(QColor("#ff0000"))
+    q.save(str(png))
+    status, body = _http("POST", base + "/api/upload?name=Tafelbild.png", png.read_bytes(),
+                         {**ok, "Content-Type": "image/png"})
+    assert status == 200, body
+    assert _until(lambda: (controller.content or {}).get("type") == "image")
+    assert "Vom Handy" in controller.content["path"] and controller.content["path"].endswith("_Tafelbild.png")
+    assert _http("POST", base + "/api/upload?name=virus.exe", b"MZ", {**ok, "Content-Type": "x/y"})[0] == 415
+
+    # Text, Befehle
+    assert _http("POST", base + "/api/text", json.dumps({"text": "Hallo Klasse"}).encode(), ok)[0] == 200
+    assert _until(lambda: (controller.content or {}).get("text") == "Hallo Klasse")
+    assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "schwarz"}).encode(), ok)[0] == 200
+    assert _until(lambda: controller.privacy)
+    assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "sperren"}).encode(), ok)[0] == 400
+    assert _http("POST", base + "/api/link", json.dumps({"url": "kein link"}).encode(), ok)[0] == 400
+
+    # Falsche Codes: nach 10 Versuchen 1 Minute gesperrt (auch für den richtigen Code)
+    bad = {"X-AluPC-Code": "000000"}
+    codes = [_http("GET", base + "/api/status", headers=bad)[0] for _ in range(11)]
+    assert codes[:10] == [403] * 10 and codes[10] == 429
+    assert _http("GET", base + "/api/status", headers=ok)[0] == 429
+
+    controller.stop_cast()
+    assert not controller.cast.running() and controller.config["cast"]["autostart"] is False
+    assert _http("GET", base + "/", timeout=2)[0] == 0
+
+
+def test_handy_dialog_tabs(env, monkeypatch):
+    from alupc.ui.handy_dialog import HandyDialog
+
+    controller, window, _ = env
+    controller.config["cast"] = {**controller.config["cast"], "port": _free_tcp_port()}
+    dlg = HandyDialog(controller, window)
+    dlg.show()
+    pump()
+    assert dlg.tabs.count() == 4 and dlg.tabs.tabText(0).startswith("Browser")
+    assert dlg.qr.pixmap().isNull() and dlg.cast_toggle.text() == "Starten"
+    dlg._toggle_cast()
+    assert controller.cast.running() and not dlg.qr.pixmap().isNull()
+    old = controller.cast.code()
+    controller.cast.renew_code()
+    assert controller.cast.code() != old or len(old) == 6
+    dlg._toggle_cast()
+    assert not controller.cast.running()
+    window._fill_handy_menu(window.handy_menu)
+    texts = [a.text() for a in window.handy_menu.actions()]
+    assert texts[0].startswith("Handy per Browser") and "Einrichten …" in texts
+    dlg.close()
+    controller.start_miracast()  # Linux: nur Hinweis
+    pump()

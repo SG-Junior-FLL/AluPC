@@ -34,12 +34,14 @@ from PySide6.QtWidgets import (
 )
 
 from .. import APP_NAME, __version__
+from ..controller import HANDY_NOTES
 from ..scenes import describe_source
 from ..sources import camera_id, normalize_url
 from . import icons, theme
 from .fingerprint_page import FingerprintPage
 from .icons import app_icon
 from .program_dialog import ProgramDialog
+from .camera_bar import CameraBar
 from .media_bar import MediaBar
 from .volume_box import VolumeBox
 from .scene_editor import SceneEditor
@@ -362,6 +364,8 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.status_card)
         self.media_bar = MediaBar(self.controller)
         lay.addWidget(self.media_bar)
+        self.camera_bar = CameraBar(self.controller)
+        lay.addWidget(self.camera_bar)
 
         c = self.controller
         # Standard-Kacheln (einmal angelegt, je nach Einstellung angezeigt)
@@ -382,13 +386,10 @@ class MainWindow(QMainWindow):
                             c.laser.clear_strokes)
         self.t_draw.set_menu(draw_menu, split=True)
         self.t_handy = self.tiles["handy"]
-        self.t_handy.activated.connect(c.start_airplay)
-        handy_menu = QMenu(self)
-        handy_menu.addAction(icons.icon("phone", theme.current().text, 18), "iPhone/iPad (AirPlay)", c.start_airplay)
-        handy_menu.addAction(icons.icon("phone", theme.current().text, 18), "Android (scrcpy)", c.start_android)
-        handy_menu.addSeparator()
-        handy_menu.addAction(icons.icon("sliders", theme.current().text, 18), "Einrichten …", self.open_handy_dialog)
-        self.t_handy.set_menu(handy_menu, split=True)
+        self.t_handy.activated.connect(c.start_cast)
+        self.handy_menu = QMenu(self)
+        self.handy_menu.aboutToShow.connect(lambda: self._fill_handy_menu(self.handy_menu))
+        self.t_handy.set_menu(self.handy_menu, split=True)
 
         self.t_mirror.clicked.connect(c.mirror)
         self.t_extend.clicked.connect(c.extend)
@@ -600,6 +601,21 @@ class MainWindow(QMainWindow):
         name, ok = QInputDialog.getText(self, "Website speichern", "Name für die Website:", text=title)
         if ok:
             self.controller.save_website(name.strip() or title, view.url().toString())
+
+    def _fill_handy_menu(self, menu):
+        c = self.controller
+        col = theme.current().text
+        menu.clear()
+        menu.addAction(icons.icon("qr", col, 18), "Handy per Browser – QR-Code (iPhone & Android)", c.start_cast)
+        menu.addAction(icons.icon("phone", col, 18), "iPhone/iPad (AirPlay)", c.start_airplay)
+        menu.addAction(icons.icon("phone", col, 18), "Android (scrcpy, USB)", c.start_android)
+        if sys.platform.startswith("win"):
+            menu.addAction(icons.icon("cast", col, 18), "Miracast (Windows „Drahtlose Anzeige“)", c.start_miracast)
+        menu.addSeparator()
+        if c.cast.running():
+            menu.addAction(icons.icon("x", col, 18), "AluCast beenden (Handys können nichts mehr senden)",
+                           c.stop_cast)
+        menu.addAction(icons.icon("sliders", col, 18), "Einrichten …", self.open_handy_dialog)
 
     def open_handy_dialog(self):
         from .handy_dialog import HandyDialog
@@ -889,6 +905,7 @@ class MainWindow(QMainWindow):
                 color = "#ffffff" if b.property("primary") else (t.danger if b.property("danger") else t.text)
                 b.setIcon(icons.icon(name, color, 18))
         self.media_bar.apply_theme()
+        self.camera_bar.apply_theme()
         self.refresh()
         for w in self.findChildren(QWidget):
             w.update()
@@ -933,7 +950,7 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         menu.addAction(ic("mirror"), "Spiegeln", c.mirror)
         menu.addAction(ic("extend"), "Erweitern", c.extend)
-        menu.addAction(ic("phone"), "iPhone/iPad (AirPlay)", c.start_airplay)
+        menu.addAction(ic("qr"), "Handy (QR-Code)", c.start_cast)
         self.tray_scenes = menu.addMenu(ic("scenes"), "Szenen")
         menu.addAction(ic("down"), "Nächste Szene", lambda: c.step_scene(1))
         menu.addSeparator()
@@ -1055,7 +1072,7 @@ class MainWindow(QMainWindow):
         icon_name = "mirror" if is_mirror else icons.SOURCE_ICONS.get(typ, "extend" if c.mode == "desktop" else "monitor")
         if c.mode == "desktop" and c.desktop_note.startswith("Programm"):
             icon_name = "window"
-        elif c.mode == "desktop" and c.desktop_note.startswith(("iPhone/iPad", "Android")):
+        elif c.mode == "desktop" and c.desktop_note.startswith(HANDY_NOTES):
             icon_name = "phone"
         pills = []
         if out is None:
@@ -1075,11 +1092,12 @@ class MainWindow(QMainWindow):
         self.status_card.set(icon_name, where, c.describe(), pills)
         self.volume_box.sync()
         self.media_bar.sync()
+        self.camera_bar.sync()
         self._sync_tray_volume()
         self.side_monitor.setText(("● " if out else "○ ") + (out.name() if out else "Kein Monitor 2"))
 
         self.t_mirror.set_state(is_mirror, badge="AKTIV" if is_mirror else "")
-        handy_desktop = c.mode == "desktop" and c.desktop_note.startswith(("iPhone/iPad", "Android"))
+        handy_desktop = c.mode == "desktop" and c.desktop_note.startswith(HANDY_NOTES)
         desktop = c.mode == "desktop" and not c.desktop_note.startswith("Programm") and not handy_desktop
         self.t_extend.set_state(desktop, badge="AKTIV" if desktop else "")
         for tile, on in [
@@ -1088,7 +1106,7 @@ class MainWindow(QMainWindow):
             (self.t_web, typ == "website"),
             (self.t_media, typ in ("image", "video", "slideshow")),
             (self.t_scenes, typ == "scene"),
-            (self.t_handy, typ == "airplay" or handy_desktop),
+            (self.t_handy, typ in ("airplay", "cast") or handy_desktop),
         ]:
             tile.set_state(on, badge="AKTIV" if on else "")
         saver_on = c.screensaver.active

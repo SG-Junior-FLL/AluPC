@@ -408,6 +408,45 @@ def _draw(name: str, p: QPainter, color: QColor):
         path.lineTo(6, 20.5)
         path.closeSubpath()
         p.drawPath(path)
+    elif name == "flip":  # spiegeln (links ↔ rechts)
+        p.drawLine(QPointF(12, 3), QPointF(12, 5))
+        p.drawLine(QPointF(12, 8), QPointF(12, 10))
+        p.drawLine(QPointF(12, 13), QPointF(12, 15))
+        p.drawLine(QPointF(12, 18), QPointF(12, 21))
+        for side in (-1, 1):
+            path = QPainterPath(QPointF(12 + side * 3, 6))
+            path.lineTo(12 + side * 9, 17)
+            path.lineTo(12 + side * 3, 17)
+            path.closeSubpath()
+            p.drawPath(path)
+    elif name == "rotate":  # 90° drehen
+        p.drawArc(QRectF(4, 5, 15, 15), 90 * 16, -270 * 16)
+        path = QPainterPath(QPointF(8.5, 2.5))
+        path.lineTo(11.5, 5)
+        path.lineTo(8.5, 7.8)
+        p.drawPath(path)
+    elif name == "cast":  # Senden an Bildschirm
+        path = QPainterPath(QPointF(3, 8))
+        path.lineTo(3, 5.5)
+        path.quadTo(3, 4, 4.5, 4)
+        path.lineTo(19.5, 4)
+        path.quadTo(21, 4, 21, 5.5)
+        path.lineTo(21, 18.5)
+        path.quadTo(21, 20, 19.5, 20)
+        path.lineTo(14, 20)
+        p.drawPath(path)
+        p.drawArc(QRectF(-5, 12, 16, 16), 0, 90 * 16)
+        p.drawArc(QRectF(-1, 16, 8, 8), 0, 90 * 16)
+        p.setBrush(fill)
+        p.drawEllipse(QPointF(3.3, 19.7), 1.1, 1.1)
+        p.setBrush(Qt.NoBrush)
+    elif name == "qr":
+        for x, y in ((3.5, 3.5), (14.5, 3.5), (3.5, 14.5)):
+            p.drawRect(QRectF(x, y, 6, 6))
+        p.setBrush(fill)
+        for x, y in ((15, 15), (18.5, 18.5), (18.5, 15), (15, 18.5)):
+            p.drawRect(QRectF(x, y, 1.5, 1.5))
+        p.setBrush(Qt.NoBrush)
     else:  # unbekannt → Kreis
         p.drawEllipse(QPointF(12, 12), 8, 8)
 
@@ -453,7 +492,7 @@ def paint(p: QPainter, name: str, rect: QRectF, color: str | QColor, stroke: flo
 SOURCE_ICONS = {
     "camera": "camera", "window": "window", "screen": "monitor", "website": "globe", "image": "image",
     "video": "video", "slideshow": "slides", "text": "text", "clock": "clock", "countdown": "timer",
-    "color": "palette", "scene": "scenes", "airplay": "phone",
+    "color": "palette", "scene": "scenes", "airplay": "phone", "cast": "qr",
 }
 
 

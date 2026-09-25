@@ -11,7 +11,17 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import QRectF, Qt, QTimer, QUrl
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QImage, QImageReader, QPainter, QPixmap
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontMetrics,
+    QGuiApplication,
+    QImage,
+    QImageReader,
+    QPainter,
+    QPixmap,
+    QTransform,
+)
 from PySide6.QtMultimedia import (
     QAudioOutput,
     QCamera,
@@ -134,21 +144,131 @@ def camera_id(dev) -> str:
     return bytes(dev.id()).decode(errors="replace")
 
 
+# Einstellungen pro Kamera (Zoom, Ausschnitt, Spiegeln, Drehen, Belichtung) – vom Controller aus
+# config["camera"] gesetzt, Schlüssel = Kamera-ID
+camera_settings: dict[str, dict] = {}
+CAMERA_DEFAULTS = {"zoom": 1.0, "x": 0.5, "y": 0.5, "mirror": False, "rotate": 0, "exposure": 0.0,
+                   "quality": "hoch"}
+MAX_ZOOM = 5.0
+
+
+def camera_options(device_id: str) -> dict:
+    return {**CAMERA_DEFAULTS, **camera_settings.get(device_id, {})}
+
+
+def zoom_rect(w: int, h: int, zoom: float, x: float, y: float) -> tuple[int, int, int, int]:
+    """Ausschnitt (links, oben, Breite, Höhe) für einen digitalen Zoom um den Punkt (x, y) (0…1)."""
+    zoom = max(1.0, min(MAX_ZOOM, float(zoom)))
+    cw, ch = max(1, round(w / zoom)), max(1, round(h / zoom))
+    left = round(min(max(x * w - cw / 2, 0), w - cw))
+    top = round(min(max(y * h - ch / 2, 0), h - ch))
+    return left, top, cw, ch
+
+
+def clamp_center(zoom: float, x: float, y: float) -> tuple[float, float]:
+    """Mittelpunkt so begrenzen, dass der Ausschnitt im Bild bleibt."""
+    half = 0.5 / max(1.0, zoom)
+    return min(max(x, half), 1 - half), min(max(y, half), 1 - half)
+
+
+def pan_to_source(dx: float, dy: float, rotate: int, mirror: bool) -> tuple[float, float]:
+    """Verschieben „wie man es sieht“ (rechts/oben im angezeigten Bild) → Richtung im Kamerabild."""
+    for _ in range((-int(rotate) // 90) % 4):  # Drehung zurücknehmen (je 90° im Uhrzeigersinn)
+        dx, dy = -dy, dx
+    return (-dx if mirror else dx), dy
+
+
+def best_camera_format(formats, max_pixels: int = 1920 * 1080):
+    """Schärfstes Format bis Full HD mit flüssiger Bildrate (≥ 24 Bilder/s) – gut für den Zoom."""
+    def size(f):
+        r = f.resolution()
+        return r.width() * r.height()
+
+    smooth = [f for f in formats if f.maxFrameRate() >= 24 and 0 < size(f) <= max_pixels]
+    pool = smooth or [f for f in formats if 0 < size(f) <= max_pixels] or list(formats)
+    if not pool:
+        return None
+    return max(pool, key=lambda f: (size(f), f.maxFrameRate()))
+
+
 class CameraSource(SinkView):
     def __init__(self, cfg, parent=None):
         super().__init__(cfg.get("fit", "contain"), parent)
         self.session = QMediaCaptureSession(self)
         self.camera = None
+        self.device_id = ""
+        self.name = cfg.get("name", "") or "Kamera"
+        self._raw: QImage | None = None
+        self._digital = 1.0
         dev = find_camera(cfg.get("device_id"))
         if dev is None:
             self.set_message(f"Kamera „{cfg.get('name', '')}“ nicht gefunden.")
             return
+        self.device_id = camera_id(dev)
+        self.name = dev.description()
         self.camera = QCamera(dev, self)
         self.camera.errorOccurred.connect(lambda _e, text: self.set_message(f"Kamerafehler: {text}"))
+        if self.options()["quality"] == "hoch":
+            fmt = best_camera_format(dev.videoFormats())
+            if fmt is not None:
+                self.camera.setCameraFormat(fmt)
         self.session.setCamera(self.camera)
         self.session.setVideoSink(self.sink)
         self.set_message("Kamera startet …")
+        self.camera.activeChanged.connect(lambda _a: self.apply_options())
         self.camera.start()
+        self.apply_options()
+
+    # ------------------------------------------------------------ Optionen
+    def options(self) -> dict:
+        return camera_options(self.device_id)
+
+    def hardware_zoom_max(self) -> float:
+        try:
+            return float(self.camera.maximumZoomFactor()) if self.camera else 1.0
+        except (AttributeError, RuntimeError):
+            return 1.0
+
+    def supports_exposure(self) -> bool:
+        try:
+            return bool(self.camera and self.camera.supportedFeatures() & QCamera.Feature.ExposureCompensation)
+        except (AttributeError, RuntimeError, TypeError):
+            return False
+
+    def apply_options(self) -> None:
+        """Nach jeder Änderung: Hardware-Zoom/Belichtung setzen, Rest digital, Bild neu berechnen."""
+        o = self.options()
+        zoom = max(1.0, min(MAX_ZOOM, float(o["zoom"])))
+        hw = 1.0
+        if self.camera is not None and self.hardware_zoom_max() > 1.01:
+            hw = min(zoom, self.hardware_zoom_max())
+            self.camera.setZoomFactor(hw)
+        self._digital = zoom / hw
+        if self.supports_exposure():
+            self.camera.setExposureCompensation(float(o["exposure"]))
+        if self._raw is not None:
+            self._image = self._transform(self._raw)
+        self.update()
+
+    def _transform(self, img: QImage) -> QImage:
+        o = self.options()
+        if self._digital > 1.001:
+            img = img.copy(*zoom_rect(img.width(), img.height(), self._digital, o["x"], o["y"]))
+        if o["mirror"]:
+            img = img.flipped(Qt.Horizontal) if hasattr(img, "flipped") else img.mirrored(True, False)
+        rotate = int(o["rotate"]) % 360
+        if rotate:
+            img = img.transformed(QTransform().rotate(rotate))
+        return img
+
+    def _convert(self):
+        if self._pending is None:
+            return
+        frame, self._pending = self._pending, None
+        image = frame.toImage()
+        if not image.isNull():
+            self._raw = image
+            self._image = self._transform(image)
 
     def stop(self):
         if self.camera:
@@ -519,6 +639,102 @@ class AirPlaySource(SinkView):
             self.player.stop()
         if self.mode in ("stream", "fenster"):
             self.server.release()
+
+
+# --------------------------------------------------------------------------- AluCast (QR-Code)
+def qr_image(text: str, border: int = 2) -> QImage:
+    """QR-Code als kleines Schwarz-Weiß-Bild (1 Pixel je Modul, zum Hochskalieren ohne Glätten)."""
+    import segno
+
+    rows = list(segno.make(text, error="m").matrix_iter(border=border))
+    img = QImage(len(rows[0]), len(rows), QImage.Format_RGB32)
+    img.fill(QColor("#ffffff"))
+    black = QColor("#000000").rgb()
+    for y, row in enumerate(rows):
+        for x, bit in enumerate(row):
+            if bit:
+                img.setPixel(x, y, black)
+    return img
+
+
+class CastSource(QWidget):
+    """Zeigt QR-Code, Adresse und Code für AluCast – Handy scannt und kann dann senden."""
+
+    def __init__(self, cfg, parent=None):
+        super().__init__(parent)
+        from .cast_server import cast_server
+
+        self.server = cast_server()
+        self.ok = self.server.start()
+        self._qr_for = ""
+        self._qr: QImage | None = None
+        self.server.state_changed.connect(self.update)
+        self.setAttribute(Qt.WA_OpaquePaintEvent)
+
+    def qr(self) -> QImage:
+        url = self.server.url()
+        if url != self._qr_for:
+            self._qr_for, self._qr = url, qr_image(url)
+        return self._qr
+
+    def paintEvent(self, _e):
+        from PySide6.QtGui import QLinearGradient
+
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+        grad = QLinearGradient(0, 0, w, h)
+        grad.setColorAt(0, QColor("#0f172a"))
+        grad.setColorAt(1, QColor("#1e1b4b"))
+        p.fillRect(self.rect(), grad)
+        if not self.ok:
+            p.setPen(QColor("#e2e8f0"))
+            p.setFont(fitted_font(p, "x", w, max(14, h // 24)))
+            p.drawText(self.rect().adjusted(20, 20, -20, -20), Qt.AlignCenter | Qt.TextWordWrap,
+                       "AluCast konnte nicht starten (Netzwerk-Anschluss belegt).")
+            p.end()
+            return
+        side = int(min(h * 0.62, w * 0.42))
+        margin = max(12, h // 30)
+        horizontal = w > h * 1.25
+        if horizontal:
+            qr_rect = QRectF(w * 0.08, (h - side) / 2, side, side)
+            text_rect = QRectF(qr_rect.right() + w * 0.05, h * 0.15, w - qr_rect.right() - w * 0.1, h * 0.7)
+        else:
+            side = int(min(w * 0.7, h * 0.5))
+            qr_rect = QRectF((w - side) / 2, h * 0.08, side, side)
+            text_rect = QRectF(w * 0.08, qr_rect.bottom() + margin, w * 0.84, h - qr_rect.bottom() - 2 * margin)
+        pad = side * 0.05
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#ffffff"))
+        p.drawRoundedRect(qr_rect.adjusted(-pad, -pad, pad, pad), pad, pad)
+        p.setRenderHint(QPainter.SmoothPixmapTransform, False)
+        p.drawImage(qr_rect, self.qr())
+        # Text rechts bzw. unten
+        code = self.server.code()
+        lines = [("Handy → Monitor 2", "#ffffff", 0.11, True),
+                 ("QR-Code mit der Kamera-App scannen", "#cbd5e1", 0.055, False),
+                 ("Fotos, Videos, Links und Text senden – ohne App", "#94a3b8", 0.045, False),
+                 ("", "", 0.03, False),
+                 (self.server.url(with_code=False), "#93c5fd", 0.05, False),
+                 (f"Code: {code[:3]} {code[3:]}", "#fbbf24", 0.07, True),
+                 ("Handy und PC im selben WLAN", "#94a3b8", 0.04, False)]
+        y = text_rect.y()
+        unit = text_rect.height() if horizontal else text_rect.height() * 1.4
+        for text, color, size, bold in lines:
+            px = max(10, int(unit * size))
+            if text:
+                font = fitted_font(p, text, int(text_rect.width()), px)
+                font.setBold(bold)
+                p.setFont(font)
+                p.setPen(QColor(color))
+                p.drawText(QRectF(text_rect.x(), y, text_rect.width(), px * 1.5),
+                           (Qt.AlignLeft if horizontal else Qt.AlignHCenter) | Qt.AlignVCenter, text)
+            y += px * 1.55
+        p.end()
+
+    def stop(self):
+        pass
 
 
 # --------------------------------------------------------------------------- Website
@@ -949,6 +1165,18 @@ def video_sources(widget) -> list:
     return [w for w in media_sources(widget) if isinstance(w, VideoSource)]
 
 
+def camera_sources(widget) -> list:
+    """Alle Kameras in einem Inhalt – auch in Feldern eigener Szenen."""
+    if widget is None:
+        return []
+    if isinstance(widget, SceneSource):
+        found = []
+        for _rect, child in widget.children_sources:
+            found += camera_sources(child)
+        return found
+    return [widget] if isinstance(widget, CameraSource) and widget.camera is not None else []
+
+
 def media_sources(widget) -> list:
     """Alle Quellen mit Ton (Video, Website) in einem Inhalt – auch in Szenen-Feldern."""
     if widget is None:
@@ -974,6 +1202,7 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             "screen": ScreenSource,
             "window": WindowSource,
             "airplay": AirPlaySource,
+            "cast": CastSource,
             "website": WebsiteSource,
             "image": ImageSource,
             "video": VideoSource,

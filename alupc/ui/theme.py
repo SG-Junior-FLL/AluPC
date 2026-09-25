@@ -51,6 +51,7 @@ SOURCE_COLORS = {
     "image": "#10b981", "video": "#f97316", "slideshow": "#84cc16", "text": "#eab308",
     "clock": "#f59e0b", "countdown": "#f43f5e", "color": "#64748b", "scene": "#ec4899",
     "airplay": "#0ea5e9",
+    "cast": "#8b5cf6",
 }
 
 _current: Theme | None = None

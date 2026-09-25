@@ -12,6 +12,9 @@ from .scenes import describe_source
 from .sources import create_source, media_sources, window_settings
 
 
+HANDY_NOTES = ("iPhone/iPad", "Android", "Miracast")  # Monitor 2 zeigt ein Handy-Fenster
+
+
 class Controller(QObject):
     changed = Signal()
     message = Signal(str)
@@ -48,7 +51,14 @@ class Controller(QObject):
         self.airplay = airplay_server(config)
         self._handy_window = ""  # „airplay“/„android“, solange ein Handy-Fenster auf Monitor 2 liegt
         self._scrcpy = None
+        from .cast_server import cast_server
+
+        self.cast = cast_server(config)
+        self.cast.request.connect(self._cast_request)
         self.changed.connect(self.update_cursor_guard)
+        self.changed.connect(self._cast_snapshot)
+        if self.cast.settings().get("autostart"):
+            self.cast.start()
         self.apply_output_settings()
 
         from .sounds import SoundPlayer
@@ -146,6 +156,50 @@ class Controller(QObject):
             self.laser.place()
             self.laser.update()
 
+    # ------------------------------------------------------------ Kamera: Zoom, Ausschnitt, Drehen …
+    def _sync_camera_settings(self) -> None:
+        from .sources import camera_settings
+
+        camera_settings.clear()
+        camera_settings.update({k: dict(v) for k, v in self.config["camera"].items()})
+
+    def cameras_on_output(self) -> list:
+        from .sources import camera_sources
+
+        return camera_sources(self.output.content) if self.mode == "content" else []
+
+    def set_camera_option(self, device_id: str, **changes) -> dict:
+        """Kamera-Einstellung ändern (gilt sofort und bleibt gespeichert). Rückgabe: neue Einstellungen."""
+        from .sources import CAMERA_DEFAULTS, MAX_ZOOM, clamp_center
+
+        opts = {**CAMERA_DEFAULTS, **self.config["camera"].get(device_id, {}), **changes}
+        opts["zoom"] = round(max(1.0, min(MAX_ZOOM, float(opts["zoom"]))), 2)
+        opts["x"], opts["y"] = clamp_center(opts["zoom"], float(opts["x"]), float(opts["y"]))
+        opts["rotate"] = int(opts["rotate"]) % 360
+        opts["exposure"] = max(-2.0, min(2.0, float(opts["exposure"])))
+        self.config["camera"] = {**self.config["camera"], device_id: opts}
+        self._sync_camera_settings()
+        for cam in self.cameras_on_output():
+            if cam.device_id == device_id:
+                cam.apply_options()
+        return opts
+
+    def reset_camera(self, device_id: str) -> None:
+        from .sources import CAMERA_DEFAULTS
+
+        keep = self.config["camera"].get(device_id, {}).get("quality", CAMERA_DEFAULTS["quality"])
+        self.set_camera_option(device_id, **{**CAMERA_DEFAULTS, "quality": keep})
+
+    def camera_zoom(self, factor: float | None) -> None:
+        """Zoom der (ersten) Kamera auf Monitor 2: mal `factor`, None = zurück auf 1×."""
+        cams = self.cameras_on_output()
+        if not cams:
+            self.message.emit("Keine Kamera auf Monitor 2.")
+            return
+        cam = cams[0]
+        zoom = 1.0 if factor is None else cam.options()["zoom"] * factor
+        self.set_camera_option(cam.device_id, zoom=zoom)
+
     def _apply_cursor_settings(self) -> None:
         """Mauszeiger beim Spiegeln einzeichnen – aber nicht, wenn der Laserpointer an ist."""
         from .sources import ScreenSource, screen_settings
@@ -201,6 +255,7 @@ class Controller(QObject):
         self._content_switched()
         self._stop_handy_window()
         window_settings["restore_minimized"] = bool(self.config["program"].get("restore_minimized", True))
+        self._sync_camera_settings()
         self.output.set_content(create_source(cfg, self.config.get_scene), self.transition_for(cfg))
         if remember:
             self.config["last_content"] = cfg
@@ -331,6 +386,91 @@ class Controller(QObject):
         self._set_desktop("Android-Handy (scrcpy)")
         self._place_handy_window(WINDOW_TITLE_ANDROID)
 
+    def start_miracast(self) -> None:
+        """Windows: eingebaute „Drahtlose Anzeige“ starten und ihr Fenster auf Monitor 2 legen."""
+        from .platform import miracast
+        from .ui.util import run_async
+
+        if not miracast.IS_WINDOWS:
+            self.message.emit("Miracast-Empfang gibt es nur unter Windows. Linux: QR-Code (AluCast) oder AirPlay.")
+            return
+        if self.output_screen() is None:
+            self.message.emit("Kein zweiter Monitor gefunden.")
+            return
+
+        def found(app):
+            if app is None:
+                self.message.emit("Miracast: Windows-App „Drahtlose Anzeige“ fehlt – Kachel „Handy“ → "
+                                  "„Einrichten …“ → Miracast → Installieren.")
+                return
+            self._stop_handy_window()
+            self.ensure_extended()
+            miracast.launch(app)
+            self._handy_window = "miracast"
+            self._set_desktop("Miracast (Windows „Drahtlose Anzeige“)")
+            self.message.emit("Miracast bereit: am Handy/Laptop „Bildschirm übertragen“ bzw. „Smart View“ → "
+                              "diesen PC wählen.")
+            self._place_handy_window(app["name"])
+
+        run_async(miracast.find_app, found, lambda text: self.message.emit(f"Miracast: {text}"))
+
+    # ------------------------------------------------------------ AluCast (Handy per Browser)
+    def start_cast(self) -> None:
+        """QR-Code auf Monitor 2 zeigen – Handy scannt und kann senden."""
+        if not self.cast.start():
+            self.message.emit("AluCast konnte nicht starten: Netzwerk-Anschluss belegt.")
+            return
+        self.config["cast"] = {**self.config["cast"], "autostart": True}
+        self._cast_snapshot()
+        self.show_source({"type": "cast"})
+
+    def stop_cast(self) -> None:
+        self.cast.stop()
+        self.config["cast"] = {**self.config["cast"], "autostart": False}
+        if self.content and self.content.get("type") == "cast":
+            self.extend()
+        self.message.emit("AluCast beendet – Handys können nichts mehr senden.")
+
+    def _cast_snapshot(self) -> None:
+        from .sources import video_sources
+
+        state = self.media_state() or {}
+        self.cast.snapshot = {
+            "now": self.describe(),
+            "scenes": self.config.scene_names(),
+            "volume": int(state.get("volume", 100)),
+            "video": bool(video_sources(self.output.content)) if self.mode == "content" else False,
+        }
+
+    def _cast_request(self, req: dict) -> None:
+        """Anfrage vom Handy (kommt aus dem Webserver-Thread, läuft hier im Qt-Hauptthread)."""
+        from .sources import video_sources
+
+        kind = req.get("kind")
+        if kind == "file":
+            cfg = {"type": req["type"], "path": req["path"]}
+            if req["type"] == "video":
+                cfg.update(loop=False, volume=100)
+            self.show_source(cfg)
+            self.message.emit(("Foto" if req["type"] == "image" else "Video") + " vom Handy auf Monitor 2.")
+        elif kind == "link":
+            self.show_source({"type": "website", "url": req["url"]})
+            self.message.emit(f"Link vom Handy: {req.get('original', req['url'])}")
+        elif kind == "text":
+            self.show_source({"type": "text", "text": req["text"]})
+        elif kind == "cmd":
+            cmd = req.get("cmd", "")
+            videos = video_sources(self.output.content) if self.mode == "content" else []
+            if cmd.startswith("lautstaerke:"):
+                self.set_media_volume(volume=max(0, min(100, int(cmd.split(":", 1)[1]))), muted=False)
+            elif cmd.startswith("video_"):
+                if videos:
+                    {"video_pause": videos[0].toggle_play, "video_vor": lambda: videos[0].skip(10_000),
+                     "video_zurueck": lambda: videos[0].skip(-10_000)}[cmd]()
+            else:
+                self.run_command(cmd)
+        self._cast_snapshot()
+
     def _place_handy_window(self, title: str, tries: int = 6) -> None:
         """Fenster suchen, sobald es erscheint, und im Vollbild auf Monitor 2 legen."""
         from PySide6.QtCore import QTimer
@@ -369,7 +509,7 @@ class Controller(QObject):
 
     def _set_desktop(self, note: str) -> None:
         self._content_switched()
-        if not note.startswith(("iPhone/iPad", "Android")):
+        if not note.startswith(HANDY_NOTES):
             self._stop_handy_window()  # Handy-Fenster schließen, wenn etwas anderes kommt
         self._unfreeze()
         self.screensaver.stop()
@@ -537,6 +677,9 @@ class Controller(QObject):
             "laser": self.presenter_requested.emit,
             "zeichnen": self.presenter_requested.emit,
             "zeichnungen_loeschen": lambda: self.laser.clear_strokes(),
+            "kamera_zoom_plus": lambda: self.camera_zoom(1.25),
+            "kamera_zoom_minus": lambda: self.camera_zoom(0.8),
+            "kamera_zoom_aus": lambda: self.camera_zoom(None),
         }
         action = actions.get(command)
         if action:
@@ -681,5 +824,6 @@ class Controller(QObject):
         self.output.set_screensaver(None)
         self.output.set_content(None)
         self.airplay.shutdown()
+        self.cast.stop()
         self.output.shutdown()
         self.output.close()

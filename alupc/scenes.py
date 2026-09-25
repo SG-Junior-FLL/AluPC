@@ -113,6 +113,8 @@ def describe_source(cfg: dict | None) -> str:
         return f"Programm: {cfg.get('title')}"
     if t == "airplay":
         return "iPhone/iPad (AirPlay)"
+    if t == "cast":
+        return "Handy-Empfang (AluCast, QR-Code)"
     if t == "website":
         return f"Website: {cfg.get('url')}"
     # Nur den Namen zeigen (Titel aus der Mediathek oder Dateiname) – der ganze Pfad ist zu lang

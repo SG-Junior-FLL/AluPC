@@ -53,6 +53,7 @@ jobs:
           --paths .
           --collect-submodules alupc
           --collect-submodules serial
+          --collect-submodules segno
           --collect-data alupc
           packaging/pyinstaller_entry.py
       - name: Fertiges Programm starten (Selbsttest)
@@ -124,6 +125,7 @@ jobs:
           --paths .
           --collect-submodules alupc
           --collect-submodules serial
+          --collect-submodules segno
           --collect-data alupc
           packaging/pyinstaller_entry.py
       - name: Fertige AluPC.exe starten (Selbsttest)

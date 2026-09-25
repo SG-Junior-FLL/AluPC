@@ -30,11 +30,11 @@ OBS-Studio-Fenster.
 |---|---|
 | **Spiegeln** | zeigt dasselbe wie Monitor 1 – mit Mauszeiger (AluPC nimmt Monitor 1 auf – dadurch gehen Standbild und Sichtschutz) |
 | **Erweitern** | Monitor 2 ist ein normaler zweiter Bildschirm |
-| **Kamera** | eine Kamera im Vollbild – bei nur einer Kamera sofort, sonst Auswahl |
+| **Kamera** | eine Kamera im Vollbild – bei nur einer Kamera sofort, sonst Auswahl. Läuft eine Kamera (auch in einer Szene), erscheint im Hauptfenster die **Kamera-Leiste**: **Zoom 1–5×** (optisch, wenn die Kamera das kann, sonst digital), Ausschnitt verschieben, **spiegeln**, **um 90° drehen**, **Helligkeit** (wenn die Kamera das unterstützt), Zurücksetzen. Gilt pro Kamera und bleibt gespeichert. AluPC wählt automatisch das schärfste flüssige Kamerabild bis Full HD |
 | **Programm** | ein Programm zeigen: *Anzeigen (Aufnahme)* oder *Fenster wirklich verschieben* |
 | **Website** | Adresse eingeben oder gespeicherte Website wählen → Vollbild. Pfeil an der Kachel: gespeicherte Websites, **Browser steuern** (eigenes Fenster: Adresse, Zurück/Vor, Zoom, Scrollen, Live-Vorschau zum Klicken und Tippen), aktuelle Seite **unter „Website“ speichern** |
 | **Bild / Video** | **Mediathek** mit Vorschaubildern: gespeicherte Bilder, Videos und Diashows, dazu automatisch „Zuletzt gezeigt“; Filter, Suche, Umbenennen. Pfeil an der Kachel: gespeicherte Einträge direkt starten. Läuft ein Video (auch in einer eigenen Szene), erscheint oben eine **Mediensteuerung**: Pause/Weiter, ±10 Sekunden, Zeitleiste zum Springen |
-| **Handy** | **iPhone/iPad per AirPlay** (Kontrollzentrum → Bildschirmsynchronisierung → „AluPC“) und **Android per scrcpy** (USB-Debugging) auf Monitor 2. Name und Code (keiner, fest, zufällig) unter ▾ → „Einrichten …“; dort lassen sich UxPlay/scrcpy unter Kubuntu auch installieren. Mit **UxPlay ab 1.73** ist das iPhone eine ganz normale Quelle (auch in eigenen Szenen, mit Standbild, Zeichnen …), ältere UxPlay-Versionen zeigen ein eigenes Vollbild-Fenster auf Monitor 2 |
+| **Handy** | **AluCast (selbst gebaut, ohne App):** Klick zeigt einen **QR-Code** auf Monitor 2. Handy scannen → **Fotos (auch direkt mit der Kamera), Videos, Links (YouTube im Vollbild) und Text** senden, dazu **Fernbedienung** (Szenen, Schwarz, Standbild, Video-Pause/±10 s, Lautstärke). Geht mit iPhone und Android, geschützt mit 6-stelligem Code (nach 10 falschen Versuchen 1 Minute Sperre). ▾ außerdem: **iPhone/iPad per AirPlay** (über UxPlay; ab 1.73 als normale Quelle, sonst eigenes Vollbild-Fenster), **Android per scrcpy** (USB-Debugging) und unter Windows **Miracast** (Windows-App „Drahtlose Anzeige“, wird bei Bedarf nachinstalliert und auf Monitor 2 gelegt). Alles unter ▾ → „Einrichten …“ |
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
 | **Standbild** | friert das Bild auf Monitor 2 ein; du arbeitest auf Monitor 1 unbemerkt weiter |
@@ -179,6 +179,7 @@ Ein laufendes AluPC lässt sich von der Kommandozeile steuern:
 ```bash
 alupc --befehl standbild      # auch: schwarz, bild-in-bild, bildschirmschoner, spiegeln, erweitern,
                               #       naechste_szene, vorherige_szene, sperren, zeigen
+alupc --befehl kamera_zoom_plus   # auch: kamera_zoom_minus, kamera_zoom_aus
 alupc --befehl "szene:Begrüßung"
 alupc --minimiert             # nur mit Symbol in der Taskleiste starten
 ```
@@ -234,9 +235,21 @@ kennen sie nicht – AluPC steuert sie direkt. Steckt so ein Modul, nimmt AluPC 
 - **Nicht auf echter Hardware getestet.** Die automatischen Tests laufen auf GitHub unter Linux und
   Windows (inkl. Start der fertigen Programme und der installierten Pakete) – aber ohne echte Monitore,
   Kameras und Fingerabdrucksensoren. Bitte Fehler mit Screenshot oder Meldungstext melden.
-- **Chromecast-Empfang geht nicht**: Google lässt als Empfänger nur zertifizierte Geräte zu. Android
-  daher über **scrcpy** (USB-Debugging einschalten); unter Windows zusätzlich „Projizieren auf diesen
-  PC“ (Miracast) im Einrichten-Dialog.
+- **Chromecast-Empfang geht nicht**: Google lässt als Empfänger nur zertifizierte Geräte zu. Einen
+  eigenen „AirPlay“ oder „Chromecast“ nachzubauen geht auch nicht sinnvoll: AirPlay-Bildschirm­übertragung
+  ist mit Apples FairPlay verschlüsselt, Chromecast mit Google-Zertifikaten. Deshalb gibt es
+  **AluCast** (Browser, QR-Code) als eigenen Weg – das kann aber **nicht den Handy-Bildschirm
+  übertragen** (das erlauben Handy-Browser nicht), sondern Fotos, Videos, Links, Text und Fernbedienung.
+- **AluCast** läuft ohne Verschlüsselung (http) im eigenen WLAN; der Code schützt vor Fremden, aber
+  jeder, der den QR-Code auf Monitor 2 sieht, kann senden („Neuer Code“ im Einrichten-Dialog). In
+  Gäste-/Schul-WLANs, die Geräte voneinander trennen, erreichen Handys den PC nicht. Windows fragt beim
+  ersten Start nach der Firewall-Freigabe. Live-Kamerabild vom Handy geht nicht (bräuchte https).
+- **Miracast nur unter Windows** (Linux hat keinen brauchbaren Empfänger). Das Bild gehört der
+  Windows-App – nicht in eigene Szenen einbaubar. iPhones können kein Miracast, Pixel-Handys auch
+  nicht mehr. Ob der App-Name bei jeder Windows-Version erkannt wird, konnte ich nicht auf echtem
+  Windows prüfen.
+- **Kamera-Zoom**: Die meisten Webcams haben keinen optischen Zoom – dann ist es ein digitaler Ausschnitt
+  (wird bei starkem Zoom unscharf). Helligkeit nur bei Kameras, die das über Qt anbieten.
 - **AirPlay braucht das freie Programm UxPlay** (wird nicht mitgeliefert). Kubuntu 24.04 hat nur UxPlay
   1.68: Das läuft im eigenen Fenster, nicht als AluPC-Quelle. Laut UxPlay-Projekt wurde in 1.72.3 eine
   Sicherheitslücke geschlossen (CVE-2025-60458) – ältere Versionen nur im vertrauenswürdigen WLAN und am

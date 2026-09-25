@@ -36,6 +36,7 @@ SOURCE_TYPES = [
     ("camera", "Kamera"),
     ("window", "Programm (Aufnahme)"),
     ("airplay", "iPhone/iPad (AirPlay)"),
+    ("cast", "Handy-Empfang (QR-Code)"),
     ("screen", "Bildschirm"),
     ("website", "Website"),
     ("image", "Bild"),
@@ -207,6 +208,11 @@ class SourcePicker(QDialog):
         fit = _fit_combo(init.get("fit", "cover"))
         form.addRow("Kamera:", combo)
         form.addRow("Anzeige:", fit)
+        hint = QLabel("Zoom, Ausschnitt, Spiegeln, Drehen und Helligkeit: in der Kamera-Leiste im "
+                      "Hauptfenster, sobald die Kamera läuft (gilt dann für diese Kamera überall).")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        form.addRow(hint)
         return page, lambda: None if combo.count() == 0 else {
             "device_id": combo.currentData(), "name": combo.currentText(), "fit": fit.currentData()}
 
@@ -249,6 +255,16 @@ class SourcePicker(QDialog):
         fit = _fit_combo(init.get("fit", "contain"))
         form.addRow("Anzeige:", fit)
         return page, lambda: {"fit": fit.currentData()}
+
+    def _page_cast(self, init):
+        page, form = self._form()
+        hint = QLabel("Zeigt einen QR-Code: Wer ihn mit dem Handy scannt, kann Fotos, Videos, Links und Text auf "
+                      "Monitor 2 senden und ihn fernsteuern – iPhone und Android, ohne App (AluCast).\n\n"
+                      "Der Code im QR-Code ist der Zugang: Jeder, der ihn sieht, kann senden. Neuer Code: "
+                      "Kachel „Handy“ → „Einrichten …“.")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        return page, lambda: {}
 
     def _page_screen(self, init):
         page, form = self._form()

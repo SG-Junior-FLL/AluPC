@@ -1,0 +1,321 @@
+"""AluCast: Handy → Monitor 2 über den Browser – selbst gebaut, ohne App und ohne Zusatzprogramm.
+
+AluPC startet einen kleinen Webserver im eigenen WLAN. Das Handy scannt den QR-Code (oder tippt die
+Adresse und den 6-stelligen Code ein) und kann dann Fotos/Videos senden, Links (z. B. YouTube) und
+Text zeigen sowie Monitor 2 fernsteuern. Funktioniert mit iPhone und Android gleich.
+
+Was ein Browser nicht kann: den Handy-Bildschirm übertragen (dafür gibt es AirPlay/scrcpy/Miracast).
+"""
+
+from __future__ import annotations
+
+import hmac
+import json
+import re
+import secrets
+import socket
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+from PySide6.QtCore import QObject, Signal
+
+from .cast_page import PAGE
+from .config import config_dir
+
+MAX_UPLOAD = 2 * 1024 ** 3  # 2 GB
+KEEP_FILES = 100
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".3gp", ".avi"}
+MIME_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
+            "video/mp4": ".mp4", "video/quicktime": ".mov", "video/webm": ".webm", "video/3gpp": ".3gp"}
+# Befehle, die das Handy auslösen darf (dazu „szene:Name“ und „lautstaerke:Zahl“)
+ALLOWED_COMMANDS = {"standbild", "schwarz", "naechste_szene", "vorherige_szene", "zeichnungen_loeschen",
+                    "timer_start_pause", "video_pause", "video_vor", "video_zurueck"}
+MAX_FAILS = 10
+BLOCK_SECONDS = 60
+
+
+def local_ip() -> str:
+    """IP-Adresse dieses PCs im WLAN/LAN (ohne etwas zu senden)."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.connect(("10.254.254.254", 1))
+            return s.getsockname()[0]
+        except OSError:
+            return "127.0.0.1"
+
+
+def new_code() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def youtube_embed(url: str) -> str:
+    """YouTube-Link → Vollbild-Player (ohne Seite drumherum). Andere Links bleiben unverändert."""
+    u = urlparse(url)
+    host = u.netloc.lower().removeprefix("www.").removeprefix("m.")
+    vid = ""
+    if host == "youtu.be":
+        vid = u.path.strip("/").split("/")[0]
+    elif host in ("youtube.com", "music.youtube.com"):
+        if u.path == "/watch":
+            vid = parse_qs(u.query).get("v", [""])[0]
+        elif u.path.startswith(("/shorts/", "/live/", "/embed/")):
+            vid = u.path.split("/")[2] if len(u.path.split("/")) > 2 else ""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{6,20}", vid or ""):
+        return url
+    start = parse_qs(u.query).get("t", [""])[0].rstrip("s")
+    extra = f"&start={start}" if start.isdigit() else ""
+    return f"https://www.youtube-nocookie.com/embed/{vid}?autoplay=1&rel=0{extra}"
+
+
+def safe_name(name: str, content_type: str) -> str:
+    stem = re.sub(r"[^A-Za-z0-9äöüÄÖÜß._-]+", "_", Path(name or "handy").stem)[:60] or "handy"
+    ext = Path(name or "").suffix.lower()
+    if ext not in IMAGE_EXT | VIDEO_EXT:
+        ext = MIME_EXT.get((content_type or "").split(";")[0].strip().lower(), "")
+    return f"{time.strftime('%Y%m%d-%H%M%S')}_{stem}{ext}"
+
+
+def upload_dir() -> Path:
+    return config_dir() / "Vom Handy"
+
+
+def cleanup(folder: Path, keep: int = KEEP_FILES) -> None:
+    files = sorted((f for f in folder.glob("*") if f.is_file()), key=lambda f: f.stat().st_mtime, reverse=True)
+    for old in files[keep:]:
+        try:
+            old.unlink()
+        except OSError:
+            pass
+
+
+class CastServer(QObject):
+    """Webserver in einem eigenen Thread; Anfragen kommen als Signal im Qt-Hauptthread an."""
+
+    request = Signal(dict)
+    state_changed = Signal()
+
+    def __init__(self, config, parent=None):
+        super().__init__(parent)
+        self.config = config
+        self.httpd: ThreadingHTTPServer | None = None
+        self.thread: threading.Thread | None = None
+        self.port = 0
+        self.snapshot = {"now": "", "scenes": [], "volume": 100, "video": False}
+        self._fails: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    # ------------------------------------------------------------ Einstellungen
+    def settings(self) -> dict:
+        return {"port": 8765, "code": "", "autostart": False, **self.config["cast"]}
+
+    def code(self) -> str:
+        code = self.settings()["code"]
+        if not re.fullmatch(r"\d{6}", code or ""):
+            code = new_code()
+            self.config["cast"] = {**self.config["cast"], "code": code}
+        return code
+
+    def renew_code(self) -> str:
+        self.config["cast"] = {**self.config["cast"], "code": new_code()}
+        self.state_changed.emit()
+        return self.code()
+
+    def url(self, with_code: bool = True) -> str:
+        base = f"http://{local_ip()}:{self.port or self.settings()['port']}/"
+        return base + (f"?k={self.code()}" if with_code else "")
+
+    def running(self) -> bool:
+        return self.httpd is not None
+
+    # ------------------------------------------------------------ Start/Stopp
+    def start(self) -> bool:
+        if self.httpd is not None:
+            return True
+        self.code()
+        first = int(self.settings()["port"])
+        handler = _make_handler(self)
+        for port in range(first, first + 10):
+            try:
+                self.httpd = ThreadingHTTPServer(("0.0.0.0", port), handler)
+                break
+            except OSError:
+                continue
+        if self.httpd is None:
+            return False
+        self.httpd.daemon_threads = True
+        self.port = self.httpd.server_address[1]
+        self.thread = threading.Thread(target=self.httpd.serve_forever, name="AluCast", daemon=True)
+        self.thread.start()
+        self.state_changed.emit()
+        return True
+
+    def stop(self) -> None:
+        if self.httpd is None:
+            return
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self.httpd = None
+        self.port = 0
+        self.state_changed.emit()
+
+    # ------------------------------------------------------------ Zugangscode prüfen (mit Sperre)
+    def check(self, ip: str, code: str) -> bool | None:
+        """True = ok, False = falsch, None = gesperrt (zu viele Fehlversuche)."""
+        now = time.monotonic()
+        with self._lock:
+            fails = [t for t in self._fails.get(ip, []) if now - t < BLOCK_SECONDS]
+            self._fails[ip] = fails
+            if len(fails) >= MAX_FAILS:
+                return None
+            if not code:  # ohne Code ist es kein Rateversuch
+                return False
+            if hmac.compare_digest((code or "").encode(), self.code().encode()):
+                return True
+            fails.append(now)
+            return False
+
+
+def _make_handler(server: CastServer):
+    class Handler(BaseHTTPRequestHandler):
+        server_version = "AluCast"
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *_args):  # nichts in die Konsole schreiben
+            pass
+
+        def _send(self, status: int, body: bytes, ctype: str = "application/json; charset=utf-8"):
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _json(self, status: int, obj):
+            self._send(status, json.dumps(obj, ensure_ascii=False).encode())
+
+        def _auth(self) -> bool:
+            ok = server.check(self.client_address[0], self.headers.get("X-AluPC-Code", ""))
+            if ok:
+                return True
+            self.close_connection = True
+            if ok is None:
+                self._json(429, {"error": "Zu viele falsche Codes – bitte 1 Minute warten"})
+            else:
+                self._json(403, {"error": "Falscher Code"})
+            return False
+
+        def _body_json(self) -> dict:
+            n = int(self.headers.get("Content-Length") or 0)
+            if n > 100_000:
+                raise ValueError("zu groß")
+            data = json.loads(self.rfile.read(n) or b"{}")
+            if not isinstance(data, dict):
+                raise ValueError("ungültig")
+            return data
+
+        def do_GET(self):
+            path = urlparse(self.path).path
+            if path in ("/", "/index.html"):
+                self._send(200, PAGE.encode(), "text/html; charset=utf-8")
+            elif path == "/api/status":
+                if self._auth():
+                    self._json(200, server.snapshot)
+            elif path == "/favicon.ico":
+                self._send(204, b"", "image/x-icon")
+            else:
+                self._json(404, {"error": "Nicht gefunden"})
+
+        def do_POST(self):
+            u = urlparse(self.path)
+            if not self._auth():
+                return
+            try:
+                if u.path == "/api/upload":
+                    self._upload(parse_qs(u.query).get("name", ["handy"])[0])
+                    return
+                data = self._body_json()
+                if u.path == "/api/link":
+                    url = str(data.get("url", "")).strip()
+                    if not re.match(r"^(https?://)?[\w.-]+\.[a-z]{2,}", url, re.I):
+                        self._json(400, {"error": "Das ist kein Link"})
+                        return
+                    if not url.lower().startswith(("http://", "https://")):
+                        url = "https://" + url
+                    server.request.emit({"kind": "link", "url": youtube_embed(url), "original": url})
+                elif u.path == "/api/text":
+                    text = str(data.get("text", "")).strip()[:2000]
+                    if not text:
+                        self._json(400, {"error": "Kein Text"})
+                        return
+                    server.request.emit({"kind": "text", "text": text})
+                elif u.path == "/api/cmd":
+                    cmd = str(data.get("cmd", ""))
+                    if not (cmd in ALLOWED_COMMANDS or cmd.startswith("szene:")
+                            or re.fullmatch(r"lautstaerke:\d{1,3}", cmd)):
+                        self._json(400, {"error": "Unbekannter Befehl"})
+                        return
+                    server.request.emit({"kind": "cmd", "cmd": cmd})
+                else:
+                    self._json(404, {"error": "Nicht gefunden"})
+                    return
+                self._json(200, {"ok": True})
+            except (ValueError, json.JSONDecodeError):
+                self._json(400, {"error": "Ungültige Anfrage"})
+
+        def _upload(self, name: str):
+            size = int(self.headers.get("Content-Length") or 0)
+            if size <= 0:
+                self._json(400, {"error": "Leere Datei"})
+                return
+            if size > MAX_UPLOAD:
+                self.close_connection = True
+                self._json(413, {"error": "Datei zu groß (höchstens 2 GB)"})
+                return
+            filename = safe_name(name, self.headers.get("Content-Type", ""))
+            ext = Path(filename).suffix
+            if ext not in IMAGE_EXT | VIDEO_EXT:
+                self.close_connection = True
+                self._json(415, {"error": "Nur Fotos und Videos"})
+                return
+            folder = upload_dir()
+            folder.mkdir(parents=True, exist_ok=True)
+            target = folder / filename
+            left = size
+            try:
+                with open(target, "wb") as f:
+                    while left > 0:
+                        chunk = self.rfile.read(min(left, 1 << 20))
+                        if not chunk:
+                            raise ConnectionError("abgebrochen")
+                        f.write(chunk)
+                        left -= len(chunk)
+            except (OSError, ConnectionError):
+                target.unlink(missing_ok=True)
+                self.close_connection = True
+                return
+            cleanup(folder)
+            kind = "video" if ext in VIDEO_EXT else "image"
+            server.request.emit({"kind": "file", "type": kind, "path": str(target)})
+            self._json(200, {"ok": True, "type": kind})
+
+    return Handler
+
+
+_server: CastServer | None = None
+
+
+def cast_server(config=None) -> CastServer:
+    global _server
+    if _server is None:
+        if config is None:
+            raise RuntimeError("AluCast ist noch nicht eingerichtet")
+        _server = CastServer(config)
+    elif config is not None:
+        _server.config = config
+    return _server

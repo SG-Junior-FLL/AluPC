@@ -22,6 +22,9 @@ DEFAULT_HOTKEYS = {
     "timer_plus": "",
     "timer_minus": "",
     "zeichnen": "Ctrl+Alt+K",
+    "kamera_zoom_plus": "",
+    "kamera_zoom_minus": "",
+    "kamera_zoom_aus": "",
 }
 
 HOTKEY_LABELS = {
@@ -38,6 +41,9 @@ HOTKEY_LABELS = {
     "timer_plus": "Timer +1 Minute",
     "timer_minus": "Timer −1 Minute",
     "zeichnen": "Zeigen & Zeichnen (Fenster)",
+    "kamera_zoom_plus": "Kamera hineinzoomen",
+    "kamera_zoom_minus": "Kamera herauszoomen",
+    "kamera_zoom_aus": "Kamera-Zoom zurück auf 1×",
 }
 
 DEFAULTS: dict = {
@@ -83,6 +89,10 @@ DEFAULTS: dict = {
              "strokes": [], "strokes_for": ""},
     # Handy → Monitor 2: AirPlay (UxPlay) und Android (scrcpy); leere Pfade = automatisch suchen
     "handy": {"airplay_name": "AluPC", "pin": "", "uxplay_path": "", "scrcpy_path": ""},
+    # AluCast (Handy per Browser): Anschluss, Zugangscode, beim Start von AluPC mitstarten
+    "cast": {"port": 8765, "code": "", "autostart": False},
+    # Kamera-Einstellungen pro Kamera-ID: zoom, x/y (Ausschnitt), mirror, rotate, exposure, quality
+    "camera": {},
     "start_minimized": False,
     # Windows 11: AluPC-Symbol wurde für diesen Programmpfad schon direkt in die Taskleiste gelegt
     "tray": {"promoted_for": ""},

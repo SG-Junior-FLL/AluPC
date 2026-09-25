@@ -408,3 +408,71 @@ def test_tray_promote_runs():
     from alupc.platform.windows_tray import promote
 
     assert promote(r"C:\gibt\es\nicht\AluPC.exe") is False  # kein Eintrag → nichts ändern, kein Absturz
+
+
+# ---------------------------------------------------------------- 0.12: Kamera-Optionen
+def test_camera_zoom_math():
+    from alupc.sources import clamp_center, pan_to_source, zoom_rect
+
+    assert zoom_rect(1920, 1080, 1.0, 0.5, 0.5) == (0, 0, 1920, 1080)
+    assert zoom_rect(1920, 1080, 2.0, 0.5, 0.5) == (480, 270, 960, 540)
+    assert zoom_rect(1920, 1080, 2.0, 1.0, 0.0) == (960, 0, 960, 540)  # am Rand begrenzt
+    assert zoom_rect(100, 100, 99, 0.5, 0.5)[2] == 20  # höchstens 5×
+    assert clamp_center(2.0, 0.9, 0.1) == (0.75, 0.25)
+    assert clamp_center(1.0, 0.9, 0.1) == (0.5, 0.5)
+    assert pan_to_source(1, 0, 0, False) == (1, 0)
+    assert pan_to_source(1, 0, 0, True) == (-1, 0)
+    # 90° im Uhrzeigersinn gedreht: „rechts“ im Bild ist „oben“ in der Kamera
+    assert pan_to_source(1, 0, 90, False) == (0, -1)
+    assert pan_to_source(0, 1, 180, False) == (0, -1)
+    assert pan_to_source(1, 0, 270, False) == (0, 1)
+
+
+def test_best_camera_format():
+    from alupc.sources import best_camera_format
+
+    class F:
+        def __init__(self, w, h, fps):
+            self.w, self.h, self.fps = w, h, fps
+
+        def resolution(self):
+            from PySide6.QtCore import QSize
+
+            return QSize(self.w, self.h)
+
+        def maxFrameRate(self):
+            return self.fps
+
+    formats = [F(640, 480, 30), F(1920, 1080, 5), F(1280, 720, 30), F(3840, 2160, 30)]
+    best = best_camera_format(formats)
+    assert (best.w, best.h) == (1280, 720)  # Full HD nur mit 5 Bildern/s, 4K zu groß
+    assert best_camera_format([F(1920, 1080, 5)]).w == 1920
+    assert best_camera_format([]) is None
+
+
+# ---------------------------------------------------------------- 0.12: AluCast, Miracast
+def test_alucast_helpers():
+    from alupc.cast_server import new_code, safe_name, youtube_embed
+
+    emb = "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0"
+    assert youtube_embed("https://www.youtube.com/watch?v=dQw4w9WgXcQ") == emb
+    assert youtube_embed("https://youtu.be/dQw4w9WgXcQ?si=abc") == emb
+    assert youtube_embed("https://m.youtube.com/watch?v=dQw4w9WgXcQ&t=42s") == emb + "&start=42"
+    assert youtube_embed("https://youtube.com/shorts/dQw4w9WgXcQ") == emb
+    assert youtube_embed("https://example.org/watch?v=x") == "https://example.org/watch?v=x"
+    assert youtube_embed("https://www.youtube.com/watch?v=<script>") == "https://www.youtube.com/watch?v=<script>"
+    name = safe_name("../../böse Datei.JPG", "image/jpeg")
+    assert name.endswith("_böse_Datei.jpg") and "/" not in name
+    assert safe_name("", "video/quicktime").endswith("_handy.mov")
+    assert safe_name("x.exe", "application/x-msdownload").endswith("_x")  # keine Endung → wird abgelehnt
+    assert len(new_code()) == 6 and new_code().isdigit()
+
+
+def test_miracast_parse():
+    from alupc.platform.miracast import CAPABILITY, install_command, parse_app
+
+    assert parse_app('{"Name":"Drahtlose Anzeige","AppID":"Microsoft.WirelessDisplay_8wekyb3d8bbwe!App"}') == {
+        "name": "Drahtlose Anzeige", "app_id": "Microsoft.WirelessDisplay_8wekyb3d8bbwe!App"}
+    assert parse_app("") is None and parse_app("kaputt") is None and parse_app('{"Name":"x"}') is None
+    assert parse_app('[{"Name":"Connect","AppID":"a!b"}]')["name"] == "Connect"
+    assert CAPABILITY in " ".join(install_command()) and "RunAs" in " ".join(install_command())

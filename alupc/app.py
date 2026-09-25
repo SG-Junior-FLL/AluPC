@@ -237,6 +237,25 @@ def self_test(log_path: str) -> int:
         if not ux:  # ohne UxPlay nur Hinweis auf Monitor 2
             controller.show_source({"type": "airplay"})
             app.processEvents()
+        # AluCast: Webserver starten, Seite abrufen, QR-Code zeichnen (segno im Paket?)
+        import urllib.request
+
+        controller.config["cast"] = {**controller.config["cast"], "port": 18765}
+        controller.start_cast()
+        app.processEvents()
+        with urllib.request.urlopen(f"http://127.0.0.1:{controller.cast.port}/", timeout=10) as r:
+            page_ok = r.status == 200 and b"AluCast" in r.read()
+        controller.output.content.grab()
+        lines.append(f"AluCast: Seite {'ok' if page_ok else 'FEHLER'}, Adresse {controller.cast.url(False)}")
+        controller.stop_cast()
+        if sys.platform.startswith("win"):
+            from .platform import miracast
+
+            app_info = miracast.find_app()
+            lines.append(f"Miracast: {app_info['name'] if app_info else 'Drahtlose Anzeige nicht installiert'}")
+        controller.show_source({"type": "camera", "device_id": "selbsttest"})  # Kamera-Leiste/Optionen
+        window.camera_bar.sync()
+        app.processEvents()
         controller.shutdown()
         lines.append("OK")
         code = 0
