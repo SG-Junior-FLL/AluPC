@@ -70,6 +70,37 @@ def install() -> None:
         raise RuntimeError("Installation nicht abgeschlossen (abgebrochen oder kein Windows Update erreichbar)")
 
 
+def parse_wireless_display(output: str) -> bool | None:
+    """Ausgabe von „netsh wlan show drivers“ → kann der PC Miracast empfangen? None = kein WLAN-Adapter."""
+    low = output.lower()
+    if "wireless display" not in low and "drahtlose anzeige" not in low:
+        return None
+    for line in output.splitlines():
+        key, _, value = line.partition(":")
+        k = key.lower()
+        if ("wireless display" in k or "drahtlose anzeige" in k) and value.strip():
+            first = value.strip().split()[0].lower().strip("(,")
+            return first in ("yes", "ja", "oui", "sí", "si")
+    return None
+
+
+def wireless_display_support() -> bool | None:
+    """Unterstützen WLAN-Adapter und Grafiktreiber „Drahtlose Anzeige“ (Miracast)? Nur Windows."""
+    if not IS_WINDOWS:
+        return None
+    try:
+        out = subprocess.run(["netsh", "wlan", "show", "drivers"], capture_output=True, timeout=15,
+                             creationflags=_NO_WINDOW).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    for enc in ("oem", "utf-8", "cp1252"):
+        try:
+            return parse_wireless_display(out.decode(enc))
+        except (LookupError, UnicodeDecodeError):
+            continue
+    return None
+
+
 def open_settings() -> None:
     """Windows-Einstellung „Projizieren auf diesen PC“ (dort „Überall verfügbar“ wählen)."""
     subprocess.Popen(["cmd", "/c", "start", "", "ms-settings:project"], creationflags=_NO_WINDOW)

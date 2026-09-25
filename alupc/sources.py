@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QRectF, Qt, QTimer, QUrl
+from PySide6.QtCore import QRectF, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -290,6 +290,10 @@ class ScreenSource(SinkView):
     Sonst über Qt (Windows, X11 ohne Nachfrage; Wayland mit Nachfrage des Systems).
     """
 
+    # Aufnahme liefert kein Bild (Fehler oder nach NO_SIGNAL_SECONDS nichts) – Text = Grund
+    no_signal = Signal(str)
+    NO_SIGNAL_SECONDS = 4
+
     def __init__(self, cfg, parent=None):
         super().__init__(cfg.get("fit", "contain"), parent)
         screen = find_screen(cfg.get("screen_name")) or QGuiApplication.primaryScreen()
@@ -298,6 +302,11 @@ class ScreenSource(SinkView):
         self.feed = None
         self.capture = None
         self._screen = screen
+        self.frames = 0
+        self._reported = False
+        self._watchdog = QTimer(self, singleShot=True, interval=self.NO_SIGNAL_SECONDS * 1000)
+        self._watchdog.timeout.connect(lambda: self._no_signal("Die Aufnahme liefert kein Bild."))
+        self._watchdog.start()
         if screen is not None and _kwin_allowed(screen.name()):
             self._start_kwin(screen.name(), int(cfg.get("fps", 30)))
         else:
@@ -314,6 +323,8 @@ class ScreenSource(SinkView):
         self.feed.start()
 
     def _kwin_frame(self, image):
+        self.frames += 1
+        self._watchdog.stop()
         self._pending = None
         self._image = image
         self._message = ""
@@ -338,6 +349,12 @@ class ScreenSource(SinkView):
         self.session.setVideoSink(self.sink)
         self.set_message("Bildschirmaufnahme startet … (evtl. Freigabe bestätigen)")
         self.capture.start()
+        from .platform.linux_display import is_wayland as _wl
+
+        # Wayland fragt erst nach dem Bildschirm → dem Menschen Zeit lassen, bevor der Wächter eingreift
+        self._watchdog.setInterval((30 if _wl() else self.NO_SIGNAL_SECONDS) * 1000)
+        if self.frames == 0:
+            self._watchdog.start()
         # Die Aufnahme unter Windows/X11 enthält den Mauszeiger nicht → selbst einzeichnen
         from .platform.linux_display import is_wayland
 
@@ -379,6 +396,18 @@ class ScreenSource(SinkView):
             f"Bildschirmaufnahme nicht möglich: {text}\n\n"
             "Tipp: Unter Setup → „System-Spiegeln“ kann Kubuntu/Windows den Bildschirm selbst spiegeln."
         )
+        self._no_signal(f"Bildschirmaufnahme nicht möglich: {text}")
+
+    def _on_frame(self, frame):
+        super()._on_frame(frame)
+        if frame.isValid():
+            self.frames += 1
+            self._watchdog.stop()
+
+    def _no_signal(self, reason: str):
+        if self.frames == 0 and not self._reported:
+            self._reported = True
+            self.no_signal.emit(reason)
 
     def stop(self):
         if self.feed is not None:

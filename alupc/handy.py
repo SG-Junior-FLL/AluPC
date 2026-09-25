@@ -80,7 +80,8 @@ def sdp_text(port: int) -> str:
 
 
 def uxplay_args(name: str, pin: str, port: int | None, window_title: bool = True) -> list[str]:
-    args = ["-n", name or "AluPC", "-nh"]
+    # -p: feste Ports (TCP 7000, 7001, 7100 / UDP 6000, 6001, 7011) – so lässt sich die Firewall gezielt öffnen
+    args = ["-n", name or "AluPC", "-nh", "-p"]
     if pin:
         args += ["-pin", pin] if pin != "zufall" else ["-pin"]
     if port is not None:  # Bild an AluPC weiterleiten statt selbst anzeigen
@@ -105,6 +106,7 @@ class AirPlayServer(QObject):
 
     status = Signal(str)
     log_line = Signal(str)
+    failed = Signal(str)  # UxPlay hat sich unerwartet beendet – verständliche Erklärung
 
     def __init__(self, config, parent=None):
         super().__init__(parent)
@@ -152,11 +154,17 @@ class AirPlayServer(QObject):
         self.proc = QProcess(self)
         self.proc.setProcessChannelMode(QProcess.MergedChannels)
         self.proc.readyReadStandardOutput.connect(self._read)
-        self.proc.finished.connect(lambda *_: self.status.emit("beendet"))
+        self.proc.finished.connect(self._finished)
         self.proc.start(uxplay, args)
         self.mode = "stream" if stream else "fenster"
         self.status.emit("läuft")
         return self.mode
+
+    def _finished(self, *_):
+        self.status.emit("beendet")
+        if self.users > 0:  # sollte laufen, ist aber weg → Grund aus den Meldungen ableiten
+            self.failed.emit(explain_uxplay_error(self.log))
+            self.proc = None
 
     def release(self) -> None:
         self.users = max(0, self.users - 1)
@@ -206,6 +214,24 @@ def airplay_server(config=None) -> AirPlayServer:
     return _server
 
 
+def explain_uxplay_error(log: list[str]) -> str:
+    """Letzte UxPlay-Meldungen → verständlicher Grund mit Abhilfe."""
+    text = "\n".join(log[-15:])
+    if "DNS-SD" in text or "dns_sd" in text.lower():
+        if IS_WINDOWS:
+            return "Der Apple-Dienst „Bonjour“ fehlt oder läuft nicht – ohne ihn findet das iPhone den PC nicht."
+        return ("Der Dienst „avahi-daemon“ läuft nicht – ohne ihn findet das iPhone den PC nicht. "
+                "„Automatisch einrichten“ schaltet ihn ein.")
+    if "video renderer" in text or "GStreamer" in text:
+        return "GStreamer-Pakete fehlen (Videoausgabe) – „Automatisch einrichten“ installiert sie."
+    if "Address already in use" in text or "bind" in text.lower():
+        return "Die AirPlay-Ports sind belegt – läuft UxPlay schon (z. B. ein zweites AluPC)?"
+    if "unknown option" in text:
+        return "Diese UxPlay-Version kennt eine Option nicht: " + text.strip().splitlines()[-1]
+    last = [line for line in log[-5:] if line.strip()]
+    return "UxPlay hat sich beendet" + (f": {last[-1]}" if last else ".")
+
+
 def random_pin() -> str:
     return f"{random.randint(0, 9999):04d}"
 
@@ -215,7 +241,8 @@ def install_command(program: str) -> list[str]:
     return ["pkexec", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", *APT_PACKAGES[program]]
 
 
-APT_PACKAGES = {"uxplay": ["uxplay", "gstreamer1.0-plugins-good", "gstreamer1.0-plugins-bad", "gstreamer1.0-libav"],
+APT_PACKAGES = {"uxplay": ["uxplay", "gstreamer1.0-plugins-good", "gstreamer1.0-plugins-bad", "gstreamer1.0-libav",
+                           "avahi-daemon"],
                 "scrcpy": ["scrcpy"]}
 WINGET_IDS = {"scrcpy": "Genymobile.scrcpy", "bonjour": "Apple.Bonjour"}
 
@@ -229,21 +256,82 @@ def can_winget() -> bool:
 
 
 # --------------------------------------------------------------------------- Automatisch einrichten
+AIRPLAY_PORTS = ["7000:7001/tcp", "7100/tcp", "6000:6001/udp", "7011/udp", "5353/udp"]  # zu „uxplay -p“
+
+
+def missing_packages(packages: list[str]) -> list[str]:
+    """Kubuntu: welche dieser Pakete sind (noch) nicht installiert?"""
+    if not shutil.which("dpkg-query"):
+        return []
+    missing = []
+    for pkg in packages:
+        try:
+            out = subprocess.run(["dpkg-query", "-W", "-f=${Status}", pkg], capture_output=True, text=True,
+                                 timeout=10).stdout
+        except (OSError, subprocess.SubprocessError):
+            out = ""
+        if "install ok installed" not in out:
+            missing.append(pkg)
+    return missing
+
+
+def avahi_running() -> bool:
+    """Linux: läuft der Dienst, über den iPhones den PC finden (mDNS/Bonjour)?"""
+    if IS_WINDOWS:
+        return True
+    if shutil.which("systemctl"):
+        try:
+            if subprocess.run(["systemctl", "is-active", "avahi-daemon"], capture_output=True, text=True,
+                              timeout=5).stdout.strip() == "active":
+                return True
+        except (OSError, subprocess.SubprocessError):
+            pass
+    try:
+        return bool(shutil.which("pgrep")) and subprocess.run(["pgrep", "-x", "avahi-daemon"],
+                                                              capture_output=True, timeout=5).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def linux_setup_script(packages: list[str], avahi: bool, firewall_port: int | None) -> str:
+    """Ein Skript für EINE Passwortabfrage: Pakete, avahi-Dienst, Firewall (nur feste Werte, keine Eingaben)."""
+    lines = ["set -e", "export DEBIAN_FRONTEND=noninteractive"]
+    if packages:
+        lines.append("apt-get install -y " + " ".join(packages))
+    if avahi:
+        lines.append("systemctl enable --now avahi-daemon")
+    if firewall_port:
+        rules = " && ".join(f"ufw allow {r}" for r in AIRPLAY_PORTS + [f"{int(firewall_port)}/tcp"])
+        lines.append(f'if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then {rules}; fi')
+    return "\n".join(lines)
+
+
 def setup_plan(config) -> list[tuple[str, list[str]]]:
-    """Was fehlt und automatisch installiert werden kann: [(Beschreibung, Befehl)] – ein Passwort/UAC je Schritt."""
+    """Was fehlt und automatisch eingerichtet werden kann: [(Beschreibung, Befehl)] – ein Passwort/UAC je Schritt."""
     s = {"uxplay_path": "", "scrcpy_path": "", **config["handy"]}
     missing = [p for p in ("uxplay", "scrcpy") if not find_program(p, s[f"{p}_path"],
                                                                      WINDOWS_UXPLAY if p == "uxplay" and IS_WINDOWS else [])]
     plan = []
-    if can_install() and missing:
-        packages = [pkg for p in missing for pkg in APT_PACKAGES[p]]
-        names = " und ".join({"uxplay": "UxPlay (iPhone)", "scrcpy": "scrcpy (Android)"}[p] for p in missing)
-        plan.append((f"{names} installieren",
-                     ["pkexec", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", *packages]))
+    if can_install():
+        packages = missing_packages(list(dict.fromkeys(pkg for p in ("uxplay", "scrcpy") for pkg in APT_PACKAGES[p])))
+        avahi = not avahi_running()
+        firewall = None if s.get("firewall_done") else int(config["cast"].get("port", 8765))
+        if packages or avahi or firewall:
+            parts = []
+            if packages:
+                programs = [p for p in ("uxplay", "scrcpy") if p in packages]
+                parts.append(("UxPlay und scrcpy" if len(programs) == 2 else (programs[0] if programs else
+                                                                               "Video-/Netzwerk-Pakete"))
+                             + " installieren")
+            if avahi:
+                parts.append("iPhone-Suche (avahi) einschalten")
+            if firewall:
+                parts.append("Firewall für AirPlay/Handy öffnen")
+            plan.append((", ".join(parts), ["pkexec", "sh", "-c", linux_setup_script(packages, avahi, firewall)]))
     elif can_winget():
         if "scrcpy" in missing:
             plan.append(("scrcpy (Android) installieren", _winget(WINGET_IDS["scrcpy"])))
-        if "uxplay" in missing and not bonjour_installed():
+        if not bonjour_installed():
             plan.append(("Bonjour (für AirPlay) installieren", _winget(WINGET_IDS["bonjour"])))
     return plan
 

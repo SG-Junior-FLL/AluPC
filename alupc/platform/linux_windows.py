@@ -47,6 +47,52 @@ KWIN_SCRIPT = r"""
 """
 
 
+# Bleibt aktiv: legt jedes (auch später erscheinende) Fenster mit passendem Titel auf den Monitor –
+# z. B. UxPlay, dessen Fenster erst aufgeht, wenn sich ein iPhone verbindet.
+KWIN_FOLLOW_SCRIPT = r"""
+(function () {
+    var titles = %(titles)s;
+    var targetName = %(name)s;
+    var rect = %(rect)s;
+    function matches(w) {
+        if (!w || !w.caption) { return false; }
+        for (var t = 0; t < titles.length; t++) {
+            if (w.caption.indexOf(titles[t]) >= 0) { return true; }
+        }
+        return false;
+    }
+    function place(w) {
+        if (!matches(w)) { return; }
+        if (workspace.screens !== undefined) {
+            for (var i = 0; i < workspace.screens.length; i++) {
+                if (workspace.screens[i].name === targetName) { workspace.sendClientToScreen(w, workspace.screens[i]); break; }
+            }
+        } else {
+            for (var j = 0; j < workspace.numScreens; j++) {
+                var a = workspace.clientArea(KWin.ScreenArea, j, workspace.currentDesktop);
+                if (a.x === rect[0] && a.y === rect[1]) { workspace.sendClientToScreen(w, j); break; }
+            }
+        }
+        w.fullScreen = true;
+    }
+    function watch(w) {
+        if (!w) { return; }
+        place(w);
+        if (w.captionChanged !== undefined) { w.captionChanged.connect(function () { place(w); }); }
+    }
+    var list = (workspace.windowList !== undefined) ? workspace.windowList() : workspace.clientList();
+    for (var k = 0; k < list.length; k++) { watch(list[k]); }
+    if (workspace.windowAdded !== undefined) { workspace.windowAdded.connect(watch); }
+    else { workspace.clientAdded.connect(watch); }
+})();
+"""
+
+
+def build_follow_script(titles: list[str], output_name: str, rect: tuple[int, int, int, int]) -> str:
+    return KWIN_FOLLOW_SCRIPT % {"titles": json.dumps([t for t in titles if t]), "name": json.dumps(output_name),
+                                 "rect": json.dumps(list(rect))}
+
+
 ACTIVE_WINDOW = "(workspace.activeWindow !== undefined) ? workspace.activeWindow : workspace.activeClient"
 WINDOW_BY_CAPTION = r"""(function (part) {
         var list = (workspace.windowList !== undefined) ? workspace.windowList() : workspace.clientList();
@@ -156,10 +202,20 @@ class LinuxWindowBackend(WindowBackend):
             raise RuntimeError("Nur unter KDE Plasma möglich (KWin)")
         run_kwin_script(build_kwin_script(output_name, rect, fullscreen))
 
-    def move_by_title(self, title_part, output_name, rect, fullscreen=True) -> bool:
+    def follow_windows(self, titles, output_name, rect):
+        """KDE: KWin-Skript bleibt aktiv und legt passende Fenster sofort beim Erscheinen auf den Monitor."""
         if self.kde and dbus_util.HAVE_JEEPNEY:
-            run_kwin_script(build_kwin_script(output_name, rect, fullscreen, caption=title_part))
-            return True  # KWin meldet nicht zurück, ob es das Fenster gab
+            try:
+                return start_kwin_script(build_follow_script(list(titles), output_name, rect))
+            except Exception:  # noqa: BLE001
+                return None
+        return None
+
+    def stop_follow(self, token) -> None:
+        if token:
+            stop_kwin_script(token)
+
+    def move_by_title(self, title_part, output_name, rect, fullscreen=True) -> bool:
         for w in self.list_windows():
             if title_part in w.title:
                 self.move_window(w.id, output_name, rect, fullscreen)

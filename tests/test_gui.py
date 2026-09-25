@@ -1508,9 +1508,9 @@ def test_handy_helpers(tmp_path):
     assert handy.find_program("uxplay", new) == new
     assert "m=video 5004 RTP/AVP 96" in handy.sdp_text(5004)
     args = handy.uxplay_args("Klasse 7b", "1234", 5004)
-    assert args[:3] == ["-n", "Klasse 7b", "-nh"] and args[3:5] == ["-pin", "1234"]
+    assert args[:4] == ["-n", "Klasse 7b", "-nh", "-p"] and args[4:6] == ["-pin", "1234"]
     assert args[-1].endswith("udpsink host=127.0.0.1 port=5004")
-    assert handy.uxplay_args("", "zufall", None)[3] == "-pin" and "-fs" in handy.uxplay_args("", "", None)
+    assert handy.uxplay_args("", "zufall", None)[4] == "-pin" and "-fs" in handy.uxplay_args("", "", None)
     sc = handy.scrcpy_args((1920, 0, 1280, 720))
     assert sc[sc.index("--window-x") + 1] == "1920" and "--fullscreen" in sc
     assert len(handy.random_pin()) == 4
@@ -1559,15 +1559,30 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
     scrcpy.chmod(0o755)
     controller.config["handy"] = {**controller.config["handy"], "uxplay_path": uxplay, "scrcpy_path": str(scrcpy),
                                   "pin": ""}
-    moved = []
-    monkeypatch.setattr(controller.windows, "move_by_title",
-                        lambda title, out, rect, full=True: moved.append((title, out, rect)) or True)
+    from alupc.platform.base import WindowInfo
+
+    moved, open_windows = [], []
+    monkeypatch.setattr(controller.windows, "follow_windows", lambda *a: None)  # wie Windows/X11: selbst suchen
+    monkeypatch.setattr(controller.windows, "list_windows", lambda: list(open_windows))
+    monkeypatch.setattr(controller.windows, "move_window",
+                        lambda wid, out, rect, full=False: moved.append((wid, out, rect, full)))
     controller.start_airplay()
     pump()
     assert controller.mode == "desktop" and controller.desktop_note.startswith("iPhone/iPad")
     assert _until(lambda: controller.airplay.running() and log.exists(), 5)
     assert "-fs" in log.read_text() and "-vrtp" not in log.read_text()
-    assert _until(lambda: moved, 5) and moved[0][0] == "AluPC" and moved[0][2] == (1920, 0, 1280, 720)
+    # UxPlay öffnet sein Fenster erst, wenn sich das iPhone verbindet – auch viel später
+    controller._follow_timer.timeout.emit()
+    assert moved == []
+    open_windows.append(WindowInfo(id="0x1", title="AluPC", app="uxplay"))
+    controller._follow_timer.timeout.emit()
+    assert moved == [("0x1", "Zweit", (1920, 0, 1280, 720), True)]
+    controller._follow_timer.timeout.emit()
+    assert len(moved) == 1  # nicht dauernd neu schieben
+    open_windows[:] = [WindowInfo(id="0x2", title="AluPC", app="uxplay")]  # neue Verbindung → neues Fenster
+    controller._follow_timer.timeout.emit()
+    assert moved[-1][0] == "0x2"
+    open_windows[:] = [WindowInfo(id="0x9", title="AluPC Android", app="scrcpy")]
     assert not controller.cursor_should_stay_home()
     pump()
     assert window.t_airplay.active and not window.t_extend.active and not window.t_program.active
@@ -1577,7 +1592,8 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
     assert _until(lambda: (tmp_path / "sc.txt").exists(), 5)
     assert "--window-x 1920" in (tmp_path / "sc.txt").read_text()
     assert _until(lambda: not controller.airplay.running(), 5)  # AirPlay-Fenster beendet
-    assert _until(lambda: any(m[0] == "AluPC Android" for m in moved), 5)
+    controller._follow_timer.timeout.emit()
+    assert moved[-1][0] == "0x9"
     controller.extend()
     assert controller._scrcpy is None and controller._handy_window == ""
 
@@ -1990,3 +2006,39 @@ def test_handy_tiles_start_each_way(env):
     controller.stop_cast()
     pump()
     assert window.t_remote.badge == ""
+
+
+# ---------------------------------------------------------------- 0.15: Spiegeln mit Rückfall, Diagnose
+def test_mirror_falls_back_to_system_mirror(env, monkeypatch):
+    controller, window, _ = env
+    calls, msgs = [], []
+    controller.message.connect(msgs.append)
+    monkeypatch.setattr(controller.display, "available", lambda: True)
+    monkeypatch.setattr(controller.display, "mirror", lambda main, out: calls.append((main, out)))
+    monkeypatch.setattr(controller, "screens_overlap", lambda: False)
+    controller.mirror()
+    pump()
+    content = controller.output.content
+    assert hasattr(content, "no_signal")
+    content.frames = 0
+    content._no_signal("Die Aufnahme liefert kein Bild.")  # wie nach 4 s ohne Bild
+    assert _until(lambda: calls, 5)
+    assert calls[0] == ("Haupt", "Zweit")
+    assert any("spiegelt jetzt über" in m for m in msgs)
+    assert controller.mode == "desktop" and controller.desktop_note.startswith("System-Spiegeln")
+    content2 = None
+    controller.mirror()  # kommen Bilder, passiert nichts
+    content2 = controller.output.content
+    content2.frames = 3
+    content2._no_signal("x")
+    assert len(calls) == 1
+
+
+def test_diagnose_report(env):
+    from alupc import diagnose
+
+    controller, window, _ = env
+    text = diagnose.report(controller, probe=False)
+    for part in ("== Monitore ==", "Monitor 2 = Zweit", "== AirPlay", "== Android ==", "== Miracast ==",
+                 "== RGB und Lüfter =="):
+        assert part in text, part

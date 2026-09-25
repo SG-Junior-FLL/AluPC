@@ -51,6 +51,11 @@ class Controller(QObject):
         from .handy import airplay_server
 
         self.airplay = airplay_server(config)
+        self.airplay.failed.connect(self._airplay_failed)
+        self.recent_messages: list[str] = []  # für „Diagnose kopieren“
+        self.message.connect(lambda m: self.recent_messages.append(m) or
+                             self.recent_messages.__delitem__(slice(0, -30)))
+        self.last_mirror_problem = ""
         self._handy_window = ""  # „airplay“/„android“, solange ein Handy-Fenster auf Monitor 2 liegt
         self._scrcpy = None
         from .cast_server import cast_server
@@ -324,6 +329,8 @@ class Controller(QObject):
         main = self.main_screen()
         self.show_source({"type": "screen", "screen_name": main.name() if main else "", "mirror": True})
         content = self.output.content
+        if hasattr(content, "no_signal"):
+            content.no_signal.connect(self._mirror_no_signal)
         if getattr(content, "method", "") == "qt" and not self._mirror_hint_shown:
             from .platform.linux_display import is_wayland
 
@@ -338,6 +345,29 @@ class Controller(QObject):
         self.ensure_extended()
         self._set_desktop("Erweitert (normaler zweiter Bildschirm)")
         self.config["last_content"] = None
+
+    def _mirror_no_signal(self, reason: str) -> None:
+        """Spiegeln per Aufnahme klappt auf diesem PC nicht → automatisch über das Betriebssystem spiegeln."""
+        if not (self.content and self.content.get("mirror")):
+            return
+        self.last_mirror_problem = reason
+        if not self.display.available():
+            self.message.emit(f"Spiegeln: {reason} Das Betriebssystem-Spiegeln ist hier auch nicht verfügbar – "
+                              "bitte „Diagnose kopieren“ (Setup → Allgemein) an den Entwickler schicken.")
+            return
+        self.message.emit(f"Spiegeln: {reason} AluPC spiegelt jetzt über {self.display.name}.")
+        self.system_mirror()
+
+    def system_mirror(self) -> None:
+        """Monitor 2 vom Betriebssystem spiegeln lassen (Kubuntu: kscreen-doctor, Windows: wie Win+P)."""
+        from .ui.util import run_async
+
+        pair = self.prepare_system_mirror()
+        if pair is None:
+            return
+        main, out = pair
+        run_async(lambda: self.display.mirror(main, out), lambda _r: self.changed.emit(),
+                  lambda text: self.message.emit(f"System-Spiegeln fehlgeschlagen: {text}"))
 
     def prepare_system_mirror(self) -> tuple[str, str] | None:
         """AluPC-Anzeige beenden; liefert (Hauptmonitor, Monitor 2) für display.mirror()."""
@@ -378,7 +408,13 @@ class Controller(QObject):
         self._set_desktop("iPhone/iPad (AirPlay, eigenes Fenster)")
         name = self.airplay.settings()["airplay_name"]
         self.message.emit(f"AirPlay bereit: am iPhone/iPad „Bildschirmsynchronisierung“ → „{name}“ wählen.")
-        self._place_handy_window(name)
+        self._place_handy_window(name, "UxPlay")
+
+    def _airplay_failed(self, reason: str) -> None:
+        self.message.emit(f"AirPlay läuft nicht: {reason}")
+        if self._handy_window == "airplay":
+            self._stop_following()
+            self._handy_window = ""
 
     def start_android(self) -> None:
         """Android per scrcpy (USB-Debugging nötig) – Fenster im Vollbild auf Monitor 2."""
@@ -429,7 +465,20 @@ class Controller(QObject):
                               "diesen PC wählen.")
             self._place_handy_window(app["name"])
 
-        run_async(miracast.find_app, found, lambda text: self.message.emit(f"Miracast: {text}"))
+        def check():
+            return miracast.find_app(), miracast.wireless_display_support()
+
+        def checked(result):
+            app, support = result
+            if support is False or support is None:
+                why = ("Kein WLAN-Adapter gefunden" if support is None else
+                       "WLAN-Adapter oder Grafiktreiber unterstützen „Drahtlose Anzeige“ nicht")
+                self.message.emit(f"Miracast geht auf diesem PC nicht: {why} (Miracast braucht WLAN mit Wi-Fi "
+                                  "Direct). Alternative: Kachel „Handy-Steuerung“ oder AirPlay.")
+                return
+            found(app)
+
+        run_async(check, checked, lambda text: self.message.emit(f"Miracast: {text}"))
 
     # ------------------------------------------------------------ Dual-Boot-Abgleich
     def _config_saved(self) -> None:
@@ -575,28 +624,66 @@ class Controller(QObject):
                 self.run_command(cmd)
         self._cast_snapshot()
 
-    def _place_handy_window(self, title: str, tries: int = 6) -> None:
-        """Fenster suchen, sobald es erscheint, und im Vollbild auf Monitor 2 legen."""
+    def _place_handy_window(self, *titles: str) -> None:
+        """Handy-Fenster (UxPlay, scrcpy, Drahtlose Anzeige) auf Monitor 2 legen – dauerhaft: auch wenn es erst
+        viel später erscheint (UxPlay 1.68 öffnet sein Fenster erst, wenn sich das iPhone verbindet) oder nach
+        einer neuen Verbindung neu aufgeht."""
         from PySide6.QtCore import QTimer
 
+        self._stop_following()
         screen = self.output_screen()
-        if screen is None or not self._handy_window or tries <= 0:
+        if screen is None or not self._handy_window:
             return
         g = screen.geometry()
+        rect = (g.x(), g.y(), g.width(), g.height())
+        titles = [t for t in titles if t]
+        try:
+            self._follow_token = self.windows.follow_windows(titles, screen.name(), rect)
+        except Exception:  # noqa: BLE001
+            self._follow_token = None
+        if self._follow_token:
+            return  # KDE: KWin erledigt das ab jetzt selbst
+        placed: set[str] = set()
 
-        def attempt():
+        def poll():
             if not self._handy_window:
                 return
             try:
-                if self.windows.move_by_title(title, screen.name(), (g.x(), g.y(), g.width(), g.height()), True):
-                    return
+                windows = self.windows.list_windows()
+            except Exception:  # noqa: BLE001
+                return
+            present = set()
+            for w in windows:
+                if any(t in w.title for t in titles):
+                    present.add(w.id)
+                    if w.id not in placed:
+                        try:
+                            self.windows.move_window(w.id, screen.name(), rect, True)
+                            placed.add(w.id)
+                        except Exception:  # noqa: BLE001
+                            pass
+            placed.intersection_update(present)  # geschlossene Fenster vergessen → neue wieder platzieren
+
+        self._follow_timer = QTimer(self, interval=2000)
+        self._follow_timer.timeout.connect(poll)
+        self._follow_timer.start()
+        poll()
+
+    def _stop_following(self) -> None:
+        timer = getattr(self, "_follow_timer", None)
+        if timer is not None:
+            timer.stop()
+            self._follow_timer = None
+        token = getattr(self, "_follow_token", None)
+        if token:
+            try:
+                self.windows.stop_follow(token)
             except Exception:  # noqa: BLE001
                 pass
-            self._place_handy_window(title, tries - 1)
-
-        QTimer.singleShot(2500, attempt)
+        self._follow_token = None
 
     def _stop_handy_window(self) -> None:
+        self._stop_following()
         if self._handy_window == "airplay":
             self.airplay.release()
         if self._scrcpy is not None:
@@ -933,6 +1020,10 @@ class Controller(QObject):
         self.airplay.shutdown()
         self.cast.stop()
         self._cast_timer.stop()
+        try:
+            self.airplay.failed.disconnect(self._airplay_failed)
+        except (RuntimeError, TypeError):
+            pass
         try:  # der Server ist ein Einzelstück – nicht an einen beendeten Controller gebunden lassen
             self.cast.request.disconnect(self._cast_request)
         except (RuntimeError, TypeError):

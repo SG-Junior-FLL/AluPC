@@ -660,10 +660,19 @@ def test_handy_setup_plan_and_adb(monkeypatch, tmp_path):
     cfg = Config(tmp_path / "c.json")
     monkeypatch.setattr(handy, "find_program", lambda name, configured="", extra=None: None)
     monkeypatch.setattr(handy, "can_install", lambda: True)
+    monkeypatch.setattr(handy, "missing_packages", lambda pkgs: list(pkgs))
+    monkeypatch.setattr(handy, "avahi_running", lambda: False)
     plan = handy.setup_plan(cfg)
-    assert len(plan) == 1 and "UxPlay (iPhone) und scrcpy (Android)" in plan[0][0]
-    cmd = plan[0][1]
-    assert cmd[:2] == ["pkexec", "env"] and "uxplay" in cmd and "scrcpy" in cmd and "gstreamer1.0-libav" in cmd
+    assert len(plan) == 1, plan  # alles in EINEM Schritt → nur eine Passwortabfrage
+    label, cmd = plan[0]
+    assert "UxPlay und scrcpy installieren" in label and "avahi" in label and "Firewall" in label
+    assert cmd[:3] == ["pkexec", "sh", "-c"]
+    assert "uxplay" in cmd[3] and "scrcpy" in cmd[3] and "gstreamer1.0-libav" in cmd[3] and "avahi-daemon" in cmd[3]
+    # Alles da und eingerichtet → nichts zu tun
+    monkeypatch.setattr(handy, "missing_packages", lambda pkgs: [])
+    monkeypatch.setattr(handy, "avahi_running", lambda: True)
+    cfg["handy"] = {**cfg["handy"], "firewall_done": True}
+    assert handy.setup_plan(cfg) == []
     monkeypatch.setattr(handy, "can_install", lambda: False)
     monkeypatch.setattr(handy, "can_winget", lambda: True)
     monkeypatch.setattr(handy, "bonjour_installed", lambda: False)
@@ -681,3 +690,31 @@ def test_handy_setup_plan_and_adb(monkeypatch, tmp_path):
     assert devs == [{"serial": "R58M123", "state": "device", "model": "SM G973F"},
                     {"serial": "0123ABC", "state": "unauthorized", "model": "0123ABC"}]
     assert handy.default_airplay_name().startswith("AluPC")
+
+
+# ---------------------------------------------------------------- 0.15: AirPlay wirklich zum Laufen bringen
+def test_airplay_setup_script_and_errors():
+    from alupc import handy
+    from alupc.platform.linux_windows import build_follow_script
+
+    script = handy.linux_setup_script(["uxplay", "gstreamer1.0-libav"], True, 8765)
+    assert "apt-get install -y uxplay gstreamer1.0-libav" in script
+    assert "systemctl enable --now avahi-daemon" in script
+    assert "ufw allow 7000:7001/tcp" in script and "ufw allow 8765/tcp" in script and "ufw allow 5353/udp" in script
+    assert handy.linux_setup_script([], False, None) == "set -e\nexport DEBIAN_FRONTEND=noninteractive"
+    assert "avahi" in handy.explain_uxplay_error(["*** ERROR: No DNS-SD Server found"])
+    assert "GStreamer" in handy.explain_uxplay_error(["*** ERROR: Failed to initialize GStreamer video renderer"])
+    assert "unknown option" in handy.explain_uxplay_error(['unknown option -x, stopping'])
+    assert "-p" in handy.uxplay_args("A", "", None)  # feste Ports für die Firewall
+    js = build_follow_script(["AluPC (PC)", "UxPlay"], "HDMI-A-1", (1920, 0, 1280, 720))
+    assert '["AluPC (PC)", "UxPlay"]' in js and "windowAdded" in js and "captionChanged" in js
+
+
+def test_miracast_wifi_support_parse():
+    from alupc.platform.miracast import parse_wireless_display
+
+    en = "Interface name: Wi-Fi\n    Wireless Display Supported: Yes (Graphics Driver: Yes, Wi-Fi Driver: Yes)\n"
+    de = "Schnittstellenname: WLAN\n    Unterstützte drahtlose Anzeige: Nein (Grafiktreiber: Ja, WLAN-Treiber: Nein)\n"
+    assert parse_wireless_display(en) is True
+    assert parse_wireless_display(de) is False
+    assert parse_wireless_display("Es ist keine Drahtlosschnittstelle im System vorhanden.") is None

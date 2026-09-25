@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QMessageBox,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -643,7 +644,32 @@ class SetupPage(QWidget):
         form.addRow("", restore)
         form.addRow("", auto)
         form.addRow("", minimized)
+        diag_row = QHBoxLayout()
+        diag = button("Diagnose kopieren", "copy")
+        diag.setToolTip("Prüft Monitore, Spiegeln, AirPlay, Android, Miracast, RGB … und kopiert das Ergebnis – "
+                        "zum Weitergeben, wenn etwas nicht geht")
+        diag.clicked.connect(self._diagnose)
+        diag_row.addWidget(diag)
+        diag_row.addStretch(1)
+        form.addRow("Hilfe:", diag_row)
         return box
+
+    def _diagnose(self):
+        from PySide6.QtWidgets import QApplication
+
+        from .. import diagnose
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            text = diagnose.report(self.controller)
+        finally:
+            QApplication.restoreOverrideCursor()
+        QApplication.clipboard().setText(text)
+        box = QMessageBox(self)
+        box.setWindowTitle("Diagnose")
+        box.setText("Die Diagnose ist in der Zwischenablage – einfach in den Chat einfügen.")
+        box.setDetailedText(text)
+        box.exec()
 
     def _fill_screen_combo(self):
         self.screen_combo.blockSignals(True)

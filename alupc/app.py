@@ -273,6 +273,12 @@ def self_test(log_path: str) -> int:
         lines.append(f"Einstellungen: {len(exported['data'])} Gruppen exportierbar, Laufwerke für Dual-Boot: "
                      f"{len(settings_sync.drives())}; Sensoren: {sum(len(c.temps) for c in chips)} Temperaturen, "
                      f"{sum(len(c.pwms) for c in chips)} Lüfter-Regler")
+        from . import diagnose
+
+        # Echte Probe-Aufnahme (Spiegeln) + Gesamtbild – steht dann im Protokoll (CI zeigt es an)
+        for line in diagnose.report(controller).splitlines():
+            if line.strip():
+                lines.append("DIAG " + line.strip())
         controller.show_source({"type": "camera", "device_id": "selbsttest"})  # Kamera-Leiste/Optionen
         window.camera_bar.sync()
         app.processEvents()

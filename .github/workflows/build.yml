@@ -72,6 +72,12 @@ jobs:
           sudo apt-get install -y "./dist/alupc_${{ steps.version.outputs.v }}_amd64.deb"
           QT_QPA_PLATFORM=offscreen alupc --selbsttest "$RUNNER_TEMP/deb.txt" || { cat "$RUNNER_TEMP/deb.txt"; exit 1; }
           cat "$RUNNER_TEMP/deb.txt"
+      - name: Spiegel-Probe unter X11 (Xvfb, echtes Bildschirmaufnehmen)
+        continue-on-error: true
+        run: |
+          sudo apt-get install -y xvfb >/dev/null
+          xvfb-run -a -s "-screen 0 1920x1080x24" env QT_QPA_PLATFORM=xcb alupc --selbsttest "$RUNNER_TEMP/x11.txt" || true
+          grep '^DIAG' "$RUNNER_TEMP/x11.txt" | sed 's/^DIAG /::notice title=Linux-X11-Diagnose::/' || cat "$RUNNER_TEMP/x11.txt"
           test -f /usr/share/applications/alupc.desktop
           grep -q '^Exec=/opt/alupc/AluPC$' /usr/share/applications/alupc.desktop
           grep -q '^X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2' /usr/share/applications/alupc.desktop
@@ -134,6 +140,8 @@ jobs:
           $log = Join-Path $env:RUNNER_TEMP "selbsttest.txt"
           $p = Start-Process -FilePath dist\AluPC\AluPC.exe -ArgumentList "--selbsttest", $log -Wait -PassThru
           if (Test-Path $log) { Get-Content $log }
+          # Diagnose (u. a. echte Probe-Aufnahme fürs Spiegeln) als Hinweise im Lauf sichtbar machen
+          if (Test-Path $log) { Get-Content $log | Where-Object { $_ -like "DIAG *" } | ForEach-Object { Write-Output "::notice title=Windows-Diagnose::$($_.Substring(5))" } }
           if ($p.ExitCode -ne 0) { throw "AluPC.exe Selbsttest fehlgeschlagen (Exit-Code $($p.ExitCode))" }
           # Treiber für Fingerabdruckmodule am seriellen Anschluss (HLK-ZW101) muss in der .exe stecken
           if (-not (Select-String -Path $log -Pattern "pyserial da" -Quiet)) { throw "pyserial fehlt in AluPC.exe" }
