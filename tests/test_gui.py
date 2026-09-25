@@ -48,6 +48,7 @@ def env(tmp_path, monkeypatch):
     from alupc.ui.pip_window import PipWindow
 
     config = Config(tmp_path / "config.json")
+    config["handy"] = {**config["handy"], "setup_done": True}  # im Test nichts installieren
     controller = Controller(config)
     # Keine echten Monitor-Befehle im Test ausführen
     controller.display.available = lambda: False
@@ -1581,23 +1582,22 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
     assert controller._scrcpy is None and controller._handy_window == ""
 
 
-def test_handy_dialog_and_tile(env, tmp_path):
-    from alupc.ui.handy_dialog import HandyDialog
+def test_handy_page_airplay_settings(env, tmp_path):
+    from alupc.ui.main_window import PAGE_HANDY
 
     controller, window, _ = env
     controller.config["handy"] = {**controller.config["handy"], "uxplay_path": "", "scrcpy_path": ""}
-    dlg = HandyDialog(controller, window)
-    dlg.show()
+    window._go(PAGE_HANDY)
     pump()
-    dlg.name.setText("Physikraum")
-    dlg.pin_mode.setCurrentIndex(dlg.pin_mode.findData("fest"))
-    dlg.pin.setText("2468")
-    dlg._save()
+    page = window.handy_page
+    page.name.setText("Physikraum")
+    page.pin_mode.setCurrentIndex(page.pin_mode.findData("fest"))
+    page.pin.setText("2468")
+    page._save_airplay()
     assert controller.config["handy"]["airplay_name"] == "Physikraum"
     assert controller.config["handy"]["pin"] == "2468"
-    dlg.pin_mode.setCurrentIndex(dlg.pin_mode.findData("zufall"))
-    assert controller.config["handy"]["pin"] == "zufall" and dlg.pin.isHidden()
-    dlg.close()
+    page.pin_mode.setCurrentIndex(page.pin_mode.findData("zufall"))
+    assert controller.config["handy"]["pin"] == "zufall" and page.pin.isHidden()
     assert "handy" in window.tiles
     controller.start_airplay()  # UxPlay fehlt → nur Hinweis, nichts kaputt
     pump()
@@ -1764,27 +1764,46 @@ def test_alucast_end_to_end(env, tmp_path):
     assert _http("GET", base + "/", timeout=2)[0] == 0
 
 
-def test_handy_dialog_tabs(env, monkeypatch):
-    from alupc.ui.handy_dialog import HandyDialog
+def test_handy_page_cards_and_auto_setup(env, tmp_path, monkeypatch):
+    import sys
+
+    from alupc import handy
+    from alupc.ui.main_window import PAGE_HANDY
 
     controller, window, _ = env
     controller.config["cast"] = {**controller.config["cast"], "port": _free_tcp_port()}
-    dlg = HandyDialog(controller, window)
-    dlg.show()
+    # Kachel „Handy“: Klick öffnet die Handy-Seite
+    window.t_handy.activated.emit()
     pump()
-    assert dlg.tabs.count() == 4 and dlg.tabs.tabText(0).startswith("Browser")
-    assert dlg.qr.pixmap().width() < 150 and dlg.cast_toggle.text() == "Starten"  # nur Platzhalter-Symbol
-    dlg._toggle_cast()
-    assert controller.cast.running() and dlg.qr.pixmap().width() >= 200  # echter QR-Code
-    old = controller.cast.code()
-    controller.cast.renew_code()
-    assert controller.cast.code() != old or len(old) == 6
-    dlg._toggle_cast()
+    assert window.stack.currentIndex() == PAGE_HANDY
+    page = window.handy_page
+    assert list(page.cards) == ["cast", "airplay", "android", "miracast"]
+    assert page.cards["cast"].pill.text_ == "BEREIT" and page.cast_toggle.text() == "Starten"
+    if not sys.platform.startswith("win"):
+        assert page.cards["miracast"].pill.text_ == "NUR WINDOWS" and not page.mc_start.isEnabled()
+    page._toggle_cast()
+    assert controller.cast.running() and page.cards["cast"].pill.text_ == "LÄUFT"
+    assert page.qr.pixmap().width() >= 80
+    page._toggle_cast()
     assert not controller.cast.running()
+    # Android: Handy per USB erkannt (adb-Ausgabe nachgestellt)
+    page._android_found(handy.parse_adb_devices(
+        "List of devices attached\nR58M123 device usb:1-1 product:beyond model:SM_G973F device:beyond\n"))
+    if page._scrcpy():
+        assert page.cards["android"].pill.text_ == "VERBUNDEN" and "SM G973F" in page.cards["android"].detail.text()
+    # Automatisch einrichten: Plan wird ausgeführt, Name wird eindeutig
+    ran = []
+    monkeypatch.setattr(handy, "setup_plan", lambda cfg: [("scrcpy (Android) installieren", ["true"])])
+    monkeypatch.setattr(handy, "run_plan", lambda plan, status=None: ran.append(plan) or [])
+    controller.config["handy"] = {**controller.config["handy"], "airplay_name": "AluPC", "setup_done": False}
+    page.run_setup()
+    assert _until(lambda: ran and not page._setup_running, 5)
+    assert controller.config["handy"]["airplay_name"].startswith("AluPC (")
+    assert controller.config["handy"]["setup_done"] is True
+    assert page.setup_btn.isVisible()  # Plan (nachgestellt) meldet weiter etwas → Knopf bleibt
     window._fill_handy_menu(window.handy_menu)
     texts = [a.text() for a in window.handy_menu.actions()]
-    assert texts[0].startswith("Handy per Browser") and "Einrichten …" in texts
-    dlg.close()
+    assert texts[0].startswith("Jedes Handy") and "Handy-Seite öffnen …" in texts
     controller.start_miracast()  # Linux: nur Hinweis
     pump()
 
@@ -1902,3 +1921,46 @@ def test_hardware_page_rgb_and_fans(env, tmp_path, monkeypatch):
     assert r > 200 and g < 40 and b < 40, (r, g, b)
     controller.rgb.shutdown()
     fake.close()
+
+
+# ---------------------------------------------------------------- 0.14: bessere Handysteuerung
+def test_phone_remote_preview_laser_and_flags(env):
+    import json
+
+    controller, window, _ = env
+    port = _free_tcp_port()
+    controller.config["cast"] = {**controller.config["cast"], "port": port, "code": "654321"}
+    controller.config.put_scene({"name": "Mathe", "layout": "vollbild", "slots": [{"type": "color", "color": "#00ff00"}]})
+    controller.start_cast()
+    controller.show_source({"type": "scene", "scene": "Mathe"})
+    pump()
+    base, ok = f"http://127.0.0.1:{port}", {"X-AluPC-Code": "654321"}
+    # Live-Bild: erst nach Abruf erzeugt (sonst keine Rechenzeit verschwenden)
+    assert controller.cast.preview == b""
+    assert _http("GET", base + "/api/preview", headers=ok)[0] == 204
+    def green_preview():  # nach dem Übergang (Einblenden) ist die Szene grün
+        controller._cast_tick()
+        img = QImage.fromData(controller.cast.preview)
+        return not img.isNull() and img.pixelColor(img.width() // 2, img.height() // 2).green() > 200
+
+    assert _until(green_preview, 5)
+    status, jpg = _http("GET", base + "/api/preview", headers=ok)
+    assert status == 200 and jpg[:2] == b"\xff\xd8"
+    assert _http("GET", base + "/api/preview")[0] == 403
+    # Status mit aktiver Szene und Zuständen
+    s = json.loads(_http("GET", base + "/api/status", headers=ok)[1])
+    assert s["scene"] == "Mathe" and s["flags"]["schwarz"] is False and s["timer"]
+    assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "schwarz"}).encode(), ok)[0] == 200
+    assert _until(lambda: controller.privacy)
+    s = json.loads(_http("GET", base + "/api/status", headers=ok)[1])
+    assert s["flags"]["schwarz"] is True
+    assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "timer_plus"}).encode(), ok)[0] == 200
+    # Laserpointer per Finger
+    assert _http("POST", base + "/api/laser", json.dumps({"x": 0.25, "y": 0.5}).encode(), ok)[0] == 200
+    assert _until(lambda: controller.laser.point is not None and controller.laser.remote)
+    assert abs(controller.laser.point.x() - 0.25 * controller.laser.width()) < 2
+    assert _http("POST", base + "/api/laser", json.dumps({"up": True}).encode(), ok)[0] == 200
+    assert _until(lambda: controller.laser.point is None and not controller.laser.remote)
+    assert _http("POST", base + "/api/laser", json.dumps({"x": 3, "y": 0}).encode(), ok)[0] == 400
+    assert _http("POST", base + "/api/laser", json.dumps({"x": "a"}).encode(), ok)[0] == 400
+    controller.stop_cast()

@@ -32,8 +32,10 @@ VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".3gp", ".avi"}
 MIME_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
             "video/mp4": ".mp4", "video/quicktime": ".mov", "video/webm": ".webm", "video/3gpp": ".3gp"}
 # Befehle, die das Handy auslösen darf (dazu „szene:Name“ und „lautstaerke:Zahl“)
-ALLOWED_COMMANDS = {"standbild", "schwarz", "naechste_szene", "vorherige_szene", "zeichnungen_loeschen",
-                    "timer_start_pause", "video_pause", "video_vor", "video_zurueck"}
+ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirmschoner", "naechste_szene",
+                    "vorherige_szene", "zeichnungen_loeschen", "timer_start_pause", "timer_plus", "timer_minus",
+                    "timer_neustart", "timer_zeigen", "video_pause", "video_vor", "video_zurueck",
+                    "rgb_farbe", "rgb_monitor2", "rgb_aus"}
 MAX_FAILS = 10
 BLOCK_SECONDS = 60
 
@@ -105,6 +107,8 @@ class CastServer(QObject):
         self.thread: threading.Thread | None = None
         self.port = 0
         self.snapshot = {"now": "", "scenes": [], "volume": 100, "video": False}
+        self.preview = b""  # JPEG von Monitor 2 (vom Qt-Hauptthread erneuert, solange ein Handy zuschaut)
+        self.preview_wanted = 0.0
         self._fails: dict[str, list[float]] = {}
         self._lock = threading.Lock()
 
@@ -135,6 +139,7 @@ class CastServer(QObject):
     def start(self) -> bool:
         if self.httpd is not None:
             return True
+        self._fails.clear()  # neuer Start → alte Sperren vergessen
         self.code()
         first = int(self.settings()["port"])
         handler = _make_handler(self)
@@ -231,6 +236,13 @@ def _make_handler(server: CastServer):
             elif path == "/api/status":
                 if self._auth():
                     self._json(200, server.snapshot)
+            elif path == "/api/preview":
+                if self._auth():
+                    server.preview_wanted = time.monotonic()
+                    if server.preview:
+                        self._send(200, server.preview, "image/jpeg")
+                    else:
+                        self._send(204, b"", "image/jpeg")
             elif path == "/favicon.ico":
                 self._send(204, b"", "image/x-icon")
             else:
@@ -259,6 +271,14 @@ def _make_handler(server: CastServer):
                         self._json(400, {"error": "Kein Text"})
                         return
                     server.request.emit({"kind": "text", "text": text})
+                elif u.path == "/api/laser":
+                    if data.get("up"):
+                        server.request.emit({"kind": "laser", "x": None, "y": None})
+                    else:
+                        x, y = float(data.get("x")), float(data.get("y"))
+                        if not (0 <= x <= 1 and 0 <= y <= 1):
+                            raise ValueError("außerhalb")
+                        server.request.emit({"kind": "laser", "x": x, "y": y})
                 elif u.path == "/api/cmd":
                     cmd = str(data.get("cmd", ""))
                     if not (cmd in ALLOWED_COMMANDS or cmd.startswith("szene:")
@@ -270,7 +290,7 @@ def _make_handler(server: CastServer):
                     self._json(404, {"error": "Nicht gefunden"})
                     return
                 self._json(200, {"ok": True})
-            except (ValueError, json.JSONDecodeError):
+            except (ValueError, TypeError, json.JSONDecodeError):
                 self._json(400, {"error": "Ungültige Anfrage"})
 
         def _upload(self, name: str):

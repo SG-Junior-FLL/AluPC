@@ -12,7 +12,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "program": ("window", "Programm", "Ein Programm zeigen", None, "anzeigen"),
     "website": ("globe", "Website", "Öffnen · Pfeil: Favoriten", None, "anzeigen"),
     "media": ("image", "Bild / Video", "Mediathek · Pfeil: Zuletzt", None, "anzeigen"),
-    "handy": ("phone", "Handy", "QR-Code · Pfeil: AirPlay & Co.", None, "anzeigen"),
+    "handy": ("phone", "Handy", "iPhone, Android, QR · Pfeil: starten", None, "anzeigen"),
     "scenes": ("scenes", "Meine Szenen", "Bearbeiten · Pfeil: starten", None, "anzeigen"),
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),
     "black": ("eye_off", "Schwarz", "Sichtschutz", "#64748b", "schnell"),

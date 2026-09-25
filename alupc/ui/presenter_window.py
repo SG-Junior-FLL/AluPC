@@ -409,6 +409,7 @@ class PresenterWindow(QWidget):
 
     # ------------------------------------------------------------ Vorschau
     def showEvent(self, e):
+        self.controller.presenter_open = True
         self.controller.laser.set_remote(True)
         self.timer.start()
         self._frames = 0
@@ -420,6 +421,7 @@ class PresenterWindow(QWidget):
         self.timer.stop()
         self._measure.stop()
         self._stop_live()
+        self.controller.presenter_open = False
         self.controller.laser.remote_point(None)
         self.controller.laser.set_remote(False)
         super().hideEvent(e)

@@ -649,3 +649,34 @@ def test_fans_read_and_set(tmp_path):
     assert fans.apply_request("hwmon9/pwm1=200", tmp_path) == 1  # gibt es nicht
     cmd = fans.helper_command("hwmon3/pwm1=100")
     assert cmd[0] == "pkexec" and cmd[-2:] == ["--luefter", "hwmon3/pwm1=100"]
+
+
+# ---------------------------------------------------------------- 0.14: Handy automatisch einrichten
+def test_handy_setup_plan_and_adb(monkeypatch, tmp_path):
+    from alupc import handy
+    from alupc.config import Config
+
+    cfg = Config(tmp_path / "c.json")
+    monkeypatch.setattr(handy, "find_program", lambda name, configured="", extra=None: None)
+    monkeypatch.setattr(handy, "can_install", lambda: True)
+    plan = handy.setup_plan(cfg)
+    assert len(plan) == 1 and "UxPlay (iPhone) und scrcpy (Android)" in plan[0][0]
+    cmd = plan[0][1]
+    assert cmd[:2] == ["pkexec", "env"] and "uxplay" in cmd and "scrcpy" in cmd and "gstreamer1.0-libav" in cmd
+    monkeypatch.setattr(handy, "can_install", lambda: False)
+    monkeypatch.setattr(handy, "can_winget", lambda: True)
+    monkeypatch.setattr(handy, "bonjour_installed", lambda: False)
+    plan = handy.setup_plan(cfg)
+    assert [p[1][3] for p in plan] == ["Genymobile.scrcpy", "Apple.Bonjour"]
+    import sys
+
+    errors = handy.run_plan([("Test ok", [sys.executable, "-c", "pass"]),
+                             ("Test kaputt", [sys.executable, "-c", "raise SystemExit(1)"])])
+    assert errors == ["Test kaputt: fehlgeschlagen"]
+    devs = handy.parse_adb_devices("List of devices attached\n"
+                                   "R58M123 device usb:1-1 product:beyond model:SM_G973F device:beyond\n"
+                                   "0123ABC unauthorized usb:1-2 transport_id:3\n"
+                                   "* daemon started successfully\n")
+    assert devs == [{"serial": "R58M123", "state": "device", "model": "SM G973F"},
+                    {"serial": "0123ABC", "state": "unauthorized", "model": "0123ABC"}]
+    assert handy.default_airplay_name().startswith("AluPC")

@@ -8,6 +8,25 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.14.0)
+- **Neue Seite „Handy“** (links in der Leiste, auch per Klick auf die Kachel „Handy“): vier klar getrennte
+  Karten – **Jedes Handy** (Browser/QR-Code), **iPhone & iPad** (AirPlay), **Android** (USB) und
+  **Miracast** – jede mit Status („Bereit“, „Einrichten“, „Verbunden“ …), drei Schritten und einem großen
+  „Auf Monitor 2 zeigen“.
+- **Richtet sich automatisch ein**: Beim ersten Öffnen installiert AluPC fehlende Programme selbst
+  (Kubuntu: UxPlay und scrcpy mit einer Passwortabfrage; Windows: scrcpy und Bonjour über winget),
+  vergibt einen eindeutigen AirPlay-Namen („AluPC (Rechnername)“) und den Zugangscode. Später reicht
+  „Automatisch einrichten“ oben auf der Seite.
+- **Android-Handys werden per USB automatisch erkannt** (inkl. Hinweis „am Handy zulassen“).
+- **Bessere Handysteuerung** (QR-Code scannen): neues Design mit Reitern „Steuern“ und „Senden“,
+  **Live-Bild von Monitor 2** auf dem Handy, **Laserpointer per Finger** auf dem Live-Bild, große Knöpfe
+  mit Anzeige, was gerade an ist (Schwarz, Standbild, Spiegeln, Erweitern, Bildschirmschoner),
+  aktive Szene hervorgehoben, **Timer** (Start/Pause, ±1 min, auf Monitor 2), Video, Lautstärke,
+  **RGB-Licht**. Leichtes Vibrieren beim Tippen (Android).
+- **Ehrlich:** AirPlay unter Windows braucht weiterhin UxPlay von Hand (dafür gibt es kein
+  winget-Paket). Das Live-Bild aufs Handy ist ein Standbild pro Sekunde, kein Video. Nicht mit echten
+  Handys getestet – getestet im Handy-Browser-Simulator und mit echten Anfragen an den Webserver.
+
 ### Neu in dieser Version (0.13.0)
 - **Einstellungen sichern und laden** (Setup → „Sichern & Sync“): exportieren/importieren als Datei –
   alles oder nur einzelne Bereiche, z. B. **nur die Startseite**.

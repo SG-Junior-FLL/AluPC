@@ -184,6 +184,8 @@ def self_test(log_path: str) -> int:
         from .ui.pip_window import PipWindow
 
         config = Config()
+        # Im Selbsttest nichts installieren (die Handy-Seite richtet sich sonst beim ersten Öffnen selbst ein)
+        config["handy"] = {**config["handy"], "setup_done": True}
         theme.apply(app, "dunkel", "blau")
         controller = Controller(config)
         lines.append(f"Monitore: {controller.display.name}, Fenster: {type(controller.windows).__name__}, "
@@ -235,17 +237,15 @@ def self_test(log_path: str) -> int:
         window.presenter.close()
         app.processEvents()
         from . import handy
-        from .ui.handy_dialog import HandyDialog
 
         ux = controller.airplay.binary()
         sc = handy.find_program("scrcpy", "")
         lines.append(f"Handy: UxPlay {ux or 'nicht installiert'}"
                      + (f" (Bild an AluPC: {'ja' if handy.supports_vrtp(ux) else 'nein, eigenes Fenster'})" if ux else "")
                      + f", scrcpy {sc or 'nicht installiert'}")
-        dlg = HandyDialog(controller, window)
-        dlg.show()
-        app.processEvents()
-        dlg.close()
+        lines.append("Handy-Einrichtung: " + (", ".join(label for label, _ in handy.setup_plan(config))
+                                                 or "nichts zu installieren"))
+        window.handy_page.refresh()
         if not ux:  # ohne UxPlay nur Hinweis auf Monitor 2
             controller.show_source({"type": "airplay"})
             app.processEvents()

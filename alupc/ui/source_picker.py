@@ -248,7 +248,7 @@ class SourcePicker(QDialog):
     def _page_airplay(self, init):
         page, form = self._form()
         hint = QLabel("Zeigt, was ein iPhone oder iPad per AirPlay („Bildschirmsynchronisierung“) sendet.\n\n"
-                      "Braucht das freie Programm UxPlay ab Version 1.73 (Kachel „Handy“ → „Einrichten …“). "
+                      "Braucht das freie Programm UxPlay ab Version 1.73 (Seite „Handy“ → „Automatisch einrichten“). "
                       "Ältere Versionen gehen nur über die Kachel „Handy“ (eigenes Vollbild-Fenster), nicht in Szenen.")
         hint.setWordWrap(True)
         form.addRow(hint)
@@ -261,7 +261,7 @@ class SourcePicker(QDialog):
         hint = QLabel("Zeigt einen QR-Code: Wer ihn mit dem Handy scannt, kann Fotos, Videos, Links und Text auf "
                       "Monitor 2 senden und ihn fernsteuern – iPhone und Android, ohne App (AluCast).\n\n"
                       "Der Code im QR-Code ist der Zugang: Jeder, der ihn sieht, kann senden. Neuer Code: "
-                      "Kachel „Handy“ → „Einrichten …“.")
+                      "Seite „Handy“.")
         hint.setWordWrap(True)
         form.addRow(hint)
         return page, lambda: {}

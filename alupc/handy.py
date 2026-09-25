@@ -14,7 +14,9 @@ Rückfrage mit apt).
 
 from __future__ import annotations
 
+import os
 import random
+import re
 import shutil
 import socket
 import subprocess
@@ -29,6 +31,8 @@ IS_WINDOWS = sys.platform.startswith("win")
 WINDOWS_UXPLAY = [r"C:\msys64\ucrt64\bin\uxplay.exe", r"C:\msys64\mingw64\bin\uxplay.exe",
                   r"C:\Program Files\UxPlay\uxplay.exe"]
 WINDOW_TITLE_ANDROID = "AluPC Android"
+# winget legt Programme hier als Verknüpfung ab (der PATH von AluPC kennt das nach der Installation noch nicht)
+WINGET_LINKS = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "WinGet", "Links")
 
 
 def find_program(name: str, configured: str = "", extra: list[str] | None = None) -> str | None:
@@ -39,6 +43,10 @@ def find_program(name: str, configured: str = "", extra: list[str] | None = None
     found = shutil.which(name)
     if found:
         return found
+    if IS_WINDOWS:
+        linked = shutil.which(name, path=WINGET_LINKS)
+        if linked:
+            return linked
     for candidate in extra or []:
         if Path(candidate).is_file():
             return candidate
@@ -204,11 +212,112 @@ def random_pin() -> str:
 
 def install_command(program: str) -> list[str]:
     """Kubuntu: Paket per pkexec installieren (Passwortabfrage)."""
-    packages = {"uxplay": ["uxplay", "gstreamer1.0-plugins-good", "gstreamer1.0-plugins-bad"],
-                "scrcpy": ["scrcpy"]}[program]
-    return ["pkexec", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", *packages]
+    return ["pkexec", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", *APT_PACKAGES[program]]
+
+
+APT_PACKAGES = {"uxplay": ["uxplay", "gstreamer1.0-plugins-good", "gstreamer1.0-plugins-bad", "gstreamer1.0-libav"],
+                "scrcpy": ["scrcpy"]}
+WINGET_IDS = {"scrcpy": "Genymobile.scrcpy", "bonjour": "Apple.Bonjour"}
 
 
 def can_install() -> bool:
     return sys.platform.startswith("linux") and bool(shutil.which("apt-get")) and bool(shutil.which("pkexec"))
 
+
+def can_winget() -> bool:
+    return IS_WINDOWS and bool(shutil.which("winget"))
+
+
+# --------------------------------------------------------------------------- Automatisch einrichten
+def setup_plan(config) -> list[tuple[str, list[str]]]:
+    """Was fehlt und automatisch installiert werden kann: [(Beschreibung, Befehl)] – ein Passwort/UAC je Schritt."""
+    s = {"uxplay_path": "", "scrcpy_path": "", **config["handy"]}
+    missing = [p for p in ("uxplay", "scrcpy") if not find_program(p, s[f"{p}_path"],
+                                                                     WINDOWS_UXPLAY if p == "uxplay" and IS_WINDOWS else [])]
+    plan = []
+    if can_install() and missing:
+        packages = [pkg for p in missing for pkg in APT_PACKAGES[p]]
+        names = " und ".join({"uxplay": "UxPlay (iPhone)", "scrcpy": "scrcpy (Android)"}[p] for p in missing)
+        plan.append((f"{names} installieren",
+                     ["pkexec", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", *packages]))
+    elif can_winget():
+        if "scrcpy" in missing:
+            plan.append(("scrcpy (Android) installieren", _winget(WINGET_IDS["scrcpy"])))
+        if "uxplay" in missing and not bonjour_installed():
+            plan.append(("Bonjour (für AirPlay) installieren", _winget(WINGET_IDS["bonjour"])))
+    return plan
+
+
+def _winget(package_id: str) -> list[str]:
+    return ["winget", "install", "--id", package_id, "-e", "--silent",
+            "--accept-source-agreements", "--accept-package-agreements"]
+
+
+def bonjour_installed() -> bool:
+    if not IS_WINDOWS:
+        return True
+    return os.path.exists(os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "Bonjour",
+                                       "mDNSResponder.exe"))
+
+
+def run_plan(plan: list[tuple[str, list[str]]], status=None) -> list[str]:
+    """Schritte nacheinander ausführen. Rückgabe: Fehlermeldungen (leer = alles gut)."""
+    errors = []
+    for i, (label, cmd) in enumerate(plan):
+        if status:
+            status(f"{label} …", i, len(plan))
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800,
+                                  creationflags=0x08000000 if IS_WINDOWS else 0)
+        except (OSError, subprocess.SubprocessError) as exc:
+            errors.append(f"{label}: {exc}")
+            continue
+        if proc.returncode in (126, 127) and cmd[0] == "pkexec":
+            errors.append(f"{label}: abgebrochen (kein Passwort)")
+        elif proc.returncode != 0:
+            last = (proc.stderr or proc.stdout or "fehlgeschlagen").strip().splitlines()
+            errors.append(f"{label}: {last[-1] if last else 'fehlgeschlagen'}")
+    _vrtp_cache.clear()
+    return errors
+
+
+def default_airplay_name() -> str:
+    """Name, unter dem der PC am iPhone erscheint: „AluPC (Rechnername)“."""
+    host = re.sub(r"[^\w .-]", "", socket.gethostname().split(".")[0])[:24]
+    return f"AluPC ({host})" if host else "AluPC"
+
+
+# --------------------------------------------------------------------------- Android per USB erkennen
+def adb_path(scrcpy: str | None) -> str | None:
+    found = find_program("adb")
+    if found:
+        return found
+    if scrcpy:  # Windows-ZIP von scrcpy bringt adb.exe mit
+        candidate = Path(scrcpy).with_name("adb.exe" if IS_WINDOWS else "adb")
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def parse_adb_devices(output: str) -> list[dict]:
+    """Ausgabe von „adb devices -l“ → [{serial, state, model}] (state: device / unauthorized / offline)."""
+    devices = []
+    for line in output.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) < 2 or parts[0].startswith("*"):
+            continue
+        info = dict(p.split(":", 1) for p in parts[2:] if ":" in p)
+        devices.append({"serial": parts[0], "state": parts[1],
+                        "model": info.get("model", "").replace("_", " ") or parts[0]})
+    return devices
+
+
+def android_devices(adb: str | None) -> list[dict]:
+    if not adb:
+        return []
+    try:
+        out = subprocess.run([adb, "devices", "-l"], capture_output=True, text=True, timeout=6,
+                             creationflags=0x08000000 if IS_WINDOWS else 0).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return parse_adb_devices(out)

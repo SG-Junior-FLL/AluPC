@@ -57,6 +57,11 @@ class Controller(QObject):
 
         self.cast = cast_server(config)
         self.cast.request.connect(self._cast_request)
+        from PySide6.QtCore import QTimer as _QTimer
+
+        self._cast_timer = _QTimer(self, interval=900)  # Live-Bild/Status fürs Handy
+        self._cast_timer.timeout.connect(self._cast_tick)
+        self._cast_timer.start()
         self.changed.connect(self.update_cursor_guard)
         self.changed.connect(self._cast_snapshot)
         if self.cast.settings().get("autostart"):
@@ -358,7 +363,7 @@ class Controller(QObject):
 
         uxplay = self.airplay.binary()
         if not uxplay:
-            self.message.emit("AirPlay: UxPlay fehlt – Kachel „Handy“ → „Einrichten …“.")
+            self.message.emit("AirPlay: UxPlay fehlt – Seite „Handy“ → „Automatisch einrichten“.")
             return
         if supports_vrtp(uxplay):
             self.show_source({"type": "airplay"})
@@ -383,7 +388,7 @@ class Controller(QObject):
 
         scrcpy = find_program("scrcpy", self.config["handy"].get("scrcpy_path", ""))
         if not scrcpy:
-            self.message.emit("Android: scrcpy fehlt – Kachel „Handy“ → „Einrichten …“.")
+            self.message.emit("Android: scrcpy fehlt – Seite „Handy“ → „Automatisch einrichten“.")
             return
         screen = self.output_screen()
         if screen is None:
@@ -412,8 +417,8 @@ class Controller(QObject):
 
         def found(app):
             if app is None:
-                self.message.emit("Miracast: Windows-App „Drahtlose Anzeige“ fehlt – Kachel „Handy“ → "
-                                  "„Einrichten …“ → Miracast → Installieren.")
+                self.message.emit("Miracast: Windows-App „Drahtlose Anzeige“ fehlt – Seite „Handy“ → "
+                                  "Miracast → „Installieren“.")
                 return
             self._stop_handy_window()
             self.ensure_extended()
@@ -464,14 +469,79 @@ class Controller(QObject):
 
     def _cast_snapshot(self) -> None:
         from .sources import video_sources
+        from .timer import clock
 
-        state = self.media_state() or {}
+        state = self.media_state()
+        content = self.content or {}
+        rgb = self.rgb.settings()["mode"] if self.rgb.connected else ""
         self.cast.snapshot = {
             "now": self.describe(),
             "scenes": self.config.scene_names(),
-            "volume": int(state.get("volume", 100)),
+            "scene": content.get("scene", "") if self.mode == "content" and content.get("type") == "scene" else "",
+            "volume": int((state or {}).get("volume", 100)),
+            "sound": state is not None,
             "video": bool(video_sources(self.output.content)) if self.mode == "content" else False,
+            "timer": clock.text(),
+            "rgb": rgb,
+            "flags": {"schwarz": self.privacy, "standbild": self.frozen, "schoner": self.screensaver.active,
+                      "spiegeln": bool(self.mode == "content" and content.get("mirror")),
+                      "erweitern": self.mode == "desktop" and self.desktop_note.startswith("Erweitert")},
         }
+
+    def _phone_laser(self, x, y) -> None:
+        """Laserpointer vom Handy (Finger auf dem Live-Bild)."""
+        from PySide6.QtCore import QPointF
+
+        if x is None:
+            self.laser.remote_point(None)
+            if getattr(self, "_phone_laser_on", False):
+                self._phone_laser_on = False
+                if not self.laser_owner_open():
+                    self.laser.set_remote(False)
+            return
+        if not self.laser.remote:
+            self._phone_laser_on = True
+            self.laser.set_remote(True)
+        self.laser.remote_point(QPointF(x, y))
+
+    def laser_owner_open(self) -> bool:
+        """Ist „Zeigen & Zeichnen“ offen? (dann bleibt der Laser dort an)"""
+        return bool(getattr(self, "presenter_open", False))
+
+    def _cast_tick(self) -> None:
+        """Solange ein Handy zuschaut: Status und Live-Bild von Monitor 2 auffrischen."""
+        import time
+
+        if not self.cast.running() or time.monotonic() - self.cast.preview_wanted > 5:
+            return
+        self._cast_snapshot()
+        self.cast.preview = self._preview_jpeg()
+
+    def _preview_jpeg(self) -> bytes:
+        from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QSize, Qt
+        from PySide6.QtGui import QColor, QFont, QImage, QPainter
+
+        from .output_window import grab_scaled
+
+        out = self.output
+        if out.isVisible() and out.width() > 0:
+            img = grab_scaled(out, QSize(640, 360))
+        else:  # Erweitern: Monitor 2 ist ein normaler Bildschirm – nur ein Hinweis
+            img = QImage(640, 360, QImage.Format_RGB32)
+            img.fill(QColor("#0f172a"))
+            p = QPainter(img)
+            p.setPen(QColor("#cbd5e1"))
+            f = QFont()
+            f.setPixelSize(26)
+            p.setFont(f)
+            p.drawText(img.rect(), Qt.AlignCenter, "Monitor 2: normaler Bildschirm\n(" + self.describe()[:40] + ")")
+            p.end()
+        data = QByteArray()
+        buf = QBuffer(data)
+        buf.open(QIODevice.WriteOnly)
+        img.save(buf, "JPEG", 70)
+        buf.close()
+        return bytes(data)
 
     def _cast_request(self, req: dict) -> None:
         """Anfrage vom Handy (kommt aus dem Webserver-Thread, läuft hier im Qt-Hauptthread)."""
@@ -489,6 +559,9 @@ class Controller(QObject):
             self.message.emit(f"Link vom Handy: {req.get('original', req['url'])}")
         elif kind == "text":
             self.show_source({"type": "text", "text": req["text"]})
+        elif kind == "laser":
+            self._phone_laser(req.get("x"), req.get("y"))
+            return
         elif kind == "cmd":
             cmd = req.get("cmd", "")
             videos = video_sources(self.output.content) if self.mode == "content" else []
@@ -859,6 +932,11 @@ class Controller(QObject):
         self.output.set_content(None)
         self.airplay.shutdown()
         self.cast.stop()
+        self._cast_timer.stop()
+        try:  # der Server ist ein Einzelstück – nicht an einen beendeten Controller gebunden lassen
+            self.cast.request.disconnect(self._cast_request)
+        except (RuntimeError, TypeError):
+            pass
         self.rgb.shutdown()
         if self.config.data["sync"].get("enabled"):
             self._sync_timer.stop()

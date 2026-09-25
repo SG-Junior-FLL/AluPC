@@ -584,8 +584,8 @@ class AirPlaySource(SinkView):
         self._watch = QTimer(self, interval=1000)
         self._watch.timeout.connect(self._check)
         if self.mode == "fehlt":
-            self.set_message("AirPlay-Empfang: Das Programm UxPlay fehlt.\n\nKachel „Handy“ → „Einrichten …“ "
-                             "installiert bzw. findet es.")
+            self.set_message("AirPlay-Empfang: Das Programm UxPlay fehlt.\n\nSeite „Handy“ → „Automatisch "
+                             "einrichten“ installiert es.")
             return
         if self.mode == "fenster":
             self.set_message("Diese UxPlay-Version kann das Bild nicht an AluPC weitergeben (erst ab 1.73).\n\n"

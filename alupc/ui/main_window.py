@@ -235,6 +235,9 @@ class LazyPage(QWidget):
         super().showEvent(e)
 
 
+PAGE_HANDY = 5  # Nummer der Handy-Seite im Seitenstapel
+
+
 class MainWindow(QMainWindow):
     def __init__(self, controller, hotkeys):
         super().__init__()
@@ -263,6 +266,7 @@ class MainWindow(QMainWindow):
             LazyPage(lambda: _padded(self._setup_page())),
             LazyPage(lambda: _padded(self._finger_page(), scroll=True)),
             LazyPage(lambda: _padded(self._hardware_page())),
+            LazyPage(lambda: _padded(self._handy_page())),
         ]
         for page in self.pages:
             self.stack.addWidget(page)
@@ -305,9 +309,10 @@ class MainWindow(QMainWindow):
 
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
-        for i, (icon_name, text) in enumerate([("home", "Start"), ("scenes", "Szenen"),
-                                               ("sliders", "Setup"), ("fingerprint", "Fingerabdruck"),
-                                               ("fan", "RGB & Lüfter")]):
+        # (Seiten-Nummer, Symbol, Text) – Reihenfolge in der Leiste, Nummer = Seite im Stapel
+        for i, icon_name, text in [(0, "home", "Start"), (1, "scenes", "Szenen"), (PAGE_HANDY, "phone", "Handy"),
+                                   (2, "sliders", "Setup"), (3, "fingerprint", "Fingerabdruck"),
+                                   (4, "fan", "RGB & Lüfter")]:
             b = NavButton(icon_name, text)
             self.nav_group.addButton(b, i)
             lay.addWidget(b)
@@ -398,7 +403,7 @@ class MainWindow(QMainWindow):
                             c.laser.clear_strokes)
         self.t_draw.set_menu(draw_menu, split=True)
         self.t_handy = self.tiles["handy"]
-        self.t_handy.activated.connect(c.start_cast)
+        self.t_handy.activated.connect(lambda: self._go(PAGE_HANDY))
         self.handy_menu = QMenu(self)
         self.handy_menu.aboutToShow.connect(lambda: self._fill_handy_menu(self.handy_menu))
         self.t_handy.set_menu(self.handy_menu, split=True)
@@ -619,23 +624,15 @@ class MainWindow(QMainWindow):
         c = self.controller
         col = theme.current().text
         menu.clear()
-        menu.addAction(icons.icon("qr", col, 18), "Handy per Browser – QR-Code (iPhone & Android)", c.start_cast)
-        menu.addAction(icons.icon("phone", col, 18), "iPhone/iPad (AirPlay)", c.start_airplay)
-        menu.addAction(icons.icon("phone", col, 18), "Android (scrcpy, USB)", c.start_android)
+        menu.addAction(icons.icon("qr", col, 18), "Jedes Handy – QR-Code zeigen", c.start_cast)
+        menu.addAction(icons.icon("phone", col, 18), "iPhone & iPad (AirPlay)", c.start_airplay)
+        menu.addAction(icons.icon("phone", col, 18), "Android (USB)", c.start_android)
         if sys.platform.startswith("win"):
-            menu.addAction(icons.icon("cast", col, 18), "Miracast (Windows „Drahtlose Anzeige“)", c.start_miracast)
+            menu.addAction(icons.icon("cast", col, 18), "Miracast", c.start_miracast)
         menu.addSeparator()
         if c.cast.running():
-            menu.addAction(icons.icon("x", col, 18), "AluCast beenden (Handys können nichts mehr senden)",
-                           c.stop_cast)
-        menu.addAction(icons.icon("sliders", col, 18), "Einrichten …", self.open_handy_dialog)
-
-    def open_handy_dialog(self):
-        from .handy_dialog import HandyDialog
-
-        dlg = HandyDialog(self.controller, self)
-        dlg.setAttribute(Qt.WA_DeleteOnClose)
-        dlg.exec()
+            menu.addAction(icons.icon("x", col, 18), "QR-Empfang beenden", c.stop_cast)
+        menu.addAction(icons.icon("sliders", col, 18), "Handy-Seite öffnen …", lambda: self._go(PAGE_HANDY))
 
     def open_presenter(self):
         """Fenster „Zeigen & Zeichnen“ auf Monitor 1 öffnen (bzw. nach vorne holen)."""
@@ -905,6 +902,18 @@ class MainWindow(QMainWindow):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(page_header("Fingerabdruck", "Sensor wählen, Finger anlernen und damit anmelden."))
         lay.addWidget(FingerprintPage(self.controller), 1)
+        return page
+
+    def _handy_page(self):
+        from .handy_page import HandyPage
+
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(page_header("Handy auf Monitor 2", "Vier Wege – wähle den passenden. Die Einrichtung "
+                                  "läuft automatisch."))
+        self.handy_page = HandyPage(self.controller)
+        lay.addWidget(self.handy_page, 1)
         return page
 
     def _hardware_page(self):

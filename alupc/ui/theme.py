@@ -159,7 +159,7 @@ QPushButton:disabled {{ color: {t.muted}; background: {t.surface}; }}
 QPushButton[primary="true"] {{ background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {accent_top},
     stop:1 {accent_bottom}); border-color: {accent_bottom}; color: #ffffff; font-weight: 600; }}
 QPushButton[primary="true"]:hover {{ background: {accent_hover}; }}
-QPushButton[primary="true"]:disabled {{ background: {t.accent_soft(0.45)}; border-color: transparent; }}
+QPushButton[primary="true"]:disabled {{ background: {t.surface2}; border-color: {t.border}; color: {t.muted}; }}
 QPushButton[danger="true"] {{ color: {t.danger}; }}
 QPushButton:default {{ border-color: {t.accent}; }}
 QPushButton#Segment {{ border-radius: 17px; padding: 7px 18px; min-width: 56px; }}
