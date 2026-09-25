@@ -702,7 +702,10 @@ def test_airplay_setup_script_and_errors():
     assert "systemctl enable --now avahi-daemon" in script
     assert "ufw allow 7000:7001/tcp" in script and "ufw allow 8765/tcp" in script and "ufw allow 5353/udp" in script
     assert handy.linux_setup_script([], False, None) == "set -e\nexport DEBIAN_FRONTEND=noninteractive"
-    assert "avahi" in handy.explain_uxplay_error(["*** ERROR: No DNS-SD Server found"])
+    import sys
+
+    expected = "Bonjour" if sys.platform.startswith("win") else "avahi"
+    assert expected in handy.explain_uxplay_error(["*** ERROR: No DNS-SD Server found"])
     assert "GStreamer" in handy.explain_uxplay_error(["*** ERROR: Failed to initialize GStreamer video renderer"])
     assert "unknown option" in handy.explain_uxplay_error(['unknown option -x, stopping'])
     assert "-p" in handy.uxplay_args("A", "", None)  # feste Ports für die Firewall
