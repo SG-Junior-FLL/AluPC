@@ -403,9 +403,14 @@ def parse_adb_devices(output: str) -> list[dict]:
 def android_devices(adb: str | None) -> list[dict]:
     if not adb:
         return []
+    flags = 0x08000000 if IS_WINDOWS else 0
     try:
+        # Erst den adb-Hintergrunddienst OHNE Ausgabe-Rohr starten: Er läuft weiter und würde sonst das Rohr
+        # offen halten – dann wartet das Auslesen der Ausgabe ewig.
+        subprocess.run([adb, "start-server"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=15, creationflags=flags)
         out = subprocess.run([adb, "devices", "-l"], capture_output=True, text=True, timeout=6,
-                             creationflags=0x08000000 if IS_WINDOWS else 0).stdout
+                             stdin=subprocess.DEVNULL, creationflags=flags).stdout
     except (OSError, subprocess.SubprocessError):
         return []
     return parse_adb_devices(out)

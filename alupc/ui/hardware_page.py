@@ -128,25 +128,28 @@ class TempBar(QWidget):
 
 
 class HardwarePage(QWidget):
-    def __init__(self, controller, parent=None):
+    def __init__(self, controller, parent=None, scroll: bool = True):
         super().__init__(parent)
         self.controller = controller
         self.config = controller.config
         self.rgb = controller.rgb
-        area = QScrollArea()
-        area.setWidgetResizable(True)
-        area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         inner = QWidget()
         self.lay = QVBoxLayout(inner)
-        self.lay.setContentsMargins(0, 0, 8, 0)
+        self.lay.setContentsMargins(0, 0, 8 if scroll else 0, 0)
         self.lay.setSpacing(14)
         self.lay.addWidget(self._rgb_box())
         self.lay.addWidget(self._fan_box())
         self.lay.addStretch(1)
-        area.setWidget(inner)
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.addWidget(area)
+        if scroll:
+            area = QScrollArea()
+            area.setWidgetResizable(True)
+            area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            area.setWidget(inner)
+            root.addWidget(area)
+        else:  # z. B. im Setup, das schon selbst scrollt
+            root.addWidget(inner)
         self.rgb.status.connect(lambda *_: self.refresh_rgb())
         self.refresh_rgb()
 

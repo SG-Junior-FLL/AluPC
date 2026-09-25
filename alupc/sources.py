@@ -304,6 +304,7 @@ class ScreenSource(SinkView):
         self._screen = screen
         self.frames = 0
         self._reported = False
+        self.problem = ""  # Grund, falls die Aufnahme kein Bild liefert (auch wenn es sofort beim Start passiert)
         self._watchdog = QTimer(self, singleShot=True, interval=self.NO_SIGNAL_SECONDS * 1000)
         self._watchdog.timeout.connect(lambda: self._no_signal("Die Aufnahme liefert kein Bild."))
         self._watchdog.start()
@@ -407,6 +408,7 @@ class ScreenSource(SinkView):
     def _no_signal(self, reason: str):
         if self.frames == 0 and not self._reported:
             self._reported = True
+            self.problem = reason
             self.no_signal.emit(reason)
 
     def stop(self):

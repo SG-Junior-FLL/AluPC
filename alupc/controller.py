@@ -326,11 +326,16 @@ class Controller(QObject):
         return resolve(base, (scene or {}).get("transition"))
 
     def mirror(self) -> None:
+        if self.config["output"].get("mirror_method") == "system" and self.display.available():
+            self.system_mirror()  # Ersteinrichtung hat festgestellt: Bildaufnahme klappt hier nicht
+            return
         main = self.main_screen()
         self.show_source({"type": "screen", "screen_name": main.name() if main else "", "mirror": True})
         content = self.output.content
         if hasattr(content, "no_signal"):
             content.no_signal.connect(self._mirror_no_signal)
+            if getattr(content, "problem", ""):  # schon beim Start gescheitert (z. B. Windows ohne Aufnahme)
+                self._mirror_no_signal(content.problem)
         if getattr(content, "method", "") == "qt" and not self._mirror_hint_shown:
             from .platform.linux_display import is_wayland
 

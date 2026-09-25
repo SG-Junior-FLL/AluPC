@@ -235,9 +235,6 @@ class LazyPage(QWidget):
         super().showEvent(e)
 
 
-PAGE_HANDY = 5  # Nummer der Handy-Seite im Seitenstapel
-
-
 class MainWindow(QMainWindow):
     def __init__(self, controller, hotkeys):
         super().__init__()
@@ -265,8 +262,6 @@ class MainWindow(QMainWindow):
             # Setup und Fingerabdruck erst beim ersten Öffnen bauen (spart ~40 % der Startzeit)
             LazyPage(lambda: _padded(self._setup_page())),
             LazyPage(lambda: _padded(self._finger_page(), scroll=True)),
-            LazyPage(lambda: _padded(self._hardware_page())),
-            LazyPage(lambda: _padded(self._handy_page())),
         ]
         for page in self.pages:
             self.stack.addWidget(page)
@@ -311,9 +306,8 @@ class MainWindow(QMainWindow):
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
         # (Seiten-Nummer, Symbol, Text) – Reihenfolge in der Leiste, Nummer = Seite im Stapel
-        for i, icon_name, text in [(0, "home", "Start"), (1, "scenes", "Szenen"), (PAGE_HANDY, "phone", "Handy"),
-                                   (2, "sliders", "Setup"), (3, "fingerprint", "Fingerabdruck"),
-                                   (4, "fan", "RGB & Lüfter")]:
+        for i, icon_name, text in [(0, "home", "Start"), (1, "scenes", "Szenen"), (2, "sliders", "Setup"),
+                                   (3, "fingerprint", "Fingerabdruck")]:
             b = NavButton(icon_name, text)
             self.nav_group.addButton(b, i)
             lay.addWidget(b)
@@ -637,7 +631,7 @@ class MainWindow(QMainWindow):
         c = self.controller
         col = theme.current().text
         menu.clear()
-        page = ("sliders", "Einrichten und Hilfe (Handy-Seite) …", lambda: self._go(PAGE_HANDY))
+        page = ("sliders", "Einrichten und Hilfe …", self.open_handy_window)
         items = {
             "airplay": [("phone", "Auf Monitor 2 zeigen", c.start_airplay)],
             "handy_stream": [("phone", "Android-Bild auf Monitor 2", c.start_android)],
@@ -921,27 +915,33 @@ class MainWindow(QMainWindow):
         lay.addWidget(FingerprintPage(self.controller), 1)
         return page
 
-    def _handy_page(self):
+    def open_first_run(self):
+        from .first_run import FirstRunDialog
+
+        dlg = FirstRunDialog(self.controller, self)
+        dlg.setAttribute(Qt.WA_DeleteOnClose)
+        dlg.open()
+        return dlg
+
+    def open_handy_window(self):
+        """Handy einrichten (Status, automatische Einrichtung, Hilfe) – als eigenes Fenster statt eigener Seite."""
+        from PySide6.QtWidgets import QDialog
+
         from .handy_page import HandyPage
 
-        page = QWidget()
-        lay = QVBoxLayout(page)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(page_header("Handy auf Monitor 2", "Vier Wege – wähle den passenden. Die Einrichtung "
-                                  "läuft automatisch."))
-        self.handy_page = HandyPage(self.controller)
-        lay.addWidget(self.handy_page, 1)
-        return page
-
-    def _hardware_page(self):
-        from .hardware_page import HardwarePage
-
-        page = QWidget()
-        lay = QVBoxLayout(page)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(page_header("RGB & Lüfter", "Beleuchtung über OpenRGB, Temperaturen und Lüfter."))
-        lay.addWidget(HardwarePage(self.controller), 1)
-        return page
+        if getattr(self, "handy_window", None) is None:
+            dlg = QDialog(self)
+            dlg.setWindowTitle("Handy auf Monitor 2")
+            dlg.resize(1060, 820)
+            lay = QVBoxLayout(dlg)
+            lay.setContentsMargins(22, 18, 22, 18)
+            lay.addWidget(page_header("Handy auf Monitor 2", "Vier Wege – die Einrichtung läuft automatisch."))
+            self.handy_page = HandyPage(self.controller)
+            lay.addWidget(self.handy_page, 1)
+            self.handy_window = dlg
+        self.handy_window.show()
+        self.handy_window.raise_()
+        self.handy_window.activateWindow()
 
     def _settings_imported(self, keys: list):
         """Einstellungen geladen (Import oder vom anderen System) → Oberfläche auffrischen."""

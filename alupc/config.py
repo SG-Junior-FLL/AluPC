@@ -86,7 +86,9 @@ DEFAULTS: dict = {
                # Mauszeiger beim Spiegeln ins Bild zeichnen (die Aufnahme enthält ihn nicht)
                "mirror_cursor": True,
                # Maus bleibt auf Monitor 1, außer bei „Erweitern“ (dort ist Monitor 2 ein normaler Bildschirm)
-               "confine_cursor": True},
+               "confine_cursor": True,
+               # Spiegeln: "auto" = Bildaufnahme durch AluPC (mit Rückfall), "system" = über Windows/KDE
+               "mirror_method": "auto"},
     # Laserpunkt (im Fenster „Zeigen & Zeichnen“; Farbe = gewählte Zeichenfarbe)
     "laser": {"size": 100, "trail": True},
     # Fenster „Zeigen & Zeichnen“: Werkzeug, Farbe, Stärke; Zeichnungen automatisch löschen
@@ -108,6 +110,8 @@ DEFAULTS: dict = {
     # Kamera-Einstellungen pro Kamera-ID: zoom, x/y (Ausschnitt), mirror, rotate, exposure, quality
     "camera": {},
     "start_minimized": False,
+    # Ersteinrichtung (Assistent beim ersten Start) erledigt?
+    "first_run_done": False,
     # Windows 11: AluPC-Symbol wurde für diesen Programmpfad schon direkt in die Taskleiste gelegt
     "tray": {"promoted_for": ""},
     "appearance": {"mode": "system", "accent": "blau", "fade": True},

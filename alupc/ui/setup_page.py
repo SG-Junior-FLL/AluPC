@@ -212,6 +212,7 @@ class SetupPage(QWidget):
         ("sound", "Töne", "Töne bei Aktionen"),
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
         ("sync", "Sichern & Sync", "Export, Windows ↔ Linux"),
+        ("fan", "RGB & Lüfter", "OpenRGB, Temperaturen"),
         ("sliders", "Allgemein", "Autostart, Monitor-Wahl"),
     ]
 
@@ -230,6 +231,7 @@ class SetupPage(QWidget):
             "Töne": [self._sound_group],
             "Tastenkürzel": [self._hotkey_group],
             "Sichern & Sync": [lambda: sync_group(self), lambda: backup_group(self)],
+            "RGB & Lüfter": [self._hardware_group],
             "Allgemein": [self._app_group],
         }
         self.nav = QListWidget()
@@ -618,6 +620,12 @@ class SetupPage(QWidget):
             self._style_swatches(a.get("accent", "blau"))
 
     # ================================================================ AluPC
+    def _hardware_group(self):
+        from .hardware_page import HardwarePage
+
+        self.hardware = HardwarePage(self.controller, scroll=False)
+        return self.hardware
+
     def _app_group(self):
         box = QGroupBox("AluPC")
         form = QFormLayout(box)
@@ -650,6 +658,10 @@ class SetupPage(QWidget):
                         "zum Weitergeben, wenn etwas nicht geht")
         diag.clicked.connect(self._diagnose)
         diag_row.addWidget(diag)
+        again = button("Ersteinrichtung starten", "sync")
+        again.setToolTip("Prüft Monitore und Spiegeln, installiert Handy-Programme – wie beim ersten Start")
+        again.clicked.connect(lambda: self.window().open_first_run())
+        diag_row.addWidget(again)
         diag_row.addStretch(1)
         form.addRow("Hilfe:", diag_row)
         return box

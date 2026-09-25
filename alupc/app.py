@@ -147,6 +147,10 @@ def main(argv=None) -> int:
         on_command(args.befehl)
     if not (args.minimiert or config["start_minimized"]) or not window.tray.isVisible():
         window.show()
+    if not config["first_run_done"]:  # erster Start: alles mit einem Klick einrichten
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(700, lambda: (window.show(), window.open_first_run()))
     return app.exec()
 
 
@@ -245,7 +249,16 @@ def self_test(log_path: str) -> int:
                      + f", scrcpy {sc or 'nicht installiert'}")
         lines.append("Handy-Einrichtung: " + (", ".join(label for label, _ in handy.setup_plan(config))
                                                  or "nichts zu installieren"))
+        from .ui.first_run import FirstRunDialog
+
+        first = FirstRunDialog(controller, window)
+        first.show()
+        app.processEvents()
+        first._step_monitors()  # nur die harmlosen Schritte (nichts installieren)
+        first.close()
+        window.open_handy_window()
         window.handy_page.refresh()
+        window.handy_window.close()
         if not ux:  # ohne UxPlay nur Hinweis auf Monitor 2
             controller.show_source({"type": "airplay"})
             app.processEvents()

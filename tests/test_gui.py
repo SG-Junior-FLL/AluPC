@@ -1599,11 +1599,9 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
 
 
 def test_handy_page_airplay_settings(env, tmp_path):
-    from alupc.ui.main_window import PAGE_HANDY
-
     controller, window, _ = env
     controller.config["handy"] = {**controller.config["handy"], "uxplay_path": "", "scrcpy_path": ""}
-    window._go(PAGE_HANDY)
+    window.open_handy_window()
     pump()
     page = window.handy_page
     page.name.setText("Physikraum")
@@ -1784,15 +1782,13 @@ def test_handy_page_cards_and_auto_setup(env, tmp_path, monkeypatch):
     import sys
 
     from alupc import handy
-    from alupc.ui.main_window import PAGE_HANDY
-
     controller, window, _ = env
     controller.config["cast"] = {**controller.config["cast"], "port": _free_tcp_port()}
     # Pfeil-Menü jeder Handy-Kachel führt zur Handy-Seite
     window._fill_handy_menu(window.handy_menus["airplay"], "airplay")
     window.handy_menus["airplay"].actions()[-1].trigger()
     pump()
-    assert window.stack.currentIndex() == PAGE_HANDY
+    assert window.handy_window.isVisible()  # eigenes Fenster statt eigener Seite
     page = window.handy_page
     assert list(page.cards) == ["cast", "airplay", "android", "miracast"]
     assert page.cards["cast"].pill.text_ == "BEREIT" and page.cast_toggle.text() == "Starten"
@@ -1898,7 +1894,11 @@ def test_hardware_page_rgb_and_fans(env, tmp_path, monkeypatch):
     hw = _fake_hwmon(tmp_path / "hwmon")
     monkeypatch.setattr(fans, "HWMON", tmp_path / "hwmon")
     controller.config["rgb"] = {**controller.config["rgb"], "port": fake.port, "start_openrgb": False}
-    window._go(4)
+    window._go(2)  # RGB & Lüfter steckt jetzt im Setup
+    from alupc.ui.setup_page import SetupPage
+
+    setup = window.findChild(SetupPage)
+    setup.nav.setCurrentRow([t for _i, t, _s in SetupPage.SECTIONS].index("RGB & Lüfter"))
     pump()
     page = window.findChild(__import__("alupc.ui.hardware_page", fromlist=["HardwarePage"]).HardwarePage)
     assert page is not None
@@ -2042,3 +2042,39 @@ def test_diagnose_report(env):
     for part in ("== Monitore ==", "Monitor 2 = Zweit", "== AirPlay", "== Android ==", "== Miracast ==",
                  "== RGB und Lüfter =="):
         assert part in text, part
+
+
+# ---------------------------------------------------------------- 0.15: Ersteinrichtung
+def test_first_run_wizard(env, monkeypatch):
+    from alupc import handy
+    from alupc.ui.first_run import FirstRunDialog
+
+    controller, window, _ = env
+    ran = []
+    monkeypatch.setattr(handy, "setup_plan", lambda cfg: [("UxPlay und scrcpy installieren", ["x"])])
+    monkeypatch.setattr(handy, "run_plan", lambda plan, status=None: ran.append(plan) or [])
+    monkeypatch.setattr("alupc.diagnose.capture_probe", lambda c, s=3.0: "Methode qt, 0 Bilder in 3 s, KEIN Bild")
+    from alupc.platform import autostart
+
+    monkeypatch.setattr(autostart, "set_enabled", lambda on: ran.append(("autostart", on)))
+    controller.config["handy"] = {**controller.config["handy"], "airplay_name": "AluPC"}
+    controller.config["first_run_done"] = False
+    dlg = FirstRunDialog(controller, window)
+    dlg.show()
+    dlg.start()
+    assert _until(lambda: dlg.finished_all, 10)
+    states = [row.icon.state for row, _ in dlg.steps]
+    assert "run" not in states and "wait" not in states
+    assert controller.config["first_run_done"] is True
+    # Bildaufnahme liefert nichts → künftig über das Betriebssystem spiegeln
+    assert controller.config["output"]["mirror_method"] == "system"
+    assert controller.config["handy"]["airplay_name"].startswith("AluPC (")
+    assert ran[0] == [("UxPlay und scrcpy installieren", ["x"])] and ("autostart", True) in ran
+    assert dlg.go.text() == "Fertig"
+    # Spiegeln nutzt jetzt direkt das System-Spiegeln
+    calls = []
+    monkeypatch.setattr(controller.display, "available", lambda: True)
+    monkeypatch.setattr(controller, "system_mirror", lambda: calls.append(True))
+    controller.mirror()
+    assert calls
+    dlg.close()

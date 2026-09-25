@@ -28,6 +28,8 @@ Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Symbol auf dem Desktop anlegen"; Flags: unchecked
+Name: "handy"; Description: "Handy-Programme gleich mitinstallieren (scrcpy für Android, Bonjour für AirPlay – aus dem Internet über winget)"; GroupDescription: "Handy auf Monitor 2:"
+Name: "miracast"; Description: "Miracast-Empfänger von Windows einrichten („Drahtlose Anzeige“, braucht WLAN; lädt von Windows Update)"; GroupDescription: "Handy auf Monitor 2:"
 
 [Files]
 Source: "..\..\dist\AluPC\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
@@ -38,6 +40,9 @@ Name: "{group}\AluPC deinstallieren"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\AluPC"; Filename: "{app}\AluPC.exe"; Tasks: desktopicon
 
 [Run]
+Filename: "{cmd}"; Parameters: "/C winget install --id Genymobile.scrcpy -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "scrcpy (Android) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: handy
+Filename: "{cmd}"; Parameters: "/C winget install --id Apple.Bonjour -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "Bonjour (AirPlay) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: handy
+Filename: "{sys}\dism.exe"; Parameters: "/Online /Add-Capability /CapabilityName:App.WirelessDisplay.Connect~~~~0.0.1.0 /NoRestart"; StatusMsg: "Miracast-Empfänger wird eingerichtet (kann einige Minuten dauern) …"; Flags: runhidden waituntilterminated; Tasks: miracast; Check: IsAdminInstallMode
 Filename: "{app}\AluPC.exe"; Description: "AluPC jetzt starten"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
