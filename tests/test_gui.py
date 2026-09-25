@@ -1812,3 +1812,91 @@ def test_status_card_preview_and_stop(env):
     assert shown
     window.t_scenes.activated.emit()  # Kachel „Meine Szenen“ → Szenen-Seite
     assert window.stack.currentIndex() == 1
+
+
+# ---------------------------------------------------------------- 0.13: Sichern & Sync
+def test_sync_setup_and_autosave(env, tmp_path):
+    import json
+
+    from alupc import settings_sync as ss
+
+    controller, window, _ = env
+    shared = tmp_path / "Windows-C"
+    shared.mkdir()
+    window._go(2)
+    pump()
+    controller.config.data["sync"] = {**controller.config.data["sync"], "enabled": True,
+                                      "folder": str(ss.folder_for(shared))}
+    ss.folder_for(shared).mkdir()
+    controller.config["start_page"] = {**controller.config["start_page"], "title": "Hallo Sync"}
+    assert controller._sync_timer.isActive()  # Änderung → gleich abgleichen
+    controller._sync_timer.stop()
+    controller.run_sync()
+    data = json.loads(ss.sync_file(ss.folder_for(shared)).read_text())
+    assert data["data"]["start_page"]["title"] == "Hallo Sync" and data["rev"] == 1
+    # Das „andere System“ schreibt eine neuere Fassung → wird übernommen und die Startseite neu gebaut
+    data["rev"] = 5
+    data["data"]["start_page"]["title"] = "Von Windows"
+    ss.sync_file(ss.folder_for(shared)).write_text(json.dumps(data))
+    rebuilt = []
+    window.rebuild_start = lambda: rebuilt.append(True)
+    controller.run_sync()
+    assert controller.config["start_page"]["title"] == "Von Windows" and rebuilt
+    assert not controller._sync_timer.isActive()  # Übernehmen löst keinen neuen Abgleich aus
+
+
+# ---------------------------------------------------------------- 0.13: RGB & Lüfter
+def test_hardware_page_rgb_and_fans(env, tmp_path, monkeypatch):
+    import sys
+    import time
+
+    sys.path.insert(0, str(HERE))
+    from fake_openrgb import FakeOpenRGB
+    from test_logic import _fake_hwmon
+
+    from alupc.platform import fans
+
+    controller, window, _ = env
+    fake = FakeOpenRGB(4)
+    hw = _fake_hwmon(tmp_path / "hwmon")
+    monkeypatch.setattr(fans, "HWMON", tmp_path / "hwmon")
+    controller.config["rgb"] = {**controller.config["rgb"], "port": fake.port, "start_openrgb": False}
+    window._go(4)
+    pump()
+    page = window.findChild(__import__("alupc.ui.hardware_page", fromlist=["HardwarePage"]).HardwarePage)
+    assert page is not None
+    # Temperaturen/Lüfter aus dem (nachgebauten) sysfs
+    assert "nct6798/SYSTIN" in page.temp_bars and page.temp_bars["nct6798/SYSTIN"].value == 41.5
+    assert page.fan_labels["nct6798/Lüfter 1"].text() == "812 U/min"
+    assert controller.config["fans"]["original"] == {"nct6798/pwm1": 5}  # Automatik-Modus gemerkt
+    key, slider, auto = page.pwm_rows["hwmon3/pwm2"]
+    slider.setValue(60)
+    assert page.fan_request() == "hwmon3/pwm1=auto:5,hwmon3/pwm2=153"
+    (hw / "temp1_input").write_text("83000\n")
+    page._update_sensors()
+    assert page.temp_bars["nct6798/SYSTIN"].value == 83.0
+    # RGB: verbinden, Farbe wählen, Gerät abwählen, aus
+    controller.rgb.connect_async()
+    assert _until(lambda: controller.rgb.connected, 5)
+    pump()
+    assert "2 Geräte" in page.rgb_status.label.text() and page.devices_box.isVisibleTo(page)
+    page._pick_color("#22c55e")
+    time.sleep(0.2)
+    assert fake.leds(0) == [(0x22, 0xC5, 0x5E)] * 6
+    controller.rgb.update_settings(skip=["Tastatur K70"], brightness=50)
+    time.sleep(0.2)
+    assert fake.leds(0) == [(0x11, 0x62, 0x2F)] * 6 and fake.leds(1) == [(0x22, 0xC5, 0x5E)] * 6
+    controller.run_command("rgb_aus")
+    time.sleep(0.2)
+    assert fake.leds(0) == [(0, 0, 0)] * 6 and page.mode_btns["aus"].isChecked()
+    # Farbe folgt Monitor 2
+    controller.show_source({"type": "color", "color": "#ff0000"})
+    pump()
+    controller.rgb.update_settings(mode="monitor2", brightness=100)
+    for _ in range(12):
+        controller.rgb._ambient_tick()
+    time.sleep(0.2)
+    r, g, b = fake.leds(0)[0]
+    assert r > 200 and g < 40 and b < 40, (r, g, b)
+    controller.rgb.shutdown()
+    fake.close()

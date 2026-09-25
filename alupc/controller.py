@@ -18,6 +18,8 @@ HANDY_NOTES = ("iPhone/iPad", "Android", "Miracast")  # Monitor 2 zeigt ein Hand
 class Controller(QObject):
     changed = Signal()
     message = Signal(str)
+    settings_imported = Signal(list)  # Dual-Boot: Einstellungen vom anderen System übernommen
+    sync_status = Signal(str)
     presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
 
     def __init__(self, config: Config):
@@ -59,6 +61,16 @@ class Controller(QObject):
         self.changed.connect(self._cast_snapshot)
         if self.cast.settings().get("autostart"):
             self.cast.start()
+        from .rgb_manager import RgbManager
+
+        self.rgb = RgbManager(self)
+        # Dual-Boot-Abgleich: nach Änderungen (kurz gesammelt) in den gemeinsamen Ordner schreiben
+        from PySide6.QtCore import QTimer
+
+        self._syncing = False
+        self._sync_timer = QTimer(self, singleShot=True, interval=4000)
+        self._sync_timer.timeout.connect(self.run_sync)
+        config.listeners.append(self._config_saved)
         self.apply_output_settings()
 
         from .sounds import SoundPlayer
@@ -414,6 +426,26 @@ class Controller(QObject):
 
         run_async(miracast.find_app, found, lambda text: self.message.emit(f"Miracast: {text}"))
 
+    # ------------------------------------------------------------ Dual-Boot-Abgleich
+    def _config_saved(self) -> None:
+        if not self._syncing and self.config.data["sync"].get("enabled"):
+            self._sync_timer.start()
+
+    def run_sync(self) -> str:
+        from .settings_sync import sync_once
+
+        self._syncing = True
+        try:
+            msg, changed = sync_once(self.config)
+        except Exception as exc:  # noqa: BLE001
+            msg, changed = f"Abgleich fehlgeschlagen: {exc}", []
+        finally:
+            self._syncing = False
+        if changed:
+            self.settings_imported.emit(changed)
+        self.sync_status.emit(msg)
+        return msg
+
     # ------------------------------------------------------------ AluCast (Handy per Browser)
     def start_cast(self) -> None:
         """QR-Code auf Monitor 2 zeigen – Handy scannt und kann senden."""
@@ -679,6 +711,9 @@ class Controller(QObject):
             "kamera_zoom_plus": lambda: self.camera_zoom(1.25),
             "kamera_zoom_minus": lambda: self.camera_zoom(0.8),
             "kamera_zoom_aus": lambda: self.camera_zoom(None),
+            "rgb_farbe": lambda: self.rgb.set_mode("farbe"),
+            "rgb_monitor2": lambda: self.rgb.set_mode("monitor2"),
+            "rgb_aus": lambda: self.rgb.set_mode("aus"),
         }
         action = actions.get(command)
         if action:
@@ -824,5 +859,11 @@ class Controller(QObject):
         self.output.set_content(None)
         self.airplay.shutdown()
         self.cast.stop()
+        self.rgb.shutdown()
+        if self.config.data["sync"].get("enabled"):
+            self._sync_timer.stop()
+            self.run_sync()
+        if self._config_saved in self.config.listeners:
+            self.config.listeners.remove(self._config_saved)
         self.output.shutdown()
         self.output.close()

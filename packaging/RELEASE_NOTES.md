@@ -8,6 +8,24 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.13.0)
+- **Einstellungen sichern und laden** (Setup → „Sichern & Sync“): exportieren/importieren als Datei –
+  alles oder nur einzelne Bereiche, z. B. **nur die Startseite**.
+- **Dual-Boot: Windows ↔ Linux automatisch abgleichen**: Einmal auf beiden Systemen einschalten (Ordner
+  „AluPC-Sync“ auf dem Windows-Laufwerk, das andere System findet ihn selbst) – danach gleicht AluPC beim
+  Start und nach jeder Änderung ab. Unabhängig von der Uhrzeit (die geht bei Dual-Boot oft falsch);
+  haben beide Seiten geändert, wird die andere Fassung als Sicherung aufgehoben. Monitor-Namen, Kameras,
+  Programmpfade und Fingerabdruck bleiben je System getrennt.
+- **RGB-Beleuchtung** (neue Seite „RGB & Lüfter“) über **OpenRGB**: Farbe, Helligkeit, aus, **Farbe
+  folgt Monitor 2**, Geräte einzeln an/aus; Befehle `rgb_farbe`, `rgb_monitor2`, `rgb_aus`.
+- **Temperaturen und Lüfter** (Linux): alle Sensoren live mit Farbbalken; steuerbare Lüfter per Regler
+  (mindestens 30 %, „Automatisch“ zurück ans Mainboard). Windows: nicht möglich (keine Schnittstelle).
+- **Design**: Kacheln mit weichem Schatten und Anheben beim Drüberfahren, aktive Kacheln mit Verlauf,
+  Hauptknöpfe mit leichtem Verlauf, neue Symbole (Lüfter, Sync, Export/Import).
+- **Ehrlich:** RGB braucht ein installiertes OpenRGB und ist nur gegen einen nachgebauten OpenRGB-Server
+  getestet; Lüfter nur unter Linux und nur, wenn der Kernel die Regler kennt; Dual-Boot-Abgleich mit zwei
+  simulierten Systemen getestet, nicht mit echtem Dual-Boot.
+
 ### Neu in dieser Version (0.12.1)
 - **Live-Vorschau von Monitor 2** in der Statuskarte (Klick darauf: Bild-in-Bild) und Knopf
   **„Beenden“**, der Monitor 2 sofort wieder zum normalen Bildschirm macht.

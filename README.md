@@ -44,6 +44,16 @@ OBS-Studio-Fenster.
 
 Außerdem:
 
+- **RGB & Lüfter** (eigene Seite links): **RGB-Beleuchtung** aller Geräte, die das kostenlose
+  **OpenRGB** kennt (Mainboard, RAM, Grafikkarte, Lüfter-LEDs, Tastatur …) – Farbe wählen, Helligkeit,
+  aus, oder **„Farbe folgt Monitor 2“** (die LEDs leuchten in der Farbe dessen, was gerade gezeigt wird).
+  AluPC spricht das OpenRGB-Protokoll selbst; OpenRGB muss installiert sein (AluPC startet es mit
+  SDK-Server). **Temperaturen und Lüfter** (Linux): alle Sensoren live, steuerbare Lüfter per Regler
+  (nie unter 30 %, „Automatisch“ gibt die Regelung ans Mainboard zurück, Administrator-Passwort nötig).
+- **Sichern & Sync** (Setup): Einstellungen **exportieren/importieren** – alles oder z. B. nur die
+  **Startseite**. **Dual-Boot-Abgleich Windows ↔ Linux**: beide Systeme nutzen einen Ordner
+  „AluPC-Sync“ auf dem Windows-Laufwerk; AluPC gleicht beim Start und nach jeder Änderung automatisch ab
+  (Startseite, Szenen, Favoriten, Tastenkürzel, Design, Bildschirmschoner, Töne, Handy, RGB).
 - **Startseite anpassen** (Knopf oben rechts auf der Startseite): Kacheln ein-/ausblenden und
   sortieren, eigene Überschrift, Statuskarte an/aus und **eigene Kacheln** – z. B. „Begrüßung“
   (zeigt eine Szene), „Pausen-Uhr“ (zeigt eine Uhr) oder „Standbild“ (führt einen Befehl aus),
@@ -180,6 +190,7 @@ Ein laufendes AluPC lässt sich von der Kommandozeile steuern:
 alupc --befehl standbild      # auch: schwarz, bild-in-bild, bildschirmschoner, spiegeln, erweitern,
                               #       naechste_szene, vorherige_szene, sperren, zeigen
 alupc --befehl kamera_zoom_plus   # auch: kamera_zoom_minus, kamera_zoom_aus
+alupc --befehl rgb_monitor2       # auch: rgb_farbe, rgb_aus
 alupc --befehl "szene:Begrüßung"
 alupc --minimiert             # nur mit Symbol in der Taskleiste starten
 ```
@@ -248,6 +259,23 @@ kennen sie nicht – AluPC steuert sie direkt. Steckt so ein Modul, nimmt AluPC 
   Windows-App – nicht in eigene Szenen einbaubar. iPhones können kein Miracast, Pixel-Handys auch
   nicht mehr. Ob der App-Name bei jeder Windows-Version erkannt wird, konnte ich nicht auf echtem
   Windows prüfen.
+- **RGB** geht nur mit installiertem **OpenRGB** (openrgb.org) und nur für Geräte, die OpenRGB kennt.
+  Hersteller-Programme (iCUE, Armoury Crate, Mystic Light …) vorher beenden. AluPCs OpenRGB-Anbindung
+  ist nach der offiziellen Protokollbeschreibung gebaut und gegen einen nachgebauten Server getestet –
+  **nicht mit echtem OpenRGB und echten LEDs**.
+- **Lüfter** nur unter **Linux** und nur, wenn der Kernel die Regler des Mainboards kennt (oft Treiber
+  „nct6775“/„it87“, Paket lm-sensors; manche Mainboards brauchen die Kernel-Option
+  `acpi_enforce_resources=lax`). Laptops melden meist keine steuerbaren Lüfter. **Unter Windows gibt es
+  keine allgemeine Schnittstelle** – dort Hersteller-Programm oder „FanControl“ nutzen. Keine
+  Lüfterkurven (dafür bräuchte es einen ständig laufenden Administrator-Dienst); nach einem Neustart
+  regelt wieder das Mainboard. Nicht auf echter Hardware getestet.
+- **Dual-Boot-Abgleich**: Windows kann keine Linux-Laufwerke lesen – der Ordner muss auf dem
+  Windows-Laufwerk (oder einer gemeinsamen NTFS/exFAT-Partition) liegen. Ist in Windows der
+  **„Schnellstart“** an, darf Linux das Windows-Laufwerk nur lesen – dann in Windows Schnellstart
+  ausschalten. Ist das Laufwerk unter Linux nicht eingehängt, versucht AluPC es selbst (klappt je nach
+  System nur mit Passwort – dann „Windows-Laufwerk einhängen …“). Dateipfade (z. B. Bilder in Szenen)
+  gelten nur, wenn die Datei auf beiden Systemen am gleichen Ort liegt. Mit echtem Dual-Boot nicht
+  getestet – getestet mit zwei simulierten Systemen und einem gemeinsamen Ordner.
 - **Kamera-Zoom**: Die meisten Webcams haben keinen optischen Zoom – dann ist es ein digitaler Ausschnitt
   (wird bei starkem Zoom unscharf). Helligkeit nur bei Kameras, die das über Qt anbieten.
 - **AirPlay braucht das freie Programm UxPlay** (wird nicht mitgeliefert). Kubuntu 24.04 hat nur UxPlay

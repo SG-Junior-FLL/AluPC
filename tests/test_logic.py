@@ -476,3 +476,176 @@ def test_miracast_parse():
     assert parse_app("") is None and parse_app("kaputt") is None and parse_app('{"Name":"x"}') is None
     assert parse_app('[{"Name":"Connect","AppID":"a!b"}]')["name"] == "Connect"
     assert CAPABILITY in " ".join(install_command()) and "RunAs" in " ".join(install_command())
+
+
+# ---------------------------------------------------------------- 0.13: Sichern, Dual-Boot-Abgleich
+def test_export_import_startpage(tmp_path):
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    a = Config(tmp_path / "a.json")
+    a["start_page"] = {**a["start_page"], "title": "Klasse 7b", "tiles": ["timer", "mirror"]}
+    a.put_scene({"name": "Mathe", "layout": "vollbild", "slots": [None]})
+    exported = ss.export_settings(a, ["startseite"])
+    assert list(exported["data"]) == ["start_page"] and ss.sections_in(exported) == ["startseite"]
+    path = tmp_path / "export.json"
+    import json
+
+    path.write_text(json.dumps(exported))
+    b = Config(tmp_path / "b.json")
+    changed = ss.import_settings(b, ss.read_export(path), ["startseite"])
+    assert changed == ["start_page"] and b["start_page"]["title"] == "Klasse 7b"
+    assert b.scene_names() == []  # nur die Startseite
+    (tmp_path / "kaputt.json").write_text('{"app": "etwas anderes"}')
+    try:
+        ss.read_export(tmp_path / "kaputt.json")
+        raise AssertionError("hätte abgelehnt werden müssen")
+    except ValueError:
+        pass
+
+
+def test_dual_boot_sync(tmp_path):
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    shared = tmp_path / "C" / ss.FOLDER_NAME
+    win, lin = Config(tmp_path / "win.json"), Config(tmp_path / "lin.json")
+    win["draw"] = {**win["draw"], "strokes": [{"points": [[0, 0]]}]}
+    lin["draw"] = {**lin["draw"], "strokes": [], "strokes_for": "x"}
+    lin["handy"] = {**lin["handy"], "uxplay_path": "/usr/bin/uxplay"}
+    for cfg in (win, lin):
+        cfg.data["sync"] = {**cfg.data["sync"], "enabled": True, "folder": str(shared)}
+    shared.mkdir(parents=True)
+
+    # Windows richtet ein und schreibt
+    win["start_page"] = {**win["start_page"], "title": "Von Windows"}
+    msg, _ = ss.sync_once(win)
+    assert "Gespeichert" in msg and ss.sync_file(shared).is_file()
+    # Linux verbindet sich zum ersten Mal → übernimmt (trotz eigener Standardwerte)
+    msg, changed = ss.sync_once(lin)
+    assert "Übernommen von" in msg and "start_page" in changed
+    assert lin["start_page"]["title"] == "Von Windows"
+    assert lin["handy"]["uxplay_path"] == "/usr/bin/uxplay"  # eigene Pfade bleiben
+    assert lin["draw"]["strokes_for"] == "x"  # Zeichnungen sind nicht Teil des Abgleichs
+    assert ss.sync_once(lin)[0] == "Alles aktuell."
+    # Linux ändert → schreibt; Windows übernimmt beim nächsten Start
+    lin["appearance"] = {**lin["appearance"], "accent": "gruen"}
+    assert "Gespeichert" in ss.sync_once(lin)[0]
+    msg, changed = ss.sync_once(win)
+    assert changed == ["appearance"] and win["appearance"]["accent"] == "gruen"
+    assert win["draw"]["strokes"] == [{"points": [[0, 0]]}]
+    # Beide ändern (Laufwerk war nicht erreichbar) → eigene Änderung gewinnt, andere wird gesichert
+    win["timer"] = {**win["timer"], "minutes": 7}
+    ss.sync_once(win)
+    lin["timer"] = {**lin["timer"], "minutes": 9}
+    msg, _ = ss.sync_once(lin)
+    assert "Sicherung" in msg and list(shared.glob("alupc-sync-sicherung-*.json"))
+    assert ss.sync_once(win)[1] == ["timer"] and win["timer"]["minutes"] == 9
+    # Ordner fehlt → verständliche Meldung, nichts kaputt
+    lin.data["sync"]["folder"] = str(tmp_path / "gibtsnicht")
+    assert "nicht erreichbar" in ss.sync_once(lin)[0]
+
+
+def test_sync_ignores_clock_and_status_changes(tmp_path):
+    """Nur echte Änderungen zählen – z. B. nicht die gespeicherte Statusmeldung selbst (keine Endlosschleife)."""
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    shared = tmp_path / ss.FOLDER_NAME
+    cfg = Config(tmp_path / "c.json")
+    cfg.data["sync"] = {**cfg.data["sync"], "enabled": True, "folder": str(shared)}
+    shared.mkdir()
+    ss.sync_once(cfg)
+    rev = cfg["sync"]["base_rev"]
+    cfg["last_content"] = {"type": "clock"}  # nicht abgeglichen
+    cfg["output_screen"] = "DP-2"
+    assert ss.sync_once(cfg)[0] == "Alles aktuell." and cfg["sync"]["base_rev"] == rev
+    assert ss.folder_for(tmp_path) == tmp_path / ss.FOLDER_NAME and ss.folder_for(shared) == shared
+
+
+# ---------------------------------------------------------------- 0.13: RGB (OpenRGB-SDK)
+def test_openrgb_client_all_versions():
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from fake_openrgb import FakeOpenRGB
+
+    from alupc.rgb import OpenRGB, hex_to_rgb, vivid
+
+    for server_version, silent in ((4, False), (6, False), (3, False), (2, False), (0, True)):
+        fake = FakeOpenRGB(server_version, silent_version=silent)
+        client = OpenRGB(port=fake.port, timeout=2)
+        devices = client.connect()
+        assert client.version == min(4, server_version), server_version
+        assert fake.used_version == (client.version if client.version >= 1 else 0)
+        assert [d.name for d in devices] == ["ASUS Mainboard", "Tastatur K70"]
+        assert [d.num_leds for d in devices] == [6, 6] and devices[1].kind == "Tastatur"
+        assert devices[0].zones == [("Aura", 4), ("Header", 2)] and devices[0].modes[0] == "Direct"
+        assert (devices[0].vendor == "Hersteller") == (client.version >= 1)
+        assert fake.client_name == b"AluPC\0"
+        client.set_color((255, 0, 128))
+        client.set_color((0, 255, 0), devices=[1])
+        import time
+
+        time.sleep(0.2)
+        assert fake.leds(0) == [(255, 0, 128)] * 6 and fake.leds(1) == [(0, 255, 0)] * 6
+        assert sum(1 for d, pid, _ in fake.received if pid == 1100) == 2  # je Gerät einmal „Direkt“
+        client.close()
+        fake.close()
+    assert hex_to_rgb("#ff8000", 50) == (128, 64, 0)
+    assert vivid((200, 100, 100))[0] == 255 and vivid((3, 3, 3)) == (0, 0, 0)
+    assert vivid((120, 118, 121)) == (121, 121, 121)
+
+
+def test_openrgb_not_running():
+    from alupc.rgb import OpenRGB, RGBError
+
+    import socket
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    try:
+        OpenRGB(port=port, timeout=1).connect()
+        raise AssertionError("müsste fehlschlagen")
+    except RGBError as exc:
+        assert "SDK-Server" in str(exc)
+
+
+# ---------------------------------------------------------------- 0.13: Lüfter (Linux hwmon)
+def _fake_hwmon(root):
+    hw = root / "hwmon3"
+    hw.mkdir(parents=True)
+    for name, value in {"name": "nct6798", "temp1_input": "41500", "temp1_label": "SYSTIN", "temp2_input": "55000",
+                        "fan1_input": "812", "fan2_input": "0", "pwm1": "128", "pwm1_enable": "5",
+                        "pwm2": "255", "pwm2_enable": "1"}.items():
+        (hw / name).write_text(value + "\n")
+    (root / "hwmon0").mkdir()
+    (root / "hwmon0" / "name").write_text("k10temp\n")
+    (root / "hwmon0" / "temp1_input").write_text("62125\n")
+    return hw
+
+
+def test_fans_read_and_set(tmp_path):
+    from alupc.platform import fans
+
+    hw = _fake_hwmon(tmp_path)
+    chips = fans.read_sensors(tmp_path)
+    assert [c.name for c in chips] == ["AMD-Prozessor", "Mainboard (nct6798)"]
+    board = chips[1]
+    assert board.temps == [("SYSTIN", 41.5), ("Temperatur 2", 55.0)]
+    assert board.fans == [("Lüfter 1", 812), ("Lüfter 2", 0)]
+    assert [(p.id, p.percent, p.automatic) for p in board.pwms] == [("hwmon3/pwm1", 50, True),
+                                                                     ("hwmon3/pwm2", 100, False)]
+    # Setzen: nie unter 30 %, „auto“ stellt den gemerkten Modus wieder her
+    assert fans.apply_request("hwmon3/pwm1=10,hwmon3/pwm2=auto:5", tmp_path) == 0
+    assert (hw / "pwm1").read_text() == "77" and (hw / "pwm1_enable").read_text() == "1"
+    assert (hw / "pwm2_enable").read_text() == "5"
+    # Alles Unerwartete wird abgelehnt (läuft als Administrator!)
+    for bad in ("../../etc/passwd=1", "hwmon3/pwm1=999", "hwmon3/pwm1=-1", "hwmon3/pwm1=auto:1",
+                "hwmon3/temp1_input=5", "hwmon3/pwm1=12;rm", ""):
+        assert fans.apply_request(bad, tmp_path) == 2, bad
+    assert fans.apply_request("hwmon9/pwm1=200", tmp_path) == 1  # gibt es nicht
+    cmd = fans.helper_command("hwmon3/pwm1=100")
+    assert cmd[0] == "pkexec" and cmd[-2:] == ["--luefter", "hwmon3/pwm1=100"]

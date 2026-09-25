@@ -47,6 +47,9 @@ COMMANDS = {
     "kamera_zoom_plus": "Kamera hineinzoomen",
     "kamera_zoom_minus": "Kamera herauszoomen",
     "kamera_zoom_aus": "Kamera-Zoom zurück auf 1×",
+    "rgb_farbe": "RGB: gewählte Farbe",
+    "rgb_monitor2": "RGB: Farbe folgt Monitor 2",
+    "rgb_aus": "RGB aus",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann

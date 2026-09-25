@@ -25,6 +25,9 @@ DEFAULT_HOTKEYS = {
     "kamera_zoom_plus": "",
     "kamera_zoom_minus": "",
     "kamera_zoom_aus": "",
+    "rgb_farbe": "",
+    "rgb_monitor2": "",
+    "rgb_aus": "",
 }
 
 HOTKEY_LABELS = {
@@ -44,6 +47,9 @@ HOTKEY_LABELS = {
     "kamera_zoom_plus": "Kamera hineinzoomen",
     "kamera_zoom_minus": "Kamera herauszoomen",
     "kamera_zoom_aus": "Kamera-Zoom zurück auf 1×",
+    "rgb_farbe": "RGB: gewählte Farbe",
+    "rgb_monitor2": "RGB: Farbe folgt Monitor 2",
+    "rgb_aus": "RGB aus",
 }
 
 DEFAULTS: dict = {
@@ -91,6 +97,14 @@ DEFAULTS: dict = {
     "handy": {"airplay_name": "AluPC", "pin": "", "uxplay_path": "", "scrcpy_path": ""},
     # AluCast (Handy per Browser): Anschluss, Zugangscode, beim Start von AluPC mitstarten
     "cast": {"port": 8765, "code": "", "autostart": False},
+    # Dual-Boot-Abgleich (Windows ↔ Linux) über einen gemeinsamen Ordner, siehe settings_sync.py
+    "sync": {"enabled": False, "folder": "", "base_rev": 0, "base_hash": "", "device": "", "last": "",
+             "status": ""},
+    # RGB-Beleuchtung über OpenRGB (siehe rgb.py / rgb_manager.py)
+    "rgb": {"enabled": False, "port": 6742, "mode": "farbe", "color": "#3b82f6", "brightness": 100,
+            "skip": [], "openrgb_path": "", "start_openrgb": True},
+    # Lüfter: ursprünglicher Automatik-Modus je Regler („Chip/pwmN“), um ihn wiederherzustellen
+    "fans": {"original": {}},
     # Kamera-Einstellungen pro Kamera-ID: zoom, x/y (Ausschnitt), mirror, rotate, exposure, quality
     "camera": {},
     "start_minimized": False,
@@ -147,6 +161,7 @@ class Config:
     def __init__(self, path: Path | None = None):
         self.path = path or (config_dir() / "config.json")
         self.data = copy.deepcopy(DEFAULTS)
+        self.listeners: list = []  # werden nach jedem Speichern aufgerufen (z. B. Dual-Boot-Abgleich)
         self.load()
 
     def load(self) -> None:
@@ -168,6 +183,11 @@ class Config:
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(self.data, indent=2, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self.path)
+        for listener in list(self.listeners):
+            try:
+                listener()
+            except Exception:  # noqa: BLE001 - ein Zuhörer darf das Speichern nie stören
+                pass
 
     def __getitem__(self, key):
         return self.data[key]

@@ -34,6 +34,7 @@ from ..platform.base import ROTATIONS, clone_outputs, place, side_of
 from . import icons, theme
 from .util import error_box, run_async
 from .hotkey_edit import HotkeyButton
+from .sync_page import backup_group, sync_group
 from .widgets import button, font, rounded
 
 SIDES = [("right", "rechts vom Hauptmonitor"), ("left", "links vom Hauptmonitor"),
@@ -209,6 +210,7 @@ class SetupPage(QWidget):
         ("timer", "Timer", "Dauer, Art, Warnfarben"),
         ("sound", "Töne", "Töne bei Aktionen"),
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
+        ("sync", "Sichern & Sync", "Export, Windows ↔ Linux"),
         ("sliders", "Allgemein", "Autostart, Monitor-Wahl"),
     ]
 
@@ -226,6 +228,7 @@ class SetupPage(QWidget):
             "Timer": [self._timer_group],
             "Töne": [self._sound_group],
             "Tastenkürzel": [self._hotkey_group],
+            "Sichern & Sync": [lambda: sync_group(self), lambda: backup_group(self)],
             "Allgemein": [self._app_group],
         }
         self.nav = QListWidget()

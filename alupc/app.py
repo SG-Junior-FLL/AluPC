@@ -22,6 +22,8 @@ def parse_args(argv):
     parser.add_argument("--selbsttest", metavar="LOGDATEI", help=argparse.SUPPRESS)
     # Anmelde-Prüfung für PAM (Fingerabdruckmodul am seriellen Anschluss) – ohne Oberfläche
     parser.add_argument("--fingerabdruck-pam", action="store_true", help=argparse.SUPPRESS)
+    # Lüfter setzen (läuft per pkexec als Administrator, ohne Oberfläche)
+    parser.add_argument("--luefter", metavar="REGLER=WERT,…", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
@@ -57,6 +59,10 @@ def main(argv=None) -> int:
         from .platform.zw_fingerprint import pam_check
 
         return pam_check()
+    if args.luefter:
+        from .platform.fans import apply_request
+
+        return apply_request(args.luefter)
     if args.selbsttest:
         return self_test(args.selbsttest)
 
@@ -96,6 +102,12 @@ def main(argv=None) -> int:
     from .ui import theme
 
     config = Config()
+    try:  # Dual-Boot: Einstellungen vom anderen System übernehmen, bevor die Oberfläche entsteht
+        from .settings_sync import sync_once
+
+        sync_once(config)
+    except Exception:  # noqa: BLE001 - Abgleich darf den Start nie verhindern
+        pass
     appearance = config["appearance"]
     theme.apply(app, appearance.get("mode", "system"), appearance.get("accent", "blau"))
     app.setWindowIcon(app_icon())
@@ -253,6 +265,14 @@ def self_test(log_path: str) -> int:
 
             app_info = miracast.find_app()
             lines.append(f"Miracast: {app_info['name'] if app_info else 'Drahtlose Anzeige nicht installiert'}")
+        from . import settings_sync
+        from .platform import fans
+
+        exported = settings_sync.export_settings(config, list(settings_sync.SECTIONS))
+        chips = fans.read_sensors()
+        lines.append(f"Einstellungen: {len(exported['data'])} Gruppen exportierbar, Laufwerke für Dual-Boot: "
+                     f"{len(settings_sync.drives())}; Sensoren: {sum(len(c.temps) for c in chips)} Temperaturen, "
+                     f"{sum(len(c.pwms) for c in chips)} Lüfter-Regler")
         controller.show_source({"type": "camera", "device_id": "selbsttest"})  # Kamera-Leiste/Optionen
         window.camera_bar.sync()
         app.processEvents()

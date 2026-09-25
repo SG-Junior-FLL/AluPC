@@ -262,6 +262,7 @@ class MainWindow(QMainWindow):
             # Setup und Fingerabdruck erst beim ersten Öffnen bauen (spart ~40 % der Startzeit)
             LazyPage(lambda: _padded(self._setup_page())),
             LazyPage(lambda: _padded(self._finger_page(), scroll=True)),
+            LazyPage(lambda: _padded(self._hardware_page())),
         ]
         for page in self.pages:
             self.stack.addWidget(page)
@@ -272,6 +273,7 @@ class MainWindow(QMainWindow):
         controller.changed.connect(self.refresh)
         controller.message.connect(self.show_message)
         controller.presenter_requested.connect(self.open_presenter)
+        controller.settings_imported.connect(self._settings_imported)
         self.refresh()
 
     # ================================================================ Seitenleiste
@@ -304,7 +306,8 @@ class MainWindow(QMainWindow):
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
         for i, (icon_name, text) in enumerate([("home", "Start"), ("scenes", "Szenen"),
-                                               ("sliders", "Setup"), ("fingerprint", "Fingerabdruck")]):
+                                               ("sliders", "Setup"), ("fingerprint", "Fingerabdruck"),
+                                               ("fan", "RGB & Lüfter")]):
             b = NavButton(icon_name, text)
             self.nav_group.addButton(b, i)
             lay.addWidget(b)
@@ -903,6 +906,30 @@ class MainWindow(QMainWindow):
         lay.addWidget(page_header("Fingerabdruck", "Sensor wählen, Finger anlernen und damit anmelden."))
         lay.addWidget(FingerprintPage(self.controller), 1)
         return page
+
+    def _hardware_page(self):
+        from .hardware_page import HardwarePage
+
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(page_header("RGB & Lüfter", "Beleuchtung über OpenRGB, Temperaturen und Lüfter."))
+        lay.addWidget(HardwarePage(self.controller), 1)
+        return page
+
+    def _settings_imported(self, keys: list):
+        """Einstellungen geladen (Import oder vom anderen System) → Oberfläche auffrischen."""
+        if not keys:
+            return
+        if "start_page" in keys:
+            self.rebuild_start()
+        if "scenes" in keys:
+            self._reload_scenes()
+        if "hotkeys" in keys:
+            self._apply_hotkeys()
+        if "appearance" in keys:
+            self.apply_theme()
+        self.refresh()
 
     def apply_theme(self):
         a = self.config["appearance"]

@@ -130,6 +130,8 @@ def _check_image() -> str:
 def stylesheet(t: Theme, check_image: str = "") -> str:
     hover = t.mix(t.surface2, t.text, 0.06).name()
     accent_hover = t.mix(t.accent, "#ffffff", 0.12).name()
+    accent_top = t.mix(t.accent, "#ffffff", 0.14).name()  # leichter Verlauf auf Hauptknöpfen
+    accent_bottom = t.mix(t.accent, "#000000", 0.08).name()
     return f"""
 * {{ outline: none; }}
 QWidget {{ color: {t.text}; }}
@@ -154,10 +156,14 @@ QPushButton, QToolButton#Plain {{
 QPushButton:hover, QToolButton#Plain:hover {{ background: {hover}; }}
 QPushButton:pressed {{ background: {t.border}; }}
 QPushButton:disabled {{ color: {t.muted}; background: {t.surface}; }}
-QPushButton[primary="true"] {{ background: {t.accent}; border-color: {t.accent}; color: #ffffff; font-weight: 600; }}
+QPushButton[primary="true"] {{ background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {accent_top},
+    stop:1 {accent_bottom}); border-color: {accent_bottom}; color: #ffffff; font-weight: 600; }}
 QPushButton[primary="true"]:hover {{ background: {accent_hover}; }}
+QPushButton[primary="true"]:disabled {{ background: {t.accent_soft(0.45)}; border-color: transparent; }}
 QPushButton[danger="true"] {{ color: {t.danger}; }}
 QPushButton:default {{ border-color: {t.accent}; }}
+QPushButton#Segment {{ border-radius: 17px; padding: 7px 18px; min-width: 56px; }}
+QPushButton#Segment:checked {{ background: {t.accent}; border-color: {t.accent}; color: #ffffff; font-weight: 600; }}
 
 QLineEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QKeySequenceEdit QLineEdit {{
     background: {t.surface2}; border: 1px solid {t.border}; border-radius: 8px; padding: 6px 8px;

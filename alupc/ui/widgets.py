@@ -13,7 +13,7 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
     QGraphicsOpacityEffect,
@@ -167,8 +167,15 @@ class Tile(HoverMixin, QAbstractButton):
         t = theme.current()
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
+        lift = 1.5 * self._hover if not self.isDown() else 0.0
+        r = QRectF(self.rect()).adjusted(2.5, 1.5 - lift, -2.5, -4.5 - lift)
         accent = QColor(t.danger if self.alert else (self.color or t.accent))
+        # weicher Schatten unter der Kachel (stärker beim Drüberfahren)
+        p.setPen(Qt.NoPen)
+        for i, alpha in enumerate((0.05, 0.035, 0.02)):
+            shade = QColor(0, 0, 0)
+            shade.setAlphaF((alpha * (1.6 if t.dark else 1.0)) * (1 + 1.2 * self._hover))
+            p.fillPath(rounded(r.adjusted(-i * 0.5, 1.5 + i * 1.2, i * 0.5, 1.5 + i * 1.6), 16 + i), shade)
         base = QColor(t.surface)
         hover_bg = t.mix(t.surface, t.surface2, 0.9)
         bg = t.mix(base.name(), hover_bg.name(), self._hover)
@@ -188,10 +195,16 @@ class Tile(HoverMixin, QAbstractButton):
         # Symbol im Kreis
         pad = 16
         chip = QRectF(r.left() + pad, r.top() + pad, 46, 46)
-        chip_col = QColor(accent)
-        chip_col.setAlphaF(0.95 if (self.active or self.alert) else (0.18 if t.dark else 0.12))
         p.setPen(Qt.NoPen)
-        p.setBrush(chip_col)
+        if self.active or self.alert:  # aktiv: kräftiger Verlauf
+            grad = QLinearGradient(chip.topLeft(), chip.bottomRight())
+            grad.setColorAt(0, accent.lighter(118))
+            grad.setColorAt(1, accent.darker(108))
+            p.setBrush(grad)
+        else:
+            chip_col = QColor(accent)
+            chip_col.setAlphaF((0.18 if t.dark else 0.12) + 0.08 * self._hover)
+            p.setBrush(chip_col)
         p.drawRoundedRect(chip, 13, 13)
         icon_col = "#ffffff" if (self.active or self.alert) else accent.name()
         icons.paint(p, self.icon_name, chip.adjusted(11, 11, -11, -11), icon_col, 2.0)
