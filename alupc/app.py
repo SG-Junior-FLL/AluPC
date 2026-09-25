@@ -46,6 +46,11 @@ def needs_chromium_sandbox_off() -> bool:
     return restricted and not has_profile
 
 
+def _media_env() -> None:
+    """Videoplayer darf lokale Datenströme lesen (AirPlay-Bild von UxPlay kommt per RTP/UDP)."""
+    os.environ.setdefault("QT_FFMPEG_PROTOCOL_WHITELIST", "file,crypto,data,udp,rtp,http,https,tcp,tls")
+
+
 def main(argv=None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     if args.fingerabdruck_pam:
@@ -57,6 +62,7 @@ def main(argv=None) -> int:
 
     if needs_chromium_sandbox_off():
         os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
+    _media_env()
     # QtWebEngine muss vor der QApplication geladen werden
     try:
         from PySide6 import QtWebEngineWidgets  # noqa: F401
@@ -148,6 +154,7 @@ def self_test(log_path: str) -> int:
         os.environ["APPDATA"] = tmp  # eigene Einstellungen nicht anfassen
         os.environ["XDG_CONFIG_HOME"] = tmp
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        _media_env()
         if needs_chromium_sandbox_off():
             os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
         from PySide6 import QtWebEngineWidgets  # noqa: F401
@@ -215,6 +222,21 @@ def self_test(log_path: str) -> int:
         app.processEvents()
         window.presenter.close()
         app.processEvents()
+        from . import handy
+        from .ui.handy_dialog import HandyDialog
+
+        ux = controller.airplay.binary()
+        sc = handy.find_program("scrcpy", "")
+        lines.append(f"Handy: UxPlay {ux or 'nicht installiert'}"
+                     + (f" (Bild an AluPC: {'ja' if handy.supports_vrtp(ux) else 'nein, eigenes Fenster'})" if ux else "")
+                     + f", scrcpy {sc or 'nicht installiert'}")
+        dlg = HandyDialog(controller, window)
+        dlg.show()
+        app.processEvents()
+        dlg.close()
+        if not ux:  # ohne UxPlay nur Hinweis auf Monitor 2
+            controller.show_source({"type": "airplay"})
+            app.processEvents()
         controller.shutdown()
         lines.append("OK")
         code = 0

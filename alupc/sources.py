@@ -447,6 +447,80 @@ class WindowSource(SinkView):
         self.capture.stop()
 
 
+# --------------------------------------------------------------------------- Handy (AirPlay)
+class AirPlaySource(SinkView):
+    """iPhone/iPad per AirPlay: UxPlay empfängt und leitet das Bild als Videostrom hierher weiter."""
+
+    def __init__(self, cfg, parent=None):
+        super().__init__(cfg.get("fit", "contain"), parent)
+        from .handy import airplay_server
+
+        self.server = airplay_server()
+        self.player = None
+        self._last_frame = 0.0
+        self._started = 0.0
+        self._had_frames = False
+        self.mode = self.server.acquire(want_stream=True)
+        self._watch = QTimer(self, interval=1000)
+        self._watch.timeout.connect(self._check)
+        if self.mode == "fehlt":
+            self.set_message("AirPlay-Empfang: Das Programm UxPlay fehlt.\n\nKachel „Handy“ → „Einrichten …“ "
+                             "installiert bzw. findet es.")
+            return
+        if self.mode == "fenster":
+            self.set_message("Diese UxPlay-Version kann das Bild nicht an AluPC weitergeben (erst ab 1.73).\n\n"
+                             "Über die Kachel „Handy“ klappt AirPlay trotzdem – im eigenen Vollbild-Fenster.")
+            return
+        self.sink.videoFrameChanged.connect(self._got_frame)
+        self._show_waiting()
+        self._start_player()
+        self._watch.start()
+
+    def _show_waiting(self):
+        s = self.server.settings()
+        text = (f"iPhone/iPad: Kontrollzentrum → Bildschirmsynchronisierung → „{s['airplay_name']}“\n"
+                "(gleiches WLAN wie dieser PC)")
+        if self.server.pin_code:
+            text += f"\n\nCode: {self.server.pin_code}"
+        self._image = None
+        self._pending = None
+        self.set_message(text)
+
+    def _start_player(self):
+        if self.player is not None:
+            self.player.stop()
+            self.player.deleteLater()
+        self.player = QMediaPlayer(self)
+        self.player.setVideoSink(self.sink)
+        self.player.setSource(QUrl.fromLocalFile(str(self.server.sdp_path())))
+        self.player.play()
+        self._started = time.monotonic()
+
+    def _got_frame(self, frame):
+        if frame.isValid():
+            self._last_frame = time.monotonic()
+            self._had_frames = True
+
+    def _check(self):
+        now = time.monotonic()
+        if self._had_frames and now - self._last_frame > 4:
+            # Handy hat aufgehört zu senden → Hinweis zeigen und für die nächste Verbindung neu bereit machen
+            self._had_frames = False
+            self._show_waiting()
+            self._start_player()
+        elif not self._had_frames and now - self._started > 30:
+            self._start_player()  # vorsorglich neu öffnen, falls der Player hängen geblieben ist
+        if self.server.pin_code and self._image is None and "Code:" not in self._message:
+            self._show_waiting()
+
+    def stop(self):
+        self._watch.stop()
+        if self.player is not None:
+            self.player.stop()
+        if self.mode in ("stream", "fenster"):
+            self.server.release()
+
+
 # --------------------------------------------------------------------------- Website
 class WebsiteSource(QWidget):
     def __init__(self, cfg, parent=None):
@@ -899,6 +973,7 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             "camera": CameraSource,
             "screen": ScreenSource,
             "window": WindowSource,
+            "airplay": AirPlaySource,
             "website": WebsiteSource,
             "image": ImageSource,
             "video": VideoSource,

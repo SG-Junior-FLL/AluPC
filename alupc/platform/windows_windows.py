@@ -130,6 +130,13 @@ class WindowsWindowBackend(WindowBackend):
     def move_window(self, window_id, output_name, rect, fullscreen=False):
         self._move(int(window_id), output_name, rect, fullscreen)
 
+    def move_by_title(self, title_part, output_name, rect, fullscreen=True) -> bool:
+        for w in self.list_windows():
+            if title_part in w.title:
+                self._move(int(w.id), output_name, rect, fullscreen)
+                return True
+        return False
+
     def move_active_window(self, output_name, rect, fullscreen=False):
         hwnd = self.user32.GetForegroundWindow()
         if not hwnd:

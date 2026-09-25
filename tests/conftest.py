@@ -20,3 +20,6 @@ def pytest_runtest_logreport(report):
     tail = tail.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
     sys.__stdout__.write(f"\n::error title={report.nodeid}::{tail[:3500]}\n")
     sys.__stdout__.flush()
+
+# Wie beim echten Start: Videoplayer darf RTP/UDP lesen (AirPlay)
+os.environ.setdefault("QT_FFMPEG_PROTOCOL_WHITELIST", "file,crypto,data,udp,rtp,http,https,tcp,tls")

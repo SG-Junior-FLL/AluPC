@@ -22,7 +22,7 @@ KWIN_SCRIPT = r"""
     var targetName = %(name)s;
     var rect = %(rect)s;
     var fullscreen = %(fullscreen)s;
-    var w = (workspace.activeWindow !== undefined) ? workspace.activeWindow : workspace.activeClient;
+    var w = %(select)s;
     if (!w) { return; }
     if (workspace.screens !== undefined) {
         // Plasma 6: Monitore sind Objekte mit Namen
@@ -47,8 +47,21 @@ KWIN_SCRIPT = r"""
 """
 
 
-def build_kwin_script(output_name: str, rect: tuple[int, int, int, int], fullscreen: bool) -> str:
+ACTIVE_WINDOW = "(workspace.activeWindow !== undefined) ? workspace.activeWindow : workspace.activeClient"
+WINDOW_BY_CAPTION = r"""(function (part) {
+        var list = (workspace.windowList !== undefined) ? workspace.windowList() : workspace.clientList();
+        for (var k = 0; k < list.length; k++) {
+            if (list[k].caption && list[k].caption.indexOf(part) >= 0) { return list[k]; }
+        }
+        return null;
+    })(%s)"""
+
+
+def build_kwin_script(output_name: str, rect: tuple[int, int, int, int], fullscreen: bool,
+                      caption: str | None = None) -> str:
+    """KWin-Skript: aktives Fenster (oder das mit `caption` im Titel) auf den Monitor schieben."""
     return KWIN_SCRIPT % {
+        "select": WINDOW_BY_CAPTION % json.dumps(caption) if caption else ACTIVE_WINDOW,
         "name": json.dumps(output_name),
         "rect": json.dumps(list(rect)),
         "fullscreen": "true" if fullscreen else "false",
@@ -142,3 +155,13 @@ class LinuxWindowBackend(WindowBackend):
         if not self.can_move_active:
             raise RuntimeError("Nur unter KDE Plasma möglich (KWin)")
         run_kwin_script(build_kwin_script(output_name, rect, fullscreen))
+
+    def move_by_title(self, title_part, output_name, rect, fullscreen=True) -> bool:
+        if self.kde and dbus_util.HAVE_JEEPNEY:
+            run_kwin_script(build_kwin_script(output_name, rect, fullscreen, caption=title_part))
+            return True  # KWin meldet nicht zurück, ob es das Fenster gab
+        for w in self.list_windows():
+            if title_part in w.title:
+                self.move_window(w.id, output_name, rect, fullscreen)
+                return True
+        return False

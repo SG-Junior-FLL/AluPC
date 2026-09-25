@@ -1459,3 +1459,145 @@ def test_hand_picker(env):
     tip = fingers["right-thumb"].toPoint()
     c = img.pixelColor(tip.x(), tip.y() + 10)
     assert c.green() > c.red()  # angelernter Finger leuchtet grün
+
+
+# ---------------------------------------------------------------- 0.11: Handy → Monitor 2
+FAKE_UXPLAY = '''#!%(python)s
+import sys, time
+args = sys.argv[1:]
+if args == ["-h"]:
+    print("UxPlay 1.73 usage: ... %(vrtp)s")
+    sys.exit(0)
+open(%(log)r, "a").write(" ".join(args) + "\\n")
+print("Initialized server socket(s)", flush=True)
+if "-pin" in args:
+    print("Pin code: 4711", flush=True)
+if "-vrtp" in args:
+    port = int(args[args.index("-vrtp") + 1].rsplit("port=", 1)[1])
+    time.sleep(1.0)
+    sys.path.insert(0, %(tests)r)
+    import rtp_sender
+    rtp_sender.main(port, 6.0)
+time.sleep(30)
+'''
+
+
+def _fake_uxplay(tmp_path, vrtp: bool) -> tuple[str, Path]:
+    import sys
+
+    log = tmp_path / "uxplay_args.txt"
+    script = tmp_path / ("uxplay_neu" if vrtp else "uxplay_alt")
+    script.write_text(FAKE_UXPLAY % {"python": sys.executable, "vrtp": "-vrtp pipeline" if vrtp else "",
+                                     "log": str(log), "tests": str(HERE)})
+    script.chmod(0o755)
+    return str(script), log
+
+
+def test_handy_helpers(tmp_path):
+    import sys
+
+    from alupc import handy
+
+    if sys.platform.startswith("win"):
+        pytest.skip("Fake-Programm ist ein Shell-Skript")
+    new, _ = _fake_uxplay(tmp_path, True)
+    old, _ = _fake_uxplay(tmp_path, False)
+    assert handy.supports_vrtp(new) and not handy.supports_vrtp(old)
+    assert handy.supports_vrtp(str(tmp_path / "gibtsnicht")) is False
+    assert handy.find_program("uxplay", new) == new
+    assert "m=video 5004 RTP/AVP 96" in handy.sdp_text(5004)
+    args = handy.uxplay_args("Klasse 7b", "1234", 5004)
+    assert args[:3] == ["-n", "Klasse 7b", "-nh"] and args[3:5] == ["-pin", "1234"]
+    assert args[-1].endswith("udpsink host=127.0.0.1 port=5004")
+    assert handy.uxplay_args("", "zufall", None)[3] == "-pin" and "-fs" in handy.uxplay_args("", "", None)
+    sc = handy.scrcpy_args((1920, 0, 1280, 720))
+    assert sc[sc.index("--window-x") + 1] == "1920" and "--fullscreen" in sc
+    assert len(handy.random_pin()) == 4
+
+
+def test_airplay_source_shows_stream(env, tmp_path):
+    """UxPlay ≥ 1.73 (simuliert): Bild kommt per RTP und erscheint als normale Quelle auf Monitor 2."""
+    import sys
+
+    if sys.platform.startswith("win"):
+        pytest.skip("Fake-Programm ist ein Shell-Skript")
+    pytest.importorskip("av")
+    controller, window, _ = env
+    uxplay, log = _fake_uxplay(tmp_path, True)
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": uxplay, "pin": "zufall",
+                                  "airplay_name": "Beamer"}
+    controller.start_airplay()
+    pump()
+    view = controller.output.content
+    assert controller.content == {"type": "airplay"} and view.mode == "stream"
+    assert "Beamer" in view._message
+    assert _until(log.exists, 5)
+    assert "-vrtp" in log.read_text() and "-pin" in log.read_text()
+    assert _until(lambda: view._had_frames, 20), "Kein Bild vom (simulierten) iPhone"
+    assert _until(lambda: view._image is not None and not view._image.isNull(), 5)
+    c = view._image.pixelColor(view._image.width() - 5, view._image.height() // 2)
+    assert c.red() > 150 and c.green() < 90, c.name()  # rotes Testbild
+    assert controller.airplay.pin_code == "4711"
+    pump()
+    assert window.t_handy.active and not window.t_extend.active
+    controller.extend()  # etwas anderes → UxPlay wird (verzögert) beendet
+    assert _until(lambda: not controller.airplay.running(), 5)
+
+
+def test_handy_windows_mode(env, tmp_path, monkeypatch):
+    """Ältere UxPlay-Version bzw. scrcpy: eigenes Fenster, das auf Monitor 2 geschoben wird."""
+    import sys
+
+    if sys.platform.startswith("win"):
+        pytest.skip("Fake-Programm ist ein Shell-Skript")
+    controller, window, _ = env
+    uxplay, log = _fake_uxplay(tmp_path, False)
+    scrcpy = tmp_path / "scrcpy"
+    scrcpy.write_text(f"#!{sys.executable}\nimport sys, time\nopen({str(tmp_path / 'sc.txt')!r}, 'w')"
+                      ".write(' '.join(sys.argv[1:]))\ntime.sleep(30)\n")
+    scrcpy.chmod(0o755)
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": uxplay, "scrcpy_path": str(scrcpy),
+                                  "pin": ""}
+    moved = []
+    monkeypatch.setattr(controller.windows, "move_by_title",
+                        lambda title, out, rect, full=True: moved.append((title, out, rect)) or True)
+    controller.start_airplay()
+    pump()
+    assert controller.mode == "desktop" and controller.desktop_note.startswith("iPhone/iPad")
+    assert _until(lambda: controller.airplay.running() and log.exists(), 5)
+    assert "-fs" in log.read_text() and "-vrtp" not in log.read_text()
+    assert _until(lambda: moved, 5) and moved[0][0] == "AluPC" and moved[0][2] == (1920, 0, 1280, 720)
+    assert not controller.cursor_should_stay_home()
+    pump()
+    assert window.t_handy.active and not window.t_extend.active and not window.t_program.active
+    controller.start_android()
+    pump()
+    assert controller.desktop_note.startswith("Android")
+    assert _until(lambda: (tmp_path / "sc.txt").exists(), 5)
+    assert "--window-x 1920" in (tmp_path / "sc.txt").read_text()
+    assert _until(lambda: not controller.airplay.running(), 5)  # AirPlay-Fenster beendet
+    assert _until(lambda: any(m[0] == "AluPC Android" for m in moved), 5)
+    controller.extend()
+    assert controller._scrcpy is None and controller._handy_window == ""
+
+
+def test_handy_dialog_and_tile(env, tmp_path):
+    from alupc.ui.handy_dialog import HandyDialog
+
+    controller, window, _ = env
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": "", "scrcpy_path": ""}
+    dlg = HandyDialog(controller, window)
+    dlg.show()
+    pump()
+    dlg.name.setText("Physikraum")
+    dlg.pin_mode.setCurrentIndex(dlg.pin_mode.findData("fest"))
+    dlg.pin.setText("2468")
+    dlg._save()
+    assert controller.config["handy"]["airplay_name"] == "Physikraum"
+    assert controller.config["handy"]["pin"] == "2468"
+    dlg.pin_mode.setCurrentIndex(dlg.pin_mode.findData("zufall"))
+    assert controller.config["handy"]["pin"] == "zufall" and dlg.pin.isHidden()
+    dlg.close()
+    assert "handy" in window.tiles
+    controller.start_airplay()  # UxPlay fehlt → nur Hinweis, nichts kaputt
+    pump()

@@ -35,6 +35,7 @@ from .widgets import button, page_header
 SOURCE_TYPES = [
     ("camera", "Kamera"),
     ("window", "Programm (Aufnahme)"),
+    ("airplay", "iPhone/iPad (AirPlay)"),
     ("screen", "Bildschirm"),
     ("website", "Website"),
     ("image", "Bild"),
@@ -237,6 +238,17 @@ class SourcePicker(QDialog):
         fit = _fit_combo(init.get("fit", "contain"))
         form.addRow("Anzeige:", fit)
         return page, lambda: {"title": combo.currentText(), "fit": fit.currentData()} if combo.currentText() else None
+
+    def _page_airplay(self, init):
+        page, form = self._form()
+        hint = QLabel("Zeigt, was ein iPhone oder iPad per AirPlay („Bildschirmsynchronisierung“) sendet.\n\n"
+                      "Braucht das freie Programm UxPlay ab Version 1.73 (Kachel „Handy“ → „Einrichten …“). "
+                      "Ältere Versionen gehen nur über die Kachel „Handy“ (eigenes Vollbild-Fenster), nicht in Szenen.")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        fit = _fit_combo(init.get("fit", "contain"))
+        form.addRow("Anzeige:", fit)
+        return page, lambda: {"fit": fit.currentData()}
 
     def _page_screen(self, init):
         page, form = self._form()

@@ -34,6 +34,7 @@ OBS-Studio-Fenster.
 | **Programm** | ein Programm zeigen: *Anzeigen (Aufnahme)* oder *Fenster wirklich verschieben* |
 | **Website** | Adresse eingeben oder gespeicherte Website wählen → Vollbild. Pfeil an der Kachel: gespeicherte Websites, **Browser steuern** (eigenes Fenster: Adresse, Zurück/Vor, Zoom, Scrollen, Live-Vorschau zum Klicken und Tippen), aktuelle Seite **unter „Website“ speichern** |
 | **Bild / Video** | **Mediathek** mit Vorschaubildern: gespeicherte Bilder, Videos und Diashows, dazu automatisch „Zuletzt gezeigt“; Filter, Suche, Umbenennen. Pfeil an der Kachel: gespeicherte Einträge direkt starten. Läuft ein Video (auch in einer eigenen Szene), erscheint oben eine **Mediensteuerung**: Pause/Weiter, ±10 Sekunden, Zeitleiste zum Springen |
+| **Handy** | **iPhone/iPad per AirPlay** (Kontrollzentrum → Bildschirmsynchronisierung → „AluPC“) und **Android per scrcpy** (USB-Debugging) auf Monitor 2. Name und Code (keiner, fest, zufällig) unter ▾ → „Einrichten …“; dort lassen sich UxPlay/scrcpy unter Kubuntu auch installieren. Mit **UxPlay ab 1.73** ist das iPhone eine ganz normale Quelle (auch in eigenen Szenen, mit Standbild, Zeichnen …), ältere UxPlay-Versionen zeigen ein eigenes Vollbild-Fenster auf Monitor 2 |
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
 | **Standbild** | friert das Bild auf Monitor 2 ein; du arbeitest auf Monitor 1 unbemerkt weiter |
@@ -233,6 +234,15 @@ kennen sie nicht – AluPC steuert sie direkt. Steckt so ein Modul, nimmt AluPC 
 - **Nicht auf echter Hardware getestet.** Die automatischen Tests laufen auf GitHub unter Linux und
   Windows (inkl. Start der fertigen Programme und der installierten Pakete) – aber ohne echte Monitore,
   Kameras und Fingerabdrucksensoren. Bitte Fehler mit Screenshot oder Meldungstext melden.
+- **Chromecast-Empfang geht nicht**: Google lässt als Empfänger nur zertifizierte Geräte zu. Android
+  daher über **scrcpy** (USB-Debugging einschalten); unter Windows zusätzlich „Projizieren auf diesen
+  PC“ (Miracast) im Einrichten-Dialog.
+- **AirPlay braucht das freie Programm UxPlay** (wird nicht mitgeliefert). Kubuntu 24.04 hat nur UxPlay
+  1.68: Das läuft im eigenen Fenster, nicht als AluPC-Quelle. Laut UxPlay-Projekt wurde in 1.72.3 eine
+  Sicherheitslücke geschlossen (CVE-2025-60458) – ältere Versionen nur im vertrauenswürdigen WLAN und am
+  besten mit Code verwenden. Windows: UxPlay als MSYS2-Build plus Apple „Bonjour“ selbst installieren und
+  im Dialog auswählen; scrcpy von GitHub laden. **Mit echten Handys ist das nicht getestet** – getestet
+  ist der Empfang eines simulierten AirPlay-Videostroms.
 - **Fingerabdruck unter Linux** geht nur mit Sensoren, die **libfprint** unterstützt.
   Viele neuere Notebook-Sensoren (z. B. manche von Goodix/Synaptics) werden nicht erkannt.
 - **Windows erlaubt Fremdprogrammen nicht**, Finger für die Windows-Anmeldung anzulernen oder

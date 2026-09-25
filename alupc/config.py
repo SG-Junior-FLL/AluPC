@@ -81,6 +81,8 @@ DEFAULTS: dict = {
     "draw": {"tool": "laser", "color": "#ef4444", "width": 4, "fps": 30,
              # gespeicherte Zeichnungen und zu welchem Inhalt sie gehören (bleiben über Neustarts)
              "strokes": [], "strokes_for": ""},
+    # Handy → Monitor 2: AirPlay (UxPlay) und Android (scrcpy); leere Pfade = automatisch suchen
+    "handy": {"airplay_name": "AluPC", "pin": "", "uxplay_path": "", "scrcpy_path": ""},
     "start_minimized": False,
     # Windows 11: AluPC-Symbol wurde für diesen Programmpfad schon direkt in die Taskleiste gelegt
     "tray": {"promoted_for": ""},

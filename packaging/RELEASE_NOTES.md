@@ -8,6 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.11.0)
+- **Handy → Monitor 2** (neue Kachel „Handy“, auch im Taskleisten-Menü):
+  - **iPhone/iPad per AirPlay** über das freie UxPlay: am iPhone Kontrollzentrum →
+    Bildschirmsynchronisierung → „AluPC“. Mit UxPlay ab 1.73 erscheint das Bild direkt als AluPC-Quelle
+    (auch in eigenen Szenen, mit Standbild und Zeichnen); ältere Versionen im eigenen Vollbild-Fenster
+    auf Monitor 2. Name und Code (keiner / fest / neu pro Gerät) einstellbar.
+  - **Android per scrcpy** (USB-Debugging) im Vollbild auf Monitor 2; Windows zusätzlich Knopf für
+    „Projizieren auf diesen PC“ (Miracast).
+  - „Einrichten …“ findet die Programme, installiert sie unter Kubuntu per Klick (Passwort) und zeigt
+    Schritt-für-Schritt-Anleitungen.
+- **Ehrlich:** Chromecast-Empfang ist auf einem PC nicht möglich (nur zertifizierte Geräte). UxPlay und
+  scrcpy werden nicht mitgeliefert (unter Windows selbst installieren). Kubuntu 24.04 hat UxPlay 1.68
+  (nur Fenster-Modus; vor 1.72.3 laut UxPlay-Projekt mit Sicherheitslücke CVE-2025-60458 – dann nur im
+  vertrauenswürdigen WLAN und mit Code nutzen). Nicht mit echten Handys getestet, nur mit einem
+  simulierten AirPlay-Videostrom.
+
 ### Neu in dieser Version (0.10.0)
 - **Mediathek** (Kachel „Bild / Video“): gespeicherte Bilder, Videos und Diashows mit Vorschaubildern,
   „Zuletzt gezeigt“ automatisch, Filter, Suche, Umbenennen; Pfeil an der Kachel startet Gespeichertes direkt.

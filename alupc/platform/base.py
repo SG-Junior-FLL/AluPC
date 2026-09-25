@@ -184,6 +184,11 @@ class WindowBackend:
                            fullscreen: bool = False) -> None:
         raise NotImplementedError
 
+    def move_by_title(self, title_part: str, output_name: str, rect: tuple[int, int, int, int],
+                      fullscreen: bool = True) -> bool:
+        """Fenster, dessen Titel `title_part` enthält, auf den Monitor schieben. True = gefunden."""
+        return False
+
     # Aufnahme im Hintergrund: Ein minimiertes Fenster zeichnet sich nicht, also gibt es kein Bild.
     # Wo möglich wird es wiederhergestellt, aber ganz nach hinten gelegt und nicht aktiviert.
     can_restore_background = False

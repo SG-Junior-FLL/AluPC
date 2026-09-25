@@ -381,6 +381,14 @@ class MainWindow(QMainWindow):
         draw_menu.addAction(icons.icon("trash", theme.current().text, 18), "Zeichnungen auf Monitor 2 löschen",
                             c.laser.clear_strokes)
         self.t_draw.set_menu(draw_menu, split=True)
+        self.t_handy = self.tiles["handy"]
+        self.t_handy.activated.connect(c.start_airplay)
+        handy_menu = QMenu(self)
+        handy_menu.addAction(icons.icon("phone", theme.current().text, 18), "iPhone/iPad (AirPlay)", c.start_airplay)
+        handy_menu.addAction(icons.icon("phone", theme.current().text, 18), "Android (scrcpy)", c.start_android)
+        handy_menu.addSeparator()
+        handy_menu.addAction(icons.icon("sliders", theme.current().text, 18), "Einrichten …", self.open_handy_dialog)
+        self.t_handy.set_menu(handy_menu, split=True)
 
         self.t_mirror.clicked.connect(c.mirror)
         self.t_extend.clicked.connect(c.extend)
@@ -592,6 +600,13 @@ class MainWindow(QMainWindow):
         name, ok = QInputDialog.getText(self, "Website speichern", "Name für die Website:", text=title)
         if ok:
             self.controller.save_website(name.strip() or title, view.url().toString())
+
+    def open_handy_dialog(self):
+        from .handy_dialog import HandyDialog
+
+        dlg = HandyDialog(self.controller, self)
+        dlg.setAttribute(Qt.WA_DeleteOnClose)
+        dlg.exec()
 
     def open_presenter(self):
         """Fenster „Zeigen & Zeichnen“ auf Monitor 1 öffnen (bzw. nach vorne holen)."""
@@ -918,6 +933,7 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         menu.addAction(ic("mirror"), "Spiegeln", c.mirror)
         menu.addAction(ic("extend"), "Erweitern", c.extend)
+        menu.addAction(ic("phone"), "iPhone/iPad (AirPlay)", c.start_airplay)
         self.tray_scenes = menu.addMenu(ic("scenes"), "Szenen")
         menu.addAction(ic("down"), "Nächste Szene", lambda: c.step_scene(1))
         menu.addSeparator()
@@ -1039,6 +1055,8 @@ class MainWindow(QMainWindow):
         icon_name = "mirror" if is_mirror else icons.SOURCE_ICONS.get(typ, "extend" if c.mode == "desktop" else "monitor")
         if c.mode == "desktop" and c.desktop_note.startswith("Programm"):
             icon_name = "window"
+        elif c.mode == "desktop" and c.desktop_note.startswith(("iPhone/iPad", "Android")):
+            icon_name = "phone"
         pills = []
         if out is None:
             pills.append(("KEIN MONITOR", t.danger))
@@ -1061,7 +1079,8 @@ class MainWindow(QMainWindow):
         self.side_monitor.setText(("● " if out else "○ ") + (out.name() if out else "Kein Monitor 2"))
 
         self.t_mirror.set_state(is_mirror, badge="AKTIV" if is_mirror else "")
-        desktop = c.mode == "desktop" and not c.desktop_note.startswith("Programm")
+        handy_desktop = c.mode == "desktop" and c.desktop_note.startswith(("iPhone/iPad", "Android"))
+        desktop = c.mode == "desktop" and not c.desktop_note.startswith("Programm") and not handy_desktop
         self.t_extend.set_state(desktop, badge="AKTIV" if desktop else "")
         for tile, on in [
             (self.t_camera, typ == "camera"),
@@ -1069,6 +1088,7 @@ class MainWindow(QMainWindow):
             (self.t_web, typ == "website"),
             (self.t_media, typ in ("image", "video", "slideshow")),
             (self.t_scenes, typ == "scene"),
+            (self.t_handy, typ == "airplay" or handy_desktop),
         ]:
             tile.set_state(on, badge="AKTIV" if on else "")
         saver_on = c.screensaver.active

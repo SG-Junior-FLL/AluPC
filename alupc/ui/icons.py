@@ -341,6 +341,15 @@ def _draw(name: str, p: QPainter, color: QColor):
         p.drawPath(path)
         p.drawArc(QRectF(10, 8, 7, 8), -60 * 16, 120 * 16)
         p.drawArc(QRectF(9, 4.5, 12, 15), -60 * 16, 120 * 16)
+    elif name == "phone":
+        p.drawRoundedRect(QRectF(7, 2.5, 10, 19), 2.4, 2.4)
+        p.drawLine(QPointF(10.5, 5), QPointF(13.5, 5))
+        p.setBrush(fill)
+        p.drawEllipse(QPointF(12, 18.5), 0.9, 0.9)
+        p.setBrush(Qt.NoBrush)
+        # Funkwellen
+        p.drawArc(QRectF(15.5, 7, 6, 6), -60 * 16, 120 * 16)
+        p.drawArc(QRectF(15, 4.5, 9, 11), -55 * 16, 110 * 16)
     elif name == "pause":
         p.setBrush(fill)
         p.drawRoundedRect(QRectF(6.5, 5, 3.8, 14), 1, 1)
@@ -444,7 +453,7 @@ def paint(p: QPainter, name: str, rect: QRectF, color: str | QColor, stroke: flo
 SOURCE_ICONS = {
     "camera": "camera", "window": "window", "screen": "monitor", "website": "globe", "image": "image",
     "video": "video", "slideshow": "slides", "text": "text", "clock": "clock", "countdown": "timer",
-    "color": "palette", "scene": "scenes",
+    "color": "palette", "scene": "scenes", "airplay": "phone",
 }
 
 

@@ -43,6 +43,11 @@ class Controller(QObject):
         self.laser = LaserWindow(self)
         self.output.after_raise.append(self.laser.raise_above)
         self.laser.changed_cb = self.save_drawings
+        from .handy import airplay_server
+
+        self.airplay = airplay_server(config)
+        self._handy_window = ""  # „airplay“/„android“, solange ein Handy-Fenster auf Monitor 2 liegt
+        self._scrcpy = None
         self.changed.connect(self.update_cursor_guard)
         self.apply_output_settings()
 
@@ -194,6 +199,7 @@ class Controller(QObject):
         self.content = cfg
         self._scene_volume = None
         self._content_switched()
+        self._stop_handy_window()
         window_settings["restore_minimized"] = bool(self.config["program"].get("restore_minimized", True))
         self.output.set_content(create_source(cfg, self.config.get_scene), self.transition_for(cfg))
         if remember:
@@ -278,6 +284,84 @@ class Controller(QObject):
     def program_moved(self, title: str) -> None:
         self._set_desktop(f"Programm direkt auf Monitor 2: {title}")
 
+    # ------------------------------------------------------------ Handy → Monitor 2
+    def start_airplay(self) -> None:
+        """iPhone/iPad: als Quelle (UxPlay ≥ 1.73) oder im eigenen Vollbild-Fenster (ältere Versionen)."""
+        from .handy import supports_vrtp
+
+        uxplay = self.airplay.binary()
+        if not uxplay:
+            self.message.emit("AirPlay: UxPlay fehlt – Kachel „Handy“ → „Einrichten …“.")
+            return
+        if supports_vrtp(uxplay):
+            self.show_source({"type": "airplay"})
+            return
+        if self.output_screen() is None:
+            self.message.emit("Kein zweiter Monitor gefunden.")
+            return
+        self._stop_handy_window()
+        self.ensure_extended()
+        self.airplay.acquire(want_stream=False)
+        self._handy_window = "airplay"
+        self._set_desktop("iPhone/iPad (AirPlay, eigenes Fenster)")
+        name = self.airplay.settings()["airplay_name"]
+        self.message.emit(f"AirPlay bereit: am iPhone/iPad „Bildschirmsynchronisierung“ → „{name}“ wählen.")
+        self._place_handy_window(name)
+
+    def start_android(self) -> None:
+        """Android per scrcpy (USB-Debugging nötig) – Fenster im Vollbild auf Monitor 2."""
+        from PySide6.QtCore import QProcess
+
+        from .handy import WINDOW_TITLE_ANDROID, find_program, scrcpy_args
+
+        scrcpy = find_program("scrcpy", self.config["handy"].get("scrcpy_path", ""))
+        if not scrcpy:
+            self.message.emit("Android: scrcpy fehlt – Kachel „Handy“ → „Einrichten …“.")
+            return
+        screen = self.output_screen()
+        if screen is None:
+            self.message.emit("Kein zweiter Monitor gefunden.")
+            return
+        self._stop_handy_window()
+        self.ensure_extended()
+        g = screen.geometry()
+        self._scrcpy = QProcess(self)
+        self._scrcpy.start(scrcpy, scrcpy_args((g.x(), g.y(), g.width(), g.height())))
+        self._handy_window = "android"
+        self._set_desktop("Android-Handy (scrcpy)")
+        self._place_handy_window(WINDOW_TITLE_ANDROID)
+
+    def _place_handy_window(self, title: str, tries: int = 6) -> None:
+        """Fenster suchen, sobald es erscheint, und im Vollbild auf Monitor 2 legen."""
+        from PySide6.QtCore import QTimer
+
+        screen = self.output_screen()
+        if screen is None or not self._handy_window or tries <= 0:
+            return
+        g = screen.geometry()
+
+        def attempt():
+            if not self._handy_window:
+                return
+            try:
+                if self.windows.move_by_title(title, screen.name(), (g.x(), g.y(), g.width(), g.height()), True):
+                    return
+            except Exception:  # noqa: BLE001
+                pass
+            self._place_handy_window(title, tries - 1)
+
+        QTimer.singleShot(2500, attempt)
+
+    def _stop_handy_window(self) -> None:
+        if self._handy_window == "airplay":
+            self.airplay.release()
+        if self._scrcpy is not None:
+            self._scrcpy.terminate()
+            if not self._scrcpy.waitForFinished(2000):
+                self._scrcpy.kill()
+            self._scrcpy = None
+        self._handy_window = ""
+
     def _content_switched(self) -> None:
         """Neuer Inhalt auf Monitor 2 (Szenenwechsel) → alte Zeichnungen weg."""
         if self.laser.strokes:
@@ -285,6 +369,8 @@ class Controller(QObject):
 
     def _set_desktop(self, note: str) -> None:
         self._content_switched()
+        if not note.startswith(("iPhone/iPad", "Android")):
+            self._stop_handy_window()  # Handy-Fenster schließen, wenn etwas anderes kommt
         self._unfreeze()
         self.screensaver.stop()
         self.mode = "desktop"
@@ -585,6 +671,7 @@ class Controller(QObject):
 
     def shutdown(self) -> None:
         self._timer_watch.stop()
+        self._stop_handy_window()
         self.laser.close()
         self.cursor_guard.shutdown()
         from .cursor import tracker
@@ -593,5 +680,6 @@ class Controller(QObject):
         self.screensaver.timer.stop()
         self.output.set_screensaver(None)
         self.output.set_content(None)
+        self.airplay.shutdown()
         self.output.shutdown()
         self.output.close()

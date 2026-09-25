@@ -50,6 +50,7 @@ SOURCE_COLORS = {
     "camera": "#ef4444", "window": "#8b5cf6", "screen": "#3b82f6", "website": "#06b6d4",
     "image": "#10b981", "video": "#f97316", "slideshow": "#84cc16", "text": "#eab308",
     "clock": "#f59e0b", "countdown": "#f43f5e", "color": "#64748b", "scene": "#ec4899",
+    "airplay": "#0ea5e9",
 }
 
 _current: Theme | None = None
