@@ -1716,7 +1716,7 @@ def test_alucast_end_to_end(env, tmp_path):
     controller.start_cast()
     pump()
     assert controller.cast.running() and controller.content == {"type": "cast"}
-    assert controller.config["cast"]["autostart"] is True
+    assert controller.config["cast"]["autostart"] is False  # startet nicht ungefragt beim nächsten Mal
     view = controller.output.content
     assert view.qr().width() > 20
     img = view.grab().toImage()
@@ -1773,9 +1773,9 @@ def test_handy_dialog_tabs(env, monkeypatch):
     dlg.show()
     pump()
     assert dlg.tabs.count() == 4 and dlg.tabs.tabText(0).startswith("Browser")
-    assert dlg.qr.pixmap().isNull() and dlg.cast_toggle.text() == "Starten"
+    assert dlg.qr.pixmap().width() < 150 and dlg.cast_toggle.text() == "Starten"  # nur Platzhalter-Symbol
     dlg._toggle_cast()
-    assert controller.cast.running() and not dlg.qr.pixmap().isNull()
+    assert controller.cast.running() and dlg.qr.pixmap().width() >= 200  # echter QR-Code
     old = controller.cast.code()
     controller.cast.renew_code()
     assert controller.cast.code() != old or len(old) == 6
@@ -1787,3 +1787,28 @@ def test_handy_dialog_tabs(env, monkeypatch):
     dlg.close()
     controller.start_miracast()  # Linux: nur Hinweis
     pump()
+
+
+# ---------------------------------------------------------------- 0.12.1: Statuskarte mit Vorschau, Bedienung
+def test_status_card_preview_and_stop(env):
+    controller, window, _ = env
+    window._go(0)
+    controller.show_source({"type": "color", "color": "#00ff00"})
+    pump()
+    assert window.stop_btn.isVisible()
+    window._update_preview()
+    img = window.status_card.preview.image
+    assert img is not None and img.pixelColor(img.width() // 2, img.height() // 2).green() > 200
+    window.stop_btn.click()
+    pump()
+    assert controller.mode == "desktop" and not window.stop_btn.isVisible()
+    window._update_preview()
+    assert window.status_card.preview.image is None  # Erweitern: Symbol statt Bild
+    shown = []
+    controller.toggle_pip = lambda: shown.append(True)
+    window.status_card.preview.clicked.disconnect()
+    window.status_card.preview.clicked.connect(controller.toggle_pip)
+    window.status_card.preview.clicked.emit()
+    assert shown
+    window.t_scenes.activated.emit()  # Kachel „Meine Szenen“ → Szenen-Seite
+    assert window.stack.currentIndex() == 1

@@ -54,7 +54,7 @@ input[type=range] { width:100%; accent-color:var(--accent); }
 <div class="card" id="login">
   <h2>Code eingeben</h2>
   <p>Den 6-stelligen Code zeigt AluPC unter dem QR-Code an.</p>
-  <input type="text" id="code" class="big" inputmode="numeric" maxlength="6" autocomplete="off">
+  <input type="text" id="code" class="big" inputmode="numeric" maxlength="7" autocomplete="off">
   <button class="primary" style="width:100%;margin-top:10px" onclick="saveCode()">Verbinden</button>
 </div>
 
@@ -114,8 +114,12 @@ input[type=range] { width:100%; accent-color:var(--accent); }
 
 <script>
 const params = new URLSearchParams(location.search);
-let code = params.get("k") || localStorage.getItem("alucast-code") || "";
-if (params.get("k")) { localStorage.setItem("alucast-code", code); history.replaceState(null, "", location.pathname); }
+const store = {  // privater Modus: Speicher kann fehlen → dann eben nur für diese Seite merken
+  get() { try { return localStorage.getItem("alucast-code") || ""; } catch (e) { return ""; } },
+  set(v) { try { v ? localStorage.setItem("alucast-code", v) : localStorage.removeItem("alucast-code"); } catch (e) {} },
+};
+let code = params.get("k") || store.get();
+if (params.get("k")) { store.set(code); history.replaceState(null, "", location.pathname); }
 const $ = id => document.getElementById(id);
 
 function toast(text, bad) {
@@ -123,12 +127,15 @@ function toast(text, bad) {
   clearTimeout(t._h); t._h = setTimeout(() => t.className = "toast", 2600);
 }
 function showLogin(on) { $("login").style.display = on ? "block" : "none"; $("main").style.display = on ? "none" : "block"; }
-function saveCode() { code = $("code").value.trim(); localStorage.setItem("alucast-code", code); refresh(); }
+function forget() {  // falscher/alter Code: nicht weiter damit anfragen (sonst sperrt AluPC das Handy)
+  code = ""; store.set(""); showLogin(true);
+}
+function saveCode() { code = $("code").value.replace(/\D/g, ""); store.set(code); refresh(); }
 
 async function api(path, body, type) {
   const r = await fetch(path, { method: body === undefined ? "GET" : "POST",
     headers: Object.assign({ "X-AluPC-Code": code }, type ? { "Content-Type": type } : {}), body });
-  if (r.status === 403) { showLogin(true); throw new Error("Falscher Code"); }
+  if (r.status === 403) { forget(); throw new Error("Falscher Code"); }
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || ("Fehler " + r.status));
   return data;
@@ -165,7 +172,10 @@ async function refresh() {
         b.onclick = () => post("/api/cmd", { cmd: "szene:" + name }, name); box.appendChild(b);
       }
     }
-  } catch (e) { if (e.message !== "Falscher Code") $("now").textContent = "Keine Verbindung zu AluPC"; }
+  } catch (e) {
+    if (e.message === "Falscher Code") toast("Falscher oder alter Code – bitte neu eingeben", true);
+    else $("now").textContent = /warten|beendet/.test(e.message) ? e.message : "Keine Verbindung zu AluPC";
+  }
 }
 
 // Fotos: sehr große Bilder und HEIC (iPhone) vor dem Senden in JPEG umwandeln
@@ -199,7 +209,7 @@ async function upload(input) {
   xhr.onload = () => {
     bar.style.display = "none";
     if (xhr.status === 200) { toast("Auf Monitor 2"); $("upinfo").textContent = "Gesendet: " + file.name; setTimeout(refresh, 500); }
-    else if (xhr.status === 403) { showLogin(true); }
+    else if (xhr.status === 403) { forget(); }
     else { let m = "Fehler " + xhr.status; try { m = JSON.parse(xhr.responseText).error || m; } catch (e) {}
            toast(m, true); $("upinfo").textContent = m; }
   };

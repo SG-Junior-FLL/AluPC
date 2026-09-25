@@ -183,6 +183,7 @@ def _make_handler(server: CastServer):
     class Handler(BaseHTTPRequestHandler):
         server_version = "AluCast"
         protocol_version = "HTTP/1.1"
+        timeout = 60  # hängende Verbindungen nicht ewig offen halten
 
         def log_message(self, *_args):  # nichts in die Konsole schreiben
             pass
@@ -200,6 +201,10 @@ def _make_handler(server: CastServer):
             self._send(status, json.dumps(obj, ensure_ascii=False).encode())
 
         def _auth(self) -> bool:
+            if not server.running():  # nach „Beenden“ nichts mehr annehmen (auch offene Verbindungen)
+                self.close_connection = True
+                self._json(503, {"error": "AluCast ist beendet"})
+                return False
             ok = server.check(self.client_address[0], self.headers.get("X-AluPC-Code", ""))
             if ok:
                 return True
@@ -212,7 +217,7 @@ def _make_handler(server: CastServer):
 
         def _body_json(self) -> dict:
             n = int(self.headers.get("Content-Length") or 0)
-            if n > 100_000:
+            if n < 0 or n > 100_000:
                 raise ValueError("zu groß")
             data = json.loads(self.rfile.read(n) or b"{}")
             if not isinstance(data, dict):
@@ -269,8 +274,12 @@ def _make_handler(server: CastServer):
                 self._json(400, {"error": "Ungültige Anfrage"})
 
         def _upload(self, name: str):
-            size = int(self.headers.get("Content-Length") or 0)
+            try:
+                size = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                size = 0
             if size <= 0:
+                self.close_connection = True
                 self._json(400, {"error": "Leere Datei"})
                 return
             if size > MAX_UPLOAD:

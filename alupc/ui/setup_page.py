@@ -203,11 +203,11 @@ class SetupPage(QWidget):
 
     SECTIONS = [
         ("monitor", "Monitore", "Auflösung, Hz, Anordnung"),
-        ("pip", "Monitor 2", "Maus, Standbild, Sichtschutz, Bild-in-Bild"),
+        ("pip", "Monitor 2", "Maus, Sichtschutz, PiP"),
         ("palette", "Darstellung", "Design und Akzentfarbe"),
         ("moon", "Bildschirmschoner", "Stil, Zeit, Verhalten"),
         ("timer", "Timer", "Dauer, Art, Warnfarben"),
-        ("sound", "Töne", "Ton bei Aktionen, eigene Töne"),
+        ("sound", "Töne", "Töne bei Aktionen"),
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
         ("sliders", "Allgemein", "Autostart, Monitor-Wahl"),
     ]

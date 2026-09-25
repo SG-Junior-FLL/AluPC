@@ -8,6 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.12.1)
+- **Live-Vorschau von Monitor 2** in der Statuskarte (Klick darauf: Bild-in-Bild) und Knopf
+  **„Beenden“**, der Monitor 2 sofort wieder zum normalen Bildschirm macht.
+- Kacheln: kürzere, verständliche Untertexte (nichts mehr abgeschnitten), „AKTIV“ und Menü-Pfeil
+  überlappen nicht mehr; „Meine Szenen“: Klick öffnet die Szenen-Seite, Pfeil startet eine Szene.
+- Hinweis-Banner mit passenden Symbolen (Info/Warnung statt Fingerabdruck), Monitor-Anzeige unten
+  links mit Auflösung, Layout-Namen im Szenen-Editor vollständig, Setup-Menü ohne abgeschnittene Texte.
+- **AluCast-Korrekturen:** Code mit Leerzeichen („424 242“) wurde abgeschnitten und abgelehnt; ein
+  Handy mit altem Code hat sich durch ständiges Nachfragen selbst gesperrt – jetzt fragt es nach dem
+  neuen Code; nach „Beenden“ nimmt AluCast auch über noch offene Verbindungen nichts mehr an; startet
+  nicht mehr ungefragt bei jedem Programmstart (nur mit Haken „Beim Start mitstarten“); hängende
+  Verbindungen werden nach 60 s getrennt.
+
 ### Neu in dieser Version (0.12.0)
 - **AluCast – eigener Handy-Empfang ohne App** (Kachel „Handy“ – Klick): QR-Code auf Monitor 2
   scannen, dann vom iPhone oder Android **Fotos (auch direkt fotografieren), Videos, Links (YouTube im

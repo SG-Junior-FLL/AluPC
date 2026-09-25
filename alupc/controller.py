@@ -420,7 +420,6 @@ class Controller(QObject):
         if not self.cast.start():
             self.message.emit("AluCast konnte nicht starten: Netzwerk-Anschluss belegt.")
             return
-        self.config["cast"] = {**self.config["cast"], "autostart": True}
         self._cast_snapshot()
         self.show_source({"type": "cast"})
 

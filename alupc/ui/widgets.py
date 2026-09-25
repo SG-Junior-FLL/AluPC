@@ -202,14 +202,16 @@ class Tile(HoverMixin, QAbstractButton):
             p.setFont(f)
             fm = QFontMetrics(f)
             bw = fm.horizontalAdvance(self.badge) + 16
-            badge = QRectF(r.right() - pad - bw, r.top() + pad + 12, bw, 22)
+            # neben dem Menü-Pfeil (falls vorhanden), sonst ganz rechts
+            right = r.right() - pad - (34 if (self.menu is not None and self.split) else 0)
+            badge = QRectF(right - bw, r.top() + pad + 12, bw, 22)
             p.setBrush(accent)
             p.drawRoundedRect(badge, 11, 11)
             p.setPen(QColor("#ffffff"))
             p.drawText(badge, Qt.AlignCenter, self.badge)
         if self.menu is not None and (self.split or not self.badge):
             cx = r.right() - pad - 6
-            cy = r.top() + pad + (46 if (self.badge and self.split) else 23)
+            cy = r.top() + pad + 23
             if self.split:
                 zone = QRectF(cx - 13, cy - 13, 26, 26)
                 ring = QColor(t.muted)
@@ -310,37 +312,97 @@ class Pill(QWidget):
         p.end()
 
 
+class PreviewThumb(QWidget):
+    """Kleines Live-Bild von Monitor 2 (abgerundet, mit Rahmen) – oder ein Symbol, wenn nichts läuft."""
+
+    clicked = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.image = None
+        self.icon_name = "monitor"
+        self.setFixedSize(128, 72)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip("Live-Vorschau von Monitor 2 – Klick öffnet Bild-in-Bild")
+
+    def set(self, image, icon_name: str):
+        self.image = image if image is not None and not image.isNull() else None
+        self.icon_name = icon_name
+        self.update()
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.LeftButton and self.rect().contains(e.position().toPoint()):
+            self.clicked.emit()
+
+    def paintEvent(self, _e):
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        path = rounded(r, 10)
+        if self.image is not None:
+            p.fillPath(path, QColor("#000000"))
+            p.save()
+            p.setClipPath(path)
+            iw, ih = self.image.width(), self.image.height()
+            scale = min(r.width() / iw, r.height() / ih)
+            target = QRectF(0, 0, iw * scale, ih * scale)
+            target.moveCenter(r.center())
+            p.drawImage(target, self.image)
+            p.restore()
+        else:
+            soft = QColor(t.accent)
+            soft.setAlphaF(0.14 if t.dark else 0.10)
+            p.fillPath(path, QColor(t.surface2))
+            p.fillPath(path, soft)
+            s = 30
+            icons.paint(p, self.icon_name, QRectF(r.center().x() - s / 2, r.center().y() - s / 2, s, s), t.accent, 1.9)
+        p.setPen(QPen(QColor(t.border), 1))
+        p.drawPath(path)
+        p.end()
+
+
 class StatusCard(QWidget):
-    """Oben im Hauptfenster: Was sehen die anderen gerade auf Monitor 2?"""
+    """Oben im Hauptfenster: Was sehen die anderen gerade auf Monitor 2? (mit Live-Vorschau)"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("Card")
         self.setAttribute(Qt.WA_StyledBackground, True)
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(18, 14, 18, 14)
-        lay.setSpacing(14)
-        self.icon = QLabel()
-        self.icon.setFixedSize(48, 48)
+        lay.setContentsMargins(14, 12, 18, 12)
+        lay.setSpacing(16)
+        self.preview = PreviewThumb()
         text = QVBoxLayout()
-        text.setSpacing(1)
+        text.setSpacing(2)
         self.caption = QLabel()
         self.caption.setObjectName("Muted")
         self.caption.setFont(font(8.5, QFont.DemiBold))
         self.title = QLabel()
         self.title.setFont(font(14, QFont.Bold))
         self.title.setWordWrap(True)
-        text.addWidget(self.caption)
-        text.addWidget(self.title)
         self.pills = QHBoxLayout()
         self.pills.setSpacing(6)
-        lay.addWidget(self.icon)
+        pill_row = QHBoxLayout()
+        pill_row.setSpacing(0)
+        pill_row.addLayout(self.pills)
+        pill_row.addStretch(1)
+        text.addStretch(1)
+        text.addWidget(self.caption)
+        text.addWidget(self.title)
+        text.addLayout(pill_row)
+        text.addStretch(1)
+        self.actions = QHBoxLayout()
+        self.actions.setSpacing(8)
+        lay.addWidget(self.preview)
         lay.addLayout(text, 1)
-        lay.addLayout(self.pills)
+        lay.addLayout(self.actions)
 
     def set(self, icon_name: str, caption: str, title: str, pills: list[tuple[str, str]]):
-        t = theme.current()
-        self.icon.setPixmap(_chip_pixmap(icon_name, t.accent, 48))
+        self.preview.icon_name = icon_name
+        if self.preview.image is None:
+            self.preview.update()
         self.caption.setText(caption.upper())
         self.title.setText(title)
         # Etiketten wiederverwenden statt neu anlegen (kein Flackern, keine Reste)
@@ -643,7 +705,7 @@ class Banner(QWidget):
 
     def set(self, text: str, kind: str = "info"):
         t = theme.current()
-        color, name = {"ok": (t.success, "check"), "warn": (t.warning, "x"), "error": (t.danger, "x"),
-                       "busy": (t.accent, "refresh")}.get(kind, (t.accent, "fingerprint"))
+        color, name = {"ok": (t.success, "check"), "warn": (t.warning, "alert"), "error": (t.danger, "x"),
+                       "busy": (t.accent, "refresh")}.get(kind, (t.accent, "info"))
         self.icon.setPixmap(_chip_pixmap(name, color, 36))
         self.label.setText(text)

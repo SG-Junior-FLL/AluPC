@@ -85,11 +85,14 @@ class SceneEditor(QDialog):
         self.layout_list.setMovement(QListView.Static)
         self.layout_list.setGridSize(QSize(164, 126))
         self.layout_list.setWordWrap(True)
+        self.layout_list.setTextElideMode(Qt.ElideNone)
         self.layout_list.setFixedHeight(276)
         self.layout_list.setSpacing(4)
         for key, (label, _slots) in LAYOUTS.items():
             item = QListWidgetItem(layout_icon(key), label)
             item.setData(Qt.UserRole, key)
+            item.setToolTip(label)
+            item.setSizeHint(QSize(156, 118))
             self.layout_list.addItem(item)
             if key == self.scene["layout"]:
                 self.layout_list.setCurrentItem(item)

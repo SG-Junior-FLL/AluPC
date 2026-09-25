@@ -359,6 +359,15 @@ class MainWindow(QMainWindow):
         top.addWidget(customize, 0, Qt.AlignTop)
         lay.addLayout(top)
         self.status_card = StatusCard()
+        self.status_card.preview.clicked.connect(self.controller.toggle_pip)
+        self.stop_btn = button("Beenden", "x")
+        self.stop_btn.setToolTip("AluPC-Anzeige beenden – Monitor 2 wird wieder ein normaler Bildschirm (Erweitern)")
+        self.stop_btn.clicked.connect(self.controller.extend)
+        self.status_card.actions.addWidget(self.stop_btn)
+        # Live-Vorschau von Monitor 2 in der Statuskarte (nur wenn die Startseite zu sehen ist)
+        self._preview_timer = QTimer(self, interval=1000)
+        self._preview_timer.timeout.connect(self._update_preview)
+        self._preview_timer.start()
         self.volume_box = VolumeBox(self.controller)
         self.status_card.layout().addWidget(self.volume_box)
         lay.addWidget(self.status_card)
@@ -425,7 +434,8 @@ class MainWindow(QMainWindow):
         self.t_media.activated.connect(self.open_media_library)
         self.scene_menu = QMenu(self)
         self.scene_menu.aboutToShow.connect(lambda: self._fill_scene_menu(self.scene_menu))
-        self.t_scenes.set_menu(self.scene_menu)
+        self.t_scenes.set_menu(self.scene_menu, split=True)
+        self.t_scenes.activated.connect(lambda: self._go(1))  # Klick: Szenen-Seite, Pfeil: Szene starten
         self.custom_tiles: dict[str, Tile] = {}
 
         self.section_labels = {}
@@ -1054,6 +1064,22 @@ class MainWindow(QMainWindow):
         for level, act in self.a_levels:
             act.setChecked(not state["muted"] and state["volume"] == level)
 
+    def _update_preview(self):
+        from PySide6.QtCore import QSize
+
+        from ..output_window import grab_scaled
+
+        c = self.controller
+        card = self.status_card
+        if not self.isVisible() or self.isMinimized() or self.stack.currentIndex() != 0:
+            return
+        out = c.output
+        image = None
+        if out.isVisible() and (c.mode == "content" or c.privacy or c.frozen or c.screensaver.active):
+            dpr = card.preview.devicePixelRatioF()
+            image = grab_scaled(out, QSize(int(128 * dpr), int(72 * dpr)))
+        card.preview.set(image, card.preview.icon_name)
+
     def refresh(self):
         c = self.controller
         t = theme.current()
@@ -1090,11 +1116,16 @@ class MainWindow(QMainWindow):
         if c.laser.strokes:
             pills.append(("ZEICHNUNG", "#f97316"))
         self.status_card.set(icon_name, where, c.describe(), pills)
+        self.stop_btn.setVisible(c.mode == "content")
+        QTimer.singleShot(150, self._update_preview)  # Vorschau gleich nach dem Wechsel auffrischen
         self.volume_box.sync()
         self.media_bar.sync()
         self.camera_bar.sync()
         self._sync_tray_volume()
-        self.side_monitor.setText(("● " if out else "○ ") + (out.name() if out else "Kein Monitor 2"))
+        dot = theme.current().success if out else theme.current().danger
+        self.side_monitor.setText(f'<span style="color:{dot}">●</span> ' + (
+            f"Monitor 2: <b>{out.name()}</b><br>&nbsp;&nbsp;&nbsp;&nbsp;{out.size().width()} × {out.size().height()}" if out
+            else "Kein Monitor 2 angeschlossen"))
 
         self.t_mirror.set_state(is_mirror, badge="AKTIV" if is_mirror else "")
         handy_desktop = c.mode == "desktop" and c.desktop_note.startswith(HANDY_NOTES)

@@ -10,16 +10,16 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "extend": ("extend", "Erweitern", "Normaler zweiter Bildschirm", None, "anzeigen"),
     "camera": ("camera", "Kamera", "Kamera im Vollbild", None, "anzeigen"),
     "program": ("window", "Programm", "Ein Programm zeigen", None, "anzeigen"),
-    "website": ("globe", "Website", "Öffnen · ▾ Gespeicherte, Browser steuern", None, "anzeigen"),
-    "media": ("image", "Bild / Video", "Mediathek · ▾ Gespeicherte, Zuletzt", None, "anzeigen"),
-    "handy": ("phone", "Handy", "QR-Code scannen · ▾ AirPlay, Android, Miracast", None, "anzeigen"),
-    "scenes": ("scenes", "Meine Szenen", "Eigene Zusammenstellungen", None, "anzeigen"),
+    "website": ("globe", "Website", "Öffnen · Pfeil: Favoriten", None, "anzeigen"),
+    "media": ("image", "Bild / Video", "Mediathek · Pfeil: Zuletzt", None, "anzeigen"),
+    "handy": ("phone", "Handy", "QR-Code · Pfeil: AirPlay & Co.", None, "anzeigen"),
+    "scenes": ("scenes", "Meine Szenen", "Bearbeiten · Pfeil: starten", None, "anzeigen"),
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),
     "black": ("eye_off", "Schwarz", "Sichtschutz", "#64748b", "schnell"),
     "pip": ("pip", "Bild-in-Bild", "Monitor 2 klein anzeigen", "#8b5cf6", "schnell"),
-    "screensaver": ("moon", "Bildschirmschoner", "Starten / beenden · ▾ Einstellungen", "#6366f1", "schnell"),
-    "timer": ("timer", "Timer", "Start / Pause · ▾ mehr", "#f43f5e", "schnell"),
-    "draw": ("edit", "Zeigen & Zeichnen", "Laserpointer, Stift, Marker · ▾ löschen", "#f97316", "schnell"),
+    "screensaver": ("moon", "Bildschirmschoner", "An/aus · Pfeil: Einstellungen", "#6366f1", "schnell"),
+    "timer": ("timer", "Timer", "Start/Pause · Pfeil: mehr", "#f43f5e", "schnell"),
+    "draw": ("edit", "Zeigen & Zeichnen", "Laser, Stift, Marker", "#f97316", "schnell"),
 }
 DEFAULT_ORDER = list(BUILTIN_TILES)
 # Kacheln, die es schon vor dem Merken von „seen“ gab (für ältere Einstellungen)
