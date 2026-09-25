@@ -8,6 +8,10 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.15.1)
+- Behoben: Beim Beenden konnten noch laufende Hintergrundaufgaben (z. B. Android-Suche, Miracast-Prüfung)
+  einen Absturz auslösen – AluPC wartet jetzt kurz, bis sie fertig sind.
+
 ### Neu in dieser Version (0.15.0) – Reparaturen: AirPlay, Spiegeln, Miracast
 - **AirPlay repariert:** UxPlay (Kubuntu 24.04: Version 1.68) öffnet sein Bild-Fenster erst, wenn sich das
   iPhone verbindet – AluPC hat es bisher nur 15 Sekunden lang gesucht (unter KDE sogar gar nicht richtig)

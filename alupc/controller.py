@@ -1046,5 +1046,8 @@ class Controller(QObject):
             self.run_sync()
         if self._config_saved in self.config.listeners:
             self.config.listeners.remove(self._config_saved)
+        from .ui.util import wait_for_background
+
+        wait_for_background(3000)
         self.output.shutdown()
         self.output.close()

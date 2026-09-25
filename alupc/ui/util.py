@@ -25,10 +25,10 @@ class _Task(QRunnable):
     def run(self):
         try:
             if self.with_progress:
-                result = self.fn(lambda text, stage, total: self.signals.progress.emit(text, stage, total))
+                result = self.fn(lambda text, stage, total: self._emit(self.signals.progress, text, stage, total))
             else:
                 result = self.fn()
-            self.signals.done.emit(result)
+            self._emit(self.signals.done, result)
         except Exception as exc:  # noqa: BLE001
             name = type(exc).__name__
             text = str(exc) or name
@@ -36,7 +36,20 @@ class _Task(QRunnable):
                 text = "Abgebrochen."
             elif not isinstance(exc, RuntimeError):
                 traceback.print_exc()
-            self.signals.failed.emit(text)
+            self._emit(self.signals.failed, text)
+
+    @staticmethod
+    def _emit(signal, *args):
+        """Melden – aber still bleiben, wenn der Empfänger schon weg ist (Fenster zu, Programm beendet)."""
+        try:
+            signal.emit(*args)
+        except RuntimeError:
+            pass
+
+
+def wait_for_background(ms: int = 3000) -> None:
+    """Beim Beenden: kurz warten, bis Hintergrundaufgaben fertig sind (sonst Absturz beim Aufräumen)."""
+    QThreadPool.globalInstance().waitForDone(ms)
 
 
 def run_async(fn, on_done=None, on_error=None, on_progress=None):
