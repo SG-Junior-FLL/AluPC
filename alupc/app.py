@@ -54,6 +54,9 @@ def _media_env() -> None:
 
 
 def main(argv=None) -> int:
+    from .platform.child_env import restore_system_env
+
+    restore_system_env()  # fertige Linux-Version: gestartete Programme (UxPlay …) bekommen die System-Bibliotheken
     args = parse_args(sys.argv[1:] if argv is None else argv)
     if args.fingerabdruck_pam:
         from .platform.zw_fingerprint import pam_check

@@ -228,3 +228,32 @@ class LinuxWindowBackend(WindowBackend):
                 self.move_window(w.id, output_name, rect, fullscreen)
                 return True
         return False
+
+
+PLACE_SCRIPT = r"""
+(function () {
+    var list = (workspace.windowList !== undefined) ? workspace.windowList() : workspace.clientList();
+    for (var i = 0; i < list.length; i++) {
+        var w = list[i];
+        if (w && String(w.caption) === %(caption)s) {
+            w.frameGeometry = {x: %(x)d, y: %(y)d, width: %(w)d, height: %(h)d};
+            w.keepAbove = true;
+        }
+    }
+})();
+"""
+
+
+def build_place_script(caption: str, x: int, y: int, w: int, h: int) -> str:
+    return PLACE_SCRIPT % {"caption": json.dumps(caption), "x": x, "y": y, "w": w, "h": h}
+
+
+def kwin_place_window(caption: str, x: int, y: int, w: int, h: int) -> bool:
+    """KDE/Wayland: ein eigenes Fenster an eine feste Stelle legen (Wayland erlaubt das Programmen nicht selbst)."""
+    if not dbus_util.HAVE_JEEPNEY:
+        return False
+    try:
+        run_kwin_script(build_place_script(caption, x, y, w, h))
+        return True
+    except Exception:  # noqa: BLE001
+        return False

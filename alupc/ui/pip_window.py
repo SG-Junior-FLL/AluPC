@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import sys
+
 from PySide6.QtCore import QPoint, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QSizeGrip, QWidget
@@ -82,12 +85,33 @@ class PipWindow(QWidget):
 
     def show_on_main(self):
         screen = self.controller.main_screen()
+        target = None
         if screen is not None:
             geo = screen.availableGeometry()
-            self.move(geo.right() - self.width() - 24, geo.bottom() - self.height() - 24)
+            target = (geo.right() - self.width() - 24, geo.bottom() - self.height() - 24)
+            self.move(*target)
         self.show()
         self.timer.start()
         self.refresh()
+        if target is not None:
+            self._place_wayland(*target)
+
+    def _place_wayland(self, x: int, y: int) -> None:
+        """Wayland: Programme dürfen ihr Fenster nicht selbst hinlegen → KDE (KWin) bitten, es unten rechts auf
+        Monitor 1 zu platzieren (kurz nach dem Anzeigen, wenn KWin das Fenster kennt)."""
+        from ..platform.linux_display import is_wayland
+
+        if not sys.platform.startswith("linux") or not is_wayland() or "KDE" not in \
+                os.environ.get("XDG_CURRENT_DESKTOP", "").upper():
+            return
+        from .util import run_async
+
+        def place():
+            from ..platform.linux_windows import kwin_place_window
+
+            return kwin_place_window(self.windowTitle(), x, y, self.width(), self.height())
+
+        QTimer.singleShot(250, lambda: run_async(place, lambda _r: None, lambda _e: None))
 
     def hideEvent(self, event):
         self.timer.stop()

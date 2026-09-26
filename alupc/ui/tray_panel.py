@@ -373,8 +373,8 @@ QSlider::handle:horizontal {{ width: 14px; margin: -5px 0; border-radius: 7px; b
 
     # ------------------------------------------------------------ Öffnen / Schließen
     def popup_near(self, tray_rect: QRect | None, cursor: QPoint | None) -> None:
-        """Neben dem Taskleisten-Symbol öffnen (Windows: über dem Symbol; Linux X11: am Mauszeiger;
-        Wayland erlaubt keine eigene Position – dort entscheidet KWin)."""
+        """In der Mitte des Bildschirms öffnen, auf dem das Taskleisten-Symbol bzw. die Maus ist (Wayland erlaubt
+        keine eigene Position – KWin legt es dort ebenfalls mittig)."""
         self.apply_style()
         self.show()
         self.sync()
@@ -385,12 +385,8 @@ QSlider::handle:horizontal {{ width: 14px; margin: -5px 0; border-radius: 7px; b
         screen = screen or QGuiApplication.primaryScreen()
         area = screen.availableGeometry()
         size = self.sizeHint()
-        if anchor is None or is_wayland():
-            x, y = area.right() - size.width() - 8, area.bottom() - size.height() - 8
-        else:
-            x = anchor.x() - size.width() // 2
-            # Taskleiste unten → darüber, oben → darunter
-            y = anchor.y() - size.height() - 8 if anchor.y() > area.center().y() else anchor.y() + 16
+        # Mitte des Bildschirms (wie unter Linux/KDE) – überall gleich, gut erreichbar
+        x, y = area.center().x() - size.width() // 2, area.center().y() - size.height() // 2
         x = max(area.left() + 4, min(x, area.right() - size.width() - 4))
         y = max(area.top() + 4, min(y, area.bottom() - size.height() - 4))
         self.move(x, y)

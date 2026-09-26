@@ -8,6 +8,17 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.38.0)
+- **Linux: AirPlay „UxPlay hat sich beendet, Exit-Code 127“ behoben.** Die fertige Linux-Version gab gestarteten
+  Programmen ihren eigenen Bibliotheksordner mit (LD_LIBRARY_PATH) – UxPlay lud dadurch AluPCs ältere GLib und
+  brach mit „symbol lookup error“ ab. Jetzt bekommen UxPlay, kscreen-doctor, wmctrl & Co. die Bibliotheken des
+  Systems. Nachgestellt und geprüft mit der echten Version 0.36 und UxPlay 1.68; die CI testet das künftig mit
+  echtem UxPlay aus dem fertigen .deb.
+- **Linux/Wayland: Bild-in-Bild erscheint direkt unten rechts** auf Monitor 1 (KDE legt es per KWin dorthin –
+  Wayland erlaubt Programmen das nicht selbst).
+- **Schnellfenster der Taskleiste:** öffnet jetzt auch unter Windows modern mit Kacheln **in der Bildschirmmitte**
+  – wie unter Linux.
+
 ### Neu in dieser Version (0.37.0)
 **Linux (KDE/Wayland)**
 - **Spiegeln zeigte keine Fenster:** Läuft AluPC unter Wayland als X11-Programm und hat keine KDE-Freigabe für

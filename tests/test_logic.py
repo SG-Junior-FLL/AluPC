@@ -800,3 +800,36 @@ def test_kwin_follow_script_exact_match():
 
     js = build_follow_script(["AluPC", "UxPlay"], "HDMI-1", (1920, 0, 1280, 720))
     assert "indexOf(titles[t])" not in js and "cap === " in js and "resourceClass" in js
+
+
+def test_child_env_restores_system_libraries():
+    """Fertige Linux-Version: UxPlay & Co. dürfen nicht AluPCs eigene (ältere) Bibliotheken erben (Exit-Code 127)."""
+    from alupc.platform.child_env import restore_system_env
+
+    env = {"LD_LIBRARY_PATH": "/opt/alupc/_internal", "LD_LIBRARY_PATH_ORIG": "/usr/local/lib", "PATH": "/usr/bin"}
+    assert restore_system_env(env, frozen=True, platform="linux") == ["LD_LIBRARY_PATH"]
+    assert env["LD_LIBRARY_PATH"] == "/usr/local/lib"
+    env = {"LD_LIBRARY_PATH": "/opt/alupc/_internal"}  # vorher nicht gesetzt → ganz weg
+    import sys as _sys
+
+    old = getattr(_sys, "_MEIPASS", None)
+    _sys._MEIPASS = "/opt/alupc/_internal"
+    try:
+        restore_system_env(env, frozen=True, platform="linux")
+    finally:
+        if old is None:
+            del _sys._MEIPASS
+        else:
+            _sys._MEIPASS = old
+    assert "LD_LIBRARY_PATH" not in env
+    env = {"LD_LIBRARY_PATH": "/x"}
+    assert restore_system_env(env, frozen=False, platform="linux") == [] and env["LD_LIBRARY_PATH"] == "/x"
+    assert restore_system_env({"LD_LIBRARY_PATH": "/x"}, frozen=True, platform="win32") == []
+
+
+def test_kwin_place_script():
+    from alupc.platform.linux_windows import build_place_script
+
+    js = build_place_script("AluPC – Bild-in-Bild", 1500, 700, 400, 225)
+    assert '"AluPC \\u2013 Bild-in-Bild"' in js or "AluPC – Bild-in-Bild" in js
+    assert "frameGeometry = {x: 1500, y: 700, width: 400, height: 225}" in js and "keepAbove = true" in js

@@ -78,8 +78,19 @@ jobs:
       - name: .deb installieren und starten (Test)
         run: |
           sudo apt-get install -y "./dist/alupc_${{ steps.version.outputs.v }}_amd64.deb"
+          # echtes UxPlay (wie bei Kubuntu): die fertige Version darf ihm nicht ihre eigenen Bibliotheken
+          # unterschieben (sonst „symbol lookup error“, Exit-Code 127)
+          sudo apt-get install -y uxplay >/dev/null 2>&1 || echo "::warning title=UxPlay-Test::uxplay nicht installierbar"
           QT_QPA_PLATFORM=offscreen alupc --selbsttest "$RUNNER_TEMP/deb.txt" || { cat "$RUNNER_TEMP/deb.txt"; exit 1; }
           cat "$RUNNER_TEMP/deb.txt"
+          if command -v uxplay >/dev/null; then
+            line=$(grep "UxPlay: " "$RUNNER_TEMP/deb.txt" | head -1)
+            echo "::notice title=UxPlay aus der fertigen Version::$line"
+            if [ -z "$line" ]; then echo "::warning title=UxPlay-Test::keine UxPlay-Zeile im Selbsttest"
+            elif ! echo "$line" | grep -qi "uxplay version\|uxplay 1\."; then
+              echo "::error title=UxPlay startet nicht aus AluPC::$line"; exit 1
+            fi
+          fi
       - name: Spiegel-Probe unter X11 (Xvfb, echtes Bildschirmaufnehmen)
         continue-on-error: true
         run: |
