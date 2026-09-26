@@ -269,6 +269,16 @@ class SetupPage(QWidget):
         controller.changed.connect(self._update_arrangement)
         QTimer.singleShot(0, self.reload_outputs)
 
+    def set_compact(self, on: bool) -> None:
+        """Kleines Fenster: Bereichsliste nur mit Symbolen (Name als Tooltip)."""
+        self.nav.setFixedWidth(64 if on else 230)
+        for i, (_icon, title, sub) in enumerate(self.SECTIONS):
+            item = self.nav.item(i)
+            item.setText("" if on else f"{title}\n{sub}")
+            item.setToolTip(f"{title} – {sub}")
+            item.setSizeHint(QSize(48, 48) if on else QSize(220, 54))
+        self.layout().setSpacing(10 if on else 18)
+
     def show_section(self, title: str) -> None:
         for i, (_icon, name, _sub) in enumerate(self.SECTIONS):
             if name == title:

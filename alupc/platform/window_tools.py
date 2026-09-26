@@ -47,6 +47,17 @@ def keep_on_top(widget) -> None:
         pass
 
 
+def not_on_top(widget) -> None:
+    """Windows: „immer oben“ wieder abgeben (andere Fenster dürfen darüber)."""
+    if not IS_WINDOWS:
+        return
+    try:
+        _user32().SetWindowPos(int(widget.winId()), -2, 0, 0, 0, 0,  # HWND_NOTOPMOST
+                               SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 # --------------------------------------------------------------------------- Taskleiste auf Monitor 2
 class SecondaryTaskbar:
     """Windows: die Taskleiste auf Monitor 2 ausblenden, solange AluPC dort etwas zeigt."""
@@ -90,23 +101,25 @@ KWIN_KEEP_ABOVE = r"""
     var list = (workspace.windowList !== undefined) ? workspace.windowList() : workspace.clientList();
     for (var i = 0; i < list.length; i++) {
         if (list[i].caption === %s) {
-            list[i].keepAbove = true;
-            list[i].fullScreen = true;
+            list[i].keepAbove = %s;
+            if (%s) { list[i].fullScreen = true; }
         }
     }
 })();
 """
 
 
-def kde_keep_above(caption: str) -> None:
-    """KDE (vor allem Wayland): Fenster über Leisten/Panels legen – Qt kann das dort nicht selbst."""
+def kde_keep_above(caption: str, above: bool = True) -> None:
+    """KDE (vor allem Wayland): Fenster über Leisten/Panels legen – Qt kann das dort nicht selbst.
+    above=False: „immer oben“ wieder abgeben."""
     if IS_WINDOWS or "KDE" not in os.environ.get("XDG_CURRENT_DESKTOP", "").upper():
         return
     import json
 
     from .linux_windows import run_kwin_script
 
-    run_kwin_script(KWIN_KEEP_ABOVE % json.dumps(caption))
+    flag = "true" if above else "false"
+    run_kwin_script(KWIN_KEEP_ABOVE % (json.dumps(caption), flag, flag))
 
 
 # --------------------------------------------------------------------------- Computer sperren

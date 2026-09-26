@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alupc"
-version = "0.21.0"
+version = "0.22.0"
 description = "AluPC – zweiten Monitor steuern: Spiegeln, Erweitern, Kamera, Programme, Websites, eigene Szenen, Standbild, Bild-in-Bild, Fingerabdruck"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,7 +25,7 @@ alupc = "alupc.app:main"
 include = ["alupc*"]
 
 [tool.setuptools.package-data]
-alupc = ["resources/*", "resources/icons/*"]
+alupc = ["resources/*", "resources/icons/*", "assets/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

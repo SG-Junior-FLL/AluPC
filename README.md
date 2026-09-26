@@ -35,7 +35,7 @@ OBS-Studio-Fenster.
 | **Website** | Adresse eingeben oder gespeicherte Website wählen → Vollbild. Pfeil an der Kachel: gespeicherte Websites, **Browser steuern** (eigenes Fenster: Adresse, Zurück/Vor, Zoom, Scrollen, Live-Vorschau zum Klicken und Tippen, **Stift/Marker/Radierer zum Zeichnen auf der Website**; bei **Standbild** zeigt die Vorschau die echte Seite dahinter – schon weiterklicken, während das Publikum noch das Standbild sieht), aktuelle Seite **unter „Website“ speichern** |
 | **Bild / Video** | **Mediathek** mit Vorschaubildern: gespeicherte Bilder, Videos und Diashows, dazu automatisch „Zuletzt gezeigt“; Filter, Suche, Umbenennen. Pfeil an der Kachel: gespeicherte Einträge direkt starten. Läuft ein Video (auch in einer eigenen Szene), erscheint oben eine **Mediensteuerung**: Pause/Weiter, ±10 Sekunden, Zeitleiste zum Springen |
 | **Handy** | eigenes **Fenster „Handy“** mit zwei Wegen. **Jedes Handy** (QR-Code scannen, ohne App) – die Handy-Seite hat vier Reiter: **Start** (Live-Bild mit Laserpointer, Schwarz/Standbild/Spiegeln/Erweitern/Schoner, Kamera/iPhone/QR-Code/Timer zeigen, Szenen, Video, Lautstärke, **Timer mit Vorgaben** 1–15 min, RGB), **Zeichnen** (mit dem Finger **direkt auf Monitor 2**: Stift, Marker, Radierer, Laser, 7 Farben, Rückgängig, Vollbild), **Folien** (Präsentations-Klicker und **Touchpad für die PC-Maus** mit Klick, Rechtsklick und Scrollen) und **Senden** (Foto/Video, Link, Text). Lässt sich als **App auf den Home-Bildschirm** legen. Was Handys dürfen, stellt man in **Setup → Handy & Kamera** ein. **iPhone & iPad** per AirPlay (UxPlay; unter Windows „uxplay-windows“): Monitor 2 zeigt sofort einen **Warte-Bildschirm mit Name und Code**, beim Verbinden legt AluPC das iPhone-Bild randlos darüber. **Richtet sich selbst ein** (Kubuntu: Pakete mit einem Passwort; Windows: uxplay-windows, Bonjour und Firewall-Freigabe) |
-| **Vorlagen** | **32 fertige Karten** mit eigenem Text – Design-Karten (Neon-Schild, Glitch, Synthwave, Poster, Minimal, Spotlight, Now Playing, LIVE-Overlay, Versus, Link-Karte mit QR, Coming soon, Glas) und Info-Karten (Willkommen, Agenda, Pause, Laufschrift, Zitat, Ankündigung, Fragen, WLAN-QR, Countdown bis Uhrzeit, Geburtstag, Tabelle/Line-up, Quiz, Danke, Schlagzeile, Große Zahl, Termine, Siegerehrung, Pro & Contra, Stichwort, Gäste) – plus **24 fertige Szenen** (Stream-Overlay, Partynacht, Gaming-Duell, Retro-Abend, Musik, Link teilen …). Kategorien und Suche; sofort zeigen oder als Szene speichern |
+| **Vorlagen** | **32 fertige Karten** mit eigenem Text – Design-Karten (Neon-Schild, Glitch, Synthwave, Poster, Minimal, Spotlight, Now Playing, LIVE-Overlay, Versus, Link-Karte mit QR, Coming soon, Glas) und Info-Karten (Willkommen, Agenda, Pause, Laufschrift, Zitat, Ankündigung, Fragen, WLAN-QR, Countdown bis Uhrzeit, Geburtstag, Tabelle/Line-up, Quiz, Danke, Schlagzeile, Große Zahl, Termine, Siegerehrung, Pro & Contra, Stichwort, Gäste) – plus **24 fertige Szenen** (Stream-Overlay, Partynacht, Gaming-Duell, Retro-Abend, Musik, Link teilen …). Kategorien und Suche; sofort zeigen (ohne Speichern) oder als eigene Szene im Editor anlegen |
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
 | **Standbild** | friert das Bild auf Monitor 2 ein; du arbeitest auf Monitor 1 unbemerkt weiter |
@@ -361,6 +361,12 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   nur mit AppArmor-Profil. Das .deb bringt eins mit. Bei `install.sh` oder Start aus dem Quellcode
   schaltet AluPC die Sandbox der Website-Anzeige deshalb aus (Websites laufen dann mit weniger
   Schutz – nur vertrauenswürdige Seiten anzeigen).
+
+## Lizenzen der Schriften
+
+AluPC bringt die Schriften **Inter** (© The Inter Project Authors) und **JetBrains Mono** (© JetBrains) mit –
+beide unter der SIL Open Font License 1.1 (Texte in `alupc/assets/fonts/`). So sieht AluPC unter Windows und
+Linux gleich aus.
 
 ## Entwicklung
 

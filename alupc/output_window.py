@@ -95,6 +95,10 @@ class OutputWindow(QWidget):
         self.hide_taskbar = True
         self._placed_on: tuple | None = None
         self._kde_done = False
+        # AirPlay im eigenen Fenster: AluPC gibt „immer oben“ ab (sonst verdeckt es das iPhone-Bild) und
+        # blendet sich ganz aus, solange das iPhone-Fenster da ist
+        self.yield_top = False
+        self.suspended = False
         self.after_raise: list = []  # z. B. Laserpointer: muss über diesem Fenster bleiben
         from .platform.window_tools import SecondaryTaskbar
 
@@ -201,8 +205,32 @@ class OutputWindow(QWidget):
         self.update_visibility()
 
     def needed(self) -> bool:
+        if self.suspended and not (self.privacy_layer.isVisible() or self.screensaver is not None):
+            return False  # iPhone-Bild liegt auf Monitor 2 – nicht verdecken (Schwarz/Schoner gehen vor)
         return (self.content_active or self.freeze_layer.isVisible() or self.privacy_layer.isVisible()
                 or self.screensaver is not None)
+
+    def set_yield(self, on: bool) -> None:
+        """Anderes Programm (UxPlay) soll über diesem Fenster liegen dürfen."""
+        if on == self.yield_top:
+            return
+        self.yield_top = on
+        from .platform.window_tools import kde_keep_above, not_on_top
+
+        if on:
+            not_on_top(self)
+            from .ui.util import run_async
+
+            run_async(lambda: kde_keep_above(self.TITLE, False), None, lambda _e: None)
+        else:
+            self.suspended = False
+            self._kde_done = False
+            self.update_visibility()
+
+    def set_suspended(self, on: bool) -> None:
+        if on != self.suspended:
+            self.suspended = on
+            self.update_visibility()
 
     # ------------------------------------------------------------ Monitor
     def place_on(self, screen) -> None:
@@ -241,6 +269,8 @@ class OutputWindow(QWidget):
         first = not self.isVisible()
         if first or self.isMinimized() or not self.isFullScreen():
             self.showFullScreen()
+        if self.yield_top:  # sichtbar bleiben, aber nicht nach vorne drängeln
+            return
         self.raise_()
         keep_on_top(self)
         if self.hide_taskbar:

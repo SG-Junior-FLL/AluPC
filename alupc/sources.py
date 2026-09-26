@@ -1238,7 +1238,8 @@ class SceneSource(QWidget):
         super().__init__(parent)
         self.children_sources: list[tuple[tuple, QWidget]] = []
         name = cfg.get("scene")
-        scene = scene_lookup(name) if name else None
+        # „inline“: Szene direkt aus einer Vorlage zeigen, ohne sie zu speichern
+        scene = cfg.get("inline") or (scene_lookup(name) if name else None)
         self.background = QColor((scene or {}).get("background", "#000000"))
         if scene is None:
             self._add((0, 0, 1, 1), ColorSource({"color": "#000000"}, self))

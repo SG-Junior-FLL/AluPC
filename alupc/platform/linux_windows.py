@@ -74,6 +74,7 @@ KWIN_FOLLOW_SCRIPT = r"""
             }
         }
         w.fullScreen = true;
+        w.keepAbove = true;  // über dem Warte-Bildschirm von AluPC
     }
     function watch(w) {
         if (!w) { return; }

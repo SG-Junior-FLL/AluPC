@@ -64,6 +64,10 @@ def report(controller, probe: bool = True) -> str:
     if sys.platform.startswith("linux"):
         lines.append(f"Sitzung: {os.environ.get('XDG_SESSION_TYPE', '?')} · Desktop: "
                      f"{os.environ.get('XDG_CURRENT_DESKTOP', '?')}")
+    from PySide6.QtWidgets import QApplication
+
+    lines.append(f"Schrift: {QApplication.font().family()} {QApplication.font().pointSizeF():.0f} pt · Stil: "
+                 f"{QApplication.style().name()}")
     lines.append("")
     lines.append("== Monitore ==")
     for s in QGuiApplication.screens():

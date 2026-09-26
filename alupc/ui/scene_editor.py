@@ -67,12 +67,16 @@ class ScenePreview(QWidget):
 
 
 class SceneEditor(QDialog):
-    def __init__(self, config, scene: dict | None = None, parent=None):
+    def __init__(self, config, scene: dict | None = None, parent=None, template: dict | None = None):
         super().__init__(parent)
         self.config = config
         self.original_name = scene["name"] if scene else None
-        self.scene = copy.deepcopy(scene) if scene else new_scene(self._free_name())
-        self.setWindowTitle("Szene bearbeiten" if scene else "Neue Szene")
+        if template is not None:  # neue Szene aus einer Vorlage: vorausgefüllt, noch nicht gespeichert
+            self.scene = copy.deepcopy(template)
+            self.scene["name"] = self._free_name(template.get("name") or "Szene")
+        else:
+            self.scene = copy.deepcopy(scene) if scene else new_scene(self._free_name())
+        self.setWindowTitle("Szene bearbeiten" if scene else ("Neue Szene aus Vorlage" if template else "Neue Szene"))
         self.resize(900, 680)
 
         self.name_edit = QLineEdit(self.scene["name"])
@@ -153,12 +157,14 @@ class SceneEditor(QDialog):
         lay.addWidget(buttons)
         self._rebuild_slots()
 
-    def _free_name(self) -> str:
+    def _free_name(self, base: str = "Szene") -> str:
         names = set(self.config.scene_names())
-        i = 1
-        while f"Szene {i}" in names:
+        if base != "Szene" and base not in names:
+            return base
+        i = 1 if base == "Szene" else 2
+        while f"{base} {i}" in names:
             i += 1
-        return f"Szene {i}"
+        return f"{base} {i}"
 
     def _layout_changed(self, item, _prev):
         if item is not None:

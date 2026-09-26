@@ -8,7 +8,29 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.21.0) – Design-Karten statt Schul-Vorlagen
+### Neu in dieser Version (0.22.0)
+**AirPlay repariert**
+- Das AluPC-Fenster auf Monitor 2 hat sich alle paar Sekunden selbst wieder „ganz nach vorne“ geholt und dabei
+  das iPhone-Bild verdeckt (Windows: „immer oben“, KDE: „über anderen halten“). Jetzt gibt AluPC bei AirPlay den
+  Vordergrund ab, das iPhone-Fenster bekommt ihn (auch unter KDE), und sobald es da ist, blendet sich der
+  Warte-Bildschirm aus. Trennt sich das iPhone, ist der Warte-Bildschirm wieder da.
+- Behoben: Nach dem ersten Verbinden wurde das iPhone-Fenster bei einer neuen Verbindung nicht mehr richtig
+  platziert (Programmfehler in der Fenster-Verfolgung seit 0.18).
+
+**Vorlagen statt fertiger Szenen**
+- Vorlagen legen keine Szenen mehr an. „Jetzt zeigen“ zeigt die Vorlage direkt auf Monitor 2 (live, ohne
+  Speichern). **„Als eigene Szene anlegen …“** öffnet den Szenen-Editor mit der Vorlage – anpassen, dann
+  speichern. Auf der Szenen-Seite: **„Neue Szene aus Vorlage …“** und „Leere Szene“.
+
+**Design**
+- **Kleines Fenster:** unter ca. 1000 px Breite schmale Seitenleiste nur mit Symbolen (Monitor 2 als kleines
+  Live-Bild), weniger Rand, Kacheln passen sich an (bis zu einer Spalte), Statuskarte gestapelt, Schnellschalter
+  als Symbole, Setup-Bereiche als Symbolleiste. AluPC lässt sich jetzt bis ca. 480 px schmal machen.
+- **Gleiches Aussehen unter Windows und Linux:** AluPC bringt seine Schriften mit (Inter und JetBrains Mono,
+  freie Lizenz SIL OFL) und nutzt überall denselben Stil – vorher je nach System Segoe UI bzw. DejaVu Sans.
+  Nur die Fensterrahmen (Titelleiste) kommen weiterhin vom Betriebssystem.
+
+### Neu in 0.21.0 (nicht einzeln veröffentlicht, in 0.22.0 enthalten) – Design-Karten statt Schul-Vorlagen
 - **12 neue Design-Karten** für alles Mögliche: **Neon-Schild** (leuchtet und flackert), **Glitch** (Cyberpunk),
   **Synthwave** (80er-Sonnenuntergang mit Raster), **Poster**, **Minimal**, **Spotlight** (wandernder
   Scheinwerfer), **Now Playing** (Musik-Karte mit Equalizer), **LIVE**-Overlay, **Versus** (Duell/Gaming),

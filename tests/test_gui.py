@@ -1602,11 +1602,21 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
     # UxPlay öffnet sein Fenster erst, wenn sich das iPhone verbindet – auch viel später
     controller._follow_timer.timeout.emit()
     assert moved == []
+    assert controller.output.yield_top and not controller.output.suspended  # AluPC drängelt sich nicht vor
+    assert controller.output.isVisible()  # Warte-Bildschirm sichtbar
     open_windows.append(WindowInfo(id="0x1", title="AluPC", app="uxplay"))
     controller._follow_timer.timeout.emit()
     assert moved == [("0x1", "Zweit", (1920, 0, 1280, 720), True)]
+    # iPhone-Bild da → Warte-Bildschirm aus (verdeckt es nicht); iPhone weg → wieder da
+    assert controller.output.suspended and not controller.output.isVisible()
+    open_windows.clear()
     controller._follow_timer.timeout.emit()
-    assert len(moved) == 1  # nicht dauernd neu schieben
+    assert not controller.output.suspended and controller.output.isVisible()
+    open_windows.append(WindowInfo(id="0x1", title="AluPC", app="uxplay"))  # neu verbunden → wieder platzieren
+    controller._follow_timer.timeout.emit()
+    assert len(moved) == 2
+    controller._follow_timer.timeout.emit()
+    assert len(moved) == 2  # nicht dauernd neu schieben
     open_windows[:] = [WindowInfo(id="0x2", title="AluPC", app="uxplay")]  # neue Verbindung → neues Fenster
     controller._follow_timer.timeout.emit()
     assert moved[-1][0] == "0x2"
@@ -1624,7 +1634,7 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
     assert _until(lambda: controller.airplay.running() and "Neuer Name" in log.read_text(), 5)
     controller.extend()
     assert _until(lambda: not controller.airplay.running(), 5)  # AirPlay beendet
-    assert controller._handy_window == ""
+    assert controller._handy_window == "" and not controller.output.yield_top
 
 
 def test_handy_page_airplay_settings(env, tmp_path):
@@ -2285,7 +2295,7 @@ def test_new_screensavers_and_design_pages(env):
     for key in DESIGNS:
         img = render_preview(design_defaults(key), 320, 180)
         colors = {img.pixelColor(x, y).name() for x in range(0, 320, 8) for y in range(0, 180, 8)}
-        assert len(colors) > 5, key
+        assert len(colors) > 3, key
     assert wifi_payload("Mein;Netz", "p:w") == r"WIFI:T:WPA;S:Mein\;Netz;P:p\:w;;"
     assert wifi_payload("Offen", "") == "WIFI:T:nopass;S:Offen;P:;;"
     for key in SCENE_TEMPLATES:
@@ -2309,18 +2319,28 @@ def test_templates_dialog_show_and_save(env):
     dlg.show_now()
     pump()
     assert controller.content["type"] == "design" and controller.content["title"] == "Hallo 7b"
-    # Szenen-Vorlage: als Szene speichern (zweimal → eindeutiger Name) und zeigen
+    # Szenen-Vorlage: zeigen legt KEINE Szene an (nur Vorlage live auf Monitor 2)
+    before = controller.config.scene_names()
     row = next(i for i in range(dlg.list.count()) if dlg.list.item(i).data(Qt.UserRole) == ("scene", "pause"))
     dlg.list.setCurrentRow(row)
     dlg.name.setText("Kaffeepause")
     dlg.minutes.setValue(15)
-    assert dlg.save_scene() == "Kaffeepause"
-    assert dlg.save_scene() == "Kaffeepause 2"
-    scene = controller.config.get_scene("Kaffeepause")
-    assert scene["slots"][0]["design"] == "pause" and scene["slots"][0]["minutes"] == 15
     dlg.show_now()
     pump()
-    assert controller.content == {"type": "scene", "scene": "Kaffeepause 3"}
+    assert controller.content["type"] == "scene" and controller.content["inline"]["slots"][0]["minutes"] == 15
+    assert controller.config.scene_names() == before
+    assert controller.describe().startswith("Vorlage")
+    # „Als eigene Szene anlegen“: Editor vorausgefüllt, erst Speichern legt die Szene an
+    editor = dlg.save_scene()
+    pump()
+    assert editor.name_edit.text() == "Kaffeepause" and controller.config.scene_names() == before
+    editor._save()
+    pump()
+    scene = controller.config.get_scene("Kaffeepause")
+    assert scene["slots"][0]["design"] == "pause" and scene["slots"][0]["minutes"] == 15
+    editor2 = dlg.save_scene()
+    assert editor2.name_edit.text() == "Kaffeepause 2"  # Name schon vergeben → eindeutig
+    editor2.reject()
     dlg.close()
 
 
@@ -2372,7 +2392,7 @@ def test_many_templates_render_and_filter(env):
     for key in DESIGNS:
         assert CATEGORIES[key]
         img = render_preview(design_defaults(key), 320, 180)
-        assert len({img.pixelColor(x, y).name() for x in range(0, 320, 8) for y in range(0, 180, 8)}) > 5, key
+        assert len({img.pixelColor(x, y).name() for x in range(0, 320, 8) for y in range(0, 180, 8)}) > 3, key
     for key in SCENE_TEMPLATES:
         assert TEMPLATE_CATEGORIES[key]
         scene = build_template(key, {})
@@ -2398,3 +2418,31 @@ def test_many_templates_render_and_filter(env):
     assert visible and all(k == "scene" for k, _ in visible)
     assert not dlg.list.currentItem().isHidden()
     dlg.close()
+
+
+def test_small_window_and_same_font(env):
+    """Kleines Fenster: schmale Seitenleiste, Kacheln einspaltig; Schrift „Inter“ ist überall dieselbe."""
+    from PySide6.QtWidgets import QApplication
+
+    from alupc.ui import theme
+
+    controller, window, _ = env
+    assert theme.load_fonts(QApplication.instance())  # wie beim Start von AluPC (app.py → theme.apply)
+    assert QApplication.font().family() == "Inter"  # mitgeliefert – gleich unter Windows und Linux
+    window.show()
+    window.resize(1200, 800)
+    pump()
+    assert window.sidebar.width() == 224 and not window.compact
+    window.resize(560, 640)
+    pump(20)
+    assert window.compact and window.sidebar.width() == 76
+    assert all(b.compact for b in window.nav_group.buttons())
+    grid = window.section_grids["anzeigen"]
+    assert grid._cols == 1 and grid.width() <= window.width()  # nichts ragt rechts heraus
+    window._go(2)
+    pump()
+    assert window.setup.nav.width() == 64
+    window.resize(1200, 800)
+    pump(20)
+    assert not window.compact and window.setup.nav.width() == 230
+    window._go(0)

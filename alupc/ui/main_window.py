@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import sys
 
-from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction
 from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtWidgets import (
@@ -70,6 +70,7 @@ class FlowGrid(QWidget):
         self.grid = QGridLayout(self)
         self.grid.setContentsMargins(0, 0, 0, 0)
         self.grid.setSpacing(spacing)
+        self.grid.setSizeConstraint(QGridLayout.SetNoConstraint)
         self._cols = 0
 
     def set_items(self, items):
@@ -94,6 +95,12 @@ class FlowGrid(QWidget):
             self.grid.setColumnStretch(c, 0 if self.fixed else (1 if c < cols else 0))
         if self.fixed:
             self.grid.setColumnStretch(cols, 1)
+
+    def minimumSizeHint(self):
+        # Nie breiter als eine Spalte verlangen – sonst kann das Fenster nicht schmaler werden
+        # (die Spaltenzahl passt sich beim Verkleinern selbst an)
+        hint = super().minimumSizeHint()
+        return QSize(min(hint.width(), self.min_width), hint.height())
 
     def resizeEvent(self, e):
         self._relayout()
@@ -235,6 +242,13 @@ class LazyPage(QWidget):
         self.ensure()
         super().showEvent(e)
 
+    def inner(self):
+        """Der Inhalt mit Rand (für den kompakten Modus) – None, solange die Seite nicht gebaut ist."""
+        if not self.built or self._lay.count() == 0:
+            return None
+        w = self._lay.itemAt(0).widget()
+        return w.widget() if isinstance(w, QScrollArea) else w
+
 
 class MainWindow(QMainWindow):
     def __init__(self, controller, hotkeys):
@@ -245,7 +259,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{APP_NAME} – Monitor 2 steuern")
         self.setWindowIcon(app_icon())
         self.resize(1080, 720)
-        self.setMinimumSize(760, 560)
+        self.setMinimumSize(480, 460)
+        self.compact = False
 
         central = QWidget()
         root = QHBoxLayout(central)
@@ -285,6 +300,7 @@ class MainWindow(QMainWindow):
         side.setObjectName("Sidebar")
         side.setAttribute(Qt.WA_StyledBackground, True)
         side.setFixedWidth(224)
+        self.sidebar = side
         lay = QVBoxLayout(side)
         lay.setContentsMargins(8, 20, 8, 16)
         lay.setSpacing(4)
@@ -298,6 +314,8 @@ class MainWindow(QMainWindow):
         title = QLabel(APP_NAME)
         title.setObjectName("Brand")
         sub = QLabel("Monitor 2 steuern")
+        self.brand_texts = (title, sub)
+        self.brand_layout = brand
         sub.setObjectName("BrandSub")
         names.addWidget(title)
         names.addWidget(sub)
@@ -312,6 +330,7 @@ class MainWindow(QMainWindow):
         for i, icon_name, text in [(0, "home", "Start"), (1, "scenes", "Szenen"), (2, "sliders", "Setup"),
                                    (3, "fingerprint", "Fingerabdruck")]:
             b = NavButton(icon_name, text)
+            b.setToolTip(text)
             self.nav_group.addButton(b, i)
             lay.addWidget(b)
         self.nav_group.idClicked.connect(self._go)
@@ -325,18 +344,22 @@ class MainWindow(QMainWindow):
         lock.setToolTip("Wie Win+L – Monitor 2 zeigt weiter, was gerade läuft")
         lock.setCheckable(False)
         lock.clicked.connect(self.lock)
+        self.lock_button = lock
         lay.addWidget(lock)
         version = QLabel(f"Version {__version__}")
         version.setObjectName("Muted")
         version.setContentsMargins(14, 6, 0, 0)
         version.setFont(font(8.5))
+        self.version_label = version
         lay.addWidget(version)
         return side
 
     def _go(self, index: int):
         page = self.pages[index]
-        if isinstance(page, LazyPage):
+        if isinstance(page, LazyPage) and not page.built:
             page.ensure()
+            self._compact_state = None  # neue Seite: Ränder/Kompaktmodus auch dort anwenden
+            self.apply_compact(self.width() < self.COMPACT_WIDTH, self.width() < self.NARROW_WIDTH)
         self.stack.setCurrentIndex(index)
         self.nav_group.button(index).setChecked(True)
 
@@ -353,6 +376,7 @@ class MainWindow(QMainWindow):
         head.setSpacing(2)
         self.start_title = QLabel()
         self.start_title.setObjectName("PageTitle")
+        self.start_title.setWordWrap(True)
         self.start_subtitle = QLabel()
         self.start_subtitle.setObjectName("PageSubtitle")
         self.start_subtitle.setWordWrap(True)
@@ -784,9 +808,9 @@ class MainWindow(QMainWindow):
         lay.setSpacing(14)
         top = QHBoxLayout()
         top.addWidget(page_header("Meine Szenen", "Eigene Zusammenstellungen – nur von dir erstellt."), 1)
-        new = button("Neue Szene", "plus", primary=True)
+        new = button("Leere Szene", "plus")
         new.clicked.connect(self.new_scene)
-        from_template = button("Aus Vorlage …", "star")
+        from_template = button("Neue Szene aus Vorlage …", "star", primary=True)
         from_template.clicked.connect(lambda: self.open_templates(scenes_first=True))
         top.addWidget(from_template, 0, Qt.AlignTop)
         top.addWidget(new, 0, Qt.AlignTop)
@@ -1291,10 +1315,40 @@ class MainWindow(QMainWindow):
         if not self.isVisible() and self.tray.isVisible():
             self.tray.showMessage(APP_NAME, text, QSystemTrayIcon.Information, 4000)
 
+    COMPACT_WIDTH = 1000  # darunter: schmale Seitenleiste (nur Symbole), weniger Rand, Statuskarte gestapelt
+    NARROW_WIDTH = 760
+
     def resizeEvent(self, e):
         super().resizeEvent(e)
         if hasattr(self, "toast") and self.toast.isVisible():
             self.toast.reposition()
+        self.apply_compact(self.width() < self.COMPACT_WIDTH, self.width() < self.NARROW_WIDTH)
+
+    def apply_compact(self, compact: bool, narrow: bool = False) -> None:
+        """Kleines Fenster: alles bleibt bedienbar und aufgeräumt (auch unter ~600 px Breite)."""
+        state = (compact, narrow)
+        if getattr(self, "_compact_state", None) == state or not hasattr(self, "sidebar"):
+            return
+        self._compact_state = state
+        self.compact = compact
+        self.sidebar.setFixedWidth(76 if compact else 224)
+        for w in (*self.brand_texts, self.version_label):
+            w.setVisible(not compact)
+        self.brand_layout.setContentsMargins(19 if compact else 14, 0, 8, 18)
+        for b in (*self.nav_group.buttons(), self.lock_button):
+            b.set_compact(compact)
+        self.side_monitor.set_compact(compact)
+        margin = (12, 12, 12, 10) if narrow else ((18, 16, 18, 14) if compact else (28, 24, 28, 20))
+        for page in self.pages:
+            inner = page.widget() if isinstance(page, QScrollArea) else page
+            if isinstance(page, LazyPage):
+                inner = page.inner()
+            if inner is not None and inner.layout() is not None:
+                inner.layout().setContentsMargins(*margin)
+        if hasattr(self, "status_card"):
+            self.status_card.set_compact(narrow)
+        if self.setup is not None:
+            self.setup.set_compact(compact)
 
     # ================================================================ Sperre
     def lock(self):

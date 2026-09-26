@@ -415,6 +415,7 @@ class Controller(QObject):
         src = self.output.content
         if isinstance(src, AirPlaySource) and src.mode == "fenster":
             self._handy_window = "airplay-quelle"  # UxPlay gehört der Quelle (gibt es beim Wechsel selbst frei)
+            self.output.set_yield(True)  # iPhone-Fenster darf über den Warte-Bildschirm
             name = self.airplay.settings()["airplay_name"]
             # uxplay-windows/uxplay.exe: Fenster am Programm erkennen (Titel je nach Version verschieden)
             self._place_handy_window(name, name.replace(" ", "\u00a0"), "UxPlay", "AirPlay Video",
@@ -678,16 +679,18 @@ class Controller(QObject):
                     present.add(w.id)
                     if w.id not in placed:
                         try:
-                            present = getattr(self.windows, "present_window", None) \
+                            place = getattr(self.windows, "present_window", None) \
                                 if self.config["handy"].get("airplay_borderless", True) else None
-                            if present:  # Windows: randlos, genau Monitor 2, im Vordergrund
-                                present(w.id, screen.name(), rect)
+                            if place:  # Windows: randlos, genau Monitor 2, im Vordergrund
+                                place(w.id, screen.name(), rect)
                             else:
                                 self.windows.move_window(w.id, screen.name(), rect, True)
                             placed.add(w.id)
                         except Exception:  # noqa: BLE001
                             pass
             placed.intersection_update(present)  # geschlossene Fenster vergessen → neue wieder platzieren
+            if self._handy_window == "airplay-quelle":  # iPhone-Bild da → Warte-Bildschirm ausblenden
+                self.output.set_suspended(bool(present))
 
         self._follow_timer = QTimer(self, interval=2000)
         self._follow_timer.timeout.connect(poll)
@@ -709,6 +712,7 @@ class Controller(QObject):
 
     def _stop_handy_window(self) -> None:
         self._stop_following()
+        self.output.set_yield(False)
         if self._handy_window == "airplay":
             self.airplay.release()
         self._handy_window = ""

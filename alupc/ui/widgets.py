@@ -16,6 +16,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QBoxLayout,
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
@@ -288,6 +289,7 @@ class NavButton(HoverMixin, QAbstractButton):
     def __init__(self, icon_name: str, text: str, parent=None):
         super().__init__(parent)
         self.icon_name, self.text_ = icon_name, text
+        self.compact = False
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedHeight(42)
@@ -295,11 +297,17 @@ class NavButton(HoverMixin, QAbstractButton):
 
     hover = Property(float, HoverMixin._get_hover, HoverMixin._set_hover)
 
+    def set_compact(self, on: bool) -> None:
+        self.compact = on
+        self.update()
+
     def paintEvent(self, _e):
         t = theme.current()
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(8, 2, -8, -2)
+        if self.compact:  # nur Symbol, mittig
+            r = QRectF(self.rect().center().x() - 22, 2, 44, self.height() - 4)
         if self.isChecked():
             accent = QColor(t.accent)
             grad = QLinearGradient(r.topLeft(), r.bottomRight())
@@ -314,6 +322,10 @@ class NavButton(HoverMixin, QAbstractButton):
             h.setAlphaF(0.07 * self._hover)
             p.fillPath(rounded(r, 12), h)
         col = "#ffffff" if self.isChecked() else t.muted
+        if self.compact:
+            icons.paint(p, self.icon_name, QRectF(r.center().x() - 10, r.center().y() - 10, 20, 20), col, 2.0)
+            p.end()
+            return
         icons.paint(p, self.icon_name, QRectF(r.left() + 14, r.center().y() - 10, 20, 20), col, 2.0)
         p.setPen(QColor("#ffffff" if self.isChecked() else t.text))
         p.setFont(font(10.5, QFont.DemiBold if self.isChecked() else QFont.Medium))
@@ -333,9 +345,16 @@ class MonitorCard(QWidget):
         self.detail = ""
         self.state = ("", "#22c55e")
         self.icon_name = "monitor"
+        self.compact = False
         self.setFixedHeight(166)
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip("Monitor 2 – Klick: zur Startseite")
+
+    def set_compact(self, on: bool) -> None:
+        """Schmale Seitenleiste: nur kleines Bild mit Zustandspunkt."""
+        self.compact = on
+        self.setFixedHeight(64 if on else 166)
+        self.update()
 
     def set(self, name: str, detail: str, state: tuple[str, str], icon_name: str):
         self.name, self.detail, self.state, self.icon_name = name, detail, state, icon_name
@@ -355,6 +374,20 @@ class MonitorCard(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         r = QRectF(self.rect()).adjusted(8, 0, -8, -1)
+        if self.compact:
+            thumb = QRectF(r.left(), r.top() + 6, r.width(), r.width() * 9 / 16)
+            path = rounded(thumb, 7)
+            p.fillPath(path, QColor("#000000" if self.image is not None else t.surface2))
+            if self.image is not None:
+                p.save()
+                p.setClipPath(path)
+                p.drawImage(thumb, self.image)
+                p.restore()
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(self.state[1]))
+            p.drawEllipse(QPointF(thumb.right() - 5, thumb.top() + 5), 3.5, 3.5)
+            p.end()
+            return
         p.fillPath(rounded(r, 14), QColor(t.surface2))
         p.setPen(QPen(QColor(t.border), 1))
         p.drawPath(rounded(r, 14))
@@ -532,6 +565,22 @@ class StatusCard(QWidget):
         lay.addWidget(self.preview)
         lay.addLayout(text, 1)
         lay.addLayout(self.actions)
+        self._lay = lay
+
+    def set_compact(self, on: bool) -> None:
+        """Schmales Fenster: Vorschau oben, Text darunter; Schnellschalter dürfen umbrechen."""
+        self._lay.setDirection(QBoxLayout.TopToBottom if on else QBoxLayout.LeftToRight)
+        self._lay.setAlignment(self.preview, Qt.AlignHCenter if on else Qt.Alignment())
+        self.preview.setFixedSize(QSize(240, 135) if on else QSize(272, 153))
+        self.title.setFont(font(14 if on else 17, QFont.Bold))
+        for i in range(self.chips.count()):  # Schnellschalter: schmal nur Symbol (Name als Tooltip)
+            chip = self.chips.itemAt(i).widget()
+            if chip is None:
+                continue
+            if chip.property("full_text") is None:
+                chip.setProperty("full_text", chip.text())
+            chip.setText("" if on else chip.property("full_text"))
+            chip.setToolTip(chip.property("full_text"))
 
     def set(self, icon_name: str, caption: str, title: str, pills: list[tuple[str, str]]):
         self.preview.icon_name = icon_name

@@ -66,7 +66,7 @@ class TemplatesDialog(QDialog):
         filters.setSpacing(6)
         self.kind_group = QButtonGroup(self)
         self.cat_group = QButtonGroup(self)
-        for group, labels in ((self.kind_group, ["Alle", "Karten", "Szenen"]),
+        for group, labels in ((self.kind_group, ["Alle", "Karten", "Szenen-Vorlagen"]),
                               (self.cat_group, ["Alle Themen", *CATEGORY_NAMES])):
             for i, label in enumerate(labels):
                 b = QPushButton(label)
@@ -94,7 +94,7 @@ class TemplatesDialog(QDialog):
         self.list.setWordWrap(True)
         self.list.setMinimumWidth(500)
         entries = [("design", k, f"Karte: {v[0]}") for k, v in DESIGNS.items()]
-        scenes = [("scene", k, f"Szene: {v[0]}") for k, v in SCENE_TEMPLATES.items()]
+        scenes = [("scene", k, f"Szenen-Vorlage: {v[0]}") for k, v in SCENE_TEMPLATES.items()]
         for kind, key, label in (scenes + entries if scenes_first else entries + scenes):
             item = QListWidgetItem(label)
             item.setData(Qt.UserRole, (kind, key))
@@ -140,7 +140,8 @@ class TemplatesDialog(QDialog):
         self.form = form
         self.show_btn = button("Jetzt auf Monitor 2 zeigen", "play", primary=True)
         self.show_btn.clicked.connect(self.show_now)
-        self.save_btn = button("Als Szene speichern", "scenes")
+        self.save_btn = button("Als eigene Szene anlegen …", "scenes")
+        self.save_btn.setToolTip("Öffnet den Szenen-Editor mit dieser Vorlage – anpassen, dann speichern")
         self.save_btn.clicked.connect(self.save_scene)
         col.addWidget(self.heading)
         col.addWidget(self.desc)
@@ -250,24 +251,39 @@ class TemplatesDialog(QDialog):
             i += 1
         return f"{name} {i}"
 
-    def save_scene(self) -> str:
+    def template_scene(self) -> dict:
+        """Die Vorlage als (noch nicht gespeicherte) Szene."""
         kind, _key = self.current()
         src = self.source()
-        name = self._unique_name(self.name.text().strip() or self.heading.text())
-        scene = {**src, "name": name} if kind == "scene" else \
-            {"name": name, "layout": "vollbild", "background": "#000000", "slots": [src]}
-        self.config.put_scene(scene)
-        parent = self.parent()
-        if hasattr(parent, "_reload_scenes"):  # Szenen-Seite gleich aktualisieren
-            parent._reload_scenes(name)
-        self.controller.changed.emit()
-        self.controller.message.emit(f"Szene „{name}“ gespeichert – unter „Szenen“.")
-        return name
+        name = self.name.text().strip() or self.heading.text()
+        if kind == "scene":
+            return {**src, "name": name}
+        return {"name": name, "layout": "vollbild", "background": "#000000", "slots": [src]}
+
+    def save_scene(self):
+        """Szenen-Editor mit der Vorlage öffnen – erst dort wird (nach Anpassen) gespeichert."""
+        from .scene_editor import SceneEditor
+
+        editor = SceneEditor(self.config, None, self, template=self.template_scene())
+        editor.setAttribute(Qt.WA_DeleteOnClose)
+        self.editor = editor
+
+        def saved():
+            name = editor.scene["name"]
+            parent = self.parent()
+            if hasattr(parent, "_reload_scenes"):
+                parent._reload_scenes(name)
+            self.controller.changed.emit()
+            self.controller.message.emit(f"Szene „{name}“ angelegt – unter „Szenen“.")
+
+        editor.accepted.connect(saved)
+        editor.open()
+        return editor
 
     def show_now(self):
         kind, _key = self.current()
         if kind == "design":
             self.controller.show_source(self.source())
-        else:
-            name = self.save_scene()
-            self.controller.show_source({"type": "scene", "scene": name})
+        else:  # Vorlage direkt zeigen – ohne sie als Szene zu speichern
+            scene = self.template_scene()
+            self.controller.show_source({"type": "scene", "scene": scene["name"], "inline": scene})

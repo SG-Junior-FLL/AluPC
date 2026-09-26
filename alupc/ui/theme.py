@@ -90,9 +90,41 @@ def current() -> Theme:
     return _current
 
 
+_fonts_loaded = False
+UI_FONT = "Inter"
+MONO_FONT = "JetBrains Mono"
+
+
+def load_fonts(app) -> bool:
+    """Mitgelieferte Schriften laden (Inter, JetBrains Mono) – damit AluPC unter Windows und Linux gleich aussieht.
+    False = Schriftdateien fehlen (dann nimmt Qt die Systemschrift)."""
+    global _fonts_loaded
+    if _fonts_loaded:
+        return True
+    from pathlib import Path
+
+    from PySide6.QtGui import QFont, QFontDatabase
+
+    folder = Path(__file__).resolve().parent.parent / "assets" / "fonts"
+    ok = False
+    for file in sorted(folder.glob("*.ttf")):
+        if QFontDatabase.addApplicationFont(str(file)) >= 0:
+            ok = True
+    if ok:
+        font = QFont(UI_FONT)
+        font.setPointSizeF(10)
+        font.setHintingPreference(QFont.PreferNoHinting)  # gleiche Buchstabenbreiten auf allen Systemen
+        app.setFont(font)
+        for generic in ("Monospace", "monospace", "Consolas", "DejaVu Sans Mono"):
+            QFont.insertSubstitution(generic, MONO_FONT)
+    _fonts_loaded = ok
+    return ok
+
+
 def apply(app, mode: str = "system", accent: str = "blau") -> Theme:
     """Farbschema auf die ganze Anwendung anwenden (auch nachträglich)."""
     global _current
+    load_fonts(app)
     t = _current = make_theme(mode, accent)
     if app.style().name().lower() != "fusion":
         app.setStyle("Fusion")
