@@ -655,6 +655,7 @@ def test_handy_setup_plan(monkeypatch, tmp_path):
     monkeypatch.setattr(handy, "can_install", lambda: True)
     monkeypatch.setattr(handy, "missing_packages", lambda pkgs: list(pkgs))
     monkeypatch.setattr(handy, "avahi_running", lambda: False)
+    monkeypatch.setattr(handy, "windows_firewall_ok", lambda: True)  # Windows-CI: Freigabe nicht mitprüfen
     plan = handy.setup_plan(cfg)
     assert len(plan) == 1, plan  # alles in EINEM Schritt → nur eine Passwortabfrage
     label, cmd = plan[0]

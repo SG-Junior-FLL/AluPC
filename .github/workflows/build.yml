@@ -27,7 +27,13 @@ jobs:
       - name: Installieren
         run: pip install -e ".[test]" av pytest-timeout
       - name: Tests
-        run: pytest -v --timeout=240
+        run: |
+          set -o pipefail
+          python -X faulthandler -m pytest -v --timeout=240 2>&1 | tee tests.log || {
+            # Fehler und Absturz-Stapel als Hinweise (ohne Anmeldung lesbar)
+            grep -E "^(FAILED|E   |ERROR)|Fatal Python|File \"/home/runner/work" tests.log | head -40 | sed 's/^/::error::/'
+            grep -B2 -A30 "Fatal Python" tests.log | grep -E "File|Fatal|line" | head -30 | sed 's/^/::warning::/'
+            exit 1; }
 
   build-linux:
     # Ubuntu 22.04 als Basis: das Paket läuft damit auf Kubuntu 22.04, 24.04 und neuer
@@ -123,7 +129,14 @@ jobs:
         # Nicht „-e“: PyInstaller findet Pakete aus einer Entwicklungs-Installation nicht
         run: pip install ".[test]" pyinstaller
       - name: Tests (Logik + Windows-Strukturen)
-        run: pytest -v tests/test_logic.py
+        shell: pwsh
+        run: |
+          python -X faulthandler -m pytest -v -rf tests/test_logic.py 2>&1 | Tee-Object -FilePath logic.log
+          if ($LASTEXITCODE -ne 0) {
+            Select-String -Path logic.log -Pattern '^(FAILED|E   |ERROR)' | Select-Object -First 40 |
+              ForEach-Object { Write-Output ("::error::" + $_.Line.Trim()) }
+            exit 1
+          }
       - name: Tests (Oberfläche)
         shell: pwsh
         run: |
