@@ -7,6 +7,7 @@ Bilder selbst (über QVideoSink); so funktionieren Standbild und Bild-in-Bild
 
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 
@@ -342,6 +343,17 @@ class ScreenSource(SinkView):
         self.method = "qt"
         if screen is None:
             screen = QGuiApplication.primaryScreen()
+        from .platform.linux_display import is_wayland as _wayland
+
+        if _wayland() and QGuiApplication.platformName() == "xcb":
+            # AluPC läuft unter Wayland als X11-Programm: die X11-Aufnahme sieht nur alte X11-Fenster, echte
+            # Wayland-Fenster fehlen (Bild ohne Fenster) → lieber gar nicht, Spiegeln macht dann KDE selbst
+            self.problem = "Unter Wayland sieht diese Aufnahme keine Fenster."
+            self._reported = True
+            self._watchdog.stop()
+            self.set_message("Bildschirmaufnahme unter Wayland ohne KDE-Freigabe nicht möglich")
+            QTimer.singleShot(0, lambda: self.no_signal.emit(self.problem))
+            return
         self.session = QMediaCaptureSession(self)
         self.capture = QScreenCapture(self)
         self.capture.setScreen(screen)
@@ -596,6 +608,94 @@ class WindowSource(SinkView):
         self._retry.stop()
         self._watch.stop()
         self.capture.stop()
+
+
+def kwin_window_mode() -> bool:
+    """KDE/Wayland: Programmfenster über KWin aufnehmen (sieht auch echte Wayland-Fenster; das Fenster bleibt
+    auf Monitor 1). Qt sieht unter Wayland nur alte X11-Programme."""
+    if not sys.platform.startswith("linux"):
+        return False
+    try:
+        from .platform import kwin_capture
+        from .platform.linux_display import is_wayland
+
+        return is_wayland() and kwin_capture.is_kde() and kwin_capture.window_capture_available()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+class _Named:
+    """Fenster aus KWins Liste mit dem gleichen „description()“ wie Qt-Fenster (für find_window)."""
+
+    def __init__(self, info: dict):
+        self.info = info
+
+    def description(self) -> str:
+        return self.info.get("title", "")
+
+
+class KWinWindowSource(SinkView):
+    """Programmfenster unter KDE/Wayland über KWin – als Kopie auf Monitor 2, das Original bleibt auf Monitor 1.
+    Fenster geschlossen oder Titel geändert → sucht es wieder (wie WindowSource)."""
+
+    def __init__(self, cfg, parent=None):
+        super().__init__(cfg.get("fit", "contain"), parent)
+        self.title = cfg.get("title", "")
+        self.method = "kwin"
+        self.feed = None
+        self.state = "start"
+        self.handle = ""
+        self._retry = QTimer(self, interval=2000)
+        self._retry.timeout.connect(self._attach)
+        self._attach()
+
+    def _attach(self):
+        from .platform import kwin_capture
+
+        wins = [_Named(w) for w in kwin_capture.window_list()]
+        match = find_window(wins, self.title)
+        if match is None:
+            self.state = "wartet"
+            if self._image is None:
+                self.set_message(f"Programm „{self.title}“ ist nicht geöffnet – warte …")
+            self._retry.start()
+            return
+        self._retry.stop()
+        self.title = match.description()
+        self.handle = match.info["id"]
+        self._stop_feed()
+        self.feed = kwin_capture.KWinScreenFeed(self.handle, 15, cursor=False, parent=self, window=True)
+        self.feed.frame.connect(self._frame)
+        self.feed.failed.connect(self._failed)
+        self.feed.start()
+
+    def _frame(self, image):
+        self.state = "live"
+        self._pending = None
+        self._image = image
+        self._message = ""
+        if self.feed is not None:
+            self.feed.frame_taken()
+        self.update()
+
+    def _failed(self, _text):
+        # Fenster geschlossen/neu → neu suchen (letztes Bild bleibt stehen)
+        self._stop_feed()
+        self._retry.start()
+
+    def _stop_feed(self):
+        if self.feed is not None:
+            try:
+                self.feed.frame.disconnect()
+                self.feed.failed.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self.feed.stop()
+            self.feed = None
+
+    def stop(self):
+        self._retry.stop()
+        self._stop_feed()
 
 
 # --------------------------------------------------------------------------- Handy (AirPlay)
@@ -1359,7 +1459,7 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
         factory = {
             "camera": CameraSource,
             "screen": ScreenSource,
-            "window": WindowSource,
+            "window": KWinWindowSource if kwin_window_mode() else WindowSource,
             "airplay": AirPlaySource,
             "cast": CastSource,
             "website": WebsiteSource,

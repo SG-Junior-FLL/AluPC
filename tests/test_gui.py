@@ -2877,3 +2877,93 @@ def test_animations_run_and_settle(env, monkeypatch):
     settle(0.5)
     assert window.tray_panel.isVisible() and window.tray_panel.windowOpacity() > 0.99
     window.tray_panel.hide()
+
+
+def test_wayland_mirror_without_kwin_uses_system_mirror(env, monkeypatch):
+    """KDE/Wayland ohne KWin-Freigabe, AluPC als X11-Programm: die X11-Aufnahme sähe keine Fenster →
+    gar nicht erst versuchen, sondern KDE selbst spiegeln lassen (zeigt alle Fenster)."""
+    from alupc import sources
+    from alupc.platform import linux_display
+
+    controller, window, _ = env
+    calls = []
+    monkeypatch.setattr(linux_display, "is_wayland", lambda: True)
+    monkeypatch.setattr(sources, "_kwin_allowed", lambda name: False)
+
+    class FakeGui:
+        @staticmethod
+        def platformName():
+            return "xcb"
+
+        @staticmethod
+        def primaryScreen():
+            return QApplication.primaryScreen()
+
+        @staticmethod
+        def screens():
+            return QApplication.screens()
+
+    monkeypatch.setattr(sources, "QGuiApplication", FakeGui)
+    monkeypatch.setattr(controller.display, "available", lambda: True)
+    monkeypatch.setattr(controller.display, "mirror", lambda main, out: calls.append((main, out)))
+    monkeypatch.setattr(controller, "screens_overlap", lambda: False)
+    controller.mirror()
+    assert _until(lambda: calls, 3)
+    assert controller.mode == "desktop" and controller.desktop_note.startswith("System-Spiegeln")
+
+
+def test_kwin_window_mirror_keeps_window(env, monkeypatch):
+    """KDE/Wayland: Programm wird über KWin als KOPIE gezeigt (nicht verschoben), findet es nach dem Schließen
+    wieder; das Programm-Fenster bietet die Wayland-Fenster zum Spiegeln an."""
+    from PySide6.QtCore import QObject, Signal
+    from PySide6.QtGui import QColor, QImage
+
+    from alupc import sources
+    from alupc.platform import kwin_capture
+    from alupc.ui import program_dialog
+
+    controller, window, _ = env
+    wins = [{"id": "{abc}", "title": "Präsentation – LibreOffice Impress", "app": "libreoffice", "minimized": False},
+            {"id": "{def}", "title": "AluPC", "app": "alupc", "minimized": False}]
+    feeds = []
+
+    class FakeFeed(QObject):
+        frame = Signal(QImage)
+        failed = Signal(str)
+
+        def __init__(self, handle, fps, cursor=False, parent=None, window=False):
+            super().__init__(parent)
+            self.handle, self.window, self.started, self.stopped = handle, window, False, False
+            feeds.append(self)
+
+        def start(self):
+            self.started = True
+
+        def stop(self):
+            self.stopped = True
+
+        def frame_taken(self):
+            pass
+
+    monkeypatch.setattr(sources, "kwin_window_mode", lambda: True)
+    monkeypatch.setattr(kwin_capture, "window_list", lambda timeout=3.0: list(wins))
+    monkeypatch.setattr(kwin_capture, "KWinScreenFeed", FakeFeed)
+    progs = program_dialog.capture_programs(None)
+    assert [p.title for p in progs][0].startswith("Präsentation")
+    controller.show_source({"type": "window", "title": "Präsentation – LibreOffice Impress"})
+    pump()
+    src = controller.output.content
+    assert isinstance(src, sources.KWinWindowSource)
+    assert feeds[-1].handle == "{abc}" and feeds[-1].window and feeds[-1].started
+    img = QImage(64, 36, QImage.Format_RGB32)
+    img.fill(QColor("#ff0000"))
+    feeds[-1].frame.emit(img)
+    assert src.state == "live" and src._image is not None
+    # Fenster zu → neu suchen; gleiches Programm mit neuem Titel (anderes Dokument) wird wiedergefunden
+    wins[0] = {"id": "{xyz}", "title": "Andere Datei – LibreOffice Impress", "app": "libreoffice", "minimized": False}
+    feeds[-1].failed.emit("weg")
+    src._attach()
+    assert feeds[-1].handle == "{xyz}"
+    controller.show_source({"type": "clock"})
+    pump()
+    assert feeds[-1].stopped

@@ -8,6 +8,18 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.37.0)
+**Linux (KDE/Wayland)**
+- **Spiegeln zeigte keine Fenster:** Läuft AluPC unter Wayland als X11-Programm und hat keine KDE-Freigabe für
+  Aufnahmen, sieht die X11-Aufnahme nur alte X11-Programme – echte Wayland-Fenster fehlten. Jetzt versucht AluPC
+  das gar nicht erst, sondern lässt KDE selbst spiegeln (kscreen-doctor): alle Fenster, Maus inklusive.
+- **Programm spiegeln statt verschieben:** Unter KDE/Wayland nimmt AluPC das gewählte Fenster jetzt über KWin
+  auf – es bleibt auf Monitor 1 und erscheint als Kopie auf Monitor 2 (auch verdeckt; nach Schließen/neuem
+  Dokument findet es das Programm wieder). Die Reiter heißen jetzt „Spiegeln (Kopie)“ und „Verschieben (weg
+  von Monitor 1)“. Braucht die KDE-Freigabe, die das .deb einrichtet.
+- **Maus auf Monitor 2:** KDE erlaubt unter Wayland keinem Programm, die Maus festzuhalten. Mit der Sitzung
+  „Plasma (X11)“ beim Anmelden hält AluPC sie auf Monitor 1 (Hinweis im Setup).
+
 ### Neu in dieser Version (0.36.0)
 - **Behoben: Statt „AirPlay bereit“ erschien manchmal ein offenes Browserfenster auf Monitor 2.** AluPC hat das
   iPhone-Fenster über den Titel gesucht – und jedes Fenster genommen, in dessen Titel „AluPC“ vorkam (z. B. die

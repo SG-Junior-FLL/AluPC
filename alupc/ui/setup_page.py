@@ -232,7 +232,7 @@ class SetupPage(QWidget):
             "Tastenkürzel": [self._hotkey_group],
             "Sichern & Sync": [lambda: sync_group(self), lambda: backup_group(self)],
             "RGB & Lüfter": [self._hardware_group],
-            "Handy & Kamera": [self._phone_group, self._camera_group],  # AirPlay: einfach „bereit“, ohne Einstellungen
+            "Handy & Kamera": [self._phone_group, self._camera_group],  # AirPlay: ohne Einstellungen
             "Allgemein": [self._app_group],
         }
         self.nav = QListWidget()
@@ -605,7 +605,8 @@ class SetupPage(QWidget):
             power.addItem(label, key)
         power.setCurrentIndex(max(0, power.findData(a.get("performance", "auto"))))
         weak = "schwacher PC erkannt → sparsam" if perf.weak_pc() else "starker PC erkannt → flüssig"
-        power.setToolTip(f"Automatisch: {weak}. Sparsam: Animationen mit weniger Bildern, keine Übergänge in der App.")
+        power.setToolTip(f"Automatisch: {weak}. Sparsam: Animationen mit weniger Bildern, "
+                         "keine Übergänge in der App.")
 
         def save_power():
             self.config["appearance"] = {**self.config["appearance"], "performance": power.currentData()}
@@ -1090,7 +1091,8 @@ class SetupPage(QWidget):
         confine.setChecked(bool(cfg.get("confine_cursor", True)))
         if not CursorGuard().supported:
             confine.setEnabled(False)
-            confine.setToolTip("Unter Wayland dürfen Programme die Maus nicht festhalten.")
+            confine.setToolTip("KDE erlaubt unter Wayland keinem Programm, die Maus festzuhalten. Beim Anmelden "
+                               "die Sitzung „Plasma (X11)“ wählen – dort hält AluPC sie auf Monitor 1.")
 
         def save(*_):
             self.config["output"] = {**self.config["output"], "hide_taskbar": taskbar.isChecked(),
@@ -1102,7 +1104,8 @@ class SetupPage(QWidget):
             w.toggled.connect(save)
             lay.addWidget(w)
         if not confine.isEnabled():
-            note = QLabel("Unter Wayland nicht möglich")
+            note = QLabel("Maus festhalten: unter Wayland nicht möglich · "
+                          "mit „Plasma (X11)“ beim Anmelden geht es")
             note.setObjectName("Muted")
             note.setWordWrap(True)
             lay.addWidget(note)

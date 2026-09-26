@@ -60,14 +60,26 @@ def image_from_raw(data: bytes, info: dict) -> QImage:
 
 def capture_screen(conn, screen_name: str, cursor: bool = True) -> QImage:
     """Ein Bild des Monitors `screen_name` (Wayland-Ausgangsname, z. B. „DP-1“)."""
+    return _capture(conn, "CaptureScreen", screen_name,
+                    {"include-cursor": ("b", bool(cursor)), "native-resolution": ("b", True)})
+
+
+def capture_window(conn, handle: str, cursor: bool = False) -> QImage:
+    """Ein Bild eines einzelnen Fensters (KWin-Kennung, siehe window_list) – auch wenn es verdeckt ist.
+    Das Fenster bleibt, wo es ist (anders als „auf Monitor 2 verschieben“)."""
+    return _capture(conn, "CaptureWindow", handle,
+                    {"include-cursor": ("b", bool(cursor)), "include-decoration": ("b", False),
+                     "include-shadow": ("b", False), "native-resolution": ("b", True)})
+
+
+def _capture(conn, method: str, target: str, options: dict) -> QImage:
     from jeepney import DBusAddress, new_method_call
     from jeepney.wrappers import unwrap_msg
 
     read_fd, write_fd = os.pipe()
     try:
-        options = {"include-cursor": ("b", bool(cursor)), "native-resolution": ("b", True)}
         msg = new_method_call(DBusAddress(PATH, bus_name=BUS_NAME, interface=IFACE),
-                              "CaptureScreen", "sa{sv}h", (screen_name, options, write_fd))
+                              method, "sa{sv}h", (target, options, write_fd))
         reply = conn.send_and_get_reply(msg, timeout=5)
         # KWin antwortet zuerst und schreibt danach die Bilddaten in die Leitung
         os.close(write_fd)
@@ -119,14 +131,16 @@ def grab_once(screen_name: str) -> QImage:
 
 
 class KWinScreenFeed(QThread):
-    """Liefert laufend Bilder eines Monitors (eigener Thread, damit die Oberfläche flüssig bleibt)."""
+    """Liefert laufend Bilder eines Monitors – oder mit window=True eines Fensters (eigener Thread, damit die
+    Oberfläche flüssig bleibt)."""
 
     frame = Signal(QImage)
     failed = Signal(str)
 
-    def __init__(self, screen_name: str, fps: int = 20, cursor: bool = True, parent=None):
+    def __init__(self, screen_name: str, fps: int = 20, cursor: bool = True, parent=None, window: bool = False):
         super().__init__(parent)
         self.screen_name = screen_name
+        self.window = window
         self.interval = 1.0 / max(1, fps)
         self.cursor = cursor
         self._stop = threading.Event()
@@ -161,7 +175,8 @@ class KWinScreenFeed(QThread):
                 start = time.monotonic()
                 if not self._busy.is_set():
                     try:
-                        image = capture_screen(conn, self.screen_name, self.cursor)
+                        image = capture_window(conn, self.screen_name, self.cursor) if self.window else \
+                            capture_screen(conn, self.screen_name, self.cursor)
                         errors = 0
                         self._busy.set()
                         self.frame.emit(image)
@@ -175,3 +190,86 @@ class KWinScreenFeed(QThread):
                     self._stop.wait(rest)
                 else:
                     self._stop.wait(0.005)
+
+
+# --------------------------------------------------------------------------- Fensterliste (KDE/Wayland)
+WINDOWS_IFACE = "de.alupc.Windows"
+WINDOWS_PATH = "/de/alupc/Windows"
+WINDOW_LIST_SCRIPT = r"""
+(function () {
+    var list = (workspace.windowList !== undefined) ? workspace.windowList() : workspace.clientList();
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+        var w = list[i];
+        if (!w || w.skipTaskbar || !(w.normalWindow || w.dialog)) { continue; }
+        out.push({id: String(w.internalId), title: String(w.caption || ""),
+                  app: String(w.resourceClass || ""), minimized: !!w.minimized});
+    }
+    callDBus(%(service)s, %(path)s, %(iface)s, "Windows", JSON.stringify(out));
+})();
+"""
+
+
+def build_window_list_script(service: str) -> str:
+    import json
+
+    return WINDOW_LIST_SCRIPT % {"service": json.dumps(service), "path": json.dumps(WINDOWS_PATH),
+                                 "iface": json.dumps(WINDOWS_IFACE)}
+
+
+def window_list(timeout: float = 3.0) -> list[dict]:
+    """Programmfenster unter KDE/Wayland: [{"id", "title", "app", "minimized"}] – die „id“ ist KWins
+    Kennung für capture_window. Leer, wenn es nicht geht (kein KDE/Wayland, KWin antwortet nicht)."""
+    import json
+
+    if not (is_wayland() and is_kde() and dbus_util.HAVE_JEEPNEY):
+        return []
+    from jeepney import HeaderFields, MessageType, new_method_return
+
+    from .linux_windows import start_kwin_script, stop_kwin_script
+
+    try:
+        conn = dbus_util.connect("SESSION")
+    except Exception:  # noqa: BLE001
+        return []
+    plugin = ""
+    try:
+        plugin = start_kwin_script(build_window_list_script(conn.unique_name))
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            try:
+                msg = conn.receive(timeout=max(0.05, end - time.monotonic()))
+            except TimeoutError:
+                break
+            hdr = msg.header
+            if hdr.message_type != MessageType.method_call:
+                continue
+            try:
+                conn.send(new_method_return(msg))
+            except Exception:  # noqa: BLE001
+                pass
+            if hdr.fields.get(HeaderFields.member) == "Windows" and msg.body:
+                raw = msg.body[0][1] if isinstance(msg.body[0], tuple) else msg.body[0]
+                try:
+                    wins = json.loads(raw)
+                    return [w for w in wins if w.get("id") and not str(w.get("title", "")).startswith("AluPC")]
+                except (ValueError, TypeError):
+                    return []
+        return []
+    except Exception:  # noqa: BLE001
+        return []
+    finally:
+        if plugin:
+            stop_kwin_script(plugin)
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def window_capture_available() -> bool:
+    """Fenster über KWin aufnehmen möglich? (KDE/Wayland und KWin erlaubt AluPC Aufnahmen)"""
+    from PySide6.QtGui import QGuiApplication
+
+    screen = QGuiApplication.primaryScreen()
+    return bool(screen) and allowed(screen.name())

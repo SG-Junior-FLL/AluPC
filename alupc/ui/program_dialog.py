@@ -51,6 +51,13 @@ def system_windows(backend) -> list | None:
 def capture_programs(backend) -> list[Program]:
     """Aufnehmbare Programme. Qt liefert unter Windows auch unsichtbare Systemfenster (z. B.
     „Program Manager“) – die werden mit der Fensterliste des Systems herausgefiltert."""
+    from ..sources import kwin_window_mode
+
+    if kwin_window_mode():  # KDE/Wayland: KWin kennt alle Fenster (Qt nur alte X11-Programme)
+        from ..platform import kwin_capture
+
+        return [Program(w["title"], w.get("app", ""), bool(w.get("minimized"))) for w in kwin_capture.window_list()
+                if w.get("title")]
     known = {w.title: w for w in system_windows(backend) or []}
     result, seen = [], set()
     for w in capturable_windows():
@@ -145,14 +152,14 @@ class ProgramDialog(QDialog):
         self.resize(680, 580)
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
-        self.tabs.addTab(self._capture_tab(), "Anzeigen (Aufnahme)")
-        self.tabs.addTab(self._move_tab(), "Fenster verschieben")
+        self.tabs.addTab(self._capture_tab(), "Spiegeln (Kopie)")
+        self.tabs.addTab(self._move_tab(), "Verschieben (weg von Monitor 1)")
         if not self.capture_list._keys:  # Aufnahme hier nicht möglich → gleich „Verschieben“ zeigen
             self.tabs.setCurrentIndex(1)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Programm auf Monitor 2", "Aufnehmen · Verschieben"))
+        lay.addWidget(page_header("Programm auf Monitor 2", "Spiegeln · Verschieben"))
         lay.addWidget(self.tabs)
 
     # ------------------------------------------------------------ Aufnahme
