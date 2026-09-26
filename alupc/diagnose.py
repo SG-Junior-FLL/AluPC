@@ -1,7 +1,7 @@
 """Diagnose: Was geht auf diesem PC, was nicht – und warum? (Text zum Kopieren und Weitergeben)
 
 Prüft echt statt zu raten: Monitore, eine kurze Probe-Aufnahme für das Spiegeln, AirPlay (UxPlay, avahi/
-Bonjour), Android (scrcpy, adb), Miracast (WLAN-Treiber), RGB (OpenRGB), Lüfter, Handy-Steuerung.
+Bonjour), RGB (OpenRGB), Lüfter, Handy-Steuerung.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ def report(controller, probe: bool = True) -> str:
     from PySide6.QtGui import QGuiApplication
 
     from . import handy
-    from .platform import fans, miracast
+    from .platform import fans
     from .rgb import OpenRGB, RGBError, find_openrgb
 
     lines = [f"AluPC {__version__} · {'Programm' if getattr(sys, 'frozen', False) else 'Quellcode'}"
@@ -95,25 +95,6 @@ def report(controller, probe: bool = True) -> str:
                  f"{'ja' if controller.airplay.running() else 'nein'}")
     if controller.airplay.log:
         lines.append("  Letzte Meldungen: " + " | ".join(controller.airplay.log[-5:]))
-
-    lines.append("")
-    lines.append("== Android ==")
-    sc = handy.find_program("scrcpy", controller.config["handy"].get("scrcpy_path", ""))
-    lines.append(f"  scrcpy: {sc or 'NICHT installiert'}" + (f" · {_run([sc, '--version']).splitlines()[0]}" if sc else ""))
-    adb = handy.adb_path(sc)
-    devs = handy.android_devices(adb) if adb else []
-    lines.append(f"  adb: {adb or '–'} · Handys: " + (", ".join(f"{d['model']} ({d['state']})" for d in devs) or "keins"))
-
-    lines.append("")
-    lines.append("== Miracast ==")
-    if sys.platform.startswith("win"):
-        app = miracast.find_app()
-        support = miracast.wireless_display_support()
-        lines.append(f"  App „Drahtlose Anzeige“: {app['name'] if app else 'FEHLT'}")
-        lines.append("  WLAN kann Miracast empfangen: " + {True: "ja", False: "NEIN (Treiber/Adapter)",
-                                                           None: "kein WLAN-Adapter gefunden"}[support])
-    else:
-        lines.append("  nur unter Windows möglich")
 
     lines.append("")
     lines.append("== Handy-Steuerung (QR) ==")

@@ -155,15 +155,20 @@ jobs:
           # Diagnose (u. a. echte Probe-Aufnahme fürs Spiegeln) als Hinweise im Lauf sichtbar machen
           if (Test-Path $log) { Get-Content $log | Where-Object { $_ -like "DIAG *" } | ForEach-Object { Write-Output "::notice title=Windows-Diagnose::$($_.Substring(5))" } }
           if ($p.ExitCode -ne 0) { throw "AluPC.exe Selbsttest fehlgeschlagen (Exit-Code $($p.ExitCode))" }
-      - name: Erkundung – UxPlay für Windows (MSYS2)
+      - name: Erkundung – UxPlay und Bonjour für Windows
         shell: pwsh
         continue-on-error: true
         run: |
           $bash = "C:\msys64\usr\bin\bash.exe"
-          if (-not (Test-Path $bash)) { Write-Output "::notice title=UxPlay-Erkundung::kein MSYS2 auf dem Runner"; exit 0 }
-          $found = & $bash -lc "pacman -Sy >/dev/null 2>&1; pacman -Ss uxplay"
-          Write-Output "::notice title=UxPlay-Erkundung::Suche: $($found -join ' | ')"
-          & $bash -lc "pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-uxplay >/dev/null 2>&1; ls -la /ucrt64/bin/uxplay.exe; /ucrt64/bin/uxplay.exe -v; du -sh /ucrt64/lib/gstreamer-1.0" 2>&1 | ForEach-Object { Write-Output "::notice title=UxPlay-Erkundung::$_" }
+          if (Test-Path $bash) {
+            & $bash -lc "true" | Out-Null
+            $r = & $bash -lc "pacman -Sy >/dev/null 2>&1; pacman -Ss uxplay; echo rc=\$?"
+            Write-Output "::notice title=UxPlay-Erkundung::pacman: $($r -join ' | ')"
+          }
+          $w = winget search uxplay --accept-source-agreements 2>&1 | Select-Object -Last 3
+          Write-Output "::notice title=UxPlay-Erkundung::winget uxplay: $($w -join ' | ')"
+          $b = winget show --id Apple.Bonjour -e --accept-source-agreements 2>&1 | Select-Object -First 4
+          Write-Output "::notice title=UxPlay-Erkundung::winget Apple.Bonjour: $($b -join ' | ')"
       - name: Spiegel-Probe auf dem echten Windows-Desktop
         shell: pwsh
         continue-on-error: true
@@ -191,7 +196,7 @@ jobs:
         shell: pwsh
         run: |
           $setup = Get-ChildItem dist\AluPC-Setup-*.exe | Select-Object -First 1
-          $p = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER", "/MERGETASKS=!handy,!miracast", "/DIR=$env:RUNNER_TEMP\AluPC-inst" -Wait -PassThru
+          $p = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER", "/MERGETASKS=!handy", "/DIR=$env:RUNNER_TEMP\AluPC-inst" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Installer fehlgeschlagen (Exit-Code $($p.ExitCode))" }
           $log = Join-Path $env:RUNNER_TEMP "inst.txt"
           $q = Start-Process -FilePath "$env:RUNNER_TEMP\AluPC-inst\AluPC.exe" -ArgumentList "--selbsttest", $log -Wait -PassThru

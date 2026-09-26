@@ -15,9 +15,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "scenes": ("scenes", "Meine Szenen", "Bearbeiten · Pfeil: starten", None, "anzeigen"),
     # Handy → Monitor 2: jeder Weg mit eigener Kachel
     "airplay": ("phone", "AirPlay", "iPhone & iPad · Pfeil: mehr", "#0ea5e9", "handy"),
-    "handy_stream": ("phone", "Handy-Stream", "Android per USB · Pfeil: mehr", "#22c55e", "handy"),
     "handy_remote": ("qr", "Handy-Steuerung", "QR-Code scannen · Pfeil: mehr", "#8b5cf6", "handy"),
-    "miracast": ("cast", "Miracast", "Smart View, Win+K · Pfeil: mehr", "#f97316", "handy"),
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),
     "black": ("eye_off", "Schwarz", "Sichtschutz", "#64748b", "schnell"),
     "pip": ("pip", "Bild-in-Bild", "Monitor 2 klein anzeigen", "#8b5cf6", "schnell"),
@@ -27,8 +25,6 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
 }
 # Schwarz, Standbild, Bild-in-Bild sind jetzt Schalter oben beim Live-Bild – als Kachel nur noch auf Wunsch
 HIDDEN_BY_DEFAULT = {"freeze", "black", "pip", "draw"}
-if not __import__("sys").platform.startswith("win"):
-    HIDDEN_BY_DEFAULT.add("miracast")  # Miracast-Empfang gibt es nur unter Windows
 DEFAULT_ORDER = [k for k in BUILTIN_TILES if k not in HIDDEN_BY_DEFAULT]
 # Kacheln, die es schon vor dem Merken von „seen“ gab (für ältere Einstellungen)
 LEGACY_TILES = ["mirror", "extend", "camera", "program", "website", "media", "scenes", "freeze", "black",

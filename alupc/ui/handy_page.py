@@ -1,10 +1,5 @@
-"""Seite „Handy“: Die vier Wege aufs Handy – übersichtlich getrennt, mit Status und automatischer Einrichtung.
-
-* iPhone & iPad  – AirPlay (UxPlay)
-* Android        – per USB (scrcpy), Handy wird automatisch erkannt
-* Jedes Handy    – Browser + QR-Code (AluCast, ohne App)
-* Miracast       – Windows' eigener Empfänger („Drahtlose Anzeige“)
-"""
+"""Handy-Einrichtung: iPhone/iPad per AirPlay und jedes Handy per Browser (QR-Code) – mit Status und
+automatischer Einrichtung."""
 
 from __future__ import annotations
 
@@ -132,9 +127,6 @@ class HandyPage(QWidget):
         self.controller = controller
         self.config = controller.config
         self._setup_running = False
-        self._android: list[dict] = []
-        self._miracast_app = None
-        self._miracast_checked = False
         area = QScrollArea()
         area.setWidgetResizable(True)
         area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -148,8 +140,6 @@ class HandyPage(QWidget):
         self.cards = {
             "cast": self._cast_card(),
             "airplay": self._airplay_card(),
-            "android": self._android_card(),
-            "miracast": self._miracast_card(),
         }
         for i, card in enumerate(self.cards.values()):
             grid.addWidget(card, i // 2, i % 2)
@@ -165,9 +155,6 @@ class HandyPage(QWidget):
         controller.cast.state_changed.connect(self.refresh)
         controller.changed.connect(self.refresh)
         controller.airplay.log_line.connect(self._log)
-        self._poll = QTimer(self, interval=3000)  # Android-Handy per USB erkennen
-        self._poll.timeout.connect(self._scan_android)
-        self._poll.start()
         self._first = True
         self.refresh()
 
@@ -196,8 +183,8 @@ class HandyPage(QWidget):
         return card
 
     def _refresh_setup(self, plan):
-        ready = sum(1 for key in ("cast", "airplay", "android", "miracast") if self._state(key) in ("ready", "live"))
-        total = 4 if IS_WINDOWS else 3
+        ready = sum(1 for key in ("cast", "airplay") if self._state(key) in ("ready", "live"))
+        total = 2
         if self._setup_running:
             return
         if plan:
@@ -360,93 +347,6 @@ class HandyPage(QWidget):
         except RuntimeError:
             pass
 
-    # ================================================================ Android
-    def _android_card(self) -> MethodCard:
-        card = MethodCard("phone", "#22c55e", "Android", "per USB-Kabel · Bild und Steuerung")
-        card.body.addWidget(steps_label(
-            "Einmalig: Einstellungen → Über das Telefon → 7× auf „Build-Nummer“",
-            "Entwickleroptionen → „USB-Debugging“ an",
-            "Per USB anschließen und am Handy „Zulassen“ tippen"))
-        start = button("Auf Monitor 2 zeigen", "phone", primary=True)
-        start.clicked.connect(self.controller.start_android)
-        self.android_start = start
-        self.sc_pick = link_button("Schon installiert? Programm wählen …", lambda: self._pick("scrcpy"))
-        card.body.insertWidget(0, self.sc_pick)
-        card.buttons.addWidget(start)
-        card.buttons.addStretch(1)
-        return card
-
-    def _scrcpy(self):
-        return handy.find_program("scrcpy", self.config["handy"].get("scrcpy_path", ""))
-
-    def _scan_android(self):
-        if not self.isVisible():
-            return
-        adb = handy.adb_path(self._scrcpy())
-        if not adb:
-            return
-        run_async(lambda: handy.android_devices(adb), self._android_found)
-
-    def _android_found(self, devices):
-        try:
-            if devices != self._android:
-                self._android = devices
-                self.refresh()
-        except RuntimeError:
-            pass
-
-    # ================================================================ Miracast
-    def _miracast_card(self) -> MethodCard:
-        card = MethodCard("cast", "#f97316", "Miracast", "Samsung Smart View, Windows-Laptops (Win+K)")
-        card.body.addWidget(steps_label("„Auf Monitor 2 zeigen“ klicken",
-                                         "Am Handy „Smart View“/„Bildschirm übertragen“ bzw. am Laptop Win+K",
-                                         "Diesen PC wählen"))
-        start = button("Auf Monitor 2 zeigen", "cast", primary=True)
-        start.clicked.connect(self.controller.start_miracast)
-        self.mc_start = start
-        card.buttons.addWidget(start)
-        if IS_WINDOWS:
-            from ..platform import miracast
-
-            settings = button("Einstellung", "sliders")
-            settings.setToolTip("„Projizieren auf diesen PC“ → „Überall verfügbar“")
-            settings.clicked.connect(miracast.open_settings)
-            self.mc_install = button("Installieren", "plus")
-            self.mc_install.clicked.connect(self._install_miracast)
-            card.buttons.addWidget(settings)
-            card.buttons.addWidget(self.mc_install)
-        card.buttons.addStretch(1)
-        return card
-
-    def _check_miracast(self):
-        if not IS_WINDOWS or self._miracast_checked:
-            return
-        from ..platform import miracast
-
-        self._miracast_checked = True
-        run_async(miracast.find_app, self._miracast_found)
-
-    def _miracast_found(self, app):
-        self._miracast_app = app
-        try:
-            self.refresh()
-        except RuntimeError:
-            pass
-
-    def _install_miracast(self):
-        from ..platform import miracast
-
-        self.mc_install.setEnabled(False)
-        self.mc_install.setText("Wird installiert …")
-
-        def finish(_r=None):
-            self.mc_install.setEnabled(True)
-            self.mc_install.setText("Installieren")
-            self._miracast_checked = False
-            self._check_miracast()
-
-        run_async(miracast.install, finish, lambda text: (finish(), self.controller.message.emit(f"Miracast: {text}")))
-
     # ================================================================ Programme wählen
     def _pick(self, program: str):
         from PySide6.QtWidgets import QFileDialog
@@ -464,18 +364,10 @@ class HandyPage(QWidget):
             return "live" if c.cast.running() else "ready"
         if key == "airplay":
             return "ready" if c.airplay.binary() else "setup"
-        if key == "android":
-            return "ready" if self._scrcpy() else "setup"
-        if key == "miracast":
-            if not IS_WINDOWS:
-                return "off"
-            return "ready" if self._miracast_app else ("setup" if self._miracast_checked else "check")
         return "off"
 
     def showEvent(self, e):
         super().showEvent(e)
-        self._check_miracast()
-        self._scan_android()
         if self._first:
             self._first = False
             # Beim ersten Öffnen der Seite richtet sich alles selbst ein (einmal Passwort für fehlende Programme)
@@ -536,38 +428,3 @@ class HandyPage(QWidget):
         self.air_start.setEnabled(bool(ux))
         self.ux_pick.setVisible(not ux)
         self.pin.setVisible(self.pin_mode.currentData() == "fest")
-
-        # --- Android
-        andr = self.cards["android"]
-        sc = self._scrcpy()
-        ready_phones = [d for d in self._android if d["state"] == "device"]
-        if not sc:
-            andr.set_status("EINRICHTEN", SETUP, "scrcpy fehlt – „Automatisch einrichten“ oben installiert es.")
-        elif ready_phones:
-            andr.set_status("VERBUNDEN", LIVE, f"Erkannt: <b>{ready_phones[0]['model']}</b>")
-        elif any(d["state"] == "unauthorized" for d in self._android):
-            andr.set_status("ZULASSEN", SETUP, "Handy erkannt – bitte am Handy „USB-Debugging zulassen“ tippen.")
-        else:
-            andr.set_status("BEREIT", READY, "Handy per USB anschließen – es wird automatisch erkannt.")
-        self.android_start.setEnabled(bool(sc))
-        self.sc_pick.setVisible(not sc)
-
-        # --- Miracast
-        mc = self.cards["miracast"]
-        state = self._state("miracast")
-        if state == "off":
-            mc.set_status("NUR WINDOWS", OFF, "Unter Linux gibt es keinen brauchbaren Miracast-Empfänger – dafür "
-                                              "„Jedes Handy“ oder AirPlay nutzen.")
-            self.mc_start.setEnabled(False)
-        elif state == "check":
-            mc.set_status("PRÜFE …", OFF, "")
-            self.mc_start.setEnabled(False)
-        elif state == "ready":
-            mc.set_status("BEREIT", READY, f"Windows-App „{self._miracast_app['name']}“ ist da.")
-            self.mc_start.setEnabled(True)
-        else:
-            mc.set_status("EINRICHTEN", SETUP, "Windows-App „Drahtlose Anzeige“ fehlt – „Installieren“ "
-                                               "(Administrator, lädt von Windows Update).")
-            self.mc_start.setEnabled(False)
-        if IS_WINDOWS:
-            self.mc_install.setVisible(state == "setup")

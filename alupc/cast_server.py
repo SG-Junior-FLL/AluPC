@@ -4,7 +4,7 @@ AluPC startet einen kleinen Webserver im eigenen WLAN. Das Handy scannt den QR-C
 Adresse und den 6-stelligen Code ein) und kann dann Fotos/Videos senden, Links (z. B. YouTube) und
 Text zeigen sowie Monitor 2 fernsteuern. Funktioniert mit iPhone und Android gleich.
 
-Was ein Browser nicht kann: den Handy-Bildschirm übertragen (dafür gibt es AirPlay/scrcpy/Miracast).
+Was ein Browser nicht kann: den Handy-Bildschirm übertragen (dafür gibt es AirPlay).
 """
 
 from __future__ import annotations

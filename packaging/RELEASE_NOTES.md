@@ -8,6 +8,13 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.16.0)
+- **Handy-Stream (Android/scrcpy) und Miracast entfernt** – Kacheln, Einrichtung, Diagnose und Installer.
+  Handy auf Monitor 2 heißt jetzt: **AirPlay** (iPhone/iPad) und **Handy-Steuerung** (QR-Code, jedes Handy).
+- Installer: kein scrcpy und kein Miracast-Empfänger (DISM) mehr; Setup.exe bietet nur noch Bonjour an.
+- Vorbereitet: ein mit dem Installer mitgeliefertes UxPlay für Windows wird automatisch gefunden und mit
+  seinen eigenen Video-Bibliotheken gestartet.
+
 ### Neu in dieser Version (0.15.2)
 - Behoben: **Zeichnungen und Laserpunkt fehlten in Bild-in-Bild** (und in der Live-Vorschau im Hauptfenster
   und im Live-Bild auf dem Handy). Sie liegen in einem eigenen Fenster über Monitor 2 und werden jetzt in

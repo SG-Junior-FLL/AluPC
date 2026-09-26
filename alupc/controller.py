@@ -12,7 +12,7 @@ from .scenes import describe_source
 from .sources import create_source, media_sources, window_settings
 
 
-HANDY_NOTES = ("iPhone/iPad", "Android", "Miracast")  # Monitor 2 zeigt ein Handy-Fenster
+HANDY_NOTES = ("iPhone/iPad",)  # Monitor 2 zeigt ein Handy-Fenster (AirPlay)
 
 
 class Controller(QObject):
@@ -56,8 +56,7 @@ class Controller(QObject):
         self.message.connect(lambda m: self.recent_messages.append(m) or
                              self.recent_messages.__delitem__(slice(0, -30)))
         self.last_mirror_problem = ""
-        self._handy_window = ""  # „airplay“/„android“, solange ein Handy-Fenster auf Monitor 2 liegt
-        self._scrcpy = None
+        self._handy_window = ""  # „airplay“, solange das iPhone-Fenster auf Monitor 2 liegt
         from .cast_server import cast_server
 
         self.cast = cast_server(config)
@@ -421,71 +420,6 @@ class Controller(QObject):
             self._stop_following()
             self._handy_window = ""
 
-    def start_android(self) -> None:
-        """Android per scrcpy (USB-Debugging nötig) – Fenster im Vollbild auf Monitor 2."""
-        from PySide6.QtCore import QProcess
-
-        from .handy import WINDOW_TITLE_ANDROID, find_program, scrcpy_args
-
-        scrcpy = find_program("scrcpy", self.config["handy"].get("scrcpy_path", ""))
-        if not scrcpy:
-            self.message.emit("Android: scrcpy fehlt – Seite „Handy“ → „Automatisch einrichten“.")
-            return
-        screen = self.output_screen()
-        if screen is None:
-            self.message.emit("Kein zweiter Monitor gefunden.")
-            return
-        self._stop_handy_window()
-        self.ensure_extended()
-        g = screen.geometry()
-        self._scrcpy = QProcess(self)
-        self._scrcpy.start(scrcpy, scrcpy_args((g.x(), g.y(), g.width(), g.height())))
-        self._handy_window = "android"
-        self._set_desktop("Android-Handy (scrcpy)")
-        self._place_handy_window(WINDOW_TITLE_ANDROID)
-
-    def start_miracast(self) -> None:
-        """Windows: eingebaute „Drahtlose Anzeige“ starten und ihr Fenster auf Monitor 2 legen."""
-        from .platform import miracast
-        from .ui.util import run_async
-
-        if not miracast.IS_WINDOWS:
-            self.message.emit("Miracast-Empfang gibt es nur unter Windows. Linux: QR-Code (AluCast) oder AirPlay.")
-            return
-        if self.output_screen() is None:
-            self.message.emit("Kein zweiter Monitor gefunden.")
-            return
-
-        def found(app):
-            if app is None:
-                self.message.emit("Miracast: Windows-App „Drahtlose Anzeige“ fehlt – Seite „Handy“ → "
-                                  "Miracast → „Installieren“.")
-                return
-            self._stop_handy_window()
-            self.ensure_extended()
-            miracast.launch(app)
-            self._handy_window = "miracast"
-            self._set_desktop("Miracast (Windows „Drahtlose Anzeige“)")
-            self.message.emit("Miracast bereit: am Handy/Laptop „Bildschirm übertragen“ bzw. „Smart View“ → "
-                              "diesen PC wählen.")
-            self._place_handy_window(app["name"])
-
-        def check():
-            return miracast.find_app(), miracast.wireless_display_support()
-
-        def checked(result):
-            app, support = result
-            if support is False or support is None:
-                why = ("Kein WLAN-Adapter gefunden" if support is None else
-                       "WLAN-Adapter oder Grafiktreiber unterstützen „Drahtlose Anzeige“ nicht")
-                self.message.emit(f"Miracast geht auf diesem PC nicht: {why} (Miracast braucht WLAN mit Wi-Fi "
-                                  "Direct). Alternative: Kachel „Handy-Steuerung“ oder AirPlay.")
-                return
-            found(app)
-
-        run_async(check, checked, lambda text: self.message.emit(f"Miracast: {text}"))
-
-    # ------------------------------------------------------------ Dual-Boot-Abgleich
     def _config_saved(self) -> None:
         if not self._syncing and self.config.data["sync"].get("enabled"):
             self._sync_timer.start()
@@ -640,7 +574,7 @@ class Controller(QObject):
         self._cast_snapshot()
 
     def _place_handy_window(self, *titles: str) -> None:
-        """Handy-Fenster (UxPlay, scrcpy, Drahtlose Anzeige) auf Monitor 2 legen – dauerhaft: auch wenn es erst
+        """iPhone-Fenster (UxPlay) auf Monitor 2 legen – dauerhaft: auch wenn es erst
         viel später erscheint (UxPlay 1.68 öffnet sein Fenster erst, wenn sich das iPhone verbindet) oder nach
         einer neuen Verbindung neu aufgeht."""
         from PySide6.QtCore import QTimer
@@ -701,11 +635,6 @@ class Controller(QObject):
         self._stop_following()
         if self._handy_window == "airplay":
             self.airplay.release()
-        if self._scrcpy is not None:
-            self._scrcpy.terminate()
-            if not self._scrcpy.waitForFinished(2000):
-                self._scrcpy.kill()
-            self._scrcpy = None
         self._handy_window = ""
 
     def _content_switched(self) -> None:

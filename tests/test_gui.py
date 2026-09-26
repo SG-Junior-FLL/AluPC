@@ -1511,8 +1511,6 @@ def test_handy_helpers(tmp_path):
     assert args[:4] == ["-n", "Klasse 7b", "-nh", "-p"] and args[4:6] == ["-pin", "1234"]
     assert args[-1].endswith("udpsink host=127.0.0.1 port=5004")
     assert handy.uxplay_args("", "zufall", None)[4] == "-pin" and "-fs" in handy.uxplay_args("", "", None)
-    sc = handy.scrcpy_args((1920, 0, 1280, 720))
-    assert sc[sc.index("--window-x") + 1] == "1920" and "--fullscreen" in sc
     assert len(handy.random_pin()) == 4
 
 
@@ -1546,19 +1544,14 @@ def test_airplay_source_shows_stream(env, tmp_path):
 
 
 def test_handy_windows_mode(env, tmp_path, monkeypatch):
-    """Ältere UxPlay-Version bzw. scrcpy: eigenes Fenster, das auf Monitor 2 geschoben wird."""
+    """Ältere UxPlay-Version: eigenes Fenster, das auf Monitor 2 geschoben wird."""
     import sys
 
     if sys.platform.startswith("win"):
         pytest.skip("Fake-Programm ist ein Shell-Skript")
     controller, window, _ = env
     uxplay, log = _fake_uxplay(tmp_path, False)
-    scrcpy = tmp_path / "scrcpy"
-    scrcpy.write_text(f"#!{sys.executable}\nimport sys, time\nopen({str(tmp_path / 'sc.txt')!r}, 'w')"
-                      ".write(' '.join(sys.argv[1:]))\ntime.sleep(30)\n")
-    scrcpy.chmod(0o755)
-    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": uxplay, "scrcpy_path": str(scrcpy),
-                                  "pin": ""}
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": uxplay, "pin": ""}
     from alupc.platform.base import WindowInfo
 
     moved, open_windows = [], []
@@ -1582,25 +1575,17 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
     open_windows[:] = [WindowInfo(id="0x2", title="AluPC", app="uxplay")]  # neue Verbindung → neues Fenster
     controller._follow_timer.timeout.emit()
     assert moved[-1][0] == "0x2"
-    open_windows[:] = [WindowInfo(id="0x9", title="AluPC Android", app="scrcpy")]
     assert not controller.cursor_should_stay_home()
     pump()
     assert window.t_airplay.active and not window.t_extend.active and not window.t_program.active
-    controller.start_android()
-    pump()
-    assert controller.desktop_note.startswith("Android")
-    assert _until(lambda: (tmp_path / "sc.txt").exists(), 5)
-    assert "--window-x 1920" in (tmp_path / "sc.txt").read_text()
-    assert _until(lambda: not controller.airplay.running(), 5)  # AirPlay-Fenster beendet
-    controller._follow_timer.timeout.emit()
-    assert moved[-1][0] == "0x9"
     controller.extend()
-    assert controller._scrcpy is None and controller._handy_window == ""
+    assert _until(lambda: not controller.airplay.running(), 5)  # AirPlay beendet
+    assert controller._handy_window == ""
 
 
 def test_handy_page_airplay_settings(env, tmp_path):
     controller, window, _ = env
-    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": "", "scrcpy_path": ""}
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": ""}
     window.open_handy_window()
     pump()
     page = window.handy_page
@@ -1612,7 +1597,8 @@ def test_handy_page_airplay_settings(env, tmp_path):
     assert controller.config["handy"]["pin"] == "2468"
     page.pin_mode.setCurrentIndex(page.pin_mode.findData("zufall"))
     assert controller.config["handy"]["pin"] == "zufall" and page.pin.isHidden()
-    assert {"airplay", "handy_stream", "handy_remote", "miracast"} <= set(window.tiles)
+    assert {"airplay", "handy_remote"} <= set(window.tiles)
+    assert not {"handy_stream", "miracast"} & set(window.tiles)  # Android-Stream und Miracast gibt es nicht mehr
     controller.start_airplay()  # UxPlay fehlt → nur Hinweis, nichts kaputt
     pump()
 
@@ -1779,9 +1765,8 @@ def test_alucast_end_to_end(env, tmp_path):
 
 
 def test_handy_page_cards_and_auto_setup(env, tmp_path, monkeypatch):
-    import sys
-
     from alupc import handy
+
     controller, window, _ = env
     controller.config["cast"] = {**controller.config["cast"], "port": _free_tcp_port()}
     # Pfeil-Menü jeder Handy-Kachel führt zur Handy-Seite
@@ -1790,23 +1775,16 @@ def test_handy_page_cards_and_auto_setup(env, tmp_path, monkeypatch):
     pump()
     assert window.handy_window.isVisible()  # eigenes Fenster statt eigener Seite
     page = window.handy_page
-    assert list(page.cards) == ["cast", "airplay", "android", "miracast"]
+    assert list(page.cards) == ["cast", "airplay"]
     assert page.cards["cast"].pill.text_ == "BEREIT" and page.cast_toggle.text() == "Starten"
-    if not sys.platform.startswith("win"):
-        assert page.cards["miracast"].pill.text_ == "NUR WINDOWS" and not page.mc_start.isEnabled()
     page._toggle_cast()
     assert controller.cast.running() and page.cards["cast"].pill.text_ == "LÄUFT"
     assert page.qr.pixmap().width() >= 80
     page._toggle_cast()
     assert not controller.cast.running()
-    # Android: Handy per USB erkannt (adb-Ausgabe nachgestellt)
-    page._android_found(handy.parse_adb_devices(
-        "List of devices attached\nR58M123 device usb:1-1 product:beyond model:SM_G973F device:beyond\n"))
-    if page._scrcpy():
-        assert page.cards["android"].pill.text_ == "VERBUNDEN" and "SM G973F" in page.cards["android"].detail.text()
     # Automatisch einrichten: Plan wird ausgeführt, Name wird eindeutig
     ran = []
-    monkeypatch.setattr(handy, "setup_plan", lambda cfg: [("scrcpy (Android) installieren", ["true"])])
+    monkeypatch.setattr(handy, "setup_plan", lambda cfg: [("UxPlay installieren", ["true"])])
     monkeypatch.setattr(handy, "run_plan", lambda plan, status=None: ran.append(plan) or [])
     controller.config["handy"] = {**controller.config["handy"], "airplay_name": "AluPC", "setup_done": False}
     page.run_setup()
@@ -1818,8 +1796,7 @@ def test_handy_page_cards_and_auto_setup(env, tmp_path, monkeypatch):
     window._fill_handy_menu(menu, "handy_remote")
     texts = [a.text() for a in menu.actions()]
     assert texts[0] == "QR-Code auf Monitor 2 zeigen" and texts[-1].startswith("Einrichten und Hilfe")
-    controller.start_miracast()  # Linux: nur Hinweis
-    pump()
+    assert not hasattr(controller, "start_miracast") and not hasattr(controller, "start_android")
 
 
 # ---------------------------------------------------------------- 0.12.1: Statuskarte mit Vorschau, Bedienung
@@ -2001,8 +1978,8 @@ def test_handy_tiles_start_each_way(env):
 
     controller, window, _ = env
     controller.config["cast"] = {**controller.config["cast"], "port": _free_tcp_port()}
-    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": "", "scrcpy_path": ""}
-    assert all(section_of(k, {}) == "handy" for k in ("airplay", "handy_stream", "handy_remote", "miracast"))
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": ""}
+    assert all(section_of(k, {}) == "handy" for k in ("airplay", "handy_remote"))
     messages = []
     controller.message.connect(messages.append)
     window.t_remote.activated.emit()  # Handy-Steuerung: QR-Code auf Monitor 2
@@ -2012,8 +1989,6 @@ def test_handy_tiles_start_each_way(env):
     if not controller.airplay.binary():
         window.t_airplay.activated.emit()
         assert any("UxPlay fehlt" in m for m in messages)
-    window.t_miracast.activated.emit()
-    pump()
     controller.stop_cast()
     pump()
     assert window.t_remote.badge == ""
@@ -2051,7 +2026,8 @@ def test_diagnose_report(env):
 
     controller, window, _ = env
     text = diagnose.report(controller, probe=False)
-    for part in ("== Monitore ==", "Monitor 2 = Zweit", "== AirPlay", "== Android ==", "== Miracast ==",
+    assert "Android" not in text and "Miracast" not in text
+    for part in ("== Monitore ==", "Monitor 2 = Zweit", "== AirPlay",
                  "== RGB und Lüfter =="):
         assert part in text, part
 
@@ -2063,7 +2039,7 @@ def test_first_run_wizard(env, monkeypatch):
 
     controller, window, _ = env
     ran = []
-    monkeypatch.setattr(handy, "setup_plan", lambda cfg: [("UxPlay und scrcpy installieren", ["x"])])
+    monkeypatch.setattr(handy, "setup_plan", lambda cfg: [("UxPlay installieren", ["x"])])
     monkeypatch.setattr(handy, "run_plan", lambda plan, status=None: ran.append(plan) or [])
     monkeypatch.setattr("alupc.diagnose.capture_probe", lambda c, s=3.0: "Methode qt, 0 Bilder in 3 s, KEIN Bild")
     from alupc.platform import autostart
@@ -2081,7 +2057,7 @@ def test_first_run_wizard(env, monkeypatch):
     # Bildaufnahme liefert nichts → künftig über das Betriebssystem spiegeln
     assert controller.config["output"]["mirror_method"] == "system"
     assert controller.config["handy"]["airplay_name"].startswith("AluPC (")
-    assert ran[0] == [("UxPlay und scrcpy installieren", ["x"])] and ("autostart", True) in ran
+    assert ran[0] == [("UxPlay installieren", ["x"])] and ("autostart", True) in ran
     assert dlg.go.text() == "Fertig"
     # Spiegeln nutzt jetzt direkt das System-Spiegeln
     calls = []

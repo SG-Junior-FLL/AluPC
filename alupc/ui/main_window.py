@@ -417,16 +417,10 @@ class MainWindow(QMainWindow):
                             c.laser.clear_strokes)
         self.t_draw.set_menu(draw_menu, split=True)
         # Handy: eigene Kachel je Weg – Klick startet, Pfeil zeigt Optionen und die Handy-Seite
-        self.t_airplay, self.t_stream = self.tiles["airplay"], self.tiles["handy_stream"]
-        self.t_remote, self.t_miracast = self.tiles["handy_remote"], self.tiles["miracast"]
-        if not sys.platform.startswith("win"):
-            self.t_miracast.subtitle = "Nur unter Windows"
-            self.t_miracast.setToolTip("Miracast-Empfang gibt es nur unter Windows")
+        self.t_airplay, self.t_remote = self.tiles["airplay"], self.tiles["handy_remote"]
         self.handy_menus = {}
         for key, tile, start in [("airplay", self.t_airplay, c.start_airplay),
-                                 ("handy_stream", self.t_stream, c.start_android),
-                                 ("handy_remote", self.t_remote, c.start_cast),
-                                 ("miracast", self.t_miracast, c.start_miracast)]:
+                                 ("handy_remote", self.t_remote, c.start_cast)]:
             tile.activated.connect(start)
             menu = QMenu(self)
             menu.aboutToShow.connect(lambda m=menu, k=key: self._fill_handy_menu(m, k))
@@ -653,11 +647,9 @@ class MainWindow(QMainWindow):
         page = ("sliders", "Einrichten und Hilfe …", self.open_handy_window)
         items = {
             "airplay": [("phone", "Auf Monitor 2 zeigen", c.start_airplay)],
-            "handy_stream": [("phone", "Android-Bild auf Monitor 2", c.start_android)],
             "handy_remote": [("qr", "QR-Code auf Monitor 2 zeigen", c.start_cast)]
             + ([("x", "Handy-Steuerung beenden", c.stop_cast)] if c.cast.running() else [])
             + [("refresh", "Neuer Code (alter QR-Code ungültig)", c.cast.renew_code)],
-            "miracast": [("cast", "Auf Monitor 2 zeigen", c.start_miracast)],
         }[key]
         for icon_name, text, slot in items:
             menu.addAction(icons.icon(icon_name, col, 18), text, slot)
@@ -1214,8 +1206,6 @@ class MainWindow(QMainWindow):
             (self.t_media, typ in ("image", "video", "slideshow")),
             (self.t_scenes, typ == "scene"),
             (self.t_airplay, typ == "airplay" or (c.mode == "desktop" and c.desktop_note.startswith("iPhone"))),
-            (self.t_stream, c.mode == "desktop" and c.desktop_note.startswith("Android")),
-            (self.t_miracast, c.mode == "desktop" and c.desktop_note.startswith("Miracast")),
         ]:
             tile.set_state(on, badge="AKTIV" if on else "")
         remote_on = c.cast.running()  # Handy-Steuerung: „LÄUFT“, solange Handys verbinden können

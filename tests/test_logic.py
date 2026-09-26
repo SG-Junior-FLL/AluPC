@@ -298,10 +298,8 @@ def test_new_builtin_tiles_appear_after_update():
     old_saved = {"tiles": ["timer", "mirror"], "custom": []}  # Einstellungen von vor dem Update
     import sys
 
-    expected = ["timer", "mirror", "airplay", "handy_stream", "handy_remote"]
-    if sys.platform.startswith("win"):
-        expected.append("miracast")
-    assert ordered_keys(old_saved) == expected
+    expected = ["timer", "mirror", "airplay", "handy_remote"]
+    assert ordered_keys(old_saved) == expected, sys.platform
     from alupc.startpage import DEFAULT_ORDER
 
     hidden_on_purpose = {"tiles": ["timer", "mirror"], "custom": [], "seen": list(DEFAULT_ORDER)}
@@ -456,7 +454,7 @@ def test_best_camera_format():
     assert best_camera_format([]) is None
 
 
-# ---------------------------------------------------------------- 0.12: AluCast, Miracast
+# ---------------------------------------------------------------- 0.12: AluCast
 def test_alucast_helpers():
     from alupc.cast_server import new_code, safe_name, youtube_embed
 
@@ -472,16 +470,6 @@ def test_alucast_helpers():
     assert safe_name("", "video/quicktime").endswith("_handy.mov")
     assert safe_name("x.exe", "application/x-msdownload").endswith("_x")  # keine Endung → wird abgelehnt
     assert len(new_code()) == 6 and new_code().isdigit()
-
-
-def test_miracast_parse():
-    from alupc.platform.miracast import CAPABILITY, install_command, parse_app
-
-    assert parse_app('{"Name":"Drahtlose Anzeige","AppID":"Microsoft.WirelessDisplay_8wekyb3d8bbwe!App"}') == {
-        "name": "Drahtlose Anzeige", "app_id": "Microsoft.WirelessDisplay_8wekyb3d8bbwe!App"}
-    assert parse_app("") is None and parse_app("kaputt") is None and parse_app('{"Name":"x"}') is None
-    assert parse_app('[{"Name":"Connect","AppID":"a!b"}]')["name"] == "Connect"
-    assert CAPABILITY in " ".join(install_command()) and "RunAs" in " ".join(install_command())
 
 
 # ---------------------------------------------------------------- 0.13: Sichern, Dual-Boot-Abgleich
@@ -658,7 +646,7 @@ def test_fans_read_and_set(tmp_path):
 
 
 # ---------------------------------------------------------------- 0.14: Handy automatisch einrichten
-def test_handy_setup_plan_and_adb(monkeypatch, tmp_path):
+def test_handy_setup_plan(monkeypatch, tmp_path):
     from alupc import handy
     from alupc.config import Config
 
@@ -670,9 +658,9 @@ def test_handy_setup_plan_and_adb(monkeypatch, tmp_path):
     plan = handy.setup_plan(cfg)
     assert len(plan) == 1, plan  # alles in EINEM Schritt → nur eine Passwortabfrage
     label, cmd = plan[0]
-    assert "UxPlay und scrcpy installieren" in label and "avahi" in label and "Firewall" in label
+    assert "UxPlay installieren" in label and "avahi" in label and "Firewall" in label
     assert cmd[:3] == ["pkexec", "sh", "-c"]
-    assert "uxplay" in cmd[3] and "scrcpy" in cmd[3] and "gstreamer1.0-libav" in cmd[3] and "avahi-daemon" in cmd[3]
+    assert "uxplay" in cmd[3] and "scrcpy" not in cmd[3] and "gstreamer1.0-libav" in cmd[3] and "avahi-daemon" in cmd[3]
     # Alles da und eingerichtet → nichts zu tun
     monkeypatch.setattr(handy, "missing_packages", lambda pkgs: [])
     monkeypatch.setattr(handy, "avahi_running", lambda: True)
@@ -682,18 +670,12 @@ def test_handy_setup_plan_and_adb(monkeypatch, tmp_path):
     monkeypatch.setattr(handy, "can_winget", lambda: True)
     monkeypatch.setattr(handy, "bonjour_installed", lambda: False)
     plan = handy.setup_plan(cfg)
-    assert [p[1][3] for p in plan] == ["Genymobile.scrcpy", "Apple.Bonjour"]
+    assert [p[1][3] for p in plan] == ["Apple.Bonjour"]
     import sys
 
     errors = handy.run_plan([("Test ok", [sys.executable, "-c", "pass"]),
                              ("Test kaputt", [sys.executable, "-c", "raise SystemExit(1)"])])
     assert errors == ["Test kaputt: fehlgeschlagen"]
-    devs = handy.parse_adb_devices("List of devices attached\n"
-                                   "R58M123 device usb:1-1 product:beyond model:SM_G973F device:beyond\n"
-                                   "0123ABC unauthorized usb:1-2 transport_id:3\n"
-                                   "* daemon started successfully\n")
-    assert devs == [{"serial": "R58M123", "state": "device", "model": "SM G973F"},
-                    {"serial": "0123ABC", "state": "unauthorized", "model": "0123ABC"}]
     assert handy.default_airplay_name().startswith("AluPC")
 
 
@@ -716,16 +698,6 @@ def test_airplay_setup_script_and_errors():
     assert "-p" in handy.uxplay_args("A", "", None)  # feste Ports für die Firewall
     js = build_follow_script(["AluPC (PC)", "UxPlay"], "HDMI-A-1", (1920, 0, 1280, 720))
     assert '["AluPC (PC)", "UxPlay"]' in js and "windowAdded" in js and "captionChanged" in js
-
-
-def test_miracast_wifi_support_parse():
-    from alupc.platform.miracast import parse_wireless_display
-
-    en = "Interface name: Wi-Fi\n    Wireless Display Supported: Yes (Graphics Driver: Yes, Wi-Fi Driver: Yes)\n"
-    de = "Schnittstellenname: WLAN\n    Unterstützte drahtlose Anzeige: Nein (Grafiktreiber: Ja, WLAN-Treiber: Nein)\n"
-    assert parse_wireless_display(en) is True
-    assert parse_wireless_display(de) is False
-    assert parse_wireless_display("Es ist keine Drahtlosschnittstelle im System vorhanden.") is None
 
 
 def test_presentation_keys():

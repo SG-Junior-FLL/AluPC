@@ -654,7 +654,7 @@ class SetupPage(QWidget):
         form.addRow("", minimized)
         diag_row = QHBoxLayout()
         diag = button("Diagnose kopieren", "copy")
-        diag.setToolTip("Prüft Monitore, Spiegeln, AirPlay, Android, Miracast, RGB … und kopiert das Ergebnis – "
+        diag.setToolTip("Prüft Monitore, Spiegeln, AirPlay, RGB … und kopiert das Ergebnis – "
                         "zum Weitergeben, wenn etwas nicht geht")
         diag.clicked.connect(self._diagnose)
         diag_row.addWidget(diag)

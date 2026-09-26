@@ -243,10 +243,8 @@ def self_test(log_path: str) -> int:
         from . import handy
 
         ux = controller.airplay.binary()
-        sc = handy.find_program("scrcpy", "")
-        lines.append(f"Handy: UxPlay {ux or 'nicht installiert'}"
-                     + (f" (Bild an AluPC: {'ja' if handy.supports_vrtp(ux) else 'nein, eigenes Fenster'})" if ux else "")
-                     + f", scrcpy {sc or 'nicht installiert'}")
+        lines.append(f"AirPlay: UxPlay {ux or 'nicht installiert'}"
+                     + (f" (Bild an AluPC: {'ja' if handy.supports_vrtp(ux) else 'nein, eigenes Fenster'})" if ux else ""))
         lines.append("Handy-Einrichtung: " + (", ".join(label for label, _ in handy.setup_plan(config))
                                                  or "nichts zu installieren"))
         from .ui.first_run import FirstRunDialog
@@ -273,11 +271,6 @@ def self_test(log_path: str) -> int:
         controller.output.content.grab()
         lines.append(f"AluCast: Seite {'ok' if page_ok else 'FEHLER'}, Adresse {controller.cast.url(False)}")
         controller.stop_cast()
-        if sys.platform.startswith("win"):
-            from .platform import miracast
-
-            app_info = miracast.find_app()
-            lines.append(f"Miracast: {app_info['name'] if app_info else 'Drahtlose Anzeige nicht installiert'}")
         from . import settings_sync
         from .platform import fans
 

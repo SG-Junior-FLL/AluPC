@@ -1,12 +1,10 @@
-"""Handy → Monitor 2: iPhone/iPad per AirPlay (über UxPlay) und Android (über scrcpy).
+"""iPhone/iPad → Monitor 2 per AirPlay (über das freie Programm UxPlay).
 
 AirPlay: Das freie Programm UxPlay (GPL) empfängt. Ab UxPlay 1.73 gibt es die Option `-vrtp`: UxPlay
 leitet das Bild dann als Videostrom an AluPC weiter und AluPC zeigt es als ganz normale Quelle an
 (auch in eigenen Szenen, mit Standbild usw.). Ältere Versionen (z. B. aus Kubuntu 24.04: 1.68)
 zeigen das Bild in einem eigenen Fenster – das legt AluPC im Vollbild auf Monitor 2.
 
-Android: Einen Chromecast-Empfänger kann ein PC nicht spielen (Google lässt nur zertifizierte Geräte
-zu). Das freie scrcpy zeigt den Handy-Bildschirm über USB oder WLAN (USB-Debugging nötig).
 
 Beide Programme werden nicht mitgeliefert; AluPC findet sie (bzw. installiert sie unter Kubuntu nach
 Rückfrage mit apt).
@@ -28,9 +26,30 @@ from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 from .config import config_dir
 
 IS_WINDOWS = sys.platform.startswith("win")
+def bundled_uxplay_dir() -> Path | None:
+    """Windows-Installer: UxPlay liegt mit seinen GStreamer-Bibliotheken im Programmordner (uxplay\)."""
+    base = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
+    folder = base / "uxplay"
+    return folder if (folder / "bin" / "uxplay.exe").is_file() else None
+
+
+def uxplay_environment(uxplay: str) -> dict[str, str]:
+    """Umgebung für ein mitgeliefertes UxPlay: eigene DLLs und GStreamer-Plugins statt Systemsuche."""
+    folder = bundled_uxplay_dir()
+    if folder is None or Path(uxplay).resolve() != (folder / "bin" / "uxplay.exe").resolve():
+        return {}
+    plugins = str(folder / "lib" / "gstreamer-1.0")
+    env = {"PATH": str(folder / "bin") + os.pathsep + os.environ.get("PATH", ""),
+           "GST_PLUGIN_PATH": plugins, "GST_PLUGIN_SYSTEM_PATH_1_0": plugins, "GST_PLUGIN_SYSTEM_PATH": plugins,
+           "GST_REGISTRY": str(config_dir() / "gst-registry.bin")}
+    scanner = folder / "libexec" / "gstreamer-1.0" / "gst-plugin-scanner.exe"
+    if scanner.is_file():
+        env["GST_PLUGIN_SCANNER"] = str(scanner)
+    return env
+
+
 WINDOWS_UXPLAY = [r"C:\msys64\ucrt64\bin\uxplay.exe", r"C:\msys64\mingw64\bin\uxplay.exe",
                   r"C:\Program Files\UxPlay\uxplay.exe"]
-WINDOW_TITLE_ANDROID = "AluPC Android"
 # winget legt Programme hier als Verknüpfung ab (der PATH von AluPC kennt das nach der Installation noch nicht)
 WINGET_LINKS = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "WinGet", "Links")
 
@@ -93,13 +112,6 @@ def uxplay_args(name: str, pin: str, port: int | None, window_title: bool = True
     return args
 
 
-def scrcpy_args(rect: tuple[int, int, int, int]) -> list[str]:
-    x, y, w, h = rect
-    return ["--window-title", WINDOW_TITLE_ANDROID, "--window-x", str(x), "--window-y", str(y),
-            "--window-width", str(w), "--window-height", str(h), "--window-borderless", "--fullscreen",
-            "--stay-awake"]
-
-
 # --------------------------------------------------------------------------- AirPlay-Empfang
 class AirPlayServer(QObject):
     """Startet/stoppt UxPlay. Mehrere Quellen können es gleichzeitig benutzen (Zähler)."""
@@ -124,7 +136,12 @@ class AirPlayServer(QObject):
         return {"airplay_name": "AluPC", "pin": "", "uxplay_path": "", **self.config["handy"]}
 
     def binary(self) -> str | None:
-        return find_program("uxplay", self.settings()["uxplay_path"], WINDOWS_UXPLAY if IS_WINDOWS else [])
+        bundled = bundled_uxplay_dir() if IS_WINDOWS else None
+        extra = ([str(bundled / "bin" / "uxplay.exe")] if bundled else []) + (WINDOWS_UXPLAY if IS_WINDOWS else [])
+        configured = self.settings()["uxplay_path"]
+        if IS_WINDOWS and bundled and not configured:
+            return extra[0]  # mitgeliefertes UxPlay zuerst
+        return find_program("uxplay", configured, extra)
 
     def sdp_path(self) -> Path:
         return config_dir() / "airplay.sdp"
@@ -152,6 +169,14 @@ class AirPlayServer(QObject):
         self.pin_code = pin if pin and pin != "zufall" else ""
         args = uxplay_args(s["airplay_name"], pin, self.port if stream else None)
         self.proc = QProcess(self)
+        extra_env = uxplay_environment(uxplay)
+        if extra_env:  # mitgeliefertes UxPlay (Windows-Installer): eigene GStreamer-Plugins
+            from PySide6.QtCore import QProcessEnvironment
+
+            env = QProcessEnvironment.systemEnvironment()
+            for key, value in extra_env.items():
+                env.insert(key, value)
+            self.proc.setProcessEnvironment(env)
         self.proc.setProcessChannelMode(QProcess.MergedChannels)
         self.proc.readyReadStandardOutput.connect(self._read)
         self.proc.finished.connect(self._finished)
@@ -242,9 +267,8 @@ def install_command(program: str) -> list[str]:
 
 
 APT_PACKAGES = {"uxplay": ["uxplay", "gstreamer1.0-plugins-good", "gstreamer1.0-plugins-bad", "gstreamer1.0-libav",
-                           "avahi-daemon"],
-                "scrcpy": ["scrcpy"]}
-WINGET_IDS = {"scrcpy": "Genymobile.scrcpy", "bonjour": "Apple.Bonjour"}
+                           "avahi-daemon"]}
+WINGET_IDS = {"bonjour": "Apple.Bonjour"}
 
 
 def can_install() -> bool:
@@ -307,32 +331,23 @@ def linux_setup_script(packages: list[str], avahi: bool, firewall_port: int | No
 
 
 def setup_plan(config) -> list[tuple[str, list[str]]]:
-    """Was fehlt und automatisch eingerichtet werden kann: [(Beschreibung, Befehl)] – ein Passwort/UAC je Schritt."""
-    s = {"uxplay_path": "", "scrcpy_path": "", **config["handy"]}
-    missing = [p for p in ("uxplay", "scrcpy") if not find_program(p, s[f"{p}_path"],
-                                                                     WINDOWS_UXPLAY if p == "uxplay" and IS_WINDOWS else [])]
+    """Was für AirPlay fehlt und automatisch eingerichtet werden kann: [(Beschreibung, Befehl)]."""
     plan = []
     if can_install():
-        packages = missing_packages(list(dict.fromkeys(pkg for p in ("uxplay", "scrcpy") for pkg in APT_PACKAGES[p])))
+        packages = missing_packages(APT_PACKAGES["uxplay"])
         avahi = not avahi_running()
-        firewall = None if s.get("firewall_done") else int(config["cast"].get("port", 8765))
+        firewall = None if config["handy"].get("firewall_done") else int(config["cast"].get("port", 8765))
         if packages or avahi or firewall:
             parts = []
             if packages:
-                programs = [p for p in ("uxplay", "scrcpy") if p in packages]
-                parts.append(("UxPlay und scrcpy" if len(programs) == 2 else (programs[0] if programs else
-                                                                               "Video-/Netzwerk-Pakete"))
-                             + " installieren")
+                parts.append("UxPlay installieren" if "uxplay" in packages else "Video-/Netzwerk-Pakete installieren")
             if avahi:
                 parts.append("iPhone-Suche (avahi) einschalten")
             if firewall:
                 parts.append("Firewall für AirPlay/Handy öffnen")
             plan.append((", ".join(parts), ["pkexec", "sh", "-c", linux_setup_script(packages, avahi, firewall)]))
-    elif can_winget():
-        if "scrcpy" in missing:
-            plan.append(("scrcpy (Android) installieren", _winget(WINGET_IDS["scrcpy"])))
-        if not bonjour_installed():
-            plan.append(("Bonjour (für AirPlay) installieren", _winget(WINGET_IDS["bonjour"])))
+    elif can_winget() and not bonjour_installed():
+        plan.append(("Bonjour (damit das iPhone den PC findet) installieren", _winget(WINGET_IDS["bonjour"])))
     return plan
 
 
@@ -373,44 +388,3 @@ def default_airplay_name() -> str:
     """Name, unter dem der PC am iPhone erscheint: „AluPC (Rechnername)“."""
     host = re.sub(r"[^\w .-]", "", socket.gethostname().split(".")[0])[:24]
     return f"AluPC ({host})" if host else "AluPC"
-
-
-# --------------------------------------------------------------------------- Android per USB erkennen
-def adb_path(scrcpy: str | None) -> str | None:
-    found = find_program("adb")
-    if found:
-        return found
-    if scrcpy:  # Windows-ZIP von scrcpy bringt adb.exe mit
-        candidate = Path(scrcpy).with_name("adb.exe" if IS_WINDOWS else "adb")
-        if candidate.is_file():
-            return str(candidate)
-    return None
-
-
-def parse_adb_devices(output: str) -> list[dict]:
-    """Ausgabe von „adb devices -l“ → [{serial, state, model}] (state: device / unauthorized / offline)."""
-    devices = []
-    for line in output.splitlines()[1:]:
-        parts = line.split()
-        if len(parts) < 2 or parts[0].startswith("*"):
-            continue
-        info = dict(p.split(":", 1) for p in parts[2:] if ":" in p)
-        devices.append({"serial": parts[0], "state": parts[1],
-                        "model": info.get("model", "").replace("_", " ") or parts[0]})
-    return devices
-
-
-def android_devices(adb: str | None) -> list[dict]:
-    if not adb:
-        return []
-    flags = 0x08000000 if IS_WINDOWS else 0
-    try:
-        # Erst den adb-Hintergrunddienst OHNE Ausgabe-Rohr starten: Er läuft weiter und würde sonst das Rohr
-        # offen halten – dann wartet das Auslesen der Ausgabe ewig.
-        subprocess.run([adb, "start-server"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL, timeout=15, creationflags=flags)
-        out = subprocess.run([adb, "devices", "-l"], capture_output=True, text=True, timeout=6,
-                             stdin=subprocess.DEVNULL, creationflags=flags).stdout
-    except (OSError, subprocess.SubprocessError):
-        return []
-    return parse_adb_devices(out)

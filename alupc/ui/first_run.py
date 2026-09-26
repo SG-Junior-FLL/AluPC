@@ -2,7 +2,7 @@
 
 Schritte: Monitore erkennen → Spiegeln testen (klappt die Bildaufnahme nicht, spiegelt AluPC künftig
 über Windows/KDE) → Handy-Programme installieren (eine Passwortabfrage) → iPhone-Name und Handy-Code →
-Miracast prüfen (Windows) → Autostart.
+Autostart.
 """
 
 from __future__ import annotations
@@ -129,10 +129,8 @@ class FirstRunDialog(QDialog):
         self.steps: list[tuple[StepRow, callable]] = []
         self._add("Monitore erkennen", self._step_monitors)
         self._add("Spiegeln testen", self._step_mirror)
-        self._add("Handy-Programme installieren (AirPlay, Android)", self._step_install)
+        self._add("AirPlay einrichten (iPhone/iPad)", self._step_install)
         self._add("iPhone-Name und Handy-Code festlegen", self._step_names)
-        if IS_WINDOWS:
-            self._add("Miracast prüfen", self._step_miracast)
         self._add("Mit dem Computer starten", self._step_autostart)
         for row, _fn in self.steps:
             lay.addWidget(row)
@@ -224,7 +222,7 @@ class FirstRunDialog(QDialog):
     def _step_install(self):
         plan = handy.setup_plan(self.config)
         if not plan:
-            missing = [p for p in ("uxplay", "scrcpy") if not handy.find_program(p, "")]
+            missing = [] if handy.find_program("uxplay", "", handy.WINDOWS_UXPLAY if IS_WINDOWS else []) else ["UxPlay"]
             if missing and not (handy.can_install() or handy.can_winget()):
                 self._next("warn", "Automatisch installieren geht hier nicht – fehlt: " + ", ".join(missing))
             else:
@@ -250,26 +248,6 @@ class FirstRunDialog(QDialog):
             self.config["handy"] = {**s, "airplay_name": handy.default_airplay_name()}
         code = self.controller.cast.code()
         self._next("ok", f"iPhone sieht „{self.config['handy']['airplay_name']}“ · Handy-Code {code[:3]} {code[3:]}")
-
-    def _step_miracast(self):
-        from ..platform import miracast
-
-        def check():
-            return miracast.wireless_display_support(), miracast.find_app()
-
-        def checked(result):
-            support, app = result
-            if support is None:
-                self._next("skip", "Kein WLAN-Adapter – Miracast geht auf diesem PC nicht (dafür „Handy-Steuerung“).")
-            elif support is False:
-                self._next("skip", "WLAN-Treiber unterstützt „Drahtlose Anzeige“ nicht – Miracast geht hier nicht.")
-            elif app:
-                self._next("ok", f"Bereit ({app['name']}).")
-            else:
-                run_async(miracast.install, lambda _r: self._next("ok", "Drahtlose Anzeige installiert."),
-                          lambda t: self._next("warn", f"Installation nicht möglich: {t}"))
-
-        run_async(check, checked, lambda t: self._next("warn", t))
 
     def _step_autostart(self):
         from ..platform import autostart
