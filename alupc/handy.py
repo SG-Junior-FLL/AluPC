@@ -382,6 +382,8 @@ class AirPlayServer(QObject):
     def ensure_unique_name(self) -> None:
         """Bei der Einrichtung: aus „AluPC“ einen eindeutigen Namen machen – aber nur, wenn ihn niemand gewählt hat."""
         s = self.config["handy"]
+        if s.get("airplay_simple"):  # fester Name „AluPC“ – nichts mehr umbenennen
+            return
         if not s.get("name_set") and s.get("airplay_name", "AluPC") == "AluPC":
             self.config["handy"] = {**s, "airplay_name": default_airplay_name()}
             self.restart_if_changed()

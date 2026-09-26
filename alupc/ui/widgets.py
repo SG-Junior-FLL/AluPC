@@ -982,3 +982,77 @@ class SectionHeader(QWidget):
         p.setPen(QPen(QColor(t.border), 1))
         p.drawLine(QPointF(x, h / 2), QPointF(self.width() - 4, h / 2))
         p.end()
+
+
+def fade_in(widget, ms: int = 220, delay: int = 0, dy: int = 0) -> None:
+    """Weiches Einblenden (optional leicht von unten hochgleitend). Der Effekt wird danach wieder entfernt –
+    Grafikeffekte kosten sonst dauerhaft Leistung (und vertragen sich nicht mit Web-Ansichten)."""
+    from PySide6.QtCore import QParallelAnimationGroup, QPoint, QSequentialAnimationGroup
+
+    if widget is None or not widget.isVisible() or theme_reduced_motion():
+        return
+    effect = QGraphicsOpacityEffect(widget)
+    effect.setOpacity(0.0)
+    widget.setGraphicsEffect(effect)
+    fade = QPropertyAnimation(effect, b"opacity", widget)
+    fade.setDuration(ms)
+    fade.setStartValue(0.0)
+    fade.setEndValue(1.0)
+    fade.setEasingCurve(QEasingCurve.OutCubic)
+    group = QParallelAnimationGroup(widget)
+    group.addAnimation(fade)
+    if dy and widget.parentWidget() is not None and widget.parentWidget().layout() is None:
+        end = widget.pos()
+        slide = QPropertyAnimation(widget, b"pos", widget)
+        slide.setDuration(ms + 60)
+        slide.setStartValue(end + QPoint(0, dy))
+        slide.setEndValue(end)
+        slide.setEasingCurve(QEasingCurve.OutBack)
+        group.addAnimation(slide)
+    seq = QSequentialAnimationGroup(widget)
+    if delay:
+        seq.addPause(delay)
+    seq.addAnimation(group)
+
+    def done():
+        try:
+            if widget.graphicsEffect() is effect:
+                widget.setGraphicsEffect(None)
+        except RuntimeError:
+            pass
+
+    seq.finished.connect(done)
+    seq.start(QPropertyAnimation.DeleteWhenStopped)
+
+
+def theme_reduced_motion() -> bool:
+    """Animationen aus (Einstellung „Animationen“ oder Test-/Offscreen-Umgebung ohne echten Bildschirm)."""
+    import os
+
+    return os.environ.get("ALUPC_NO_ANIMATION") == "1"
+
+
+def animate_height(widget, show: bool, ms: int = 240) -> None:
+    """Ein-/Ausklappen mit Animation (maximale Höhe gleitet)."""
+    if theme_reduced_motion():
+        widget.setVisible(show)
+        return
+    start = widget.height() if widget.isVisible() else 0
+    target = widget.sizeHint().height() if show else 0
+    widget.setMaximumHeight(start)
+    widget.setVisible(True)
+    anim = QPropertyAnimation(widget, b"maximumHeight", widget)
+    anim.setDuration(ms)
+    anim.setStartValue(start)
+    anim.setEndValue(max(target, 1) if show else 0)
+    anim.setEasingCurve(QEasingCurve.OutCubic if show else QEasingCurve.InCubic)
+
+    def done():
+        try:
+            widget.setMaximumHeight(16777215)
+            widget.setVisible(show)
+        except RuntimeError:
+            pass
+
+    anim.finished.connect(done)
+    anim.start(QPropertyAnimation.DeleteWhenStopped)

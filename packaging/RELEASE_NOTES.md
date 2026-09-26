@@ -8,6 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.34.0)
+**AirPlay: einfach bereit**
+- Keine Einstellungen mehr für Name und Code: AirPlay heißt einmalig und fest **„AluPC“**, ohne Code, und ist
+  immer bereit (fremde UxPlay-Autostarts übernimmt AluPC weiterhin). Fenster „Handy“ zeigt nur noch
+  „‚AluPC‘ wählen“; die AirPlay-Einstellungen im Setup sind weg.
+
+**Handy-Steuerung: Design-Update**
+- Fließende Farbwolken im Hintergrund, schimmerndes Logo, pulsierender Verbunden-Punkt.
+- Karten fliegen beim Tab-Wechsel nacheinander ein; in der unteren Leiste gleitet ein Leuchtpunkt zum Tab.
+- Knöpfe mit Tipp-Welle und federndem Druck, aktive Kacheln leuchten sanft; Meldungen gleiten hoch.
+- Respektiert „Bewegung reduzieren“ am Handy.
+
+**App: mehr Animationen**
+- Seitenwechsel blenden weich ein, Kacheln fliegen beim Öffnen nacheinander ein, Bereiche klappen animiert
+  auf und zu, das Schnellfenster der Taskleiste ploppt sanft auf.
+
 ### Neu in dieser Version (0.33.0)
 - **Text live schreiben:** Beim Text anzeigen (Kachel „Text“ am PC und Handy → Senden → Text) gibt es den
   Schalter **„Live“**. Dann erscheint jeder getippte Buchstabe sofort auf Monitor 2 – auch Löschen. Der Text

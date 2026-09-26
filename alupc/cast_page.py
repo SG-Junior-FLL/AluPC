@@ -33,25 +33,42 @@ PAGE = r"""<!doctype html>
 html, body { margin:0; touch-action:manipulation; }  /* kein Doppeltipp-Zoom */
 button, .btn, nav, .card { touch-action:manipulation; }
 body { font:16px/1.4 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif; color:var(--text); min-height:100vh;
-       background:radial-gradient(120% 60% at 50% -10%, rgba(99,102,241,.35), transparent 60%), var(--bg);
-       padding:0 14px calc(96px + env(safe-area-inset-bottom)); -webkit-user-select:none; user-select:none; }
+       background:var(--bg); padding:0 14px calc(100px + env(safe-area-inset-bottom));
+       -webkit-user-select:none; user-select:none; }
+/* Hintergrund: langsam fließende Farbwolken */
+body::before { content:""; position:fixed; inset:-20%; z-index:-1; pointer-events:none;
+  background:radial-gradient(40% 35% at 20% 10%, rgba(99,102,241,.40), transparent 70%),
+             radial-gradient(35% 30% at 85% 20%, rgba(236,72,153,.22), transparent 70%),
+             radial-gradient(45% 35% at 60% 95%, rgba(14,165,233,.20), transparent 70%);
+  animation:drift 22s ease-in-out infinite alternate; }
+@keyframes drift { 0% { transform:translate(0,0) rotate(0deg); } 50% { transform:translate(3%,-2%) rotate(4deg); }
+                   100% { transform:translate(-3%,2%) rotate(-3deg); } }
 svg.i { width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.9; stroke-linecap:round;
         stroke-linejoin:round; flex:none; }
 header { display:flex; align-items:center; gap:12px; padding:calc(14px + env(safe-area-inset-top)) 2px 12px;
          position:sticky; top:0; z-index:5; background:linear-gradient(var(--bg) 70%, transparent); }
-.logo { width:40px; height:40px; border-radius:12px; background:var(--on); display:grid; place-items:center; color:#fff;
+.logo { width:40px; height:40px; border-radius:12px; background:linear-gradient(135deg,#6366f1,#8b5cf6,#ec4899,#6366f1);
+        background-size:300% 300%; animation:shine 8s ease infinite; display:grid; place-items:center; color:#fff;
         box-shadow:0 6px 20px rgba(99,102,241,.45); }
+@keyframes shine { 0%,100% { background-position:0% 50%; } 50% { background-position:100% 50%; } }
 .logo svg { width:24px; height:24px; }
 header .t { min-width:0; flex:1; }
 header h1 { margin:0; font-size:18px; letter-spacing:.2px; }
 header .now { font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .dot { width:9px; height:9px; border-radius:50%; background:#64748b; display:inline-block; margin-right:6px; }
-.dot.on { background:var(--ok); box-shadow:0 0 0 4px rgba(34,197,94,.22); }
+.dot.on { background:var(--ok); animation:ring 2.4s ease-out infinite; }
+@keyframes ring { 0% { box-shadow:0 0 0 0 rgba(34,197,94,.55); } 70%,100% { box-shadow:0 0 0 9px rgba(34,197,94,0); } }
 .offline { display:none; background:var(--bad); color:#fff; border-radius:14px; padding:10px 12px; margin-bottom:12px;
            font-size:14px; font-weight:600; }
 .offline.show { display:block; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:22px; padding:14px; margin-bottom:12px;
-        backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+        backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:0 10px 30px rgba(2,6,23,.18); }
+/* Karten fliegen beim Tab-Wechsel nacheinander ein */
+.page.sel > .card { animation:rise .42s cubic-bezier(.2,.9,.25,1.15) both; }
+.page.sel > .card:nth-child(2) { animation-delay:.05s; } .page.sel > .card:nth-child(3) { animation-delay:.1s; }
+.page.sel > .card:nth-child(4) { animation-delay:.15s; } .page.sel > .card:nth-child(5) { animation-delay:.2s; }
+.page.sel > .card:nth-child(n+6) { animation-delay:.25s; }
+@keyframes rise { from { opacity:0; transform:translateY(14px) scale(.98); } to { opacity:1; transform:none; } }
 .card h2 { margin:0 0 10px; font-size:12px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.8px;
            display:flex; align-items:center; justify-content:space-between; }
 .row { display:flex; gap:8px; }
@@ -60,13 +77,21 @@ header .now { font-size:13px; color:var(--muted); white-space:nowrap; overflow:h
 .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
 button, .btn { appearance:none; border:0; border-radius:16px; padding:13px 8px; font:inherit; font-weight:650; font-size:14.5px;
          background:var(--card2); color:var(--text); cursor:pointer; text-align:center; display:flex; align-items:center;
-         justify-content:center; gap:8px; transition:transform .08s, background .2s; }
+         justify-content:center; gap:8px; position:relative; overflow:hidden;
+         transition:transform .18s cubic-bezier(.3,1.6,.5,1), background .25s, box-shadow .25s, color .25s; }
+/* Tipp-Welle */
+.ripple { position:absolute; border-radius:50%; background:currentColor; opacity:.25; transform:scale(0);
+          animation:ripple .55s ease-out forwards; pointer-events:none; }
+@keyframes ripple { to { transform:scale(1); opacity:0; } }
 .tile { flex-direction:column; gap:6px; padding:14px 4px; font-size:13px; }
 .tile svg.i { width:26px; height:26px; }
-button.on, .tile.on { background:var(--on); color:#fff; box-shadow:0 8px 22px rgba(99,102,241,.4); }
+button.on, .tile.on { background:var(--on); color:#fff; animation:glow 2.8s ease-in-out infinite; }
+@keyframes glow { 0%,100% { box-shadow:0 8px 22px rgba(99,102,241,.35); } 50% { box-shadow:0 8px 30px rgba(139,92,246,.6); } }
+.tile.on svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
+@keyframes pop { from { transform:scale(.6); } to { transform:none; } }
 button.primary, .btn.primary { background:var(--on); color:#fff; }
 button.small { padding:8px 10px; font-size:13px; border-radius:12px; }
-button:active, .btn:active { transform:scale(.95); }
+button:active, .btn:active { transform:scale(.93); transition-duration:.06s; }
 input[type=text], input[type=url], textarea { width:100%; border:1px solid var(--line); border-radius:14px; padding:13px;
          font:inherit; background:var(--card2); color:var(--text); -webkit-user-select:text; user-select:text; outline:none; }
 textarea { min-height:80px; resize:vertical; }
@@ -115,18 +140,25 @@ body.full nav, body.full header { display:none; }
 nav { position:fixed; left:12px; right:12px; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:6; display:flex; gap:6px;
       background:var(--nav); border:1px solid var(--line); border-radius:22px; padding:6px;
       backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); box-shadow:0 12px 30px rgba(0,0,0,.35); }
-nav button { flex:1; background:transparent; color:var(--muted); padding:8px 4px; font-size:12px; flex-direction:column; gap:3px; border-radius:16px; }
-nav button.sel { background:var(--on); color:#fff; }
+nav button { flex:1; background:transparent; color:var(--muted); padding:8px 4px; font-size:12px; flex-direction:column; gap:3px;
+             border-radius:16px; z-index:1; transition:color .25s; }
+nav button.sel { color:#fff; }
+nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
+/* Leuchtpunkt, der zum gewählten Tab gleitet */
+#nav-pill { position:absolute; top:6px; bottom:6px; left:6px; width:0; border-radius:16px; background:var(--on);
+            box-shadow:0 6px 18px rgba(99,102,241,.45); transition:left .38s cubic-bezier(.3,1.35,.5,1), width .38s; }
 .page { display:none; animation:fade .18s ease; }
 .page.sel { display:block; }
 @keyframes fade { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
-.toast { position:fixed; left:50%; bottom:calc(100px + env(safe-area-inset-bottom)); transform:translateX(-50%);
+.toast { position:fixed; left:50%; bottom:calc(100px + env(safe-area-inset-bottom)); transform:translate(-50%,16px) scale(.96);
          background:#0f172a; color:#fff; padding:10px 16px; border-radius:999px; font-size:14px; opacity:0;
-         transition:opacity .2s; pointer-events:none; max-width:90vw; z-index:30; }
-.toast.show { opacity:.96; }
+         transition:opacity .25s, transform .35s cubic-bezier(.3,1.5,.5,1); pointer-events:none; max-width:90vw; z-index:30;
+         box-shadow:0 10px 30px rgba(0,0,0,.35); }
+.toast.show { opacity:.97; transform:translate(-50%,0) scale(1); }
 .toast.bad { background:var(--bad); }
 #login { display:none; margin-top:20px; }
 .hide { display:none !important; }
+@media (prefers-reduced-motion: reduce) { *, *::before { animation:none !important; transition:none !important; } }
 </style>
 </head>
 <body>
@@ -368,11 +400,30 @@ const $ = id => document.getElementById(id);
 let current = store.get("alucast-tab") || "start";
 let allow = { senden: true, steuern: true, live: true, laser: true };
 
+function movePill() {
+  const nav = $("nav"), sel = nav && nav.querySelector("button.sel");
+  let pill = $("nav-pill");
+  if (!nav || !sel) return;
+  if (!pill) { pill = document.createElement("span"); pill.id = "nav-pill"; nav.prepend(pill); }
+  pill.style.left = sel.offsetLeft + "px"; pill.style.width = sel.offsetWidth + "px";
+}
+window.addEventListener("resize", movePill);
+// Tipp-Welle auf allen Knöpfen
+document.addEventListener("pointerdown", e => {
+  const b = e.target.closest("button, .btn");
+  if (!b || b.closest("nav") || b.closest(".colors")) return;
+  const r = b.getBoundingClientRect(), size = Math.max(r.width, r.height) * 2.2;
+  const s = document.createElement("span");
+  s.className = "ripple"; s.style.width = s.style.height = size + "px";
+  s.style.left = (e.clientX - r.left - size / 2) + "px"; s.style.top = (e.clientY - r.top - size / 2) + "px";
+  b.appendChild(s); setTimeout(() => s.remove(), 600);
+}, { passive: true });
 function tab(name) {
   const btn = document.querySelector('nav button[data-p="' + name + '"]');
   if (!btn || btn.classList.contains("hide")) name = "start";
   current = name; store.set("alucast-tab", name);
   for (const b of document.querySelectorAll("nav button")) b.classList.toggle("sel", b.dataset.p === name);
+  movePill();
   for (const p of document.querySelectorAll(".page")) p.classList.toggle("sel", p.id === "p-" + name);
   document.body.classList.remove("full");
   window.scrollTo(0, 0); loadPreview(); sizeInk();
@@ -437,6 +488,7 @@ try { if (localStorage.getItem("alupc-live")) { $("live").checked = true; $("tex
 
 let scenesKey = "", failures = 0;
 async function refresh() {
+  requestAnimationFrame(movePill);
   if (!code) { showLogin(true); return; }
   try {
     const s = await api("/api/status");

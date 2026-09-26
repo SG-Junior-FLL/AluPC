@@ -212,7 +212,7 @@ class SetupPage(QWidget):
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
         ("sync", "Sichern & Sync", "Export · Dual-Boot"),
         ("fan", "RGB & Lüfter", "OpenRGB · Temperaturen"),
-        ("phone", "Handy & Kamera", "AirPlay · Rechte · Kamera"),
+        ("phone", "Handy & Kamera", "Rechte · Kamera"),
         ("sliders", "Allgemein", "Start · Autostart · Hilfe"),
     ]
 
@@ -232,7 +232,7 @@ class SetupPage(QWidget):
             "Tastenkürzel": [self._hotkey_group],
             "Sichern & Sync": [lambda: sync_group(self), lambda: backup_group(self)],
             "RGB & Lüfter": [self._hardware_group],
-            "Handy & Kamera": [self._airplay_group, self._phone_group, self._camera_group],
+            "Handy & Kamera": [self._phone_group, self._camera_group],  # AirPlay: einfach „bereit“, ohne Einstellungen
             "Allgemein": [self._app_group],
         }
         self.nav = QListWidget()
@@ -637,74 +637,6 @@ class SetupPage(QWidget):
         return self.hardware
 
     # ================================================================ Handy & Kamera
-    def _airplay_group(self):
-        box = QGroupBox("AirPlay")
-        form = QFormLayout(box)
-        s = self.config["handy"]
-        name = QLineEdit(s.get("airplay_name", "AluPC"))
-        name.setToolTip("So heißt der PC in der iPhone-Liste „Bildschirmsynchronisierung“")
-        borderless = QCheckBox("Randlos im Vollbild")
-        borderless.setChecked(bool(s.get("airplay_borderless", True)))
-        from ..sources import AIRPLAY_IDLE
-
-        idle = QComboBox()
-        for key, label in AIRPLAY_IDLE.items():
-            idle.addItem(label, key)
-        idle.setCurrentIndex(max(0, idle.findData(s.get("airplay_idle", "bereit"))))
-        idle.setToolTip("Was Monitor 2 zeigt, solange kein iPhone verbunden ist")
-        always = QCheckBox("Immer bereit (iPhone findet den PC jederzeit)")
-        always.setToolTip("AluPC startet AirPlay mit diesem Namen und Code im Hintergrund und schaltet fremde "
-                          "UxPlay-Autostarts ab (die zeigen sonst den Standardnamen ohne Code)")
-        always.setChecked(bool(s.get("airplay_always", True)))
-        auto_show = QCheckBox("Bei Verbindung sofort auf Monitor 2")
-        auto_show.setChecked(bool(s.get("airplay_auto_show", True)))
-        from .handy_page import link_button
-
-        more = link_button("Einrichten …", lambda: self.window().open_handy_window()
-                           if hasattr(self.window(), "open_handy_window") else None)
-
-        air = self.controller.airplay
-
-        def save(**values):  # nur das geänderte Feld – nie einen veralteten Namen zurückschreiben
-            air.update_settings(**values)  # läuft es gerade → mit neuem Namen sofort neu starten
-            src = getattr(self.controller.output, "content", None)
-            if src is not None and hasattr(src, "_show_waiting"):
-                src.update()  # Warte-Bild sofort neu zeichnen
-
-        loaded = [name.text()]  # zuletzt gespeicherter Stand – Abweichung = noch nicht gespeichert
-
-        def sync():
-            try:
-                now = air.settings()["airplay_name"]
-                if name.text() == loaded[0]:
-                    name.setText(now)
-                loaded[0] = now
-            except RuntimeError:
-                pass
-
-        def save_name():
-            loaded[0] = name.text()
-            save(airplay_name=name.text())
-
-        name.editingFinished.connect(save_name)
-        borderless.toggled.connect(lambda on: save(airplay_borderless=on))
-        idle.currentIndexChanged.connect(lambda _i: save(airplay_idle=idle.currentData()))
-
-        def set_always(on):
-            save(airplay_always=on)
-            self.controller.airplay_background(on)
-
-        always.toggled.connect(set_always)
-        auto_show.toggled.connect(lambda on: save(airplay_auto_show=on))
-        air.settings_changed.connect(sync)
-        form.addRow("Name am iPhone:", name)
-        form.addRow("Ohne iPhone:", idle)
-        form.addRow("", always)
-        form.addRow("", auto_show)
-        form.addRow("", borderless)
-        form.addRow("", more)
-        return box
-
     def _phone_group(self):
         box = QGroupBox("Handy-Steuerung – Rechte")
         lay = QVBoxLayout(box)

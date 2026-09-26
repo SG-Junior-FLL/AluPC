@@ -49,8 +49,8 @@ from .setup_page import SetupPage
 from .source_picker import IMAGE_FILTER, VIDEO_FILTER
 from ..startpage import BUILTIN_TILES, custom_key, find_custom, ordered_keys, section_of, sections
 from .start_page_dialog import StartPageDialog
-from .widgets import (EmptyState, MonitorCard, NavButton, SceneCard, SectionHeader, StatusCard, Tile, Toast, button,
-                      font, page_header)
+from .widgets import (EmptyState, MonitorCard, NavButton, SceneCard, SectionHeader, StatusCard, Tile, Toast,
+                      animate_height, button, fade_in, font, page_header)
 
 __all__ = ["MainWindow", "app_icon"]
 
@@ -390,8 +390,11 @@ class MainWindow(QMainWindow):
             page.ensure()
             self._compact_state = None  # neue Seite: Ränder/Kompaktmodus auch dort anwenden
             self.apply_compact(self.width() < self.COMPACT_WIDTH, self.width() < self.NARROW_WIDTH)
+        changed = self.stack.currentIndex() != index
         self.stack.setCurrentIndex(index)
         self.nav_group.button(index).setChecked(True)
+        if changed:
+            fade_in(self.stack.currentWidget(), 200)  # Seitenwechsel: weich einblenden
 
     # ================================================================ Start
     def _start_page(self):
@@ -614,9 +617,12 @@ class MainWindow(QMainWindow):
         self.config["start_page"] = cfg
         grid = self.section_grids.get(section_id)
         if grid is not None:
-            grid.setVisible(not folded)
             for w in grid.items:
-                w.setVisible(not folded)
+                w.setVisible(True)
+            animate_height(grid, not folded)
+            if not folded:
+                for i, w in enumerate(grid.items):
+                    fade_in(w, 220, delay=40 * i)
             self.section_labels[section_id].set(self.section_labels[section_id].name, len(grid.items), folded)
 
     def _section_menu(self, head, section_id: str, pos) -> None:
@@ -1474,6 +1480,21 @@ class MainWindow(QMainWindow):
     def lock(self):
         """Computer sperren – wie Win+L (Linux: Bildschirmsperre)."""
         self.controller.lock_computer()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if not getattr(self, "_intro_done", False):  # beim ersten Öffnen: Kacheln fliegen nacheinander ein
+            self._intro_done = True
+            QTimer.singleShot(60, self._intro_tiles)
+
+    def _intro_tiles(self):
+        i = 0
+        fade_in(self.status_card, 260)
+        for grid in self.section_grids.values():
+            for w in grid.items:
+                if w.isVisible():
+                    fade_in(w, 260, delay=90 + 35 * i)
+                    i += 1
 
     def closeEvent(self, event):
         # Schließen = nur ausblenden; Monitor 2 läuft weiter. Beenden über das Tray-Menü.

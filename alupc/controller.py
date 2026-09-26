@@ -55,6 +55,11 @@ class Controller(QObject):
         self.airplay.notice.connect(self._airplay_notice)
         self.airplay.settings_changed.connect(self._airplay_settings_changed)
         self.airplay.connected.connect(self._iphone_connected)
+        s = self.config["handy"]
+        if not s.get("airplay_simple"):  # AirPlay ohne Einstellungen: einmalig Name „AluPC“, kein Code
+            self.config["handy"] = {**s, "airplay_simple": True, "pin": "", "airplay_idle": "bereit",
+                                    "airplay_name": "AluPC", "airplay_always": True,
+                                    "airplay_auto_show": True, "airplay_borderless": True}
         self._airplay_bg_timer = None
         self.recent_messages: list[str] = []  # für „Diagnose kopieren“
         self.message.connect(lambda m: self.recent_messages.append(m) or

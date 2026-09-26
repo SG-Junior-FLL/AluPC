@@ -397,6 +397,30 @@ QSlider::handle:horizontal {{ width: 14px; margin: -5px 0; border-radius: 7px; b
         self.raise_()
         self.activateWindow()
         self._preview_timer.start()
+        self._pop_in(x, y)
+
+    def _pop_in(self, x: int, y: int) -> None:
+        """Weich aufploppen: einblenden und ein Stück hochgleiten."""
+        from PySide6.QtCore import QEasingCurve, QParallelAnimationGroup, QPropertyAnimation
+
+        from .widgets import theme_reduced_motion
+
+        if theme_reduced_motion():
+            return
+        group = QParallelAnimationGroup(self)
+        fade = QPropertyAnimation(self, b"windowOpacity", self)
+        fade.setDuration(170)
+        fade.setStartValue(0.0)
+        fade.setEndValue(1.0)
+        group.addAnimation(fade)
+        if not is_wayland():
+            slide = QPropertyAnimation(self, b"pos", self)
+            slide.setDuration(260)
+            slide.setStartValue(QPoint(x, y + 14))
+            slide.setEndValue(QPoint(x, y))
+            slide.setEasingCurve(QEasingCurve.OutBack)
+            group.addAnimation(slide)
+        group.start(QPropertyAnimation.DeleteWhenStopped)
 
     def hideEvent(self, e):
         self._preview_timer.stop()

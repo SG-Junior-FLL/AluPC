@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPlainTextEdit,
     QScrollArea,
     QSizePolicy,
@@ -27,7 +26,6 @@ from .util import run_async
 from .widgets import Pill, button, font, rounded
 
 IS_WINDOWS = sys.platform.startswith("win")
-PIN_MODES = [("", "Kein Code"), ("fest", "Fester Code"), ("zufall", "Neuer Code je Gerät")]
 READY, SETUP, OFF, LIVE = "#22c55e", "#f59e0b", "#94a3b8", "#3b82f6"
 
 
@@ -311,32 +309,6 @@ class HandyPage(QWidget):
     # ================================================================ AirPlay
     def _airplay_card(self) -> MethodCard:
         card = MethodCard("phone", "#0ea5e9", "iPhone & iPad", "AirPlay · im selben WLAN")
-        s = {"airplay_name": "AluPC", "pin": "", **self.config["handy"]}
-        form = QGridLayout()
-        form.setHorizontalSpacing(10)
-        form.addWidget(QLabel("Name:"), 0, 0)
-        self.name = QLineEdit(s["airplay_name"])
-        self._name_loaded = s["airplay_name"]  # zuletzt gespeicherter Stand – Abweichung = noch nicht gespeichert
-        self.name.editingFinished.connect(self._save_name)
-        form.addWidget(self.name, 0, 1)
-        form.addWidget(QLabel("Code:"), 1, 0)
-        pin_row = QHBoxLayout()
-        self.pin_mode = QComboBox()
-        for key, label in PIN_MODES:
-            self.pin_mode.addItem(label, key)
-        pin = s.get("pin", "")
-        self.pin_mode.setCurrentIndex(max(0, self.pin_mode.findData("fest" if pin.isdigit() else pin)))
-        self.pin = QLineEdit(pin if pin.isdigit() else handy.random_pin())
-        self.pin.setInputMask("9999")
-        self._pin_loaded = self.pin.text()
-        self.pin.setMaximumWidth(70)
-        self.pin_mode.currentIndexChanged.connect(self._save_pin)
-        self.pin.editingFinished.connect(self._save_pin)
-        self.controller.airplay.settings_changed.connect(self._sync_airplay)
-        pin_row.addWidget(self.pin_mode, 1)
-        pin_row.addWidget(self.pin)
-        form.addLayout(pin_row, 1, 1)
-        card.body.addLayout(form)
         self.airplay_steps = QLabel()
         self.airplay_steps.setWordWrap(True)
         card.body.addWidget(self.airplay_steps)
@@ -359,39 +331,6 @@ class HandyPage(QWidget):
             card.buttons.addWidget(b)
         card.buttons.addStretch(1)
         return card
-
-    def _save_name(self):
-        self._apply(airplay_name=self.name.text())
-        self._name_loaded = self.name.text()
-
-    def _save_pin(self, *_):
-        mode = self.pin_mode.currentData()
-        pin = self.pin.text() if mode == "fest" and len(self.pin.text()) == 4 else ("zufall" if mode == "zufall" else "")
-        self._pin_loaded = self.pin.text()
-        self._apply(pin=pin)
-
-    def _apply(self, **values):
-        if self.controller.airplay.update_settings(**values):  # läuft gerade → sofort mit neuen Werten
-            self.controller.message.emit("AirPlay neu gestartet")
-        self.refresh()
-
-    def _sync_airplay(self):
-        """Anderswo geändert (Setup, Einrichtung) → Felder hier nachziehen, sonst schreiben sie Altes zurück."""
-        try:
-            s = self.controller.airplay.settings()
-            if self.name.text() == self._name_loaded:  # nichts Ungespeichertes überschreiben
-                self.name.setText(s["airplay_name"])
-            self._name_loaded = s["airplay_name"]
-            pin = s.get("pin", "")
-            self.pin_mode.blockSignals(True)
-            self.pin_mode.setCurrentIndex(max(0, self.pin_mode.findData("fest" if pin.isdigit() else pin)))
-            self.pin_mode.blockSignals(False)
-            if pin.isdigit() and self.pin.text() == self._pin_loaded:
-                self.pin.setText(pin)
-                self._pin_loaded = pin
-            self.refresh()
-        except RuntimeError:  # Fenster schon zu
-            pass
 
     def _log(self, line: str):
         try:
@@ -469,9 +408,8 @@ class HandyPage(QWidget):
         self.airplay_steps.setText(steps("Auf Monitor 2 zeigen", "iPhone: Bildschirmsynchronisierung",
                                          f"„{name}“ wählen"))
         running = c.airplay.running_settings()
-        if running:  # zeigt, womit UxPlay WIRKLICH läuft – so sieht man, ob eine Änderung angekommen ist
-            code = f" · Code <b>{running['pin']}</b>" if running.get("pin") and running["pin"] != "zufall" else ""
-            air.set_status("LÄUFT", LIVE, f"Läuft als <b>„{running['airplay_name']}“</b>{code}")
+        if running:
+            air.set_status("AIRPLAY BEREIT", LIVE, f"iPhone: „<b>{running['airplay_name']}</b>“ wählen")
         elif ux and handy.supports_vrtp(ux):
             air.set_status("BEREIT", READY, "Bild direkt in AluPC")
         elif ux and handy.is_uxplay_windows(ux):
@@ -484,4 +422,3 @@ class HandyPage(QWidget):
             air.set_status("EINRICHTEN", SETUP, "UxPlay fehlt · oben einrichten")
         self.air_start.setEnabled(bool(ux))
         self.ux_pick.setVisible(not ux)
-        self.pin.setVisible(self.pin_mode.currentData() == "fest")

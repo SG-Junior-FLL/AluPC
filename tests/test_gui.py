@@ -399,7 +399,7 @@ def test_custom_start_sections(env):
     assert head.name == "Party & Gäste" and head.count == len(grid.items)
     # einklappen: Kacheln weg, Zustand gespeichert und nach Neuaufbau noch da
     window._fold_section(party, True)
-    assert window.tiles["camera"].isHidden()
+    assert not window.tiles["camera"].isVisibleTo(window)
     window.rebuild_start()
     assert window.section_labels[party].collapsed and not window.section_grids[party].isVisibleTo(window)
     window._fold_section(party, False)
@@ -1712,31 +1712,27 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
     assert controller._handy_window == "" and not controller.output.yield_top
 
 
-def test_handy_page_airplay_settings(env, tmp_path):
+def test_handy_page_airplay_simple(env, tmp_path):
+    """AirPlay ohne Einstellungen: einmalig Name „AluPC“, kein Code – keine Name-/Code-Felder mehr."""
+    from alupc.config import Config
+    from alupc.controller import Controller
+
     controller, window, _ = env
+    assert controller.config["handy"]["airplay_name"] == "AluPC" and controller.config["handy"]["pin"] == ""
+    assert controller.config["handy"]["airplay_simple"] is True
+    controller.airplay.ensure_unique_name()  # benennt nicht mehr in „AluPC (Rechner)“ um
+    assert controller.config["handy"]["airplay_name"] == "AluPC"
+    # alte Einstellungen (eigener Name, Code) werden einmalig ersetzt
+    old = Config(tmp_path / "alt.json")
+    old["handy"] = {**old["handy"], "airplay_name": "Mein Name", "pin": "1234", "setup_done": True}
+    c2 = Controller(old)
+    assert old["handy"]["airplay_name"] == "AluPC" and old["handy"]["pin"] == ""
+    c2.shutdown()
     controller.config["handy"] = {**controller.config["handy"], "uxplay_path": ""}
     window.open_handy_window()
     pump()
     page = window.handy_page
-    page.name.setText("Physikraum")
-    page.pin_mode.setCurrentIndex(page.pin_mode.findData("fest"))
-    page.pin.setText("2468")
-    page._save_name()
-    page._save_pin()
-    assert controller.config["handy"]["airplay_name"] == "Physikraum"
-    assert controller.config["handy"]["pin"] == "2468"
-    # anderswo (Setup) umbenannt → Handy-Fenster zieht nach und schreibt beim Code-Ändern nicht den alten Namen zurück
-    controller.airplay.update_settings(airplay_name="Beamer Keller")
-    assert page.name.text() == "Beamer Keller"
-    page.pin.setText("1357")
-    page._save_pin()
-    assert controller.config["handy"]["airplay_name"] == "Beamer Keller"
-    # bewusst „AluPC“ gewählt → Einrichtung macht keinen anderen Namen daraus
-    controller.airplay.update_settings(airplay_name="AluPC")
-    controller.airplay.ensure_unique_name()
-    assert controller.config["handy"]["airplay_name"] == "AluPC"
-    page.pin_mode.setCurrentIndex(page.pin_mode.findData("zufall"))
-    assert controller.config["handy"]["pin"] == "zufall" and page.pin.isHidden()
+    assert not hasattr(page, "pin_mode") and not hasattr(page, "name")
     assert {"airplay", "handy_remote"} <= set(window.tiles)
     assert not {"handy_stream", "miracast"} & set(window.tiles)  # Android-Stream und Miracast gibt es nicht mehr
     controller.start_airplay()  # UxPlay fehlt → nur Hinweis, nichts kaputt
@@ -1989,7 +1985,7 @@ def test_handy_page_cards_and_auto_setup(env, tmp_path, monkeypatch):
     controller.config["handy"] = {**controller.config["handy"], "airplay_name": "AluPC", "setup_done": False}
     page.run_setup()
     assert _until(lambda: ran and not page._setup_running, 5)
-    assert controller.config["handy"]["airplay_name"].startswith("AluPC (")
+    assert controller.config["handy"]["airplay_name"] == "AluPC"  # fester Name, nicht mehr „AluPC (Rechner)“
     assert controller.config["handy"]["setup_done"] is True
     assert page.setup_btn.isVisible()  # Plan (nachgestellt) meldet weiter etwas → Knopf bleibt
     menu = window.handy_menus["handy_remote"]
@@ -2256,7 +2252,7 @@ def test_first_run_wizard(env, monkeypatch):
     assert controller.config["first_run_done"] is True
     # Bildaufnahme liefert nichts → künftig über das Betriebssystem spiegeln
     assert controller.config["output"]["mirror_method"] == "system"
-    assert controller.config["handy"]["airplay_name"].startswith("AluPC (")
+    assert controller.config["handy"]["airplay_name"] == "AluPC"  # fester Name, nicht mehr „AluPC (Rechner)“
     assert ran[0] == [("UxPlay installieren", ["x"])] and ("autostart", True) in ran
     assert dlg.go.text() == "Fertig"
     # Spiegeln nutzt jetzt direkt das System-Spiegeln
@@ -2845,3 +2841,39 @@ def test_live_text_pc(env):
     assert window.text_dialog.live.isChecked()
     window.text_dialog.live.setChecked(False)
     window.text_dialog.reject()
+
+
+def test_animations_run_and_settle(env, monkeypatch):
+    """Mit Animationen: Seitenwechsel, Bereich ein-/ausklappen, Schnellfenster – am Ende sichtbar, ohne
+    übrig gebliebene Grafikeffekte, eingeklappt wirklich zu."""
+    import time as _time
+
+    monkeypatch.setenv("ALUPC_NO_ANIMATION", "0")
+    controller, window, _ = env
+
+    def settle(sec=0.8):
+        end = _time.time() + sec
+        while _time.time() < end:
+            pump(1)
+            _time.sleep(0.02)
+
+    window._intro_tiles()
+    window._go(1)
+    assert window.stack.currentWidget().graphicsEffect() is not None  # blendet gerade ein
+    settle()
+    assert window.stack.currentWidget().graphicsEffect() is None
+    window._go(0)
+    settle()
+    sid = next(iter(window.section_grids))
+    grid = window.section_grids[sid]
+    window._fold_section(sid, True)
+    settle()
+    assert not grid.isVisible()
+    window._fold_section(sid, False)
+    settle()
+    assert grid.isVisible() and grid.maximumHeight() > 10000 and grid.height() > 50
+    assert all(w.graphicsEffect() is None for w in grid.items)
+    window.open_tray_panel()
+    settle(0.5)
+    assert window.tray_panel.isVisible() and window.tray_panel.windowOpacity() > 0.99
+    window.tray_panel.hide()
