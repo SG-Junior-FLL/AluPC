@@ -213,7 +213,8 @@ class SetupPage(QWidget):
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
         ("sync", "Sichern & Sync", "Export, Windows ↔ Linux"),
         ("fan", "RGB & Lüfter", "OpenRGB, Temperaturen"),
-        ("sliders", "Allgemein", "Autostart, Monitor-Wahl"),
+        ("phone", "Handy & Kamera", "AirPlay, Handy-Rechte, Kamera"),
+        ("sliders", "Allgemein", "Start, Autostart, Monitor-Wahl"),
     ]
 
     def __init__(self, controller, hotkeys, parent=None):
@@ -232,6 +233,7 @@ class SetupPage(QWidget):
             "Tastenkürzel": [self._hotkey_group],
             "Sichern & Sync": [lambda: sync_group(self), lambda: backup_group(self)],
             "RGB & Lüfter": [self._hardware_group],
+            "Handy & Kamera": [self._airplay_group, self._phone_group, self._camera_group],
             "Allgemein": [self._app_group],
         }
         self.nav = QListWidget()
@@ -626,6 +628,132 @@ class SetupPage(QWidget):
         self.hardware = HardwarePage(self.controller, scroll=False)
         return self.hardware
 
+    # ================================================================ Handy & Kamera
+    def _airplay_group(self):
+        box = QGroupBox("AirPlay (iPhone/iPad)")
+        form = QFormLayout(box)
+        s = self.config["handy"]
+        name = QLineEdit(s.get("airplay_name", "AluPC"))
+        name.setToolTip("So heißt der PC in der iPhone-Liste „Bildschirmsynchronisierung“")
+        borderless = QCheckBox("iPhone-Bild randlos über ganz Monitor 2 legen (sonst maximiertes Fenster)")
+        borderless.setChecked(bool(s.get("airplay_borderless", True)))
+        from .handy_page import link_button
+
+        more = link_button("Code, Einrichtung und Hilfe …", lambda: self.window().open_handy_window()
+                           if hasattr(self.window(), "open_handy_window") else None)
+
+        def save(*_):
+            self.config["handy"] = {**self.config["handy"], "airplay_name": name.text().strip() or "AluPC",
+                                    "airplay_borderless": borderless.isChecked()}
+            self.controller.airplay.restart_if_changed()  # läuft es gerade → mit neuem Namen neu starten
+
+        name.editingFinished.connect(save)
+        borderless.toggled.connect(save)
+        form.addRow("Name am iPhone:", name)
+        form.addRow("", borderless)
+        form.addRow("", more)
+        return box
+
+    def _phone_group(self):
+        box = QGroupBox("Handy-Steuerung (QR-Code) – was Handys dürfen")
+        lay = QVBoxLayout(box)
+        allow = {"senden": True, "steuern": True, "live": True, "laser": True,
+                 **(self.config["cast"].get("allow") or {})}
+        checks = {}
+        for key, text in (("senden", "Fotos, Videos, Links und Text auf Monitor 2 senden"),
+                          ("steuern", "Monitor 2 fernsteuern (Szenen, Schwarz, Standbild, Präsentation …)"),
+                          ("live", "Live-Bild von Monitor 2 auf dem Handy sehen"),
+                          ("laser", "Laserpointer und Zeichnen per Finger")):
+            box_ = QCheckBox(text)
+            box_.setChecked(bool(allow.get(key, True)))
+            checks[key] = box_
+            lay.addWidget(box_)
+        auto = QCheckBox("Handy-Steuerung beim Start von AluPC mitstarten")
+        auto.setChecked(bool(self.config["cast"].get("autostart")))
+        lay.addWidget(auto)
+
+        def save(*_):
+            self.config["cast"] = {**self.config["cast"], "autostart": auto.isChecked(),
+                                   "allow": {k: c.isChecked() for k, c in checks.items()}}
+            self.controller._cast_snapshot()
+
+        for w in (*checks.values(), auto):
+            w.toggled.connect(save)
+        hint = QLabel("Handys brauchen immer den 6-stelligen Code aus dem QR-Code. Ausgeschaltetes "
+                      "verschwindet auch auf dem Handy.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+        return box
+
+    def _camera_group(self):
+        box = QGroupBox("Kamera")
+        form = QFormLayout(box)
+        self.camera_combo = QComboBox()
+        self.camera_combo.setToolTip("Diese Kamera startet ein Klick auf die Kachel „Kamera“ sofort")
+        self._fill_camera_combo()
+        self.camera_combo.currentIndexChanged.connect(
+            lambda _i: self.config.__setitem__("default_camera", self.camera_combo.currentData() or ""))
+        from PySide6.QtMultimedia import QMediaDevices
+
+        self._media_devices = QMediaDevices(self)
+        self._media_devices.videoInputsChanged.connect(self._fill_camera_combo)
+        fit = QComboBox()
+        fit.addItem("Monitor 2 ganz füllen (Ränder werden abgeschnitten)", "cover")
+        fit.addItem("Ganzes Bild zeigen (evtl. schwarze Ränder)", "contain")
+        fit.setCurrentIndex(max(0, fit.findData(self.config.get("camera_fit", "cover"))))
+        fit.currentIndexChanged.connect(lambda _i: self.config.__setitem__("camera_fit", fit.currentData()))
+        form.addRow("Standard-Kamera:", self.camera_combo)
+        form.addRow("Anzeige:", fit)
+        hint = QLabel("Die Standard-Kamera startet sofort per Klick auf die Kachel „Kamera“. Der Pfeil an "
+                      "der Kachel wählt eine andere (die dann Standard wird). Zoom, Spiegeln, Drehen und "
+                      "Helligkeit: Kamera-Leiste im Hauptfenster.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        return box
+
+    def _fill_start_combo(self):
+        combo = self.start_combo
+        combo.blockSignals(True)
+        combo.clear()
+        for key, label in (("last", "Zuletzt gezeigten Inhalt"), ("none", "Nichts (normaler zweiter Bildschirm)"),
+                           ("mirror", "Spiegeln"), ("camera", "Kamera"), ("airplay", "AirPlay (iPhone/iPad)"),
+                           ("cast", "Handy-QR-Code")):
+            combo.addItem(label, key)
+        for name in self.config.scene_names():
+            combo.addItem(f"Szene: {name}", f"scene:{name}")
+        combo.setCurrentIndex(max(0, combo.findData(self.controller.start_content_setting())))
+        combo.blockSignals(False)
+
+    def _start_changed(self, *_):
+        value = self.start_combo.currentData() or "last"
+        self.config["start_content"] = value
+        self.config["restore_last_content"] = value != "none"
+
+    def _fill_camera_combo(self, *_):
+        from PySide6.QtMultimedia import QMediaDevices
+
+        from ..sources import camera_id
+
+        combo = self.camera_combo
+        combo.blockSignals(True)
+        combo.clear()
+        devices = QMediaDevices.videoInputs()
+        for d in devices:
+            combo.addItem(d.description(), camera_id(d))
+        if not devices:
+            combo.addItem("Keine Kamera gefunden", "")
+        combo.setEnabled(bool(devices))
+        # vorausgewählt: gespeicherte Kamera, sonst die erste
+        combo.setCurrentIndex(max(0, combo.findData(self.config.get("default_camera", ""))))
+        combo.blockSignals(False)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if hasattr(self, "start_combo"):
+            self._fill_start_combo()  # neue/umbenannte Szenen
+
     def _app_group(self):
         box = QGroupBox("AluPC")
         form = QFormLayout(box)
@@ -636,9 +764,11 @@ class SetupPage(QWidget):
         app.screenAdded.connect(lambda _s: self._fill_screen_combo())
         app.screenRemoved.connect(lambda _s: self._fill_screen_combo())
 
-        restore = QCheckBox("Beim Start den letzten Inhalt wieder anzeigen")
-        restore.setChecked(bool(self.config["restore_last_content"]))
-        restore.toggled.connect(lambda v: self.config.__setitem__("restore_last_content", v))
+        self.start_combo = QComboBox()
+        self.start_combo.setToolTip("Was Monitor 2 zeigt, sobald AluPC startet")
+        self._fill_start_combo()
+        self.start_combo.currentIndexChanged.connect(self._start_changed)
+
         auto = QCheckBox("Beim Anmelden automatisch starten")
         try:
             auto.setChecked(autostart.is_enabled())
@@ -649,7 +779,7 @@ class SetupPage(QWidget):
         minimized.setChecked(bool(self.config["start_minimized"]))
         minimized.toggled.connect(lambda v: self.config.__setitem__("start_minimized", v))
         form.addRow("Monitor für andere Leute:", self.screen_combo)
-        form.addRow("", restore)
+        form.addRow("Beim Start zeigen:", self.start_combo)
         form.addRow("", auto)
         form.addRow("", minimized)
         diag_row = QHBoxLayout()

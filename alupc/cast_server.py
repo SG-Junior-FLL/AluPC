@@ -175,6 +175,11 @@ class CastServer(QObject):
     def settings(self) -> dict:
         return {"port": 8765, "code": "", "autostart": False, **self.config["cast"]}
 
+    def allowed(self, what: str) -> bool:
+        """Darf ein Handy das? („senden“, „steuern“, „live“, „laser“ – im Setup ausschaltbar)"""
+        return bool({"senden": True, "steuern": True, "live": True, "laser": True,
+                     **(self.settings().get("allow") or {})}.get(what, False))
+
     def code(self) -> str:
         code = self.settings()["code"]
         if not re.fullmatch(r"\d{6}", code or ""):
@@ -296,7 +301,7 @@ def _make_handler(server: CastServer):
                 if self._auth():
                     self._json(200, server.snapshot)
             elif path == "/api/preview":
-                if self._auth():
+                if self._auth() and self._may("live"):
                     server.preview_wanted = time.monotonic()
                     if server.preview:
                         self._send(200, server.preview, "image/jpeg")
@@ -307,9 +312,20 @@ def _make_handler(server: CastServer):
             else:
                 self._json(404, {"error": "Nicht gefunden"})
 
+        def _may(self, what: str) -> bool:
+            if server.allowed(what):
+                return True
+            self._json(403, {"error": "In AluPC ausgeschaltet (Setup → Handy & Kamera)"})
+            return False
+
         def do_POST(self):
             u = urlparse(self.path)
             if not self._auth():
+                return
+            need = {"/api/upload": "senden", "/api/link": "senden", "/api/text": "senden",
+                    "/api/laser": "laser", "/api/cmd": "steuern"}.get(u.path)
+            if need and not self._may(need):
+                self.close_connection = True
                 return
             try:
                 if u.path == "/api/upload":

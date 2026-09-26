@@ -59,6 +59,11 @@ DEFAULTS: dict = {
     # Zuletzt angezeigter Inhalt, wird beim Start wiederhergestellt
     "last_content": None,
     "restore_last_content": True,
+    # Was Monitor 2 beim Start zeigt: "last" (zuletzt), "none" (normaler Desktop), "mirror", "camera",
+    # "airplay", "cast" (Handy-QR-Code) oder "scene:<Name>"
+    "start_content": "last",
+    "default_camera": "",  # Kamera für die Kachel (leer = erste gefundene)
+    "camera_fit": "cover",  # Kamera-Kachel: "cover" (Monitor füllen) oder "contain" (ganzes Bild)
     "scenes": [],
     "hotkeys": dict(DEFAULT_HOTKEYS),
     "privacy": {"text": "", "image": ""},
@@ -98,7 +103,9 @@ DEFAULTS: dict = {
     # iPhone → Monitor 2 per AirPlay (UxPlay); leerer Pfad = automatisch suchen
     "handy": {"airplay_name": "AluPC", "pin": "", "uxplay_path": "", "setup_done": False},
     # AluCast (Handy per Browser): Anschluss, Zugangscode, beim Start von AluPC mitstarten
-    "cast": {"port": 8765, "code": "", "autostart": False, "ip": ""},
+    "cast": {"port": 8765, "code": "", "autostart": False, "ip": "",
+             # Was Handys dürfen: Fotos/Videos/Links/Text senden, Monitor 2 fernsteuern, Live-Bild sehen, Laser
+             "allow": {"senden": True, "steuern": True, "live": True, "laser": True}},
     # Dual-Boot-Abgleich (Windows ↔ Linux) über einen gemeinsamen Ordner, siehe settings_sync.py
     "sync": {"enabled": False, "folder": "", "base_rev": 0, "base_hash": "", "device": "", "last": "",
              "status": ""},
@@ -195,6 +202,9 @@ class Config:
 
     def __getitem__(self, key):
         return self.data[key]
+
+    def get(self, key, default=None):
+        return self.data.get(key, default)
 
     def __setitem__(self, key, value):
         self.data[key] = value

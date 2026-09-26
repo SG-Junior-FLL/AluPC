@@ -1768,6 +1768,19 @@ def test_alucast_end_to_end(env, tmp_path):
     assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "sperren"}).encode(), ok)[0] == 400
     assert _http("POST", base + "/api/link", json.dumps({"url": "kein link"}).encode(), ok)[0] == 400
 
+    # Rechte (Setup → Handy & Kamera): Ausgeschaltetes wird abgelehnt und dem Handy gemeldet
+    controller.config["cast"] = {**controller.config["cast"], "allow": {"senden": False, "steuern": False,
+                                                                         "live": False, "laser": True}}
+    assert _http("POST", base + "/api/text", json.dumps({"text": "x"}).encode(), ok)[0] == 403
+    assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "schwarz"}).encode(), ok)[0] == 403
+    assert _http("GET", base + "/api/preview", headers=ok)[0] == 403
+    controller._cast_snapshot()
+    status, body = _http("GET", base + "/api/status", headers=ok)
+    assert status == 200 and json.loads(body)["allow"] == {"senden": False, "steuern": False, "live": False,
+                                                            "laser": True}
+    controller.config["cast"] = {**controller.config["cast"], "allow": {}}
+    assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "schwarz"}).encode(), ok)[0] == 200
+
     # Falsche Codes: nach 10 Versuchen 1 Minute gesperrt (auch für den richtigen Code)
     bad = {"X-AluPC-Code": "000000"}
     codes = [_http("GET", base + "/api/status", headers=bad)[0] for _ in range(11)]
@@ -2119,3 +2132,61 @@ def test_drawings_visible_in_pip_and_previews(env):
     controller.toggle_privacy()
     controller.toggle_pip()
     laser.clear_strokes()
+
+
+def test_start_content_and_default_camera(env, monkeypatch):
+    """Setup: was Monitor 2 beim Start zeigt (auch eine Szene) und welche Kamera die Kachel sofort startet."""
+    controller, window, _ = env
+    from alupc.scenes import new_scene
+
+    scene = new_scene("Begrüßung")
+    controller.config["scenes"] = [*controller.config["scenes"], scene]
+    controller.config["start_content"] = "scene:Begrüßung"
+    controller.restore_last()
+    pump()
+    assert controller.content == {"type": "scene", "scene": "Begrüßung"}
+    controller.config["start_content"] = "cast"
+    controller.restore_last()
+    pump()
+    assert controller.content == {"type": "cast"}
+    controller.extend()
+    controller.config["start_content"] = "none"
+    controller.restore_last()
+    assert controller.mode == "desktop"
+    # alte Einstellung „letzten Inhalt nicht wiederherstellen“ wird als „Nichts“ verstanden
+    controller.config["start_content"] = "last"
+    controller.config["restore_last_content"] = False
+    assert controller.start_content_setting() == "none"
+    controller.config["restore_last_content"] = True
+    # Einstellungen: Auswahl enthält Szenen; Wechsel speichert
+    window._go(2)
+    window.setup._fill_start_combo()
+    combo = window.setup.start_combo
+    idx = combo.findData("scene:Begrüßung")
+    assert idx >= 0
+    combo.setCurrentIndex(idx)
+    assert controller.config["start_content"] == "scene:Begrüßung"
+    # Kamera: vorausgewählt = gespeicherte, sonst erste; Kachel-Klick startet sofort
+    class Dev:
+        def __init__(self, i, name):
+            self._i, self._n = i, name
+
+        def id(self):
+            return self._i
+
+        def description(self):
+            return self._n
+
+    import alupc.sources as sources
+
+    devs = [Dev(b"cam-a", "Webcam A"), Dev(b"cam-b", "Dokumentenkamera")]
+    monkeypatch.setattr("PySide6.QtMultimedia.QMediaDevices.videoInputs", staticmethod(lambda: devs))
+    monkeypatch.setattr(sources, "camera_id", lambda d: bytes(d.id()).decode())
+    shown = []
+    monkeypatch.setattr(controller, "show_source", lambda cfg, *a, **k: shown.append(cfg))
+    assert controller.default_camera()["name"] == "Webcam A"  # nichts gewählt → erste
+    controller.config["default_camera"] = "cam-b"
+    window._camera_clicked()
+    assert shown[-1]["name"] == "Dokumentenkamera"
+    controller.config["default_camera"] = "gibt-es-nicht"
+    assert controller.default_camera()["name"] == "Webcam A"

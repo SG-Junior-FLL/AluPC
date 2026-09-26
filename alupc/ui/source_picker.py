@@ -202,7 +202,8 @@ class SourcePicker(QDialog):
             combo.addItem(dev.description(), camera_id(dev))
         if combo.count() == 0:
             form.addRow(QLabel("Keine Kamera gefunden."))
-        idx = combo.findData(init.get("device_id"))
+        # vorausgewählt: diese Quelle, sonst die Standard-Kamera aus dem Setup, sonst die erste
+        idx = combo.findData(init.get("device_id") or getattr(self, "config", {}).get("default_camera", ""))
         if idx >= 0:
             combo.setCurrentIndex(idx)
         fit = _fit_combo(init.get("fit", "cover"))

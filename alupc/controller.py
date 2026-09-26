@@ -477,6 +477,7 @@ class Controller(QObject):
             "video": bool(video_sources(self.output.content)) if self.mode == "content" else False,
             "timer": clock.text(),
             "keys": __import__("alupc.platform.keys", fromlist=["available"]).available(),
+            "allow": {k: self.cast.allowed(k) for k in ("senden", "steuern", "live", "laser")},
             "rgb": rgb,
             "flags": {"schwarz": self.privacy, "standbild": self.frozen, "schoner": self.screensaver.active,
                       "spiegeln": bool(self.mode == "content" and content.get("mirror")),
@@ -615,7 +616,8 @@ class Controller(QObject):
                     present.add(w.id)
                     if w.id not in placed:
                         try:
-                            present = getattr(self.windows, "present_window", None)
+                            present = getattr(self.windows, "present_window", None) \
+                                if self.config["handy"].get("airplay_borderless", True) else None
                             if present:  # Windows: randlos, genau Monitor 2, im Vordergrund
                                 present(w.id, screen.name(), rect)
                             else:
@@ -677,10 +679,53 @@ class Controller(QObject):
             return describe_source(self.content)
         return self.desktop_note
 
+    def default_camera(self) -> dict | None:
+        """Kamera für die Kachel: gewählte Standard-Kamera, sonst die erste gefundene (None = keine da)."""
+        from PySide6.QtMultimedia import QMediaDevices
+
+        from .sources import camera_id
+
+        devices = QMediaDevices.videoInputs()
+        if not devices:
+            return None
+        wanted = self.config.get("default_camera", "")
+        dev = next((d for d in devices if camera_id(d) == wanted), devices[0])
+        return {"type": "camera", "device_id": camera_id(dev), "name": dev.description(),
+                "fit": self.config.get("camera_fit", "cover") or "cover"}
+
+    def start_camera(self, cfg: dict | None = None) -> None:
+        cfg = cfg or self.default_camera()
+        if cfg is None:
+            self.message.emit("Keine Kamera gefunden.")
+            return
+        self.show_source(cfg)
+
+    def start_content_setting(self) -> str:
+        """Einstellung „Beim Start zeigen“ – ältere Konfigurationen: „letzten Inhalt“ an/aus."""
+        value = self.config.get("start_content", "last") or "last"
+        if value == "last" and not self.config["restore_last_content"]:
+            return "none"
+        return value
+
     def restore_last(self) -> None:
+        what = self.start_content_setting()
         last = self.config["last_content"]
-        if last and self.config["restore_last_content"]:
+        if what == "last" and last:
             self.show_source(last, remember=False)
+        elif what == "mirror":
+            self.mirror()
+        elif what == "camera":
+            self.start_camera()
+        elif what == "airplay":
+            self.start_airplay()
+        elif what == "cast":
+            self.start_cast()
+        elif what.startswith("scene:"):
+            name = what.split(":", 1)[1]
+            if self.config.get_scene(name):
+                self.show_source({"type": "scene", "scene": name}, remember=False)
+            else:
+                self.message.emit(f"Start-Szene „{name}“ gibt es nicht mehr.")
         self._restore_drawings()  # Zeichnungen zum wiederhergestellten Inhalt wieder anzeigen
 
     # ------------------------------------------------------------ Standbild

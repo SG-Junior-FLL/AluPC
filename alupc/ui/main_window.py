@@ -429,7 +429,7 @@ class MainWindow(QMainWindow):
 
         self.t_mirror.clicked.connect(c.mirror)
         self.t_extend.clicked.connect(c.extend)
-        self.t_camera.clicked.connect(self._camera_clicked)
+        self.t_camera.activated.connect(self._camera_clicked)
         self.t_program.clicked.connect(self.open_program_dialog)
         self.t_web.activated.connect(self.pick_website)
         self.website_menu = QMenu(self)
@@ -455,6 +455,8 @@ class MainWindow(QMainWindow):
         self._timer_tick.timeout.connect(self._update_timer_ui)
         self._timer_tick.start()
         self.camera_menu = QMenu(self)
+        self.camera_menu.aboutToShow.connect(lambda: self._fill_camera_menu(self.camera_menu))
+        self.t_camera.set_menu(self.camera_menu, split=True)
         self.media_menu = QMenu(self)
         self.media_menu.aboutToShow.connect(lambda: self._fill_media_menu(self.media_menu))
         self.t_media.set_menu(self.media_menu, split=True)
@@ -561,20 +563,30 @@ class MainWindow(QMainWindow):
             self._apply_hotkeys()
 
     def _camera_clicked(self):
+        """Klick: Standard-Kamera sofort zeigen (vorausgewählt: gewählte oder erste). Pfeil: andere wählen."""
+        self.controller.start_camera()
+
+    def _fill_camera_menu(self, menu):
+        menu.clear()
+        col = theme.current().text
         devices = QMediaDevices.videoInputs()
-        configs = [{"type": "camera", "device_id": camera_id(d), "name": d.description(), "fit": "cover"}
-                   for d in devices]
-        if len(configs) == 1:  # nur eine Kamera → sofort zeigen
-            self.controller.show_source(configs[0])
-            return
-        self.camera_menu.clear()
-        if not configs:
-            act = self.camera_menu.addAction("Keine Kamera gefunden")
+        if not devices:
+            act = menu.addAction("Keine Kamera gefunden")
             act.setEnabled(False)
-        for cfg in configs:
-            self.camera_menu.addAction(icons.icon("camera", theme.current().text, 18), cfg["name"],
-                                       lambda c=cfg: self.controller.show_source(c))
-        self.camera_menu.popup(self.t_camera.mapToGlobal(self.t_camera.rect().bottomLeft()))
+            return
+        current = (self.controller.default_camera() or {}).get("device_id")
+        for d in devices:
+            cfg = {"type": "camera", "device_id": camera_id(d), "name": d.description(),
+                   "fit": self.config.get("camera_fit", "cover") or "cover"}
+            act = menu.addAction(icons.icon("camera", col, 18), d.description(),
+                                 lambda c=cfg: self._use_camera(c))
+            act.setCheckable(True)
+            act.setChecked(cfg["device_id"] == current)
+
+    def _use_camera(self, cfg: dict):
+        """Kamera aus dem Pfeil-Menü: zeigen und als Standard merken (nächster Klick nimmt sie wieder)."""
+        self.config["default_camera"] = cfg["device_id"]
+        self.controller.start_camera(cfg)
 
     def _fill_scene_menu(self, menu):
         menu.clear()
