@@ -8,6 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.20.0) – viel mehr Vorlagen
+- **28 gestaltete Seiten** (20 neu): Countdown bis Uhrzeit/Datum, Geburtstag mit Konfetti, Tabelle/Stundenplan,
+  **Abstimmung/Quiz** (A–F, richtige Antwort hervorheben), Arbeitsauftrag mit Zeit, Regeln, **Gruppeneinteilung**,
+  Stillarbeit (ruhige Animation), Danke/Ende, Hausaufgaben, Schlagzeile, Große Zahl, Termine, Türschild,
+  Speiseplan, **Siegerehrung** mit Podest, **Stimmungsbarometer**, Pro & Contra, Begriff/Definition,
+  Willkommen für Gäste.
+- **23 Szenen-Vorlagen** (16 neu): Stillarbeit mit Timer, Gruppenarbeit, Arbeitsauftrag + Timer, Quiz mit Zeit,
+  **Abstimmung per Handy** (Frage + QR-Code), Ende der Stunde (Danke + Hausaufgaben), Stundenplan + Uhr,
+  Termine + Uhr, Geburtstag, Türschild, Speiseplan, Siegerehrung, Countdown zum Event, Nachrichten mit
+  Laufschrift, Willkommen + Handy-QR, Begriff + Kamera.
+- Vorlagen-Fenster mit **Kategorien** (Unterricht, Veranstaltung, Info, Pause & Zeit, Spaß), **Seiten/Szenen**
+  und **Suche**. Listen und Tabellen: je Zeile ein Eintrag, Spalten mit „|“ trennen.
+
 ### Neu in dieser Version (0.19.0)
 - **9 neue Bildschirmschoner:** Polarlicht, Lavalampe, Lichtkugeln, Meer bei Sonnenuntergang, Feuerwerk,
   Analoguhr, Klappuhr, Schneefall (mit eigenem Text) und **Sprüche/Zitate im Wechsel** (eigene mit | trennen).

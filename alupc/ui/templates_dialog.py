@@ -9,8 +9,10 @@ from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
     QHBoxLayout,
+    QButtonGroup,
     QLabel,
     QLineEdit,
+    QPushButton,
     QListWidget,
     QListWidgetItem,
     QPlainTextEdit,
@@ -19,7 +21,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..screens import DESIGNS, SCENE_TEMPLATES, TEMPLATE_DEFAULTS, build_template, design_defaults, render_preview
+from ..screens import (
+    CATEGORIES,
+    CATEGORY_NAMES,
+    DESIGNS,
+    FIELD_LABELS,
+    SCENE_TEMPLATES,
+    TEMPLATE_CATEGORIES,
+    TEMPLATE_DEFAULTS,
+    TEMPLATE_LABELS,
+    build_template,
+    design_defaults,
+    render_preview,
+)
 from .widgets import button, page_header, paint_scene_thumb
 
 THUMB = QSize(224, 126)
@@ -47,6 +61,28 @@ class TemplatesDialog(QDialog):
         lay.setSpacing(12)
         lay.addWidget(page_header("Vorlagen", "Fertige Seiten und Szenen – eigenen Text eingeben, zeigen oder "
                                               "als Szene speichern.", "star"))
+        # Filter: Art (Seiten/Szenen), Kategorie, Suche
+        filters = QHBoxLayout()
+        filters.setSpacing(6)
+        self.kind_group = QButtonGroup(self)
+        self.cat_group = QButtonGroup(self)
+        for group, labels in ((self.kind_group, ["Alle", "Seiten", "Szenen"]),
+                              (self.cat_group, ["Alle Themen", *CATEGORY_NAMES])):
+            for i, label in enumerate(labels):
+                b = QPushButton(label)
+                b.setObjectName("Segment")
+                b.setCheckable(True)
+                b.setChecked(i == 0)
+                group.addButton(b, i)
+                filters.addWidget(b)
+                group.idClicked.connect(lambda _i: self._filter())
+            filters.addSpacing(14)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Suchen … (z. B. Pause, Quiz, WLAN)")
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._filter)
+        filters.addWidget(self.search, 1)
+        lay.addLayout(filters)
         body = QHBoxLayout()
         body.setSpacing(18)
         self.list = QListWidget()
@@ -62,6 +98,11 @@ class TemplatesDialog(QDialog):
         for kind, key, label in (scenes + entries if scenes_first else entries + scenes):
             item = QListWidgetItem(label)
             item.setData(Qt.UserRole, (kind, key))
+            desc = DESIGNS[key][1] if kind == "design" else SCENE_TEMPLATES[key][1]
+            item.setData(Qt.UserRole + 1, (CATEGORIES.get(key, "") if kind == "design"
+                                           else TEMPLATE_CATEGORIES.get(key, "")))
+            item.setData(Qt.UserRole + 2, f"{label} {desc}".lower())
+            item.setToolTip(desc)
             img = render_preview(design_defaults(key), THUMB.width(), THUMB.height()) if kind == "design" else \
                 _scene_thumb(build_template(key, {}))
             item.setIcon(QIcon(QPixmap.fromImage(img)))
@@ -118,7 +159,34 @@ class TemplatesDialog(QDialog):
         self.text.textChanged.connect(lambda: self._redraw.start())
         self.minutes.valueChanged.connect(lambda *_: self._redraw.start())
         self.list.currentItemChanged.connect(self._selected)
+        self.count = QLabel()
+        self.count.setObjectName("Muted")
+        lay.addWidget(self.count)
+        if scenes_first:
+            self.kind_group.button(2).setChecked(True)
+        self._filter()
         self.list.setCurrentRow(0)
+
+    def _filter(self, *_):
+        kind = {0: None, 1: "design", 2: "scene"}[self.kind_group.checkedId()]
+        cat_id = self.cat_group.checkedId()
+        cat = None if cat_id <= 0 else CATEGORY_NAMES[cat_id - 1]
+        words = self.search.text().lower().split()
+        shown = 0
+        first = None
+        for i in range(self.list.count()):
+            item = self.list.item(i)
+            k, _key = item.data(Qt.UserRole)
+            ok = (kind is None or k == kind) and (cat is None or item.data(Qt.UserRole + 1) == cat) \
+                and all(w in item.data(Qt.UserRole + 2) for w in words)
+            item.setHidden(not ok)
+            if ok:
+                shown += 1
+                first = first or item
+        self.count.setText(f"{shown} Vorlagen")
+        current = self.list.currentItem()
+        if first is not None and (current is None or current.isHidden()):
+            self.list.setCurrentItem(first)
 
     # ------------------------------------------------------------ Auswahl
     def current(self) -> tuple[str, str]:
@@ -127,25 +195,22 @@ class TemplatesDialog(QDialog):
 
     def _selected(self, *_):
         kind, key = self.current()
-        labels = {"wlan": ("WLAN-Name:", "Passwort:"), "zitat": ("Zitat:", "Autor:"),
-                  "ablauf": ("Überschrift:", "Punkte:"), "laufschrift": ("Titel:", "Laufschrift:"),
-                  "gaeste_wlan": ("WLAN-Name:", "Passwort:"), "ablauf_uhr": ("Überschrift:", "Punkte:"),
-                  "kamera_laufschrift": ("Titel:", "Textleiste:")}
         if kind == "design":
             label, desc, title, text, _color = DESIGNS[key]
-            fields = ("title", "text") + (("minutes",) if key == "pause" else ())
-            values = {"title": title, "text": text, "minutes": 10}
-            self.name.setText(label)
+            fields = ("title", "text") + (("minutes",) if key in ("pause", "aufgabe") else ())
+            defaults = design_defaults(key)
+            values = {"title": title, "text": text, "minutes": defaults.get("minutes", 10)}
+            a, b = FIELD_LABELS.get(key, ("Titel:", "Text:"))
         else:
             label, desc, fields, _build = SCENE_TEMPLATES[key]
             values = {"minutes": 5, **TEMPLATE_DEFAULTS.get(key, {})}
-            self.name.setText(label)
+            a, b = TEMPLATE_LABELS.get(key, ("Titel:", "Text:"))
+        self.name.setText(label)
         self.heading.setText(label)
         self.desc.setText(desc)
         self.title.setText(values.get("title", ""))
         self.text.setPlainText(values.get("text", ""))
         self.minutes.setValue(int(values.get("minutes", 5)))
-        a, b = labels.get(key, ("Titel:", "Text:"))
         self.form.labelForField(self.title).setText(a)
         self.form.labelForField(self.text).setText(b)
         self.form.setRowVisible(self.title, "title" in fields)
@@ -163,7 +228,7 @@ class TemplatesDialog(QDialog):
         v = self.values()
         if kind == "design":
             cfg = {**design_defaults(key), "title": v["title"], "text": v["text"]}
-            if key == "pause":
+            if key in ("pause", "aufgabe"):
                 cfg["minutes"] = v["minutes"]
             return cfg
         return build_template(key, v)

@@ -2350,3 +2350,44 @@ def test_agenda_step(env):
     controller.show_source({"type": "clock"})
     controller.run_command("ablauf_weiter")
     assert any("kein Ablauf" in m for m in messages)
+
+
+def test_many_templates_render_and_filter(env):
+    """Alle Seiten und Szenen-Vorlagen: zeichnen etwas, haben Kategorie; Filter und Suche im Dialog."""
+    import time as _time
+
+    from alupc.screens import (CATEGORIES, DESIGNS, SCENE_TEMPLATES, TEMPLATE_CATEGORIES, build_template,
+                               design_defaults, render_preview)
+    from alupc.screens_more import _parse_target
+
+    controller, window, _ = env
+    assert len(DESIGNS) >= 28 and len(SCENE_TEMPLATES) >= 23
+    for key in DESIGNS:
+        assert CATEGORIES[key]
+        img = render_preview(design_defaults(key), 320, 180)
+        assert len({img.pixelColor(x, y).name() for x in range(0, 320, 8) for y in range(0, 180, 8)}) > 5, key
+    for key in SCENE_TEMPLATES:
+        assert TEMPLATE_CATEGORIES[key]
+        scene = build_template(key, {})
+        controller.config.put_scene(scene)
+        controller.show_source({"type": "scene", "scene": scene["name"]})
+        pump(5)
+    now = _time.mktime((2026, 5, 4, 10, 0, 0, 0, 0, -1))
+    assert _parse_target("18:00", now) - now == 8 * 3600
+    assert _parse_target("09:00", now) - now == 23 * 3600  # schon vorbei → morgen
+    assert _parse_target("24.12.2026 18:00", now) > now
+    assert _parse_target("Quatsch", now) is None
+    window.open_templates()
+    dlg = window.templates_dialog
+    pump()
+    total = sum(not dlg.list.item(i).isHidden() for i in range(dlg.list.count()))
+    assert total == len(DESIGNS) + len(SCENE_TEMPLATES)
+    dlg.search.setText("pause")
+    visible = [dlg.list.item(i).data(Qt.UserRole) for i in range(dlg.list.count()) if not dlg.list.item(i).isHidden()]
+    assert ("design", "pause") in visible and ("scene", "pause") in visible and len(visible) < total
+    dlg.search.clear()
+    dlg.kind_group.button(2).click()  # nur Szenen
+    visible = [dlg.list.item(i).data(Qt.UserRole) for i in range(dlg.list.count()) if not dlg.list.item(i).isHidden()]
+    assert visible and all(k == "scene" for k, _ in visible)
+    assert not dlg.list.currentItem().isHidden()
+    dlg.close()

@@ -352,7 +352,7 @@ class SourcePicker(QDialog):
         return lambda: {"size": size.value(), "color": color.color(), "background": bg.color()}
 
     def _page_design(self, init):
-        from ..screens import DESIGNS, design_defaults
+        from ..screens import DESIGNS, FIELD_LABELS, design_defaults
 
         page, form = self._form()
         design = QComboBox()
@@ -367,9 +367,8 @@ class SourcePicker(QDialog):
         minutes.setRange(1, 240)
         minutes.setSuffix(" min")
         current = QSpinBox()
-        current.setRange(1, 30)
-        labels = {"wlan": ("WLAN-Name:", "Passwort:"), "zitat": ("Zitat:", "Autor:"),
-                  "ablauf": ("Überschrift:", "Punkte (je Zeile einer):"), "laufschrift": ("Titel:", "Laufschrift:")}
+        current.setRange(0, 30)
+        labels = FIELD_LABELS
         form.addRow("Design:", design)
         form.addRow("Titel:", title)
         form.addRow("Text:", text)
@@ -393,8 +392,10 @@ class SourcePicker(QDialog):
             a, b = labels.get(key, ("Titel:", "Text:"))
             form.labelForField(title).setText(a)
             form.labelForField(text).setText(b)
-            form.setRowVisible(minutes, key == "pause")
-            form.setRowVisible(current, key == "ablauf")
+            form.setRowVisible(minutes, key in ("pause", "aufgabe"))
+            form.setRowVisible(current, key in ("ablauf", "abstimmung"))
+            form.labelForField(current).setText("Richtige Antwort (0 = offen):" if key == "abstimmung"
+                                                else "Aktueller Punkt:")
 
         design.currentIndexChanged.connect(apply_design)
         apply_design()
