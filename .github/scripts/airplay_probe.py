@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import traceback
+from pathlib import Path
 
 sys.path.insert(0, os.getcwd())
 
@@ -24,7 +25,7 @@ def note(text: str) -> None:
 
 def main():
     app = QCoreApplication([])
-    cfg = Config(os.path.join(os.environ.get("RUNNER_TEMP", "."), "airplay-probe.json"))
+    cfg = Config(Path(os.environ.get("RUNNER_TEMP", ".")) / "airplay-probe.json")
     cfg["handy"] = {**cfg["handy"], "airplay_name": "AluPC CI-Test", "pin": "1234"}
     server = handy.AirPlayServer(cfg)
     note(f"Programm: {server.binary()} · Bonjour: {handy.bonjour_installed()} · "
