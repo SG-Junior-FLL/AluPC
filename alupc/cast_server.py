@@ -40,14 +40,73 @@ MAX_FAILS = 10
 BLOCK_SECONDS = 60
 
 
-def local_ip() -> str:
-    """IP-Adresse dieses PCs im WLAN/LAN (ohne etwas zu senden)."""
+def route_ip() -> str:
+    """IP-Adresse, über die dieser PC ins Netz geht (ohne etwas zu senden)."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         try:
             s.connect(("10.254.254.254", 1))
             return s.getsockname()[0]
         except OSError:
             return "127.0.0.1"
+
+
+# Adapter, die Handys im WLAN nie erreichen: virtuelle Netze von WSL/Hyper-V, VMs, Docker, VPNs
+VIRTUAL_HINTS = ("vethernet", "wsl", "hyper-v", "virtualbox", "vmware", "vmnet", "docker", "vbox", "virbr",
+                 "br-", "tailscale", "zerotier", "wireguard", "tun", "tap", "vpn", "loopback", "bluetooth")
+
+
+def score_address(ip: str, name: str, wifi: bool, route: str) -> int:
+    """Wie wahrscheinlich erreicht ein Handy im WLAN diesen PC über diese Adresse? (höher = besser)"""
+    low = name.lower()
+    score = 0
+    if ip == route:
+        score += 3
+    if wifi or any(w in low for w in ("wlan", "wi-fi", "wifi", "wireless", "wlp")):
+        score += 3
+    if any(v in low for v in VIRTUAL_HINTS):
+        score -= 10
+    if ip.startswith(("192.168.", "10.")):
+        score += 2
+    elif ip.startswith("172."):
+        score -= 1  # oft virtuelle Netze (WSL, Docker)
+    if ip.startswith(("127.", "169.254.")):
+        score -= 20
+    return score
+
+
+def network_addresses() -> list[tuple[str, str, int]]:
+    """Alle IPv4-Adressen des PCs: [(Adresse, Adaptername, Bewertung)], beste zuerst."""
+    route = route_ip()
+    found: dict[str, tuple[str, str, int]] = {}
+    try:
+        from PySide6.QtNetwork import QAbstractSocket, QNetworkInterface
+
+        for iface in QNetworkInterface.allInterfaces():
+            flags = iface.flags()
+            if not (flags & QNetworkInterface.IsUp and flags & QNetworkInterface.IsRunning) or \
+                    flags & QNetworkInterface.IsLoopBack:
+                continue
+            wifi = iface.type() == QNetworkInterface.Wifi
+            name = iface.humanReadableName() or iface.name()
+            for entry in iface.addressEntries():
+                addr = entry.ip()
+                if addr.protocol() != QAbstractSocket.IPv4Protocol:
+                    continue
+                ip = addr.toString()
+                found[ip] = (ip, name, score_address(ip, name, wifi, route))
+    except Exception:  # noqa: BLE001 – ohne QtNetwork: nur die Route
+        pass
+    if route not in found and route != "127.0.0.1":
+        found[route] = (route, "", score_address(route, "", False, route))
+    return sorted(found.values(), key=lambda a: -a[2])
+
+
+def local_ip(preferred: str = "") -> str:
+    """IP-Adresse dieses PCs im WLAN/LAN: gewählte Adresse (falls noch vorhanden), sonst die beste."""
+    addresses = network_addresses()
+    if preferred and any(a[0] == preferred for a in addresses):
+        return preferred
+    return addresses[0][0] if addresses else route_ip()
 
 
 def new_code() -> str:
@@ -129,7 +188,7 @@ class CastServer(QObject):
         return self.code()
 
     def url(self, with_code: bool = True) -> str:
-        base = f"http://{local_ip()}:{self.port or self.settings()['port']}/"
+        base = f"http://{local_ip(self.settings().get('ip', ''))}:{self.port or self.settings()['port']}/"
         return base + (f"?k={self.code()}" if with_code else "")
 
     def running(self) -> bool:

@@ -750,3 +750,24 @@ def test_presentation_keys():
         raise AssertionError("unbekannte Taste muss abgelehnt werden")
     except ValueError:
         pass
+
+
+def test_cast_address_choice(monkeypatch):
+    """QR-Code: WLAN-Adresse statt virtueller Netze (WSL/Hyper-V/VPN), die ein Handy nie erreicht."""
+    from alupc import cast_server, handy
+
+    route = "172.22.0.1"
+    wsl = cast_server.score_address("172.22.0.1", "vEthernet (WSL)", False, route)
+    wlan = cast_server.score_address("192.168.178.20", "WLAN", True, route)
+    vpn = cast_server.score_address("10.8.0.2", "Tailscale", False, route)
+    assert wlan > wsl and wlan > vpn
+    assert cast_server.score_address("169.254.1.2", "Ethernet", False, route) < 0
+    monkeypatch.setattr(cast_server, "network_addresses",
+                        lambda: [("192.168.178.20", "WLAN", 8), ("172.22.0.1", "vEthernet (WSL)", -8)])
+    assert cast_server.local_ip() == "192.168.178.20"
+    assert cast_server.local_ip("172.22.0.1") == "172.22.0.1"  # von Hand gewählt
+    assert cast_server.local_ip("10.0.0.99") == "192.168.178.20"  # gewählte Adresse gibt es nicht mehr
+    cmd = handy.windows_firewall_command(r"C:\AluPC\AluPC.exe", 8765)
+    assert cmd[0] == "powershell" and "-Verb RunAs" in cmd[-1]
+    assert "localport=8765-8774" in cmd[-1] and "localport=7000,7001,7100" in cmd[-1]
+    assert "profile=private,domain" in cmd[-1]

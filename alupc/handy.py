@@ -505,7 +505,39 @@ def setup_plan(config) -> list[tuple[str, list[str]]]:
             plan.append(("Bonjour (damit das iPhone den PC findet) installieren", _winget(WINGET_IDS["bonjour"])))
         if not (find_uxplay_windows() or find_program("uxplay", "", WINDOWS_UXPLAY)):
             plan.append(("AirPlay-Empfänger (UxPlay für Windows) installieren", _winget(WINGET_IDS["uxplay"])))
+    if IS_WINDOWS and not config["handy"].get("firewall_done") and not windows_firewall_ok():
+        plan.append(("Firewall für Handy und AirPlay freigeben (eine Windows-Abfrage)",
+                     windows_firewall_command(sys.executable, int(config["cast"].get("port", 8765)))))
     return plan
+
+
+def windows_firewall_ok() -> bool:
+    """Gibt es die Freigaben schon (z. B. vom Installer eingerichtet)?"""
+    try:
+        out = subprocess.run(["netsh", "advfirewall", "firewall", "show", "rule", "name=AluPC Handy"],
+                             capture_output=True, text=True, timeout=10, creationflags=0x08000000)
+        return out.returncode == 0 and "AluPC Handy" in out.stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def windows_firewall_command(alupc_exe: str, cast_port: int) -> list[str]:
+    """Windows: Firewall-Freigaben für Handy-Steuerung (AluPC) und AirPlay – EINE Admin-Abfrage (UAC).
+    Nur private Netzwerke (Zuhause/Schule), nicht öffentliche."""
+    rules = [
+        'netsh advfirewall firewall delete rule name="AluPC Handy"',
+        f'netsh advfirewall firewall add rule name="AluPC Handy" dir=in action=allow protocol=TCP '
+        f'localport={int(cast_port)}-{int(cast_port) + 9} profile=private,domain',
+        'netsh advfirewall firewall delete rule name="AluPC AirPlay"',
+        'netsh advfirewall firewall add rule name="AluPC AirPlay" dir=in action=allow protocol=TCP '
+        'localport=7000,7001,7100 profile=private,domain',
+        'netsh advfirewall firewall add rule name="AluPC AirPlay" dir=in action=allow protocol=UDP '
+        'localport=5353,6000,6001,7011 profile=private,domain',
+    ]
+    script = " & ".join(rules)
+    ps = ("Start-Process -FilePath cmd.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList "
+          f"'/c {script.replace(chr(39), chr(39) * 2)}'")
+    return ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps]
 
 
 def _winget(package_id: str) -> list[str]:

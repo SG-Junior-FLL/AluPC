@@ -262,6 +262,15 @@ class HandyPage(QWidget):
         self.cast_auto.toggled.connect(lambda on: self.config.__setitem__(
             "cast", {**self.config["cast"], "autostart": bool(on)}))
         info.addWidget(self.cast_url)
+        ip_row = QHBoxLayout()
+        ip_row.addWidget(QLabel("Adresse:"))
+        self.cast_ip = QComboBox()
+        self.cast_ip.setToolTip("Über diese Adresse erreichen Handys den PC. „Automatisch“ nimmt das WLAN/LAN "
+                                "und lässt virtuelle Netze (WSL, VPN, VirtualBox …) weg.")
+        self._fill_ip_box()
+        self.cast_ip.currentIndexChanged.connect(self._save_ip)
+        ip_row.addWidget(self.cast_ip, 1)
+        info.addLayout(ip_row)
         info.addWidget(self.cast_auto)
         info.addStretch(1)
         row.addLayout(info, 1)
@@ -277,6 +286,26 @@ class HandyPage(QWidget):
             card.buttons.addWidget(b)
         card.buttons.addStretch(1)
         return card
+
+    def _fill_ip_box(self):
+        from ..cast_server import network_addresses
+
+        chosen = self.config["cast"].get("ip", "")
+        self.cast_ip.blockSignals(True)
+        self.cast_ip.clear()
+        addresses = network_addresses()
+        best = addresses[0][0] if addresses else "?"
+        self.cast_ip.addItem(f"Automatisch ({best})", "")
+        for ip, name, _score in addresses:
+            self.cast_ip.addItem(f"{ip} – {name}" if name else ip, ip)
+        index = self.cast_ip.findData(chosen)
+        self.cast_ip.setCurrentIndex(max(0, index))
+        self.cast_ip.blockSignals(False)
+
+    def _save_ip(self, *_):
+        self.config["cast"] = {**self.config["cast"], "ip": self.cast_ip.currentData() or ""}
+        self.controller.cast.state_changed.emit()  # QR-Code auf Monitor 2 neu zeichnen
+        self.refresh()
 
     def _toggle_cast(self):
         if self.controller.cast.running():

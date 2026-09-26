@@ -98,7 +98,7 @@ DEFAULTS: dict = {
     # iPhone → Monitor 2 per AirPlay (UxPlay); leerer Pfad = automatisch suchen
     "handy": {"airplay_name": "AluPC", "pin": "", "uxplay_path": "", "setup_done": False},
     # AluCast (Handy per Browser): Anschluss, Zugangscode, beim Start von AluPC mitstarten
-    "cast": {"port": 8765, "code": "", "autostart": False},
+    "cast": {"port": 8765, "code": "", "autostart": False, "ip": ""},
     # Dual-Boot-Abgleich (Windows ↔ Linux) über einen gemeinsamen Ordner, siehe settings_sync.py
     "sync": {"enabled": False, "folder": "", "base_rev": 0, "base_hash": "", "device": "", "last": "",
              "status": ""},
