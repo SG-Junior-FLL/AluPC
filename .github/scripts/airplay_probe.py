@@ -25,10 +25,11 @@ def note(text: str) -> None:
 
 def bonjour_names() -> list[str]:
     try:
-        browse = subprocess.run(["dns-sd", "-B", "_airplay._tcp", "local"], capture_output=True, text=True, timeout=8)
-        found = browse.stdout
+        browse = subprocess.run(["dns-sd", "-B", "_airplay._tcp", "local"], capture_output=True, timeout=8)
+        found = browse.stdout.decode("utf-8", errors="replace")
     except subprocess.TimeoutExpired as exc:  # dns-sd läuft endlos – nach 8 s abbrechen und Ausgabe lesen
-        found = exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        # dns-sd gibt UTF-8 aus (nicht die Konsolen-Codepage) – sonst wird das geschützte Leerzeichen zu „Â “
+        found = exc.stdout.decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
     except OSError as exc:
         return [f"(dns-sd nicht ausführbar: {exc})"]
     names = set()
