@@ -119,7 +119,7 @@ class WebsiteDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Website anzeigen", "Die Seite erscheint im Vollbild auf Monitor 2."))
+        lay.addWidget(page_header("Website anzeigen", "Vollbild auf Monitor 2"))
         caption = QLabel("Gespeicherte Websites")
         caption.setObjectName("SectionTitle")
         lay.addWidget(caption)
@@ -144,7 +144,7 @@ class WebsiteDialog(QDialog):
         self.combo.lineEdit().setPlaceholderText("z. B. www.beispiel.de")
         self.combo.setMinimumHeight(38)
         self.save_it = QCheckBox("Unter „Website“ speichern")
-        self.control_it = QCheckBox("Danach das Fenster „Browser steuern“ öffnen")
+        self.control_it = QCheckBox("Browser-Steuerung öffnen")
         form = QFormLayout()
         form.addRow("Adresse:", self.combo)
         form.addRow("", self.save_it)
@@ -169,8 +169,7 @@ class WebsiteDialog(QDialog):
             item.setData(Qt.UserRole + 1, fav.get("title"))
             self.favs.addItem(item)
         if not self.favs.count():
-            item = QListWidgetItem("Noch keine gespeicherten Websites – unten eine Adresse eingeben und "
-                                   "„Unter Website speichern“ anhaken.")
+            item = QListWidgetItem("Keine Favoriten")
             item.setFlags(Qt.NoItemFlags)
             self.favs.addItem(item)
 
@@ -491,8 +490,6 @@ class MainWindow(QMainWindow):
         self.scene_menu.aboutToShow.connect(lambda: self._fill_scene_menu(self.scene_menu))
         self.t_scenes.set_menu(self.scene_menu, split=True)
         self.t_scenes.activated.connect(lambda: self._go(1))  # Klick: Szenen-Seite, Pfeil: Szene starten
-        self.t_templates = self.tiles["vorlagen"]
-        self.t_templates.clicked.connect(lambda: self.open_templates())
         self.custom_tiles: dict[str, Tile] = {}
 
         self.section_labels = {}
@@ -505,7 +502,7 @@ class MainWindow(QMainWindow):
             self.section_grids[key] = grid
             lay.addWidget(title)
             lay.addWidget(grid)
-        self.start_empty = QLabel("Alle Kacheln sind ausgeblendet – über „Startseite anpassen“ wieder einblenden.")
+        self.start_empty = QLabel("Alle Kacheln ausgeblendet · „Startseite anpassen“")
         self.start_empty.setObjectName("Muted")
         lay.addWidget(self.start_empty)
         hint = QLabel()
@@ -521,7 +518,7 @@ class MainWindow(QMainWindow):
         """Startseite nach den Einstellungen neu zusammensetzen."""
         cfg = self.config["start_page"]
         self.start_title.setText(cfg.get("title") or "Was sollen die anderen sehen?")
-        self.start_subtitle.setText(cfg.get("subtitle") or "Ein Klick auf eine Kachel – und Monitor 2 zeigt es sofort.")
+        self.start_subtitle.setText(cfg.get("subtitle") or "Kachel antippen – läuft sofort auf Monitor 2")
         self.status_card.setVisible(bool(cfg.get("show_status", True)))
         self.shortcut_hint.setVisible(bool(cfg.get("show_hint", True)))
         # eigene Kacheln neu anlegen
@@ -620,15 +617,13 @@ class MainWindow(QMainWindow):
         menu.clear()
         names = self.config.scene_names()
         if not names:
-            act = menu.addAction("Noch keine Szene angelegt")
+            act = menu.addAction("Keine Szenen")
             act.setEnabled(False)
         for name in names:
             menu.addAction(icons.icon("scenes", theme.current().text, 18), name,
                            lambda n=name: self.controller.show_source({"type": "scene", "scene": n}))
         menu.addSeparator()
         menu.addAction(icons.icon("plus", theme.current().text, 18), "Neue Szene …", self.new_scene)
-        menu.addAction(icons.icon("star", theme.current().text, 18), "Aus Vorlage …",
-                       lambda: self.open_templates(scenes_first=True))
 
     def open_program_dialog(self):
         dialog = ProgramDialog(self.controller, self)
@@ -686,12 +681,12 @@ class MainWindow(QMainWindow):
         c = self.controller
         col = theme.current().text
         menu.clear()
-        page = ("sliders", "Einrichten und Hilfe …", self.open_handy_window)
+        page = ("sliders", "Einrichten …", self.open_handy_window)
         items = {
             "airplay": [("phone", "Auf Monitor 2 zeigen", c.start_airplay)],
-            "handy_remote": [("qr", "QR-Code auf Monitor 2 zeigen", c.start_cast)]
-            + ([("x", "Handy-Steuerung beenden", c.stop_cast)] if c.cast.running() else [])
-            + [("refresh", "Neuer Code (alter QR-Code ungültig)", c.cast.renew_code)],
+            "handy_remote": [("qr", "QR-Code zeigen", c.start_cast)]
+            + ([("x", "Beenden", c.stop_cast)] if c.cast.running() else [])
+            + [("refresh", "Neuer Code", c.cast.renew_code)],
         }[key]
         for icon_name, text, slot in items:
             menu.addAction(icons.icon(icon_name, col, 18), text, slot)
@@ -736,14 +731,14 @@ class MainWindow(QMainWindow):
             menu.addAction(icons.icon("globe", t.text, 18), fav.get("title") or fav.get("url"),
                            lambda u=fav.get("url"): self.controller.show_source({"type": "website", "url": u}))
         if not favs:
-            act = menu.addAction("Noch keine gespeicherten Websites")
+            act = menu.addAction("Keine Favoriten")
             act.setEnabled(False)
         menu.addSeparator()
         menu.addAction(icons.icon("sliders", t.text, 18), "Browser steuern …", self.open_browser_control)
-        save = menu.addAction(icons.icon("bookmark", t.text, 18), "Aktuelle Website speichern …",
+        save = menu.addAction(icons.icon("bookmark", t.text, 18), "Aktuelle speichern …",
                               self.save_current_website)
         save.setEnabled(self.controller.current_web_view() is not None)
-        menu.addAction(icons.icon("plus", t.text, 18), "Website öffnen / verwalten …", self.pick_website)
+        menu.addAction(icons.icon("plus", t.text, 18), "Öffnen …", self.pick_website)
 
     def open_media_library(self):
         from .media_library import MediaLibraryDialog
@@ -765,7 +760,7 @@ class MainWindow(QMainWindow):
                                  lambda c=cfg: self.controller.show_source(c))
             act.setEnabled(lib.exists(item))
         if not items:
-            act = menu.addAction("Noch nichts in der Mediathek gespeichert")
+            act = menu.addAction("Mediathek leer")
             act.setEnabled(False)
         recent = lib.recent(self.config)[:5]
         if recent:
@@ -780,7 +775,7 @@ class MainWindow(QMainWindow):
         menu.addAction(icons.icon("video", t.text, 18), "Video öffnen …", self.pick_video)
         menu.addAction(icons.icon("slides", t.text, 18), "Diashow aus Ordner …", self.pick_slideshow)
         current = self.controller.current_media()
-        save = menu.addAction(icons.icon("bookmark", t.text, 18), "Aktuelles in der Mediathek speichern",
+        save = menu.addAction(icons.icon("bookmark", t.text, 18), "Aktuelles speichern",
                               lambda: self.controller.save_media(current))
         save.setEnabled(current is not None and not lib.is_saved(self.config, current))
         menu.addAction(icons.icon("grid", t.text, 18), "Mediathek öffnen …", self.open_media_library)
@@ -807,12 +802,9 @@ class MainWindow(QMainWindow):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(14)
         top = QHBoxLayout()
-        top.addWidget(page_header("Meine Szenen", "Eigene Zusammenstellungen – nur von dir erstellt."), 1)
-        new = button("Leere Szene", "plus")
+        top.addWidget(page_header("Meine Szenen", "Eigene Zusammenstellungen"), 1)
+        new = button("Neue Szene", "plus", primary=True)
         new.clicked.connect(self.new_scene)
-        from_template = button("Neue Szene aus Vorlage …", "star", primary=True)
-        from_template.clicked.connect(lambda: self.open_templates(scenes_first=True))
-        top.addWidget(from_template, 0, Qt.AlignTop)
         top.addWidget(new, 0, Qt.AlignTop)
         lay.addLayout(top)
 
@@ -839,8 +831,7 @@ class MainWindow(QMainWindow):
         empty_btn.clicked.connect(self.new_scene)
         self.scene_stack.addWidget(EmptyState(
             "scenes", "Noch keine Szene",
-            "Wähle eine Layout-Vorlage und lege in jedes Feld eine Quelle:\n"
-            "Kamera, Programm, Website, Bild, Text, Uhr …", empty_btn))
+            "Vorlage wählen · Text eintragen · fertig", empty_btn))
         area = QScrollArea()
         area.setWidgetResizable(True)
         self.scene_grid = FlowGrid(min_width=236, max_cols=6, fixed=True)
@@ -914,19 +905,14 @@ class MainWindow(QMainWindow):
         if scene:
             self.controller.show_source({"type": "scene", "scene": scene["name"]})
 
-    def open_templates(self, scenes_first: bool = False):
+    def new_scene(self):
+        """Neue Szene: erst Vorlage wählen (oder „Leer“), dann im Editor anpassen und speichern."""
         from .templates_dialog import TemplatesDialog
 
-        dlg = TemplatesDialog(self.controller, self, scenes_first=scenes_first)
+        dlg = TemplatesDialog(self.controller, self)
         dlg.setAttribute(Qt.WA_DeleteOnClose)
         self.templates_dialog = dlg
         dlg.show()
-
-    def new_scene(self):
-        dlg = SceneEditor(self.config, None, self)
-        if dlg.exec() == QDialog.Accepted:
-            self._reload_scenes(dlg.scene["name"])
-            self.show_message(f"Szene „{dlg.scene['name']}“ gespeichert.", "ok")
 
     def edit_scene(self):
         scene = self._selected_scene()
@@ -964,7 +950,7 @@ class MainWindow(QMainWindow):
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(page_header("Setup", "Alle Einstellungen – links den Bereich wählen."))
+        lay.addWidget(page_header("Setup", "Alle Einstellungen"))
         self.setup = SetupPage(self.controller, self.hotkeys)
         self.setup.theme_changed.connect(self.apply_theme)
         self.setup.hotkeys_changed.connect(self.refresh)
@@ -975,7 +961,7 @@ class MainWindow(QMainWindow):
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(page_header("Fingerabdruck", "Sensor wählen, Finger anlernen und damit anmelden."))
+        lay.addWidget(page_header("Fingerabdruck", "Sensor · Finger · Anmelden"))
         lay.addWidget(FingerprintPage(self.controller), 1)
         return page
 
@@ -999,7 +985,7 @@ class MainWindow(QMainWindow):
             dlg.resize(1060, 820)
             lay = QVBoxLayout(dlg)
             lay.setContentsMargins(22, 18, 22, 18)
-            lay.addWidget(page_header("Handy auf Monitor 2", "iPhone per AirPlay oder jedes Handy per QR-Code – die Einrichtung läuft automatisch."))
+            lay.addWidget(page_header("Handy auf Monitor 2", "AirPlay · QR-Code"))
             self.handy_page = HandyPage(self.controller)
             lay.addWidget(self.handy_page, 1)
             self.handy_window = dlg
@@ -1361,7 +1347,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             self.hide()
             if not self.config.data.get("tray_hint_shown"):
-                self.tray.showMessage(APP_NAME, "AluPC läuft im Hintergrund weiter (Symbol in der Taskleiste).",
+                self.tray.showMessage(APP_NAME, "Läuft im Hintergrund weiter",
                                       QSystemTrayIcon.Information, 4000)
                 self.config["tray_hint_shown"] = True
         else:

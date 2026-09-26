@@ -152,32 +152,28 @@ class ProgramDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Programm auf Monitor 2", "Aufnehmen oder das echte Fenster verschieben."))
+        lay.addWidget(page_header("Programm auf Monitor 2", "Aufnehmen · Verschieben"))
         lay.addWidget(self.tabs)
 
     # ------------------------------------------------------------ Aufnahme
     def _capture_tab(self):
         page = QWidget()
         lay = QVBoxLayout(page)
-        info = QLabel("AluPC nimmt das Programm auf und zeigt es im Vollbild auf Monitor 2. Das Programm "
-                      "bleibt auf deinem Monitor und darf <b>hinter anderen Fenstern</b> liegen – du kannst "
-                      "währenddessen normal weiterarbeiten.")
+        info = QLabel("Vollbild auf Monitor 2 · Fenster darf hinten liegen")
         info.setWordWrap(True)
         self.capture_list = ProgramList(
             lambda: capture_programs(self.backend),
-            "Auf diesem System kann Qt keine einzelnen Fenster aufnehmen (z. B. KDE unter Wayland). "
-            "Nutze „Fenster verschieben“.")
+            "Aufnahme hier nicht möglich · „Fenster verschieben“ nutzen")
         self.capture_list.list.itemDoubleClicked.connect(lambda _i: self._do_capture())
         settings = self.controller.config["program"]
-        self.restore_box = QCheckBox("Minimierte Programme automatisch im Hintergrund wiederherstellen")
+        self.restore_box = QCheckBox("Minimierte Fenster zurückholen")
         self.restore_box.setChecked(bool(settings.get("restore_minimized", True)))
         self.restore_box.setToolTip("Ein minimiertes Programm liefert kein Bild. AluPC holt es dann zurück, "
                                     "legt es aber ganz nach hinten und aktiviert es nicht.")
         self.restore_box.toggled.connect(self._save_restore)
         if not self.backend.can_restore_background:
             self.restore_box.setEnabled(False)
-            self.restore_box.setText("Minimierte Programme liefern kein Bild – bitte nicht minimieren "
-                                     "(nach hinten legen reicht)")
+            self.restore_box.setText("Nicht minimieren (nach hinten reicht)")
         show_btn = button("Anzeigen", "play", primary=True)
         show_btn.setDefault(True)
         show_btn.clicked.connect(self._do_capture)
@@ -209,8 +205,7 @@ class ProgramDialog(QDialog):
         page = QWidget()
         lay = QVBoxLayout(page)
         wb = self.backend
-        info = QLabel("Das echte Programmfenster wird auf Monitor 2 geschoben und maximiert. "
-                      "Du kannst es dort weiter bedienen.")
+        info = QLabel("Fenster wandert auf Monitor 2 (maximiert, bedienbar)")
         info.setWordWrap(True)
         lay.addWidget(info)
         self.fullscreen = QCheckBox("Vollbild statt maximiert (nur Linux)")
@@ -230,8 +225,7 @@ class ProgramDialog(QDialog):
             lay.addLayout(row)
 
         if wb.can_move_active:
-            box = QLabel("<b>Oder:</b> Klick auf „Anklicken“, dann hast du 4 Sekunden Zeit, "
-                         "das gewünschte Programm anzuklicken.")
+            box = QLabel("<b>Oder:</b> „Anklicken“ – dann 4 s Zeit fürs Programm")
             box.setWordWrap(True)
             lay.addWidget(box)
             self.countdown_btn = button("Anklicken (4 Sekunden)", "timer")

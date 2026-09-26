@@ -117,7 +117,7 @@ class FirstRunDialog(QDialog):
         names = QVBoxLayout()
         title = QLabel("Willkommen bei AluPC")
         title.setFont(font(18, QFont.Bold))
-        sub = QLabel("Ein Klick – AluPC prüft deinen PC und richtet alles ein.")
+        sub = QLabel("Ein Klick – alles wird eingerichtet")
         sub.setObjectName("Muted")
         names.addWidget(title)
         names.addWidget(sub)
@@ -191,7 +191,7 @@ class FirstRunDialog(QDialog):
     def _step_monitors(self):
         out = self.controller.output_screen()
         if out is None:
-            self._next("warn", "Kein zweiter Monitor gefunden – einfach später anschließen, AluPC erkennt ihn selbst.")
+            self._next("warn", "Kein Monitor 2 – wird später erkannt")
         else:
             g = out.geometry()
             self._next("ok", f"Monitor 2: {out.name()} ({g.width()} × {g.height()})")
@@ -202,7 +202,7 @@ class FirstRunDialog(QDialog):
 
         main = self.controller.main_screen()
         if main is not None and is_wayland() and not _kwin_allowed(main.name()):
-            self._next("skip", "Unter Wayland fragt das System beim ersten Spiegeln nach – dann wird es geprüft.")
+            self._next("skip", "Wayland: wird beim ersten Spiegeln geprüft")
             return
         from ..diagnose import capture_probe
 
@@ -212,12 +212,11 @@ class FirstRunDialog(QDialog):
         if ok:
             output["mirror_method"] = "auto"
             self.config["output"] = output
-            self._next("ok", "Bildaufnahme klappt – Spiegeln läuft über AluPC (mit Standbild, Zeichnen …).")
+            self._next("ok", "Spiegeln über AluPC")
         else:
             output["mirror_method"] = "system"
             self.config["output"] = output
-            self._next("warn", f"Bildaufnahme liefert hier kein Bild ({result}). AluPC spiegelt deshalb über "
-                               f"{self.controller.display.name} – das klappt immer.")
+            self._next("warn", f"Kein Bild · spiegelt über {self.controller.display.name}")
 
     def _step_install(self):
         plan = handy.setup_plan(self.config)

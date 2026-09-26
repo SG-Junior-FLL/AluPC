@@ -38,7 +38,7 @@ class TimerDialog(QDialog):
         self.seconds.setSuffix(" s")
         self.seconds.setValue(int(cfg.get("seconds", 0)))
         self.finished = QLineEdit(cfg.get("finished_text", "Zeit ist um!"))
-        self.warn = QCheckBox("Letzte Minute orange, letzte 10 Sekunden rot, am Ende blinken")
+        self.warn = QCheckBox("Warnfarben (orange · rot · blinken)")
         self.warn.setChecked(bool(cfg.get("warn_colors", True)))
         self.start_now = QCheckBox("Sofort starten")
         self.start_now.setChecked(True)

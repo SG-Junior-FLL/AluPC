@@ -98,10 +98,8 @@ class FingerprintPage(QWidget):
 
         auto_box = QGroupBox("Automatisch einrichten")
         al = QHBoxLayout(auto_box)
-        auto_text = QLabel("Ein Klick: AluPC installiert, was fehlt, findet den Sensor, lernt den Finger an, "
-                           "testet ihn und schaltet die Anmeldung ein." if not IS_WINDOWS else
-                           "Ein Klick: AluPC sucht den Sensor, öffnet Windows Hello zum Anlernen und macht "
-                           "danach einen Test-Scan.")
+        auto_text = QLabel("Installieren · Sensor finden · Finger anlernen · Anmeldung an" if not IS_WINDOWS else
+                           "Sensor finden · Windows Hello öffnen · Test-Scan")
         auto_text.setWordWrap(True)
         self.auto_btn = button("Automatisch einrichten …", "fingerprint", primary=True)
         self.auto_btn.clicked.connect(self.auto_setup)
@@ -123,7 +121,7 @@ class FingerprintPage(QWidget):
 
         finger_box = QGroupBox("Finger")
         fl = QVBoxLayout(finger_box)
-        hint = QLabel("Finger anklicken zum Auswählen · grün = schon angelernt")
+        hint = QLabel("Finger wählen · grün = angelernt")
         hint.setObjectName("Muted")
         fl.addWidget(hint)
         self.hands = HandPicker()
@@ -159,9 +157,7 @@ class FingerprintPage(QWidget):
         act_row.addWidget(self.delete_all_btn)
         act_row.addStretch(1)
         fl.addLayout(act_row)
-        self.hello_note = QLabel("Windows erlaubt anderen Programmen nicht, Finger für die Windows-Anmeldung "
-                                 "anzulernen oder zu löschen. Das geht nur über Windows Hello – AluPC öffnet "
-                                 "dafür direkt die richtige Seite.")
+        self.hello_note = QLabel("Anlernen/Löschen nur über Windows Hello")
         self.hello_note.setWordWrap(True)
         fl.addWidget(self.hello_note)
         lay.addWidget(finger_box)
@@ -223,13 +219,10 @@ class FingerprintPage(QWidget):
         self.login_box.setVisible(bool(b.login_toggle))
         self.win_box.setVisible(IS_WINDOWS)
         if IS_WINDOWS and serial:
-            self.win_text.setText("Mit einem Modul am seriellen Anschluss (z. B. HLK-ZW101) kann AluPC anlernen und "
-                                  "prüfen – für die Windows-Anmeldung selbst lässt Windows aber nur Sensoren mit "
-                                  "Windows-Hello-Treiber zu. Das kann AluPC nicht ändern.")
+            self.win_text.setText("Serielles Modul: nur Anlernen/Prüfen · Windows-Anmeldung braucht Hello-Treiber")
             self.win_btn.hide()
         else:
-            self.win_text.setText("Die Windows-Anmeldung per Fingerabdruck ist eingeschaltet, sobald ein Finger "
-                                  "in Windows Hello angelernt ist.")
+            self.win_text.setText("An, sobald ein Finger in Windows Hello angelernt ist")
             self.win_btn.show()
 
     def _set_enabled(self, on):
@@ -301,10 +294,9 @@ class FingerprintPage(QWidget):
         state = self.backend.login_enabled()
         if state is None:
             self.login_label.setText("Status unbekannt.")
-            self.login_btn.setText("Anmeldung mit Fingerabdruck einschalten")
+            self.login_btn.setText("Einschalten")
         elif state:
-            self.login_label.setText("Eingeschaltet: Anmeldebildschirm, Sperrbildschirm und sudo akzeptieren "
-                                     "den Fingerabdruck (das Passwort geht weiterhin).")
+            self.login_label.setText("An: Anmelden · Sperrbildschirm · sudo (Passwort geht weiter)")
             self.login_btn.setText("Ausschalten")
         else:
             self.login_label.setText("Ausgeschaltet: Anmelden nur mit Passwort.")

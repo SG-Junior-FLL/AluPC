@@ -61,10 +61,9 @@ class SectionPicker(QDialog):
 def backup_group(page) -> QGroupBox:
     """Einstellungen in eine Datei sichern bzw. daraus laden (auch nur die Startseite)."""
     config = page.config
-    box = QGroupBox("Einstellungen sichern und laden")
+    box = QGroupBox("Sichern & Laden")
     lay = QVBoxLayout(box)
-    info = QLabel("Speichert Startseite, Szenen, Favoriten, Tastenkürzel, Design … in eine Datei – z. B. als "
-                  "Sicherung, für einen zweiten PC oder um die Startseite weiterzugeben.")
+    info = QLabel("Alle Einstellungen als Datei · Sicherung oder zweiter PC")
     info.setWordWrap(True)
     info.setObjectName("Muted")
     lay.addWidget(info)
@@ -121,15 +120,12 @@ def sync_group(page) -> QGroupBox:
     """Dual-Boot: Windows ↔ Linux automatisch abgleichen."""
     config = page.config
     controller = page.controller
-    box = QGroupBox("Dual-Boot: Windows ↔ Linux automatisch abgleichen")
+    box = QGroupBox("Dual-Boot-Abgleich")
     lay = QVBoxLayout(box)
     how = QLabel(
-        "Beide Systeme legen ihre Einstellungen in einen <b>gemeinsamen Ordner</b> – auf dem Windows-Laufwerk "
-        "(Linux kann es lesen, Windows aber keine Linux-Laufwerke).<br>"
-        "<b>1.</b> Auf einem System einschalten und das Windows-Laufwerk (z. B. <b>C:</b>) wählen – AluPC legt "
-        "dort den Ordner „AluPC-Sync“ an.<br><b>2.</b> Auf dem anderen System einschalten und "
-        "„Automatisch suchen“ – AluPC findet den Ordner und übernimmt die Einstellungen.<br>"
-        "Danach gleicht AluPC bei jedem Start und nach jeder Änderung selbst ab.")
+        "<b>1.</b> Einschalten · Windows-Laufwerk wählen<br>"
+        "<b>2.</b> Auf dem anderen System: „Automatisch suchen“<br>"
+        "Danach automatisch bei jeder Änderung")
     how.setWordWrap(True)
     lay.addWidget(how)
     status = Banner("", "info")
@@ -234,10 +230,7 @@ def sync_group(page) -> QGroupBox:
     mount.clicked.connect(do_mount)
     now.clicked.connect(lambda: (controller.run_sync(), refresh()))
     controller.sync_status.connect(lambda _m: refresh())
-    note = QLabel("Abgeglichen werden Startseite, Szenen, Favoriten, Tastenkürzel, Design, Bildschirmschoner, "
-                  "Töne, Handy-Name/Code und RGB. Nicht: Monitor-Namen, Kameras, Programmpfade und Fingerabdruck "
-                  "(die sind je System anders). Dateipfade in Szenen (z. B. Bilder) gelten nur, wenn die Datei "
-                  "auf beiden Systemen am gleichen Ort liegt.")
+    note = QLabel("Mit: Startseite, Szenen, Design, Töne, Handy, RGB · Ohne: Monitore, Kameras, Fingerabdruck")
     note.setWordWrap(True)
     note.setObjectName("Muted")
     lay.addWidget(note)

@@ -135,8 +135,7 @@ class MediaLibraryDialog(QDialog):
         self.grid.setUniformItemSizes(True)
         self.grid.itemDoubleClicked.connect(lambda _i: self.show_selected())
         self.grid.itemSelectionChanged.connect(self._update_buttons)
-        self.empty = QLabel("Noch nichts gespeichert.\nÜber „Dateien hinzufügen …“ Bilder und Videos aufnehmen – "
-                            "alles, was auf Monitor 2 gezeigt wird, erscheint außerdem unter „Zuletzt“.")
+        self.empty = QLabel("Noch leer · „Dateien hinzufügen …“")
         self.empty.setAlignment(Qt.AlignCenter)
         self.empty.setObjectName("Muted")
         self.empty.setWordWrap(True)
@@ -165,8 +164,7 @@ class MediaLibraryDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Mediathek", "Gespeicherte Bilder, Videos und Diashows – ein Doppelklick zeigt "
-                                               "sie auf Monitor 2."))
+        lay.addWidget(page_header("Mediathek", "Bilder · Videos · Diashows – Doppelklick zeigt"))
         lay.addLayout(chips)
         lay.addWidget(self.grid, 1)
         lay.addWidget(self.empty, 1)

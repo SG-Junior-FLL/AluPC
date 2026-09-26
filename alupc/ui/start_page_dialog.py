@@ -196,8 +196,7 @@ class CustomTileDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Eigene Kachel", "Anzeigen, eigener Bildschirmschoner, Timer oder Befehl – "
-                                                   "mit eigenem Ton und Tastenkürzel."))
+        lay.addWidget(page_header("Eigene Kachel", "Anzeigen · Schoner · Timer · Befehl"))
         lay.addLayout(form)
         lay.addWidget(buttons)
 
@@ -261,8 +260,8 @@ class StartPageDialog(QDialog):
         self.title = QLineEdit(self.cfg.get("title", ""))
         self.title.setPlaceholderText("Was sollen die anderen sehen?")
         self.subtitle = QLineEdit(self.cfg.get("subtitle", ""))
-        self.subtitle.setPlaceholderText("Ein Klick auf eine Kachel – und Monitor 2 zeigt es sofort.")
-        self.show_status = QCheckBox("Statuskarte anzeigen (was läuft gerade auf Monitor 2)")
+        self.subtitle.setPlaceholderText("Kachel antippen – läuft sofort auf Monitor 2")
+        self.show_status = QCheckBox("Statuskarte zeigen")
         self.show_status.setChecked(bool(self.cfg.get("show_status", True)))
         self.show_hint = QCheckBox("Hinweis mit Tastenkürzeln anzeigen")
         self.show_hint.setChecked(bool(self.cfg.get("show_hint", True)))
@@ -300,7 +299,7 @@ class StartPageDialog(QDialog):
         body = QHBoxLayout()
         body.addWidget(self.list, 1)
         body.addLayout(side)
-        hint = QLabel("Haken = Kachel wird angezeigt. Reihenfolge per Ziehen oder mit den Pfeilen ändern.")
+        hint = QLabel("Haken = sichtbar · Ziehen = Reihenfolge")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
 
@@ -313,7 +312,7 @@ class StartPageDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Startseite anpassen", "Deine Startseite – so, wie du sie brauchst."))
+        lay.addWidget(page_header("Startseite anpassen", "Kacheln · Reihenfolge · Titel"))
         lay.addLayout(form)
         lay.addWidget(hint)
         lay.addLayout(body, 1)

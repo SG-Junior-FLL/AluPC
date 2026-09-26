@@ -511,3 +511,56 @@ def build_template(key: str, values: dict) -> dict:
     v.setdefault("title", "")
     v.setdefault("text", "")
     return build(v)
+
+
+def render_scene_preview(scene: dict, w: int = 320, h: int = 180) -> QImage:
+    """Vorschau einer Szene mit echtem Inhalt der Felder (Karten, Uhr, Countdown, Kamera, Text …)."""
+    from .scenes import layout_slots
+    from .ui import icons
+
+    img = QImage(w, h, QImage.Format_RGB32)
+    img.fill(QColor(scene.get("background", "#000000")))
+    p = QPainter(img)
+    p.setRenderHint(QPainter.Antialiasing)
+    now = time.time()
+    if not any(scene.get("slots", [])):  # leere Szene: freundliches Plus statt schwarzer Fläche
+        g = QLinearGradient(0, 0, w, h)
+        g.setColorAt(0, QColor("#1e293b"))
+        g.setColorAt(1, QColor("#0f172a"))
+        p.fillRect(0, 0, w, h, g)
+        p.setPen(QPen(QColor(255, 255, 255, 60), max(1.0, w / 160), Qt.DashLine))
+        p.setBrush(Qt.NoBrush)
+        p.drawRoundedRect(QRectF(w * 0.06, h * 0.1, w * 0.88, h * 0.8), w * 0.03, w * 0.03)
+        icons.paint(p, "plus", QRectF(w / 2 - h * 0.14, h / 2 - h * 0.14, h * 0.28, h * 0.28), "#94a3b8", 2.0)
+        p.end()
+        return img
+    for (x, y, sw, sh, _name), slot in zip(layout_slots(scene.get("layout", "vollbild")), scene.get("slots", [])):
+        if not slot:
+            continue
+        r = QRectF(x * w, y * h, sw * w, sh * h)
+        p.save()
+        p.setClipRect(r)
+        p.translate(r.topLeft())
+        t = slot.get("type")
+        rw, rh = int(r.width()), int(r.height())
+        if t == "design":
+            paint_design(p, rw, rh, slot, now=now, started=now)
+        else:
+            p.fillRect(QRectF(0, 0, rw, rh), QColor(slot.get("background", "#0b0f19")))
+            label = {"clock": time.strftime("%H:%M"), "countdown": f"{int(float(slot.get('minutes', 5)))}:00",
+                     "text": slot.get("text", "")}.get(t)
+            if label:
+                p.setPen(QColor(slot.get("color", "#ffffff")))
+                p.setFont(_fit(label, QRectF(0, 0, rw, rh), rh * 0.5))
+                p.drawText(QRectF(0, 0, rw, rh), int(Qt.AlignCenter | Qt.TextWordWrap), label)
+            else:
+                icon = {"camera": "camera", "cast": "qr", "airplay": "phone", "website": "globe"}.get(t, "image")
+                s = min(rw, rh) * 0.35
+                icons.paint(p, icon, QRectF((rw - s) / 2, (rh - s) / 2, s, s), "#94a3b8", 1.8)
+        p.restore()
+        if len(scene.get("slots", [])) > 1:  # Feldgrenzen andeuten
+            p.setPen(QPen(QColor(255, 255, 255, 60), 1))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(r.adjusted(0.5, 0.5, -0.5, -0.5))
+    p.end()
+    return img

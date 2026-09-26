@@ -188,22 +188,19 @@ class HandyPage(QWidget):
         if self._setup_running:
             return
         if plan:
-            self.setup_title.setText(f"{ready} von {total} Wegen bereit")
-            self.setup_text.setText("Fehlt noch: " + ", ".join(label for label, _cmd in plan) + ". "
-                                    + ("Ein Klick installiert alles (einmal Passwort)." if not IS_WINDOWS else
-                                       "Ein Klick installiert es über winget."))
+            self.setup_title.setText(f"{ready} von {total} bereit")
+            self.setup_text.setText("Fehlt: " + " · ".join(label for label, _cmd in plan))
             self.setup_btn.show()
         else:
             missing_here = ready < total and not (handy.can_install() or handy.can_winget())
-            self.setup_title.setText(f"{ready} von {total} Wegen bereit" if ready < total else
-                                     f"Alles eingerichtet – {ready} von {total} Wegen bereit")
+            self.setup_title.setText(f"{ready} von {total} bereit" if ready < total else
+                                     f"Alles bereit ({ready}/{total})")
             left = []
             if missing_here:
-                left.append("Automatisch installieren geht auf diesem System nicht (kein apt/pkexec bzw. winget) – "
-                            "fehlende Programme bitte selbst installieren")
+                left.append("Automatisch nicht möglich – bitte selbst installieren")
             if IS_WINDOWS and not self.controller.airplay.binary():
-                left.append("AirPlay-Empfänger fehlt – ohne winget bitte „uxplay-windows“ selbst installieren")
-            self.setup_text.setText(" · ".join(left) or "Alles, was automatisch geht, ist eingerichtet.")
+                left.append("AirPlay: „uxplay-windows“ selbst installieren")
+            self.setup_text.setText(" · ".join(left) or "Eingerichtet")
             self.setup_btn.hide()
 
     def run_setup(self):
@@ -246,10 +243,7 @@ class HandyPage(QWidget):
     # ================================================================ AluCast
     def _cast_card(self) -> MethodCard:
         card = MethodCard("qr", "#8b5cf6", "Jedes Handy", "Browser + QR-Code · ohne App")
-        card.body.addWidget(steps_label("„QR-Code zeigen“ klicken",
-                                         "Mit der Handy-Kamera scannen",
-                                         "Steuern, auf Monitor 2 zeichnen, Folien weiter, Touchpad, "
-                                         "Fotos/Videos/Links senden"))
+        card.body.addWidget(steps_label("QR-Code zeigen", "Mit dem Handy scannen", "Steuern · Zeichnen · Senden"))
         row = QHBoxLayout()
         self.qr = QLabel()
         self.qr.setFixedSize(92, 92)
@@ -370,7 +364,7 @@ class HandyPage(QWidget):
         self.config["handy"] = {**self.config["handy"], "airplay_name": self.name.text().strip() or "AluPC",
                                 "pin": pin}
         if self.controller.airplay.restart_if_changed():  # läuft gerade → neue Einstellungen sofort übernehmen
-            self.controller.message.emit("AirPlay mit den neuen Einstellungen neu gestartet.")
+            self.controller.message.emit("AirPlay neu gestartet")
         self.refresh()
 
     def _log(self, line: str):
@@ -431,11 +425,11 @@ class HandyPage(QWidget):
             cast.set_status("LÄUFT", LIVE, f"Adresse: <b>{c.cast.url(with_code=False)}</b> · Code <b>{code[:3]} "
                                            f"{code[3:]}</b>")
         else:
-            cast.set_status("BEREIT", READY, "Funktioniert sofort – nichts zu installieren.")
+            cast.set_status("BEREIT", READY, "Sofort nutzbar")
             if getattr(self, "_qr_for", None) != "":
                 self._qr_for = ""
                 self.qr.setPixmap(icons.pixmap("qr", "#94a3b8", 40))
-        self.cast_url.setText("Handy und PC im selben WLAN." if not on else "Wer den Code sieht, kann senden.")
+        self.cast_url.setText("Gleiches WLAN" if not on else "Code = Zugang")
         self.cast_toggle.setText("Beenden" if on else "Starten")
         self.cast_toggle.setIcon(icons.icon("x" if on else "play", theme.current().text, 18))
         self.cast_auto.blockSignals(True)
@@ -446,22 +440,18 @@ class HandyPage(QWidget):
         air = self.cards["airplay"]
         ux = c.airplay.binary()
         name = c.airplay.settings()["airplay_name"]
-        self.airplay_steps.setText(steps("„Auf Monitor 2 zeigen“ klicken",
-                                         "iPhone: Kontrollzentrum → Bildschirmsynchronisierung",
+        self.airplay_steps.setText(steps("Auf Monitor 2 zeigen", "iPhone: Bildschirmsynchronisierung",
                                          f"„{name}“ wählen"))
         if ux and handy.supports_vrtp(ux):
-            air.set_status("BEREIT", READY, "Das iPhone-Bild erscheint direkt in AluPC (auch in Szenen).")
+            air.set_status("BEREIT", READY, "Bild direkt in AluPC")
         elif ux and handy.is_uxplay_windows(ux):
-            air.set_status("BEREIT", READY, "Über „uxplay-windows“: Monitor 2 zeigt Name und Code, das iPhone-Bild "
-                                            "legt AluPC beim Verbinden darüber.")
+            air.set_status("BEREIT", READY, "Über uxplay-windows")
         elif ux:
-            air.set_status("BEREIT", READY, "Monitor 2 zeigt Name und Code; das iPhone-Bild legt AluPC beim "
-                                            "Verbinden im Vollbild darüber.")
+            air.set_status("BEREIT", READY, "Eigenes Fenster im Vollbild")
         elif IS_WINDOWS:
-            air.set_status("EINRICHTEN", SETUP, "Empfänger fehlt – „Automatisch einrichten“ oben installiert "
-                                                "„uxplay-windows“ und Bonjour über winget.")
+            air.set_status("EINRICHTEN", SETUP, "Empfänger fehlt · oben einrichten")
         else:
-            air.set_status("EINRICHTEN", SETUP, "UxPlay fehlt – „Automatisch einrichten“ oben installiert es.")
+            air.set_status("EINRICHTEN", SETUP, "UxPlay fehlt · oben einrichten")
         self.air_start.setEnabled(bool(ux))
         self.ux_pick.setVisible(not ux)
         self.pin.setVisible(self.pin_mode.currentData() == "fest")

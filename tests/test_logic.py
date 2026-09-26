@@ -298,7 +298,7 @@ def test_new_builtin_tiles_appear_after_update():
     old_saved = {"tiles": ["timer", "mirror"], "custom": []}  # Einstellungen von vor dem Update
     import sys
 
-    expected = ["timer", "mirror", "vorlagen", "airplay", "handy_remote"]
+    expected = ["timer", "mirror", "airplay", "handy_remote"]
     assert ordered_keys(old_saved) == expected, sys.platform
     from alupc.startpage import DEFAULT_ORDER
 

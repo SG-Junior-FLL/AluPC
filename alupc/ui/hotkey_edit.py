@@ -34,7 +34,7 @@ class CaptureDialog(QDialog):
         self.sequence = current
         head = QLabel(title)
         head.setObjectName("SectionTitle")
-        hint = QLabel("Drücke jetzt die gewünschte Tastenkombination,\nz. B. Strg + Alt + S.")
+        hint = QLabel("Tastenkombination drücken\nz. B. Strg + Alt + S")
         hint.setObjectName("Muted")
         hint.setAlignment(Qt.AlignCenter)
         self.shown = QLabel(pretty(current))
@@ -80,7 +80,7 @@ class CaptureDialog(QDialog):
             return
         mods = event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.ShiftModifier | Qt.MetaModifier)
         if not mods and not (Qt.Key_F1 <= key <= Qt.Key_F24):
-            self.warn.setText("Bitte mit Strg, Alt, Shift oder Win kombinieren (F-Tasten gehen auch allein).")
+            self.warn.setText("Mit Strg, Alt, Shift oder Win (F-Tasten auch allein)")
             return
         seq = QKeySequence(QKeyCombination(mods, Qt.Key(key))).toString(QKeySequence.PortableText)
         self.sequence = seq

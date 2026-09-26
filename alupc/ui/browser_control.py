@@ -175,7 +175,7 @@ class BrowserControl(QWidget):
         zoom_in = tool("zoom_in", "Vergrößern", lambda: self._zoom(0.1))
         up = tool("up", "Nach oben scrollen", lambda: self._scroll(-0.8))
         down = tool("down", "Nach unten scrollen", lambda: self._scroll(0.8))
-        self.save_btn = button("Unter „Website“ speichern", "bookmark", primary=True)
+        self.save_btn = button("Speichern", "bookmark", primary=True)
         self.save_btn.clicked.connect(self._save)
         bar = QHBoxLayout()
         bar.setSpacing(6)
@@ -217,18 +217,16 @@ class BrowserControl(QWidget):
         modes.addWidget(undo)
         modes.addWidget(clear)
         modes.addStretch(1)
-        self.unfreeze_btn = button("Standbild aus – Publikum sieht die Seite", "snowflake", primary=True)
+        self.unfreeze_btn = button("Standbild aus", "snowflake", primary=True)
         self.unfreeze_btn.clicked.connect(controller.toggle_freeze)
         modes.addWidget(self.unfreeze_btn)
 
         self.banner = Banner("", "info")
-        self.freeze_banner = Banner("Standbild ist an: Das Publikum sieht weiter das eingefrorene Bild. Hier "
-                                    "siehst und bedienst du die echte Seite dahinter – z. B. schon die nächste "
-                                    "Seite öffnen. „Standbild aus“ zeigt sie dann allen.", "info")
+        self.freeze_banner = Banner("Standbild an · du bedienst die Seite dahinter", "info")
         self.preview = LivePreview(self)
         self.set_tool(None)
         self.set_color(self.color, switch=False)
-        hint = QLabel("In die Vorschau klicken, scrollen und tippen – das passiert direkt auf Monitor 2.")
+        hint = QLabel("Klicken · Scrollen · Tippen – direkt auf Monitor 2")
         hint.setObjectName("Muted")
         open_btn = button("Website öffnen …", "globe")
         open_btn.clicked.connect(self._open_website)
@@ -275,9 +273,8 @@ class BrowserControl(QWidget):
             self.banner.hide()
         else:
             self.preview.set_image(None)
-            self.preview.set_message("Auf Monitor 2 läuft gerade keine Website.")
-            self.banner.set("Auf Monitor 2 läuft gerade keine Website – öffne eine über „Website öffnen …“ "
-                            "oder die Kachel „Website“.", "warn")
+            self.preview.set_message("Keine Website auf Monitor 2")
+            self.banner.set("Keine Website auf Monitor 2 · „Website öffnen …“", "warn")
             self.banner.show()
 
     def set_tool(self, key):

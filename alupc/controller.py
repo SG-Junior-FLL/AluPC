@@ -38,7 +38,7 @@ class Controller(QObject):
 
         self.mode = "desktop"  # "content" = AluPC zeigt etwas, "desktop" = normaler zweiter Desktop
         self.content: dict | None = None
-        self.desktop_note = "Erweitert (normaler zweiter Bildschirm)"
+        self.desktop_note = "Erweitert"
         self.frozen = False
         self.privacy = False
         from .cursor import CursorGuard
@@ -342,14 +342,13 @@ class Controller(QObject):
 
             if is_wayland():
                 self._mirror_hint_shown = True
-                self.message.emit("Wayland fragt beim Spiegeln nach dem Bildschirm. Ohne Nachfrage geht es unter "
-                                  "KDE mit dem installierten .deb-Paket von AluPC.")
+                self.message.emit("Wayland fragt nach dem Bildschirm (mit .deb unter KDE nicht)")
 
     def extend(self) -> None:
         if not self._guard():
             return
         self.ensure_extended()
-        self._set_desktop("Erweitert (normaler zweiter Bildschirm)")
+        self._set_desktop("Erweitert")
         self.config["last_content"] = None
 
     def _mirror_no_signal(self, reason: str) -> None:
@@ -358,8 +357,7 @@ class Controller(QObject):
             return
         self.last_mirror_problem = reason
         if not self.display.available():
-            self.message.emit(f"Spiegeln: {reason} Das Betriebssystem-Spiegeln ist hier auch nicht verfügbar – "
-                              "bitte „Diagnose kopieren“ (Setup → Allgemein) an den Entwickler schicken.")
+            self.message.emit(f"Spiegeln geht nicht: {reason} · Setup → Diagnose kopieren")
             return
         self.message.emit(f"Spiegeln: {reason} AluPC spiegelt jetzt über {self.display.name}.")
         self.system_mirror()
@@ -398,7 +396,7 @@ class Controller(QObject):
         „Erweitert“. Kann UxPlay das Bild an AluPC weitergeben (ab 1.73), erscheint es direkt darin; sonst legt
         AluPC UxPlays eigenes Fenster randlos und im Vordergrund darüber, sobald sich das iPhone verbindet."""
         if not self.airplay.binary():
-            self.message.emit("AirPlay: Der Empfänger fehlt – Handy → „Automatisch einrichten“ installiert ihn.")
+            self.message.emit("AirPlay: Empfänger fehlt · Handy → Einrichten")
             return
         if self.output_screen() is None:
             self.message.emit("Kein zweiter Monitor gefunden.")
@@ -406,7 +404,7 @@ class Controller(QObject):
         self.show_source({"type": "airplay"})
         name = self.airplay.settings()["airplay_name"]
         code = f" · Code {self.airplay.pin_code}" if self.airplay.pin_code else ""
-        self.message.emit(f"AirPlay bereit: am iPhone/iPad „Bildschirmsynchronisierung“ → „{name}“ wählen.{code}")
+        self.message.emit(f"AirPlay bereit · „{name}“ wählen{code}")
 
     def _follow_airplay_window(self) -> None:
         """UxPlay zeigt das Bild im eigenen Fenster → dieses Fenster dauerhaft auf Monitor 2 legen."""
@@ -520,7 +518,7 @@ class Controller(QObject):
             ok = True
         if not ok and not getattr(self, "_mouse_hint", False):
             self._mouse_hint = True
-            self.message.emit("Klicks vom Handy gehen unter Wayland nicht – bitte die X11-Sitzung nutzen.")
+            self.message.emit("Handy-Klicks: unter Wayland nicht möglich (X11 nutzen)")
 
     def _phone_laser(self, x, y) -> None:
         """Laserpointer vom Handy (Finger auf dem Live-Bild)."""
@@ -612,8 +610,7 @@ class Controller(QObject):
                 from .platform import keys
 
                 if not keys.send(cmd.split(":", 1)[1]):
-                    self.message.emit("Tasten vom Handy gehen unter Wayland nicht – bitte die X11-Sitzung nutzen "
-                                      "(Anmeldebildschirm: „Plasma (X11)“).")
+                    self.message.emit("Handy-Tasten: unter Wayland nicht möglich (X11 nutzen)")
             elif cmd.startswith("timer:"):  # Timer-Vorgabe vom Handy (Sekunden), gleich zeigen und starten
                 from .timer import clock
 
@@ -810,7 +807,7 @@ class Controller(QObject):
             self.changed.emit()
             return
         if self.screens_overlap():
-            self.message.emit("Standbild geht nicht bei System-Spiegeln – nutze „Spiegeln“ in AluPC.")
+            self.message.emit("Standbild: nicht bei System-Spiegeln")
             return
         # Normaler Desktop auf Monitor 2: Bildschirmfoto machen und darüberlegen
         self.frozen = True
@@ -890,7 +887,7 @@ class Controller(QObject):
         if not self._guard():
             return
         if self.screens_overlap() and not self.privacy:
-            self.message.emit("Sichtschutz geht nicht bei System-Spiegeln – nutze „Spiegeln“ in AluPC.")
+            self.message.emit("Sichtschutz: nicht bei System-Spiegeln")
             return
         self.privacy = not self.privacy
         self.sounds.play_event("schwarz_an" if self.privacy else "schwarz_aus")

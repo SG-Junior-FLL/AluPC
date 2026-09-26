@@ -67,8 +67,7 @@ class ConfirmDialog(QDialog):
         self._update()
 
     def _update(self):
-        self.label.setText(f"Siehst du alles richtig? Ohne Bestätigung werden die alten Einstellungen "
-                           f"in {self.remaining} Sekunden wiederhergestellt.")
+        self.label.setText(f"Alles richtig? Sonst zurück in {self.remaining} s.")
 
     def _tick(self):
         self.remaining -= 1
@@ -204,17 +203,17 @@ class SetupPage(QWidget):
     hotkeys_changed = Signal()
 
     SECTIONS = [
-        ("monitor", "Monitore", "Auflösung, Hz, Anordnung"),
-        ("pip", "Monitor 2", "Maus, Sichtschutz, PiP"),
-        ("palette", "Darstellung", "Design und Akzentfarbe"),
-        ("moon", "Bildschirmschoner", "Stil, Zeit, Verhalten"),
-        ("timer", "Timer", "Dauer, Art, Warnfarben"),
-        ("sound", "Töne", "Töne bei Aktionen"),
+        ("monitor", "Monitore", "Auflösung · Anordnung"),
+        ("pip", "Monitor 2", "Maus · Sichtschutz · PiP"),
+        ("palette", "Darstellung", "Design · Farbe"),
+        ("moon", "Bildschirmschoner", "Stil · Zeit"),
+        ("timer", "Timer", "Dauer · Warnfarben"),
+        ("sound", "Töne", "Bei Aktionen"),
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
-        ("sync", "Sichern & Sync", "Export, Windows ↔ Linux"),
-        ("fan", "RGB & Lüfter", "OpenRGB, Temperaturen"),
-        ("phone", "Handy & Kamera", "AirPlay, Rechte, Kamera"),
-        ("sliders", "Allgemein", "Start, Autostart, Hilfe"),
+        ("sync", "Sichern & Sync", "Export · Dual-Boot"),
+        ("fan", "RGB & Lüfter", "OpenRGB · Temperaturen"),
+        ("phone", "Handy & Kamera", "AirPlay · Rechte · Kamera"),
+        ("sliders", "Allgemein", "Start · Autostart · Hilfe"),
     ]
 
     def __init__(self, controller, hotkeys, parent=None):
@@ -286,14 +285,13 @@ class SetupPage(QWidget):
 
     # ================================================================ Monitore
     def _display_group(self):
-        box = QGroupBox("Monitore (Einstellungen des Systems)")
+        box = QGroupBox("Monitore")
         lay = QVBoxLayout(box)
         backend = self.controller.display
         self.backend_label = QLabel(f"System: {session_info()} – Steuerung über: {backend.name}")
         lay.addWidget(self.backend_label)
         if not backend.available():
-            hint = QLabel("Monitor-Einstellungen sind hier nicht verfügbar. Unter Kubuntu wird "
-                          "„kscreen-doctor“ (Paket libkf5screen-bin bzw. kscreen) benötigt.")
+            hint = QLabel("Nicht verfügbar – braucht „kscreen-doctor“ (Paket kscreen)")
             hint.setWordWrap(True)
             lay.addWidget(hint)
 
@@ -397,7 +395,7 @@ class SetupPage(QWidget):
             self._update_arrangement()
 
         run_async(self.controller.display.list_outputs, done,
-                  lambda e: self.backend_label.setText(f"Monitore konnten nicht gelesen werden: {e}"))
+                  lambda e: self.backend_label.setText(f"Monitore nicht lesbar: {e}"))
 
     def _update_arrangement(self):
         out = self.controller.output_screen()
@@ -601,8 +599,7 @@ class SetupPage(QWidget):
         form.addRow("Design:", mode)
         form.addRow("Akzentfarbe:", swatches)
         form.addRow("Szenenwechsel:", tr_row)
-        hint = QLabel("Übergang, wenn auf Monitor 2 eine andere Szene oder ein anderer Inhalt erscheint. "
-                      "Jede Szene kann im Szenen-Editor einen eigenen Übergang bekommen.")
+        hint = QLabel("Beim Wechsel auf Monitor 2 · je Szene änderbar")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         form.addRow("", hint)
@@ -641,16 +638,16 @@ class SetupPage(QWidget):
 
     # ================================================================ Handy & Kamera
     def _airplay_group(self):
-        box = QGroupBox("AirPlay (iPhone/iPad)")
+        box = QGroupBox("AirPlay")
         form = QFormLayout(box)
         s = self.config["handy"]
         name = QLineEdit(s.get("airplay_name", "AluPC"))
         name.setToolTip("So heißt der PC in der iPhone-Liste „Bildschirmsynchronisierung“")
-        borderless = QCheckBox("iPhone-Bild randlos über ganz Monitor 2 legen (sonst maximiertes Fenster)")
+        borderless = QCheckBox("Randlos im Vollbild")
         borderless.setChecked(bool(s.get("airplay_borderless", True)))
         from .handy_page import link_button
 
-        more = link_button("Code, Einrichtung und Hilfe …", lambda: self.window().open_handy_window()
+        more = link_button("Einrichten …", lambda: self.window().open_handy_window()
                            if hasattr(self.window(), "open_handy_window") else None)
 
         def save(*_):
@@ -666,20 +663,20 @@ class SetupPage(QWidget):
         return box
 
     def _phone_group(self):
-        box = QGroupBox("Handy-Steuerung (QR-Code) – was Handys dürfen")
+        box = QGroupBox("Handy-Steuerung – Rechte")
         lay = QVBoxLayout(box)
         allow = {"senden": True, "steuern": True, "live": True, "laser": True,
                  **(self.config["cast"].get("allow") or {})}
         checks = {}
-        for key, text in (("senden", "Fotos, Videos, Links und Text auf Monitor 2 senden"),
-                          ("steuern", "Monitor 2 fernsteuern (Szenen, Schwarz, Standbild, Präsentation …)"),
-                          ("live", "Live-Bild von Monitor 2 auf dem Handy sehen"),
-                          ("laser", "Laserpointer und Zeichnen per Finger")):
+        for key, text in (("senden", "Senden (Fotos, Videos, Links, Text)"),
+                          ("steuern", "Fernsteuern"),
+                          ("live", "Live-Bild"),
+                          ("laser", "Laser && Zeichnen")):
             box_ = QCheckBox(text)
             box_.setChecked(bool(allow.get(key, True)))
             checks[key] = box_
             lay.addWidget(box_)
-        auto = QCheckBox("Handy-Steuerung beim Start von AluPC mitstarten")
+        auto = QCheckBox("Beim Start mitstarten")
         auto.setChecked(bool(self.config["cast"].get("autostart")))
         lay.addWidget(auto)
 
@@ -690,8 +687,7 @@ class SetupPage(QWidget):
 
         for w in (*checks.values(), auto):
             w.toggled.connect(save)
-        hint = QLabel("Handys brauchen immer den 6-stelligen Code aus dem QR-Code. Ausgeschaltetes "
-                      "verschwindet auch auf dem Handy.")
+        hint = QLabel("Zugang nur mit Code aus dem QR-Code")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         lay.addWidget(hint)
@@ -710,15 +706,13 @@ class SetupPage(QWidget):
         self._media_devices = QMediaDevices(self)
         self._media_devices.videoInputsChanged.connect(self._fill_camera_combo)
         fit = QComboBox()
-        fit.addItem("Monitor 2 ganz füllen (Ränder werden abgeschnitten)", "cover")
-        fit.addItem("Ganzes Bild zeigen (evtl. schwarze Ränder)", "contain")
+        fit.addItem("Füllen", "cover")
+        fit.addItem("Ganzes Bild", "contain")
         fit.setCurrentIndex(max(0, fit.findData(self.config.get("camera_fit", "cover"))))
         fit.currentIndexChanged.connect(lambda _i: self.config.__setitem__("camera_fit", fit.currentData()))
         form.addRow("Standard-Kamera:", self.camera_combo)
         form.addRow("Anzeige:", fit)
-        hint = QLabel("Die Standard-Kamera startet sofort per Klick auf die Kachel „Kamera“. Der Pfeil an "
-                      "der Kachel wählt eine andere (die dann Standard wird). Zoom, Spiegeln, Drehen und "
-                      "Helligkeit: Kamera-Leiste im Hauptfenster.")
+        hint = QLabel("Startet per Klick auf „Kamera“ · Pfeil: andere wählen")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         form.addRow(hint)
@@ -728,9 +722,9 @@ class SetupPage(QWidget):
         combo = self.start_combo
         combo.blockSignals(True)
         combo.clear()
-        for key, label in (("last", "Zuletzt gezeigten Inhalt"), ("none", "Nichts (normaler zweiter Bildschirm)"),
+        for key, label in (("last", "Zuletzt gezeigt"), ("none", "Nichts"),
                            ("mirror", "Spiegeln"), ("camera", "Kamera"), ("airplay", "AirPlay (iPhone/iPad)"),
-                           ("cast", "Handy-QR-Code")):
+                           ("cast", "QR-Code")):
             combo.addItem(label, key)
         for name in self.config.scene_names():
             combo.addItem(f"Szene: {name}", f"scene:{name}")
@@ -766,7 +760,7 @@ class SetupPage(QWidget):
             self._fill_start_combo()  # neue/umbenannte Szenen
 
     def _app_group(self):
-        box = QGroupBox("AluPC")
+        box = QGroupBox("Allgemein")
         form = QFormLayout(box)
         self.screen_combo = QComboBox()
         self._fill_screen_combo()
@@ -780,16 +774,16 @@ class SetupPage(QWidget):
         self._fill_start_combo()
         self.start_combo.currentIndexChanged.connect(self._start_changed)
 
-        auto = QCheckBox("Beim Anmelden automatisch starten")
+        auto = QCheckBox("Autostart")
         try:
             auto.setChecked(autostart.is_enabled())
         except Exception:  # noqa: BLE001
             auto.setEnabled(False)
         auto.toggled.connect(self._autostart)
-        minimized = QCheckBox("Beim Start nur als Symbol in der Taskleiste")
+        minimized = QCheckBox("Minimiert starten")
         minimized.setChecked(bool(self.config["start_minimized"]))
         minimized.toggled.connect(lambda v: self.config.__setitem__("start_minimized", v))
-        form.addRow("Monitor für andere Leute:", self.screen_combo)
+        form.addRow("Monitor 2:", self.screen_combo)
         form.addRow("Beim Start zeigen:", self.start_combo)
         form.addRow("", auto)
         form.addRow("", minimized)
@@ -820,7 +814,7 @@ class SetupPage(QWidget):
         QApplication.clipboard().setText(text)
         box = QMessageBox(self)
         box.setWindowTitle("Diagnose")
-        box.setText("Die Diagnose ist in der Zwischenablage – einfach in den Chat einfügen.")
+        box.setText("Diagnose kopiert – einfach einfügen.")
         box.setDetailedText(text)
         box.exec()
 
@@ -846,7 +840,7 @@ class SetupPage(QWidget):
 
     # ================================================================ Sichtschutz
     def _privacy_group(self):
-        box = QGroupBox("Sichtschutz (Kachel „Schwarz“)")
+        box = QGroupBox("Sichtschutz")
         form = QFormLayout(box)
         p = self.config["privacy"]
         text = QLineEdit(p.get("text", ""))
@@ -914,7 +908,7 @@ class SetupPage(QWidget):
 
     # ================================================================ Timer
     def _timer_group(self):
-        box = QGroupBox("Timer (Kachel „Timer“ und Tastenkürzel)")
+        box = QGroupBox("Timer")
         form = QFormLayout(box)
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
@@ -932,7 +926,7 @@ class SetupPage(QWidget):
         seconds.setSuffix(" s")
         seconds.setValue(int(cfg.get("seconds", 0)))
         text = QLineEdit(cfg.get("finished_text", "Zeit ist um!"))
-        warn = QCheckBox("Letzte Minute orange, letzte 10 Sekunden rot, am Ende blinken")
+        warn = QCheckBox("Warnfarben (orange · rot · blinken)")
         warn.setChecked(bool(cfg.get("warn_colors", True)))
         size = QSpinBox()
         size.setRange(5, 80)
@@ -957,8 +951,7 @@ class SetupPage(QWidget):
         form.addRow("Text am Ende:", text)
         form.addRow("Schriftgröße:", size)
         form.addRow("", warn)
-        hint = QLabel("Gilt für die Timer-Kachel. Eigene Kacheln können einen Timer mit eigener Dauer haben. "
-                      "Töne bei Start/Ende stellst du unter „Töne“ ein.")
+        hint = QLabel("Für die Timer-Kachel · Töne unter „Töne“")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         form.addRow(hint)
@@ -971,7 +964,7 @@ class SetupPage(QWidget):
         from ..sounds import EVENTS
         from .sound_picker import SoundPicker
 
-        box = QGroupBox("Töne bei Aktionen")
+        box = QGroupBox("Töne")
         form = QFormLayout(box)
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(8)
@@ -1000,7 +993,7 @@ class SetupPage(QWidget):
         form.addRow("", enabled)
         form.addRow("Lautstärke:", volume)
         form.addRow("Ausgabe:", device)
-        hint = QLabel("Tipp: Als Ausgabe den Monitor/Beamer (HDMI) wählen, dann hören die anderen den Ton.")
+        hint = QLabel("Tipp: Ausgabe = Monitor/Beamer (HDMI)")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         form.addRow(hint)
@@ -1018,8 +1011,7 @@ class SetupPage(QWidget):
             picker.changed.connect(save_event)
             form.addRow(label + ":", picker)
             self.sound_pickers[event] = picker
-        more = QLabel("„Eigene Datei hochladen …“ kopiert den Ton in den AluPC-Ordner – er bleibt also, auch wenn "
-                      "die Originaldatei gelöscht wird. Erlaubt: WAV, MP3, OGG, FLAC, M4A …")
+        more = QLabel("Eigene Töne: WAV, MP3, OGG, FLAC, M4A")
         more.setObjectName("Muted")
         more.setWordWrap(True)
         form.addRow(more)
@@ -1037,19 +1029,15 @@ class SetupPage(QWidget):
             btn.changed.connect(lambda seq, a=action: self._save_hotkey(a, seq))
             form.addRow(label + ":", btn)
             self.hotkey_edits[action] = btn
-        more = QLabel("Eigene Tastenkürzel für <b>Szenen</b> legst du im Szenen-Editor fest, für "
-                      "<b>eigene Kacheln</b> unter Start → „Startseite anpassen“.")
+        more = QLabel("Szenen: im Szenen-Editor · Eigene Kacheln: „Startseite anpassen“")
         more.setWordWrap(True)
         form.addRow(more)
         if IS_WINDOWS:
-            text = "Die Tastenkürzel funktionieren überall in Windows, auch wenn AluPC im Hintergrund ist."
+            text = "Gelten überall in Windows"
             form.addRow(QLabel(text))
         else:
-            text = ("In AluPC funktionieren die Tastenkürzel immer. <b>Überall in KDE</b>: Systemeinstellungen "
-                    "→ Tastatur → Kurzbefehle → „AluPC“ – dort stehen Standbild, Schwarz, Bild-in-Bild, "
-                    "Bildschirmschoner, Spiegeln, Erweitern und die Szenenwechsel schon bereit (nach der "
-                    "Installation mit dem .deb-Paket oder install.sh). Oder: „Neu hinzufügen“ → „Befehl“ mit "
-                    "<tt>alupc --befehl standbild</tt> bzw. <tt>alupc --befehl szene:Name</tt>.")
+            text = ("Überall in KDE: Systemeinstellungen → Kurzbefehle → „AluPC“ · "
+                    "Befehl: <tt>alupc --befehl standbild</tt>")
             hint = QLabel(text)
             hint.setWordWrap(True)
             hint.setTextFormat(Qt.RichText)
@@ -1101,14 +1089,14 @@ class SetupPage(QWidget):
         box = QGroupBox("Monitor 2")
         lay = QVBoxLayout(box)
         cfg = self.config["output"]
-        taskbar = QCheckBox("Taskleiste auf Monitor 2 ausblenden, solange AluPC dort etwas zeigt (Windows)")
+        taskbar = QCheckBox("Taskleiste auf Monitor 2 ausblenden (Windows)")
         taskbar.setChecked(bool(cfg.get("hide_taskbar", True)))
         taskbar.setEnabled(IS_WINDOWS)
-        badge = QCheckBox("Beim Standbild ein kleines Schneeflocken-Symbol oben rechts auf Monitor 2 zeigen")
+        badge = QCheckBox("Standbild-Symbol zeigen")
         badge.setChecked(bool(cfg.get("freeze_badge", True)))
-        cursor = QCheckBox("Mauszeiger beim Spiegeln auf Monitor 2 zeigen")
+        cursor = QCheckBox("Mauszeiger beim Spiegeln zeigen")
         cursor.setChecked(bool(cfg.get("mirror_cursor", True)))
-        confine = QCheckBox("Maus bleibt auf Monitor 1 – nur bei „Erweitern“ darf sie auf Monitor 2")
+        confine = QCheckBox("Maus bleibt auf Monitor 1 (außer „Erweitern“)")
         confine.setChecked(bool(cfg.get("confine_cursor", True)))
         if not CursorGuard().supported:
             confine.setEnabled(False)
@@ -1124,14 +1112,12 @@ class SetupPage(QWidget):
             w.toggled.connect(save)
             lay.addWidget(w)
         if not confine.isEnabled():
-            note = QLabel("Maus festhalten geht unter Wayland nicht (das System erlaubt es Programmen nicht).")
+            note = QLabel("Unter Wayland nicht möglich")
             note.setObjectName("Muted")
             note.setWordWrap(True)
             lay.addWidget(note)
 
-        hint = QLabel("„Computer sperren“ (Seitenleiste, Taskleisten-Symbol, Befehl „sperren“) sperrt den "
-                      "ganzen Computer wie Win+L. Der Sperrbildschirm des Systems liegt dann über allen "
-                      "Monitoren – auch Monitor 2 zeigt so lange nichts von AluPC.")
+        hint = QLabel("„Computer sperren“ = wie Win+L (auch Monitor 2)")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         lay.addWidget(hint)

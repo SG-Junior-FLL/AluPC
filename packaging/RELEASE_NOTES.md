@@ -8,6 +8,13 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.23.0)
+- **Vorlagen nur beim Anlegen einer Szene:** Kachel „Vorlagen“ entfernt. **Szenen → „Neue Szene“** öffnet die
+  Auswahl: „Leer“ oder Vorlage · Text eintragen · „Weiter“ → Szenen-Editor → Speichern. Echte Vorschaubilder.
+- **Kurze Texte überall:** Kacheln, Menüs, Setup, Dialoge und Meldungen in Stichpunkten statt Sätzen
+  (Details stehen in den Tooltips).
+- Design: Setup-Bereiche ohne abgeschnittene Texte, „&“ in Knöpfen richtig dargestellt, leere Szene mit Plus.
+
 ### Neu in dieser Version (0.22.0)
 **AirPlay repariert**
 - Das AluPC-Fenster auf Monitor 2 hat sich alle paar Sekunden selbst wieder „ganz nach vorne“ geholt und dabei

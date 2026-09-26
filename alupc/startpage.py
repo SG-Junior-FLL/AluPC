@@ -6,22 +6,21 @@ import uuid
 
 # id: (Symbol, Titel, Untertitel, Farbe oder None = Akzentfarbe, Bereich)
 BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
-    "mirror": ("mirror", "Spiegeln", "Zeigt dasselbe wie Monitor 1", "#3b82f6", "anzeigen"),
-    "extend": ("extend", "Erweitern", "Normaler zweiter Bildschirm", "#6366f1", "anzeigen"),
-    "camera": ("camera", "Kamera", "Standard-Kamera · Pfeil: andere", "#ef4444", "anzeigen"),
-    "program": ("window", "Programm", "Ein Programm zeigen", "#a855f7", "anzeigen"),
-    "website": ("globe", "Website", "Öffnen · Pfeil: Favoriten", "#06b6d4", "anzeigen"),
-    "media": ("image", "Bild / Video", "Mediathek · Pfeil: Zuletzt", "#10b981", "anzeigen"),
-    "scenes": ("scenes", "Meine Szenen", "Bearbeiten · Pfeil: starten", "#ec4899", "anzeigen"),
-    "vorlagen": ("star", "Vorlagen", "Willkommen, Ablauf, Pause, WLAN …", "#6366f1", "anzeigen"),
+    "mirror": ("mirror", "Spiegeln", "Gleiches Bild", "#3b82f6", "anzeigen"),
+    "extend": ("extend", "Erweitern", "Eigener Desktop", "#6366f1", "anzeigen"),
+    "camera": ("camera", "Kamera", "Vollbild", "#ef4444", "anzeigen"),
+    "program": ("window", "Programm", "Fenster zeigen", "#a855f7", "anzeigen"),
+    "website": ("globe", "Website", "Seite öffnen", "#06b6d4", "anzeigen"),
+    "media": ("image", "Bild / Video", "Mediathek", "#10b981", "anzeigen"),
+    "scenes": ("scenes", "Meine Szenen", "Eigene Szenen", "#ec4899", "anzeigen"),
     # Handy → Monitor 2: jeder Weg mit eigener Kachel
-    "airplay": ("phone", "AirPlay", "iPhone & iPad · Pfeil: mehr", "#0ea5e9", "handy"),
-    "handy_remote": ("qr", "Handy-Steuerung", "QR-Code scannen · Pfeil: mehr", "#8b5cf6", "handy"),
+    "airplay": ("phone", "AirPlay", "iPhone & iPad", "#0ea5e9", "handy"),
+    "handy_remote": ("qr", "Handy-Steuerung", "Per QR-Code", "#8b5cf6", "handy"),
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),
     "black": ("eye_off", "Schwarz", "Sichtschutz", "#64748b", "schnell"),
-    "pip": ("pip", "Bild-in-Bild", "Monitor 2 klein anzeigen", "#8b5cf6", "schnell"),
-    "screensaver": ("moon", "Bildschirmschoner", "An/aus · Pfeil: Einstellungen", "#6366f1", "schnell"),
-    "timer": ("timer", "Timer", "Start/Pause · Pfeil: mehr", "#f43f5e", "schnell"),
+    "pip": ("pip", "Bild-in-Bild", "Mini-Vorschau", "#8b5cf6", "schnell"),
+    "screensaver": ("moon", "Bildschirmschoner", "An / aus", "#6366f1", "schnell"),
+    "timer": ("timer", "Timer", "Start / Pause", "#f43f5e", "schnell"),
     "draw": ("edit", "Zeigen & Zeichnen", "Laser, Stift, Marker", "#f97316", "schnell"),
 }
 # Schwarz, Standbild, Bild-in-Bild sind jetzt Schalter oben beim Live-Bild – als Kachel nur noch auf Wunsch

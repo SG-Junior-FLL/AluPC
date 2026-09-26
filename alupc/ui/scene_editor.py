@@ -102,7 +102,7 @@ class SceneEditor(QDialog):
                 self.layout_list.setCurrentItem(item)
         self.layout_list.currentItemChanged.connect(self._layout_changed)
 
-        self.slots_box = QGroupBox("Felder – in jedes Feld eine Quelle legen")
+        self.slots_box = QGroupBox("Felder")
         self.slots_grid = QGridLayout(self.slots_box)
 
         form = QFormLayout()
@@ -147,7 +147,7 @@ class SceneEditor(QDialog):
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
         lay.addWidget(page_header("Szene bearbeiten" if scene else "Neue Szene",
-                                  "1. Layout wählen  ·  2. In jedes Feld eine Quelle legen  ·  3. Speichern"))
+                                  "Layout · Felder füllen · Speichern"))
         lay.addLayout(top)
         section = QLabel("Layout-Vorlage")
         section.setObjectName("SectionTitle")

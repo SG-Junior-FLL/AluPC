@@ -1904,7 +1904,7 @@ def test_handy_page_cards_and_auto_setup(env, tmp_path, monkeypatch):
     menu = window.handy_menus["handy_remote"]
     window._fill_handy_menu(menu, "handy_remote")
     texts = [a.text() for a in menu.actions()]
-    assert texts[0] == "QR-Code auf Monitor 2 zeigen" and texts[-1].startswith("Einrichten und Hilfe")
+    assert texts[0] == "QR-Code zeigen" and texts[-1].startswith("Einrichten")
     assert not hasattr(controller, "start_miracast") and not hasattr(controller, "start_android")
 
 
@@ -2307,30 +2307,20 @@ def test_new_screensavers_and_design_pages(env):
     assert controller.describe().startswith("Pause")
 
 
-def test_templates_dialog_show_and_save(env):
+def test_new_scene_from_template(env):
+    """Vorlagen gibt es nur beim Anlegen einer Szene: Vorlage wählen → Editor → erst Speichern legt sie an."""
     controller, window, _ = env
-    window.open_templates()
+    assert "vorlagen" not in window.tiles  # keine Vorlagen-Kachel mehr auf der Startseite
+    before = controller.config.scene_names()
+    window.new_scene()
     dlg = window.templates_dialog
     pump()
-    # Seite: eigenen Text eingeben und zeigen
-    row = next(i for i in range(dlg.list.count()) if dlg.list.item(i).data(Qt.UserRole) == ("design", "willkommen"))
-    dlg.list.setCurrentRow(row)
-    dlg.title.setText("Hallo 7b")
-    dlg.show_now()
-    pump()
-    assert controller.content["type"] == "design" and controller.content["title"] == "Hallo 7b"
-    # Szenen-Vorlage: zeigen legt KEINE Szene an (nur Vorlage live auf Monitor 2)
-    before = controller.config.scene_names()
+    assert dlg.list.item(0).data(Qt.UserRole) == ("leer", "")  # „Leer“ steht vorne
+    assert not hasattr(dlg, "show_btn")  # kein „Jetzt zeigen“ – Vorlagen landen nicht direkt auf Monitor 2
     row = next(i for i in range(dlg.list.count()) if dlg.list.item(i).data(Qt.UserRole) == ("scene", "pause"))
     dlg.list.setCurrentRow(row)
     dlg.name.setText("Kaffeepause")
     dlg.minutes.setValue(15)
-    dlg.show_now()
-    pump()
-    assert controller.content["type"] == "scene" and controller.content["inline"]["slots"][0]["minutes"] == 15
-    assert controller.config.scene_names() == before
-    assert controller.describe().startswith("Vorlage")
-    # „Als eigene Szene anlegen“: Editor vorausgefüllt, erst Speichern legt die Szene an
     editor = dlg.save_scene()
     pump()
     assert editor.name_edit.text() == "Kaffeepause" and controller.config.scene_names() == before
@@ -2338,11 +2328,22 @@ def test_templates_dialog_show_and_save(env):
     pump()
     scene = controller.config.get_scene("Kaffeepause")
     assert scene["slots"][0]["design"] == "pause" and scene["slots"][0]["minutes"] == 15
+    # Karte als Szene; Name schon vergeben → eindeutig
+    window.new_scene()
+    dlg = window.templates_dialog
+    pump()
+    row = next(i for i in range(dlg.list.count()) if dlg.list.item(i).data(Qt.UserRole) == ("design", "neon"))
+    dlg.list.setCurrentRow(row)
+    dlg.name.setText("Kaffeepause")
     editor2 = dlg.save_scene()
-    assert editor2.name_edit.text() == "Kaffeepause 2"  # Name schon vergeben → eindeutig
+    assert editor2.name_edit.text() == "Kaffeepause 2" and editor2.scene["slots"][0]["design"] == "neon"
     editor2.reject()
+    # Leer → normaler Editor
+    dlg.list.setCurrentRow(0)
+    editor3 = dlg.save_scene()
+    assert editor3.windowTitle() == "Neue Szene" and not any(editor3.scene["slots"])
+    editor3.reject()
     dlg.close()
-
 
 def test_agenda_step(env):
     from alupc.screens import build_template, design_defaults
@@ -2404,19 +2405,18 @@ def test_many_templates_render_and_filter(env):
     assert _parse_target("09:00", now) - now == 23 * 3600  # schon vorbei → morgen
     assert _parse_target("24.12.2026 18:00", now) > now
     assert _parse_target("Quatsch", now) is None
-    window.open_templates()
+    window.new_scene()
     dlg = window.templates_dialog
     pump()
     total = sum(not dlg.list.item(i).isHidden() for i in range(dlg.list.count()))
-    assert total == len(DESIGNS) + len(SCENE_TEMPLATES)
+    assert total == len(DESIGNS) + len(SCENE_TEMPLATES) + 1  # + „Leer“
     dlg.search.setText("pause")
     visible = [dlg.list.item(i).data(Qt.UserRole) for i in range(dlg.list.count()) if not dlg.list.item(i).isHidden()]
     assert ("design", "pause") in visible and ("scene", "pause") in visible and len(visible) < total
     dlg.search.clear()
-    dlg.kind_group.button(2).click()  # nur Szenen
-    visible = [dlg.list.item(i).data(Qt.UserRole) for i in range(dlg.list.count()) if not dlg.list.item(i).isHidden()]
-    assert visible and all(k == "scene" for k, _ in visible)
-    assert not dlg.list.currentItem().isHidden()
+    dlg.cat_group.button(1).click()  # erste Kategorie
+    visible = [dlg.list.item(i) for i in range(dlg.list.count()) if not dlg.list.item(i).isHidden()]
+    assert 1 < len(visible) < total and not dlg.list.currentItem().isHidden()
     dlg.close()
 
 

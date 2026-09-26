@@ -284,7 +284,7 @@ class PresenterWindow(QWidget):
         hint = QLabel("L S M R: Werkzeug · Strg+Z: zurück · Entf: alles weg")
         hint.setObjectName("Muted")
         low = QHBoxLayout()
-        keep = QLabel("Zeichnungen bleiben stehen, bis du sie löschst oder die Szene wechselt.")
+        keep = QLabel("Bleibt bis Löschen oder Szenenwechsel")
         keep.setObjectName("Muted")
         low.addWidget(keep)
         low.addStretch(1)

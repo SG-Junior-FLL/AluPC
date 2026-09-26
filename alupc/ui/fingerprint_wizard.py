@@ -143,7 +143,7 @@ class FingerprintWizard(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 20, 24, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Fingerabdruck einrichten", "Alles automatisch – Schritt für Schritt."))
+        lay.addWidget(page_header("Fingerabdruck einrichten", "Automatisch · Schritt für Schritt"))
         lay.addLayout(form)
         steps = QWidget()
         steps.setLayout(grid)

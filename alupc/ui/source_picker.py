@@ -161,7 +161,7 @@ class SourcePicker(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(14)
-        lay.addWidget(page_header("Quelle wählen", "Was soll in diesem Feld zu sehen sein?"))
+        lay.addWidget(page_header("Quelle wählen", "Was zeigt dieses Feld?"))
         lay.addLayout(body, 1)
         lay.addWidget(buttons)
 
@@ -210,8 +210,7 @@ class SourcePicker(QDialog):
         fit = _fit_combo(init.get("fit", "cover"))
         form.addRow("Kamera:", combo)
         form.addRow("Anzeige:", fit)
-        hint = QLabel("Zoom, Ausschnitt, Spiegeln, Drehen und Helligkeit: in der Kamera-Leiste im "
-                      "Hauptfenster, sobald die Kamera läuft (gilt dann für diese Kamera überall).")
+        hint = QLabel("Zoom & Co.: Kamera-Leiste im Hauptfenster")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         form.addRow(hint)
@@ -238,9 +237,7 @@ class SourcePicker(QDialog):
         refresh.clicked.connect(reload)
         form.addRow("Programmfenster:", combo)
         form.addRow("", refresh)
-        hint = QLabel("Das Programm muss geöffnet sein. Unter Wayland (KDE) kann Qt einzelne Fenster "
-                      "nicht aufnehmen – dann bleibt die Liste leer. Nutze dort die Kachel "
-                      "„Programm“ → „Fenster verschieben“.")
+        hint = QLabel("Programm muss offen sein · Wayland: „Fenster verschieben“ nutzen")
         hint.setWordWrap(True)
         form.addRow(hint)
         fit = _fit_combo(init.get("fit", "contain"))
@@ -249,9 +246,7 @@ class SourcePicker(QDialog):
 
     def _page_airplay(self, init):
         page, form = self._form()
-        hint = QLabel("Zeigt, was ein iPhone oder iPad per AirPlay („Bildschirmsynchronisierung“) sendet.\n\n"
-                      "Braucht das freie Programm UxPlay ab Version 1.73 (Seite „Handy“ → „Automatisch einrichten“). "
-                      "Ältere Versionen gehen nur über die Kachel „Handy“ (eigenes Vollbild-Fenster), nicht in Szenen.")
+        hint = QLabel("iPhone/iPad per AirPlay · in Szenen erst ab UxPlay 1.73")
         hint.setWordWrap(True)
         form.addRow(hint)
         fit = _fit_combo(init.get("fit", "contain"))
@@ -260,10 +255,7 @@ class SourcePicker(QDialog):
 
     def _page_cast(self, init):
         page, form = self._form()
-        hint = QLabel("Zeigt einen QR-Code: Wer ihn mit dem Handy scannt, kann Fotos, Videos, Links und Text auf "
-                      "Monitor 2 senden und ihn fernsteuern – iPhone und Android, ohne App (AluCast).\n\n"
-                      "Der Code im QR-Code ist der Zugang: Jeder, der ihn sieht, kann senden. Neuer Code: "
-                      "Seite „Handy“.")
+        hint = QLabel("QR-Code · Handys senden und steuern (ohne App)")
         hint.setWordWrap(True)
         form.addRow(hint)
         return page, lambda: {}
@@ -394,13 +386,12 @@ class SourcePicker(QDialog):
             form.labelForField(text).setText(b)
             form.setRowVisible(minutes, key in ("pause", "aufgabe"))
             form.setRowVisible(current, key in ("ablauf", "abstimmung"))
-            form.labelForField(current).setText("Richtige Antwort (0 = offen):" if key == "abstimmung"
+            form.labelForField(current).setText("Lösung (0 = offen):" if key == "abstimmung"
                                                 else "Aktueller Punkt:")
 
         design.currentIndexChanged.connect(apply_design)
         apply_design()
-        hint = QLabel("Alles wird passend zur Monitorgröße gezeichnet. Pause: der Countdown startet, sobald die "
-                      "Seite gezeigt wird.")
+        hint = QLabel("Passt sich der Monitorgröße an")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         form.addRow(hint)

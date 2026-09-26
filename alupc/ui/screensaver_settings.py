@@ -189,7 +189,7 @@ class ScreensaverDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Bildschirmschoner", "Wird sofort gespeichert."))
+        lay.addWidget(page_header("Bildschirmschoner", "Speichert sofort"))
         lay.addWidget(ScreensaverSettings(controller, ""))
         buttons = QDialogButtonBox()
         close = button("Fertig", "check", primary=True)

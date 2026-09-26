@@ -229,10 +229,7 @@ class HardwarePage(QWidget):
         self.devices_lay.setContentsMargins(0, 4, 0, 0)
         col.addWidget(self.devices_box)
         help_text = QLabel(
-            "Braucht das kostenlose <b>OpenRGB</b> (openrgb.org) – es kennt Mainboards, RAM, Grafikkarten, "
-            "Lüfter-LEDs, Tastaturen … von fast allen Herstellern. In OpenRGB einmal unter <b>„SDK-Server“ → "
-            "„Server starten“</b> (AluPC startet OpenRGB sonst selbst mit Server). Hersteller-Programme wie "
-            "iCUE/Armoury Crate vorher beenden – sonst streiten sie sich um die LEDs.")
+            "Braucht <b>OpenRGB</b> · Hersteller-Programme (iCUE, Armoury Crate …) beenden")
         help_text.setWordWrap(True)
         help_text.setObjectName("Muted")
         col.addWidget(help_text)
@@ -296,7 +293,7 @@ class HardwarePage(QWidget):
 
     # ================================================================ Lüfter
     def _fan_box(self) -> QGroupBox:
-        box = QGroupBox("Temperaturen und Lüfter")
+        box = QGroupBox("Lüfter & Temperaturen")
         self.fan_lay = QVBoxLayout(box)
         self.fan_status = Banner("", "info")
         self.fan_lay.addWidget(self.fan_status)
@@ -318,9 +315,7 @@ class HardwarePage(QWidget):
         self.fan_labels: dict[str, QLabel] = {}
         self.pwm_rows: dict[str, tuple] = {}
         if sys.platform.startswith("win"):
-            self.fan_status.set("Unter Windows gibt es keine allgemeine Schnittstelle für Lüfter und Temperaturen – "
-                                "dafür braucht es das Programm des Mainboard-Herstellers oder z. B. „FanControl“. "
-                                "Unter Linux zeigt und steuert AluPC sie hier.", "warn")
+            self.fan_status.set("Unter Windows nicht möglich · Tipp: „FanControl“", "warn")
             self.pwm_box.hide()
             self.apply_btn.hide()
             return box
@@ -333,8 +328,7 @@ class HardwarePage(QWidget):
     def _build_sensors(self):
         chips = fans.read_sensors()
         if not chips:
-            self.fan_status.set("Keine Sensoren gefunden. Tipp: Paket „lm-sensors“ installieren und im Terminal "
-                                "„sudo sensors-detect“ ausführen.", "warn")
+            self.fan_status.set("Keine Sensoren · Tipp: „lm-sensors“ installieren", "warn")
         row = 0
         for chip in chips:
             if not (chip.temps or chip.fans):
@@ -351,7 +345,7 @@ class HardwarePage(QWidget):
                 row += 1
             for label, rpm in chip.fans:
                 name = QLabel(label)
-                val = QLabel(f"{rpm} U/min" if rpm else "steht / nicht angeschlossen")
+                val = QLabel(f"{rpm} U/min" if rpm else "aus")
                 val.setObjectName("Muted" if not rpm else "")
                 self.fan_labels[f"{chip.raw}/{label}"] = val
                 self.sensor_grid.addWidget(name, row, 0)
@@ -384,13 +378,9 @@ class HardwarePage(QWidget):
             self.pwm_box.hide()
             self.apply_btn.hide()
             if chips:
-                self.fan_status.set("Temperaturen und Drehzahlen werden angezeigt. Steuerbare Lüfter meldet dieser PC "
-                                    "nicht (bei vielen Mainboards hilft das Paket „lm-sensors“ bzw. der Kernel-Treiber "
-                                    "„nct6775“ / „it87“).", "info")
+                self.fan_status.set("Nur Anzeige · keine steuerbaren Lüfter gefunden", "info")
         else:
-            self.fan_status.set("Lüfter-Steuerung: nie unter 30 %. „Automatisch“ gibt die Regelung zurück ans "
-                                "Mainboard. Übernehmen fragt nach dem Administrator-Passwort; nach einem Neustart "
-                                "regelt wieder das Mainboard.", "info")
+            self.fan_status.set("Mindestens 30 % · Übernehmen fragt nach Passwort", "info")
 
     def _update_sensors(self):
         if not self.isVisible():
@@ -403,7 +393,7 @@ class HardwarePage(QWidget):
             for label, rpm in chip.fans:
                 lab = self.fan_labels.get(f"{chip.raw}/{label}")
                 if lab:
-                    lab.setText(f"{rpm} U/min" if rpm else "steht / nicht angeschlossen")
+                    lab.setText(f"{rpm} U/min" if rpm else "aus")
 
     def fan_request(self) -> str:
         original = self.config["fans"].get("original", {})
