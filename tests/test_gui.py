@@ -367,6 +367,55 @@ def test_several_screensaver_tiles(env):
         assert not controller.screensaver.active
 
 
+def test_custom_start_sections(env):
+    """Eigene Bereiche: anlegen, Standard- und eigene Kacheln verschieben, umbenennen, sortieren, löschen,
+    einklappen (bleibt gespeichert)."""
+    from alupc.startpage import delete_section, section_of, sections
+    from alupc.ui.start_page_dialog import StartPageDialog
+
+    controller, window, _ = env
+    dlg = StartPageDialog(controller.config, window, controller)
+    party = dlg.add_section("Party")
+    dlg.move_tile("camera", party)
+    dlg.move_tile("airplay", party)
+    dlg.add_saver("aurora")
+    saver_key = next(k for k in dlg._current_keys()[0] if k.startswith("custom:"))
+    dlg.move_tile(saver_key, party)
+    dlg.rename_section(party, "Party & Gäste")
+    dlg.sec_list.setCurrentRow(len(sections(dlg.cfg)) - 1)
+    dlg._move_section(-1)  # eins nach oben
+    dlg._save()
+    cfg = controller.config["start_page"]
+    names = [s["name"] for s in sections(cfg)]
+    assert "Party & Gäste" in names and names.index("Party & Gäste") == len(names) - 2
+    assert section_of("camera", cfg) == party and section_of("airplay", cfg) == party
+    assert section_of(saver_key, cfg) == party
+    window.rebuild_start()
+    pump()
+    grid = window.section_grids[party]
+    assert window.tiles["camera"] in grid.items and window.tiles["airplay"] in grid.items
+    assert window.tiles["camera"] not in window.section_grids["anzeigen"].items
+    head = window.section_labels[party]
+    assert head.name == "Party & Gäste" and head.count == len(grid.items)
+    # einklappen: Kacheln weg, Zustand gespeichert und nach Neuaufbau noch da
+    window._fold_section(party, True)
+    assert window.tiles["camera"].isHidden()
+    window.rebuild_start()
+    assert window.section_labels[party].collapsed and not window.section_grids[party].isVisibleTo(window)
+    window._fold_section(party, False)
+    window.rebuild_start()
+    pump()
+    assert window.tiles["camera"].isVisibleTo(window)
+    # Bereich löschen → Kacheln landen im ersten Bereich, nichts geht verloren
+    start = dict(controller.config["start_page"])
+    delete_section(start, party)
+    controller.config["start_page"] = start
+    window.rebuild_start()
+    first = sections(start)[0]["id"]
+    assert window.tiles["camera"] in window.section_grids[first].items
+    assert party not in window.section_grids
+
+
 def test_start_page_dialog_roundtrip(env):
     controller, window, _ = env
     from alupc.ui.start_page_dialog import StartPageDialog

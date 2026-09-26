@@ -8,6 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.28.0)
+**Eigene Bereiche auf der Startseite**
+- Startseite anpassen → Reiter **„Bereiche“**: eigene Bereiche anlegen (z. B. „Party“), umbenennen, sortieren,
+  löschen (Kacheln rutschen in den ersten Bereich, nichts geht verloren).
+- **Jede Kachel** – auch Spiegeln, Kamera, AirPlay … – lässt sich in jeden Bereich verschieben
+  (Reiter „Kacheln“ → „Bereich der Kachel“).
+- Bereiche **einklappen**: Klick auf die Überschrift. Eingeklappt zeigt sie ihre Kacheln als Mini-Symbole;
+  Zustand bleibt gespeichert. Rechtsklick: Umbenennen · Alle ein-/ausklappen · Startseite anpassen.
+
+**Design**
+- Neue Bereichs-Überschriften mit Anzahl und Linie; Kacheln sind in allen Bereichen gleich breit.
+- „Startseite anpassen“ aufgeräumt in drei Reiter: Kacheln · Bereiche · Texte.
+
 ### Neu in dieser Version (0.27.0)
 **Weiterschalten bei Seiten mit mehreren Punkten**
 - Nicht mehr nur der Ablauf: auch **Tabelle / Line-up, Termine, Abstimmung / Quiz** (Lösung aufdecken),

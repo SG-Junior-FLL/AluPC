@@ -30,7 +30,23 @@ DEFAULT_ORDER = [k for k in BUILTIN_TILES if k not in HIDDEN_BY_DEFAULT]
 LEGACY_TILES = ["mirror", "extend", "camera", "program", "website", "media", "scenes", "freeze", "black",
                 "pip", "screensaver", "timer"]
 
-SECTIONS = {"anzeigen": "Anzeigen", "handy": "Handy", "schnell": "Werkzeuge"}
+SECTIONS = {"anzeigen": "Anzeigen", "handy": "Handy", "schnell": "Werkzeuge"}  # Standard-Bereiche
+
+
+def sections(start_cfg: dict) -> list[dict]:
+    """Bereiche der Startseite in Reihenfolge: [{"id", "name", "collapsed"}] – eigene oder die Standard-Bereiche."""
+    saved = [s for s in (start_cfg.get("sections") or []) if s.get("id")]
+    if saved:
+        return saved
+    return [{"id": key, "name": name, "collapsed": False} for key, name in SECTIONS.items()]
+
+
+def new_section(name: str) -> dict:
+    return {"id": uuid.uuid4().hex[:8], "name": name.strip() or "Neuer Bereich", "collapsed": False}
+
+
+def section_name(start_cfg: dict, section_id: str) -> str:
+    return next((s["name"] for s in sections(start_cfg) if s["id"] == section_id), "")
 
 # Befehle, die eine eigene Kachel ausführen kann
 COMMANDS = {
@@ -111,10 +127,35 @@ def all_keys(start_cfg: dict) -> list[str]:
 
 
 def section_of(key: str, start_cfg: dict) -> str:
-    if key in BUILTIN_TILES:
-        return BUILTIN_TILES[key][4]
+    """Bereich einer Kachel: selbst verschoben (placement) → sonst Standard; gibt es den Bereich nicht
+    (mehr), landet sie im ersten Bereich."""
+    placed = (start_cfg.get("placement") or {}).get(key)
+    if placed is None:
+        if key in BUILTIN_TILES:
+            placed = BUILTIN_TILES[key][4]
+        else:
+            placed = (find_custom(start_cfg, key) or {}).get("section", "anzeigen")
+    ids = [s["id"] for s in sections(start_cfg)]
+    return placed if placed in ids else ids[0]
+
+
+def move_to_section(start_cfg: dict, key: str, section_id: str) -> None:
+    """Kachel (Standard oder eigene) in einen Bereich verschieben."""
+    start_cfg.setdefault("placement", {})[key] = section_id
     tile = find_custom(start_cfg, key)
-    return (tile or {}).get("section", "anzeigen")
+    if tile is not None:
+        tile["section"] = section_id
+
+
+def delete_section(start_cfg: dict, section_id: str) -> None:
+    """Bereich löschen – seine Kacheln rutschen in den ersten übrigen Bereich (mindestens einer bleibt)."""
+    rest = [s for s in sections(start_cfg) if s["id"] != section_id]
+    if not rest:
+        return
+    for key in all_keys(start_cfg):
+        if section_of(key, start_cfg) == section_id:
+            move_to_section(start_cfg, key, rest[0]["id"])
+    start_cfg["sections"] = rest
 
 
 def find_custom(start_cfg: dict, key: str) -> dict | None:

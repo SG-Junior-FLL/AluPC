@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QSpinBox,
     QStackedWidget,
+    QTabWidget,
     QWidget,
     QVBoxLayout,
 )
@@ -28,15 +30,20 @@ from PySide6.QtWidgets import (
 from ..startpage import (
     BUILTIN_TILES,
     COMMANDS,
-    SECTIONS,
     TILE_COLORS,
     TILE_ICONS,
     all_keys,
     custom_key,
+    delete_section,
     describe_action,
     find_custom,
+    move_to_section,
     new_custom_tile,
+    new_section,
     ordered_keys,
+    section_name,
+    section_of,
+    sections,
 )
 from . import icons, theme
 from .hotkey_edit import HotkeyButton
@@ -85,9 +92,12 @@ class CustomTileDialog(QDialog):
         colors.addStretch(1)
 
         self.section = QComboBox()
-        for key, label in SECTIONS.items():
-            self.section.addItem(label, key)
-        self.section.setCurrentIndex(max(0, self.section.findData(self.tile.get("section", "anzeigen"))))
+        start_cfg = getattr(parent, "cfg", None) or config["start_page"]  # Arbeitskopie des Startseiten-Dialogs
+        for sec in sections(start_cfg):
+            self.section.addItem(sec["name"], sec["id"])
+        current = section_of(custom_key(self.tile), start_cfg) if find_custom(start_cfg, custom_key(self.tile)) \
+            else self.tile.get("section", "anzeigen")
+        self.section.setCurrentIndex(max(0, self.section.findData(current)))
 
         action = self.tile.get("action") or {}
         kind = action.get("kind") or "source"
@@ -255,7 +265,7 @@ class StartPageDialog(QDialog):
         self.cfg = copy.deepcopy(config["start_page"])
         self.hotkeys = dict(config["hotkeys"])
         self.setWindowTitle("Startseite anpassen")
-        self.resize(720, 620)
+        self.resize(760, 640)
 
         self.title = QLineEdit(self.cfg.get("title", ""))
         self.title.setPlaceholderText("Was sollen die anderen sehen?")
@@ -289,6 +299,35 @@ class StartPageDialog(QDialog):
             side.addWidget(b)
         side.addStretch(1)
 
+        # ausgewählte Kachel in einen anderen Bereich verschieben
+        self.move_combo = QComboBox()
+        self.move_combo.activated.connect(self._move_selected)
+        self.list.currentItemChanged.connect(lambda *_: self._sync_move_combo())
+
+        # Bereiche verwalten
+        self.sec_list = QListWidget()
+        self.sec_list.setSpacing(3)
+        self.sec_list.itemDoubleClicked.connect(lambda _i: self._rename_section())
+        sec_box = QWidget()
+        sec_lay = QHBoxLayout(sec_box)
+        sec_lay.setContentsMargins(0, 12, 0, 0)
+        sec_lay.addWidget(self.sec_list, 1)
+        sec_side = QVBoxLayout()
+        sec_side.setSpacing(6)
+        for text, icon_name, slot, kw in [
+            ("Neu …", "plus", self._add_section, {"primary": True}),
+            ("Umbenennen …", "edit", self._rename_section, {}),
+            ("Nach oben", "up", lambda: self._move_section(-1), {}),
+            ("Nach unten", "down", lambda: self._move_section(1), {}),
+            ("Löschen", "trash", self._delete_section, {"danger": True}),
+        ]:
+            b = button(text, icon_name, **kw)
+            b.clicked.connect(slot)
+            sec_side.addWidget(b)
+        sec_side.addStretch(1)
+        sec_lay.addLayout(sec_side)
+        self._fill_sections()
+
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(8)
@@ -298,9 +337,15 @@ class StartPageDialog(QDialog):
         form.addRow("", self.show_hint)
 
         body = QHBoxLayout()
-        body.addWidget(self.list, 1)
+        left = QVBoxLayout()
+        left.addWidget(self.list, 1)
+        move_row = QHBoxLayout()
+        move_row.addWidget(QLabel("Bereich der Kachel:"))
+        move_row.addWidget(self.move_combo, 1)
+        left.addLayout(move_row)
+        body.addLayout(left, 1)
         body.addLayout(side)
-        hint = QLabel("Haken = sichtbar · Ziehen = Reihenfolge")
+        hint = QLabel("Haken = sichtbar · Ziehen = Reihenfolge · Bereich unten wählen")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
 
@@ -313,10 +358,31 @@ class StartPageDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Startseite anpassen", "Kacheln · Reihenfolge · Titel"))
-        lay.addLayout(form)
-        lay.addWidget(hint)
-        lay.addLayout(body, 1)
+        lay.addWidget(page_header("Startseite anpassen", "Kacheln · Bereiche · Texte"))
+        tabs = QTabWidget()
+        tiles_page = QWidget()
+        tiles_lay = QVBoxLayout(tiles_page)
+        tiles_lay.setContentsMargins(14, 14, 14, 14)
+        tiles_lay.addWidget(hint)
+        tiles_lay.addLayout(body, 1)
+        texts_page = QWidget()
+        texts_lay = QVBoxLayout(texts_page)
+        texts_lay.setContentsMargins(14, 14, 14, 14)
+        texts_lay.addLayout(form)
+        texts_lay.addStretch(1)
+        sec_hint = QLabel("Doppelklick = umbenennen · Auf der Startseite: Klick auf Überschrift = einklappen")
+        sec_hint.setObjectName("Muted")
+        sec_hint.setWordWrap(True)
+        sec_page = QWidget()
+        sec_page_lay = QVBoxLayout(sec_page)
+        sec_page_lay.setContentsMargins(14, 2, 14, 14)
+        sec_page_lay.addWidget(sec_box, 1)
+        sec_page_lay.addWidget(sec_hint)
+        tabs.addTab(tiles_page, icons.icon("grid", theme.current().text, 18), "Kacheln")
+        tabs.addTab(sec_page, icons.icon("scenes", theme.current().text, 18), "Bereiche")
+        tabs.addTab(texts_page, icons.icon("text", theme.current().text, 18), "Texte")
+        self.tabs = tabs
+        lay.addWidget(tabs, 1)
         lay.addWidget(buttons)
 
     # ------------------------------------------------------------ Liste
@@ -330,8 +396,9 @@ class StartPageDialog(QDialog):
             icon_name, title, color = tile.get("icon", "star"), tile.get("title", "?"), tile.get("color")
             section = tile.get("section", "anzeigen")
             extra = " · eigene Kachel"
+        section = section_of(key, self.cfg)
         item = QListWidgetItem(icons.icon(icon_name, color or t.accent, 22),
-                               f"{title}   —   {SECTIONS.get(section, section)}{extra}")
+                               f"{title}   —   {section_name(self.cfg, section)}{extra}")
         item.setData(Qt.UserRole, key)
         item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsDragEnabled)
         item.setFlags(item.flags() & ~Qt.ItemIsDropEnabled)
@@ -378,9 +445,112 @@ class StartPageDialog(QDialog):
         dlg = CustomTileDialog(self.config, tile, "", self, self.controller)
         if dlg.exec() == QDialog.Accepted:
             self.cfg.setdefault("custom", []).append(dlg.tile)
+            move_to_section(self.cfg, custom_key(dlg.tile), dlg.tile["section"])
             self.cfg["tiles"] = self.cfg["tiles"] + [custom_key(dlg.tile)]
             self._set_hotkey(dlg.tile["id"], dlg.hotkey_text())
             self._fill(custom_key(dlg.tile))
+
+    # ------------------------------------------------------------ Bereiche
+    def _fill_sections(self, select: str | None = None):
+        self.sec_list.clear()
+        counts = {}
+        for key in all_keys(self.cfg):
+            sid = section_of(key, self.cfg)
+            counts[sid] = counts.get(sid, 0) + 1
+        for sec in sections(self.cfg):
+            item = QListWidgetItem(f"{sec['name']}   ·   {counts.get(sec['id'], 0)} Kacheln")
+            item.setData(Qt.UserRole, sec["id"])
+            self.sec_list.addItem(item)
+            if sec["id"] == select:
+                self.sec_list.setCurrentItem(item)
+        self.move_combo.blockSignals(True)
+        self.move_combo.clear()
+        for sec in sections(self.cfg):
+            self.move_combo.addItem(sec["name"], sec["id"])
+        self.move_combo.blockSignals(False)
+        self._sync_move_combo()
+
+    def _sync_move_combo(self):
+        item = self.list.currentItem()
+        self.move_combo.setEnabled(item is not None)
+        if item is not None:
+            self.move_combo.setCurrentIndex(max(0, self.move_combo.findData(section_of(item.data(Qt.UserRole),
+                                                                                       self.cfg))))
+
+    def _current_section(self) -> str | None:
+        item = self.sec_list.currentItem()
+        return item.data(Qt.UserRole) if item else None
+
+    def _refresh_all(self, tile: str | None = None, section: str | None = None):
+        self._sync()
+        self._fill(tile)
+        self._fill_sections(section)
+
+    def move_tile(self, key: str, section_id: str) -> None:
+        self._sync()
+        move_to_section(self.cfg, key, section_id)
+        self._refresh_all(key, self._current_section())
+
+    def _move_selected(self, *_):
+        item = self.list.currentItem()
+        if item is not None:
+            self.move_tile(item.data(Qt.UserRole), self.move_combo.currentData())
+
+    def add_section(self, name: str) -> str:
+        self._sync()
+        sec = new_section(name)
+        self.cfg["sections"] = sections(self.cfg) + [sec]
+        self._fill_sections(sec["id"])
+        return sec["id"]
+
+    def _add_section(self):
+        name, ok = QInputDialog.getText(self, "Neuer Bereich", "Name:")
+        if ok and name.strip():
+            sid = self.add_section(name)
+            item = self.list.currentItem()
+            if item is not None and QMessageBox.question(
+                    self, "Neuer Bereich", f"Ausgewählte Kachel gleich nach „{name.strip()}“ verschieben?") \
+                    == QMessageBox.Yes:
+                self.move_tile(item.data(Qt.UserRole), sid)
+
+    def rename_section(self, section_id: str, name: str) -> None:
+        self.cfg["sections"] = [{**s, "name": name.strip() or s["name"]} if s["id"] == section_id else s
+                                for s in sections(self.cfg)]
+        self._refresh_all(None, section_id)
+
+    def _rename_section(self):
+        sid = self._current_section()
+        if sid is None:
+            return
+        name, ok = QInputDialog.getText(self, "Bereich umbenennen", "Name:", text=section_name(self.cfg, sid))
+        if ok and name.strip():
+            self.rename_section(sid, name)
+
+    def _move_section(self, step: int):
+        sid = self._current_section()
+        secs = sections(self.cfg)
+        i = next((n for n, s in enumerate(secs) if s["id"] == sid), -1)
+        if i < 0 or not 0 <= i + step < len(secs):
+            return
+        secs[i], secs[i + step] = secs[i + step], secs[i]
+        self.cfg["sections"] = secs
+        self._refresh_all(None, sid)
+
+    def _delete_section(self):
+        sid = self._current_section()
+        secs = sections(self.cfg)
+        if sid is None:
+            return
+        if len(secs) == 1:
+            QMessageBox.information(self, "Bereich", "Mindestens ein Bereich muss bleiben.")
+            return
+        rest = next(s["name"] for s in secs if s["id"] != sid)
+        if QMessageBox.question(self, "Bereich löschen", f"„{section_name(self.cfg, sid)}“ löschen? Die Kacheln "
+                                f"kommen nach „{rest}“.") != QMessageBox.Yes:
+            return
+        self._sync()
+        delete_section(self.cfg, sid)
+        self._refresh_all()
 
     def _add_saver_menu(self):
         """Menü: Bildschirmschoner als eigene Kachel – beliebig viele, jeder mit eigenem Stil."""
@@ -430,6 +600,7 @@ class StartPageDialog(QDialog):
                                self.controller)
         if dlg.exec() == QDialog.Accepted:
             tile.update(dlg.tile)
+            move_to_section(self.cfg, key, dlg.tile["section"])
             self._set_hotkey(tile["id"], dlg.hotkey_text())
             self._fill(key)
 

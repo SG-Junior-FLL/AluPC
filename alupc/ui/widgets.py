@@ -892,3 +892,93 @@ class Banner(QWidget):
                        "busy": (t.accent, "refresh")}.get(kind, (t.accent, "info"))
         self.icon.setPixmap(_chip_pixmap(name, color, 36))
         self.label.setText(text)
+
+
+class SectionHeader(QWidget):
+    """Überschrift eines Startseiten-Bereichs: Pfeil, Name, Anzahl, Linie – Klick klappt ein/aus."""
+
+    toggled = Signal(bool)  # True = eingeklappt
+
+    def __init__(self, name: str, count: int = 0, collapsed: bool = False, tiles=None, parent=None):
+        super().__init__(parent)
+        self.name, self.count, self.collapsed = name, count, collapsed
+        self.tiles = list(tiles or [])  # (Symbol, Farbe) – eingeklappt als Mini-Symbole zu sehen
+        self._hover = False
+        self.setFixedHeight(34)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip("Klick: ein-/ausklappen")
+        self.setAttribute(Qt.WA_Hover, True)
+
+    def set(self, name: str, count: int, collapsed: bool) -> None:
+        self.name, self.count, self.collapsed = name, count, collapsed
+        self.update()
+
+    def enterEvent(self, e):
+        self._hover = True
+        self.update()
+
+    def leaveEvent(self, e):
+        self._hover = False
+        self.update()
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.collapsed = not self.collapsed
+            self.update()
+            self.toggled.emit(self.collapsed)
+
+    def paintEvent(self, _e):
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        h = self.height()
+        if self._hover:
+            p.fillPath(rounded(QRectF(self.rect()).adjusted(0, 2, 0, -2), 9), QColor(t.surface2))
+        # Pfeil: ▾ offen, ▸ eingeklappt
+        cx, cy, s = 14.0, h / 2, 4.5
+        pen = QPen(QColor(t.accent if self._hover else t.muted), 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+        p.setPen(pen)
+        if self.collapsed:
+            p.drawPolyline([QPointF(cx - s / 2, cy - s), QPointF(cx + s / 2, cy), QPointF(cx - s / 2, cy + s)])
+        else:
+            p.drawPolyline([QPointF(cx - s, cy - s / 2), QPointF(cx, cy + s / 2), QPointF(cx + s, cy - s / 2)])
+        f = font(10.5, QFont.Bold)
+        p.setFont(f)
+        p.setPen(QColor(t.text))
+        x = 30
+        width = QFontMetrics(f).horizontalAdvance(self.name)
+        p.drawText(QRectF(x, 0, width + 2, h), Qt.AlignVCenter | Qt.AlignLeft, self.name)
+        x += width + 10
+        # Anzahl als kleine Pille
+        cf = font(8.5, QFont.Bold)
+        p.setFont(cf)
+        label = str(self.count)
+        pill_w = QFontMetrics(cf).horizontalAdvance(label) + 14
+        pill = QRectF(x, h / 2 - 9, pill_w, 18)
+        p.setPen(Qt.NoPen)
+        soft = QColor(t.accent)
+        soft.setAlphaF(0.18)
+        p.setBrush(soft if not self.collapsed else QColor(t.surface2))
+        p.drawRoundedRect(pill, 9, 9)
+        p.setPen(QColor(t.accent if not self.collapsed else t.muted))
+        p.drawText(pill, Qt.AlignCenter, label)
+        x = pill.right() + 12
+        # eingeklappt: die Kacheln als kleine farbige Symbole (bis 10)
+        if self.collapsed and self.tiles:
+            size = 22
+            for icon_name, color in self.tiles[:10]:
+                if x + size > self.width() - 40:
+                    break
+                bg = QColor(color or t.accent)
+                bg.setAlphaF(0.2)
+                p.setPen(Qt.NoPen)
+                p.setBrush(bg)
+                p.drawRoundedRect(QRectF(x, h / 2 - size / 2, size, size), 7, 7)
+                icons.paint(p, icon_name, QRectF(x + 4, h / 2 - size / 2 + 4, size - 8, size - 8), color or t.accent,
+                            1.8)
+                x += size + 5
+            x += 7
+        # Linie bis zum Rand
+        p.setPen(QPen(QColor(t.border), 1))
+        p.drawLine(QPointF(x, h / 2), QPointF(self.width() - 4, h / 2))
+        p.end()

@@ -47,10 +47,10 @@ from .volume_box import VolumeBox
 from .scene_editor import SceneEditor
 from .setup_page import SetupPage
 from .source_picker import IMAGE_FILTER, VIDEO_FILTER
-from ..startpage import BUILTIN_TILES, SECTIONS, custom_key, find_custom, ordered_keys, section_of
+from ..startpage import BUILTIN_TILES, custom_key, find_custom, ordered_keys, section_of, sections
 from .start_page_dialog import StartPageDialog
-from .widgets import (EmptyState, MonitorCard, NavButton, SceneCard, StatusCard, Tile, Toast, button, font,
-                      page_header)
+from .widgets import (EmptyState, MonitorCard, NavButton, SceneCard, SectionHeader, StatusCard, Tile, Toast, button,
+                      font, page_header)
 
 __all__ = ["MainWindow", "app_icon"]
 
@@ -72,9 +72,10 @@ class FlowGrid(QWidget):
         self.grid.setSpacing(spacing)
         self.grid.setSizeConstraint(QGridLayout.SetNoConstraint)
         self._cols = 0
+        self._fillers: list[QWidget] = []  # leere Plätze – damit Kacheln überall gleich breit sind
 
     def set_items(self, items):
-        for w in self.items:
+        for w in self.items + self._fillers:
             self.grid.removeWidget(w)
         self.items = list(items)
         self._cols = 0
@@ -86,11 +87,22 @@ class FlowGrid(QWidget):
         if cols == self._cols:
             return
         self._cols = cols
-        for w in self.items:
+        for w in self.items + self._fillers:
             self.grid.removeWidget(w)
         for i, w in enumerate(self.items):
             align = Qt.AlignLeft | Qt.AlignTop if self.fixed else Qt.Alignment()
             self.grid.addWidget(w, i // cols, i % cols, align)
+        if not self.fixed and 0 < len(self.items) < cols:  # eine Zeile, nicht voll: Rest mit Platzhaltern
+            while len(self._fillers) < cols:
+                filler = QWidget(self)
+                filler.setAttribute(Qt.WA_TransparentForMouseEvents)
+                self._fillers.append(filler)
+            for i in range(len(self.items), cols):
+                self.grid.addWidget(self._fillers[i], 0, i)
+                self._fillers[i].show()
+        for f in self._fillers:
+            if self.grid.indexOf(f) < 0:
+                f.hide()
         for c in range(self.max_cols):
             self.grid.setColumnStretch(c, 0 if self.fixed else (1 if c < cols else 0))
         if self.fixed:
@@ -511,16 +523,14 @@ class MainWindow(QMainWindow):
         self.t_scenes.activated.connect(lambda: self._go(1))  # Klick: Szenen-Seite, Pfeil: Szene starten
         self.custom_tiles: dict[str, Tile] = {}
 
-        self.section_labels = {}
-        self.section_grids = {}
-        for key, label in SECTIONS.items():
-            title = QLabel(label.upper())
-            title.setObjectName("StartSection")
-            grid = FlowGrid(min_width=270, max_cols=4, spacing=12)
-            self.section_labels[key] = title
-            self.section_grids[key] = grid
-            lay.addWidget(title)
-            lay.addWidget(grid)
+        # Bereiche (eigene anlegbar, einklappbar) – werden in rebuild_start() aufgebaut
+        self.section_labels: dict[str, SectionHeader] = {}
+        self.section_grids: dict[str, FlowGrid] = {}
+        self.sections_host = QWidget()
+        self.sections_layout = QVBoxLayout(self.sections_host)
+        self.sections_layout.setContentsMargins(0, 0, 0, 0)
+        self.sections_layout.setSpacing(6)
+        lay.addWidget(self.sections_host)
         self.start_empty = QLabel("Alle Kacheln ausgeblendet · „Startseite anpassen“")
         self.start_empty.setObjectName("Muted")
         lay.addWidget(self.start_empty)
@@ -549,24 +559,87 @@ class MainWindow(QMainWindow):
                         tile_cfg.get("color"))
             tile.clicked.connect(lambda _=False, i=tile_cfg["id"]: self.controller.run_tile(i))
             self.custom_tiles[custom_key(tile_cfg)] = tile
-        per_section = {key: [] for key in SECTIONS}
-        keys = ordered_keys(cfg)
-        for key in keys:
+        secs = sections(cfg)
+        per_section = {s["id"]: [] for s in secs}
+        for key in ordered_keys(cfg):
             widget = self.tiles.get(key) or self.custom_tiles.get(key)
             if widget is not None:
-                per_section.setdefault(section_of(key, cfg), []).append(widget)
+                per_section[section_of(key, cfg)].append(widget)
+        # alte Überschriften/Raster abbauen (Kacheln vorher herausnehmen, sonst würden sie mit gelöscht)
+        for grid in self.section_grids.values():
+            for w in grid.items:
+                w.hide()
+                w.setParent(self.sections_host)
+            grid.set_items([])
+        while self.sections_layout.count():
+            item = self.sections_layout.takeAt(0)
+            if item.widget() is not None:
+                item.widget().hide()  # sonst bis zum Löschen noch sichtbar (überlagert die neuen)
+                item.widget().deleteLater()
+        self.section_labels, self.section_grids = {}, {}
         shown = set()
-        for key, grid in self.section_grids.items():
-            items = per_section.get(key, [])
+        for sec in secs:
+            items = per_section[sec["id"]]
+            if not items:
+                continue  # leere Bereiche nicht zeigen
+            head = SectionHeader(sec["name"], len(items), bool(sec.get("collapsed")),
+                                 [(w.icon_name, w.color) for w in items if hasattr(w, "icon_name")])
+            head.toggled.connect(lambda folded, sid=sec["id"]: self._fold_section(sid, folded))
+            head.setContextMenuPolicy(Qt.CustomContextMenu)
+            head.customContextMenuRequested.connect(lambda pos, h=head, sid=sec["id"]: self._section_menu(h, sid, pos))
+            grid = FlowGrid(min_width=270, max_cols=4, spacing=12)
             grid.set_items(items)
-            shown.update(items)
-            grid.setVisible(bool(items))
-            self.section_labels[key].setVisible(bool(items))
+            grid.setVisible(not sec.get("collapsed"))
+            if not sec.get("collapsed"):
+                shown.update(items)
+            self.sections_layout.addWidget(head)
+            self.sections_layout.addWidget(grid)
+            self.sections_layout.addSpacing(4)
+            self.section_labels[sec["id"]], self.section_grids[sec["id"]] = head, grid
         for widget in list(self.tiles.values()) + list(self.custom_tiles.values()):
             widget.setVisible(widget in shown)
-        self.start_empty.setVisible(not shown)
+        self.start_empty.setVisible(not self.section_grids)
         if hasattr(self, "a_freeze"):
             self.refresh()
+
+    def _fold_section(self, section_id: str, folded: bool) -> None:
+        """Bereich ein-/ausklappen – bleibt gespeichert."""
+        cfg = dict(self.config["start_page"])
+        cfg["sections"] = [{**s, "collapsed": folded} if s["id"] == section_id else s for s in sections(cfg)]
+        self.config["start_page"] = cfg
+        grid = self.section_grids.get(section_id)
+        if grid is not None:
+            grid.setVisible(not folded)
+            for w in grid.items:
+                w.setVisible(not folded)
+            self.section_labels[section_id].set(self.section_labels[section_id].name, len(grid.items), folded)
+
+    def _section_menu(self, head, section_id: str, pos) -> None:
+        menu = QMenu(self)
+        t = theme.current().text
+        menu.addAction(icons.icon("edit", t, 18), "Umbenennen …", lambda: self._rename_section(section_id))
+        menu.addAction(icons.icon("down", t, 18), "Alle ausklappen", lambda: self._fold_all(False))
+        menu.addAction(icons.icon("up", t, 18), "Alle einklappen", lambda: self._fold_all(True))
+        menu.addSeparator()
+        menu.addAction(icons.icon("sliders", t, 18), "Startseite anpassen …", self.customize_start)
+        menu.exec(head.mapToGlobal(pos))
+
+    def _rename_section(self, section_id: str) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        cfg = dict(self.config["start_page"])
+        old = next((s["name"] for s in sections(cfg) if s["id"] == section_id), "")
+        name, ok = QInputDialog.getText(self, "Bereich umbenennen", "Name:", text=old)
+        if ok and name.strip():
+            cfg["sections"] = [{**s, "name": name.strip()} if s["id"] == section_id else s for s in sections(cfg)]
+            self.config["start_page"] = cfg
+            self.rebuild_start()
+
+    def _fold_all(self, folded: bool) -> None:
+        cfg = dict(self.config["start_page"])
+        cfg["sections"] = [{**s, "collapsed": folded} for s in sections(cfg)]
+        self.config["start_page"] = cfg
+        self.rebuild_start()
 
     def _apply_hotkeys(self):
         problems = self.hotkeys.apply(self.config["hotkeys"])
