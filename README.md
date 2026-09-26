@@ -34,7 +34,7 @@ OBS-Studio-Fenster.
 | **Programm** | ein Programm zeigen: *Anzeigen (Aufnahme)* oder *Fenster wirklich verschieben* |
 | **Website** | Adresse eingeben oder gespeicherte Website wählen → Vollbild. Pfeil an der Kachel: gespeicherte Websites, **Browser steuern** (eigenes Fenster: Adresse, Zurück/Vor, Zoom, Scrollen, Live-Vorschau zum Klicken und Tippen), aktuelle Seite **unter „Website“ speichern** |
 | **Bild / Video** | **Mediathek** mit Vorschaubildern: gespeicherte Bilder, Videos und Diashows, dazu automatisch „Zuletzt gezeigt“; Filter, Suche, Umbenennen. Pfeil an der Kachel: gespeicherte Einträge direkt starten. Läuft ein Video (auch in einer eigenen Szene), erscheint oben eine **Mediensteuerung**: Pause/Weiter, ±10 Sekunden, Zeitleiste zum Springen |
-| **Handy** | eigene **Seite „Handy“** mit vier Wegen: **Jedes Handy** (QR-Code scannen, ohne App: Fotos/Videos/Links/Text senden und Monitor 2 **fernsteuern** – mit **Live-Bild** und **Laserpointer per Finger**), **iPhone & iPad** (AirPlay über UxPlay), **Android** (USB, wird automatisch erkannt) und unter Windows **Miracast**. Jede Karte zeigt, ob der Weg bereit ist. **Richtet sich beim ersten Öffnen selbst ein** (fehlende Programme installieren – Kubuntu mit einem Passwort, Windows über winget –, Name und Code festlegen). Auf der Startseite hat **jeder Weg eine eigene Kachel** (Rubrik „Handy“: AirPlay, Handy-Stream, Handy-Steuerung, Miracast) – Klick startet, Pfeil zeigt Optionen |
+| **Handy** | eigenes **Fenster „Handy“** mit zwei Wegen: **Jedes Handy** (QR-Code scannen, ohne App: Fotos/Videos/Links/Text senden und Monitor 2 **fernsteuern** – mit **Live-Bild**, **Präsentations-Klicker** und **Laserpointer per Finger**) und **iPhone & iPad** (AirPlay über UxPlay; unter Windows über „uxplay-windows“). Jede Karte zeigt, ob der Weg bereit ist. **Richtet sich selbst ein** (Kubuntu: Pakete mit einem Passwort, Windows: uxplay-windows und Bonjour über winget; Name und Code festlegen). Auf der Startseite: Kacheln „AirPlay“ und „Handy-Steuerung“ – Klick startet, Pfeil zeigt Optionen |
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
 | **Standbild** | friert das Bild auf Monitor 2 ein; du arbeitest auf Monitor 1 unbemerkt weiter |
@@ -244,7 +244,7 @@ kennen sie nicht – AluPC steuert sie direkt. Steckt so ein Modul, nimmt AluPC 
 ## Wenn etwas nicht geht
 
 **Setup → Allgemein → „Diagnose kopieren“** prüft Monitore, macht eine kurze Probe-Aufnahme fürs Spiegeln,
-prüft AirPlay (UxPlay, avahi/Bonjour), Android (scrcpy, adb), Miracast (WLAN-Treiber), RGB und Lüfter –
+prüft AirPlay (UxPlay bzw. uxplay-windows samt dessen Protokoll, avahi/Bonjour), RGB und Lüfter –
 und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“** daneben richtet alles neu ein.
 
 - **Spiegeln zeigt nichts:** AluPC schaltet nach 4 s ohne Bild selbst auf das Spiegeln des
@@ -253,7 +253,8 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
 - **iPhone findet den PC nicht:** gleiches WLAN? Unter Kubuntu muss der Dienst avahi laufen, unter
   Windows „Bonjour“ installiert sein – „Ersteinrichtung starten“ erledigt das. Schul-/Gäste-WLANs
   trennen Geräte oft voneinander, dann geht AirPlay dort nicht.
-- **Miracast:** braucht Windows mit WLAN-Adapter, der „Drahtlose Anzeige“ kann (die Diagnose zeigt es).
+- **Windows fragt nach der Firewall:** beim ersten AirPlay-Start „Zugriff zulassen“ (privates Netzwerk)
+  für uxplay-windows – sonst sieht das iPhone den PC, kann sich aber nicht verbinden.
 
 ## Ehrliche Grenzen
 
@@ -269,10 +270,6 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   jeder, der den QR-Code auf Monitor 2 sieht, kann senden („Neuer Code“ im Einrichten-Dialog). In
   Gäste-/Schul-WLANs, die Geräte voneinander trennen, erreichen Handys den PC nicht. Windows fragt beim
   ersten Start nach der Firewall-Freigabe. Live-Kamerabild vom Handy geht nicht (bräuchte https).
-- **Miracast nur unter Windows** (Linux hat keinen brauchbaren Empfänger). Das Bild gehört der
-  Windows-App – nicht in eigene Szenen einbaubar. iPhones können kein Miracast, Pixel-Handys auch
-  nicht mehr. Ob der App-Name bei jeder Windows-Version erkannt wird, konnte ich nicht auf echtem
-  Windows prüfen.
 - **RGB** geht nur mit installiertem **OpenRGB** (openrgb.org) und nur für Geräte, die OpenRGB kennt.
   Hersteller-Programme (iCUE, Armoury Crate, Mystic Light …) vorher beenden. AluPCs OpenRGB-Anbindung
   ist nach der offiziellen Protokollbeschreibung gebaut und gegen einen nachgebauten Server getestet –
@@ -292,12 +289,19 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   getestet – getestet mit zwei simulierten Systemen und einem gemeinsamen Ordner.
 - **Kamera-Zoom**: Die meisten Webcams haben keinen optischen Zoom – dann ist es ein digitaler Ausschnitt
   (wird bei starkem Zoom unscharf). Helligkeit nur bei Kameras, die das über Qt anbieten.
-- **AirPlay braucht das freie Programm UxPlay** (wird nicht mitgeliefert). Kubuntu 24.04 hat nur UxPlay
-  1.68: Das läuft im eigenen Fenster, nicht als AluPC-Quelle. Laut UxPlay-Projekt wurde in 1.72.3 eine
-  Sicherheitslücke geschlossen (CVE-2025-60458) – ältere Versionen nur im vertrauenswürdigen WLAN und am
-  besten mit Code verwenden. Windows: UxPlay als MSYS2-Build plus Apple „Bonjour“ selbst installieren und
-  im Dialog auswählen; scrcpy von GitHub laden. **Mit echten Handys ist das nicht getestet** – getestet
-  ist der Empfang eines simulierten AirPlay-Videostroms.
+- **AirPlay braucht das freie Programm UxPlay** (wird nicht mitgeliefert, AluPC installiert es). Kubuntu
+  24.04 hat nur UxPlay 1.68: Das läuft im eigenen Fenster, nicht als AluPC-Quelle. Laut UxPlay-Projekt
+  wurde in 1.72.3 eine Sicherheitslücke geschlossen (CVE-2025-60458) – ältere Versionen nur im
+  vertrauenswürdigen WLAN und am besten mit Code verwenden.
+- **AirPlay unter Windows** läuft über **„uxplay-windows“** (winget-Paket `leapbtw.uxplay`): ein
+  **Community-Paket** eines einzelnen Entwicklers, das UxPlay für Windows fertig baut – nicht vom
+  UxPlay-Projekt selbst, nicht signiert (Windows Defender kann warnen). AluPC schreibt Name und Code in
+  dessen `arguments.txt` (`%APPDATA%\leapbtw\uxplay-windows`), startet und beendet es und legt dessen
+  Videofenster **maximiert** auf Monitor 2 (echtes Vollbild lässt sich bei fremden Fenstern nicht
+  erzwingen). Das Bild ist dort keine AluPC-Quelle (keine Szenen, kein Standbild). Läuft uxplay-windows
+  schon (eigener Autostart), beendet AluPC es beim AirPlay-Start – es darf nur einen Empfänger geben.
+- **Mit echten iPhones ist AirPlay nicht getestet.** Geprüft ist: unter Linux startet echtes UxPlay und
+  wird per avahi angekündigt; unter Windows (GitHub-Rechner) siehe Versionshinweise.
 - **Fingerabdruck unter Linux** geht nur mit Sensoren, die **libfprint** unterstützt.
   Viele neuere Notebook-Sensoren (z. B. manche von Goodix/Synaptics) werden nicht erkannt.
 - **Windows erlaubt Fremdprogrammen nicht**, Finger für die Windows-Anmeldung anzulernen oder
