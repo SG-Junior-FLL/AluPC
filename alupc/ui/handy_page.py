@@ -248,7 +248,8 @@ class HandyPage(QWidget):
         card = MethodCard("qr", "#8b5cf6", "Jedes Handy", "Browser + QR-Code · ohne App")
         card.body.addWidget(steps_label("„QR-Code zeigen“ klicken",
                                          "Mit der Handy-Kamera scannen",
-                                         "Fotos, Videos, Links, Text senden – oder fernsteuern"))
+                                         "Steuern, auf Monitor 2 zeichnen, Folien weiter, Touchpad, "
+                                         "Fotos/Videos/Links senden"))
         row = QHBoxLayout()
         self.qr = QLabel()
         self.qr.setFixedSize(92, 92)
@@ -451,10 +452,11 @@ class HandyPage(QWidget):
         if ux and handy.supports_vrtp(ux):
             air.set_status("BEREIT", READY, "Das iPhone-Bild erscheint direkt in AluPC (auch in Szenen).")
         elif ux and handy.is_uxplay_windows(ux):
-            air.set_status("BEREIT", READY, "Über „uxplay-windows“: Bild im eigenen Fenster, AluPC legt es "
-                                            "maximiert auf Monitor 2.")
+            air.set_status("BEREIT", READY, "Über „uxplay-windows“: Monitor 2 zeigt Name und Code, das iPhone-Bild "
+                                            "legt AluPC beim Verbinden darüber.")
         elif ux:
-            air.set_status("BEREIT", READY, "Ältere UxPlay-Version: Bild im eigenen Vollbild-Fenster auf Monitor 2.")
+            air.set_status("BEREIT", READY, "Monitor 2 zeigt Name und Code; das iPhone-Bild legt AluPC beim "
+                                            "Verbinden im Vollbild darüber.")
         elif IS_WINDOWS:
             air.set_status("EINRICHTEN", SETUP, "Empfänger fehlt – „Automatisch einrichten“ oben installiert "
                                                 "„uxplay-windows“ und Bonjour über winget.")

@@ -172,6 +172,12 @@ jobs:
           $p = Start-Process -FilePath (Join-Path (Split-Path (Get-Command python).Source) "pythonw.exe") -ArgumentList ".github/scripts/airplay_probe.py" -RedirectStandardOutput $out -RedirectStandardError "$out.err" -Wait -PassThru -NoNewWindow
           Get-Content $out -ErrorAction SilentlyContinue
           Write-Output "::notice title=AirPlay-Probe-Ende::Exit $($p.ExitCode) · $((Get-Content "$out.err" -ErrorAction SilentlyContinue | Select-Object -Last 6) -join ' | ')"
+      - name: Fenster-Probe – iPhone-Fenster randlos im Vordergrund platzieren (echter Desktop)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $env:QT_QPA_PLATFORM = "windows"
+          python .github/scripts/present_probe.py
       - name: Spiegel-Probe auf dem echten Windows-Desktop
         shell: pwsh
         continue-on-error: true

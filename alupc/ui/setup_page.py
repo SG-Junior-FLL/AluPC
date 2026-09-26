@@ -213,8 +213,8 @@ class SetupPage(QWidget):
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
         ("sync", "Sichern & Sync", "Export, Windows ↔ Linux"),
         ("fan", "RGB & Lüfter", "OpenRGB, Temperaturen"),
-        ("phone", "Handy & Kamera", "AirPlay, Handy-Rechte, Kamera"),
-        ("sliders", "Allgemein", "Start, Autostart, Monitor-Wahl"),
+        ("phone", "Handy & Kamera", "AirPlay, Rechte, Kamera"),
+        ("sliders", "Allgemein", "Start, Autostart, Hilfe"),
     ]
 
     def __init__(self, controller, hotkeys, parent=None):

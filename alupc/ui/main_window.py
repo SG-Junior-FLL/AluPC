@@ -470,8 +470,8 @@ class MainWindow(QMainWindow):
         self.section_labels = {}
         self.section_grids = {}
         for key, label in SECTIONS.items():
-            title = QLabel(label)
-            title.setObjectName("SectionTitle")
+            title = QLabel(label.upper())
+            title.setObjectName("StartSection")
             grid = FlowGrid(min_width=270, max_cols=4, spacing=12)
             self.section_labels[key] = title
             self.section_grids[key] = grid
@@ -958,7 +958,7 @@ class MainWindow(QMainWindow):
             dlg.resize(1060, 820)
             lay = QVBoxLayout(dlg)
             lay.setContentsMargins(22, 18, 22, 18)
-            lay.addWidget(page_header("Handy auf Monitor 2", "Vier Wege – die Einrichtung läuft automatisch."))
+            lay.addWidget(page_header("Handy auf Monitor 2", "iPhone per AirPlay oder jedes Handy per QR-Code – die Einrichtung läuft automatisch."))
             self.handy_page = HandyPage(self.controller)
             lay.addWidget(self.handy_page, 1)
             self.handy_window = dlg

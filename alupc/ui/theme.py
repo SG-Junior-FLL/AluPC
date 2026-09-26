@@ -145,14 +145,17 @@ QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {t.bord
 #PageTitle {{ font-size: 18pt; font-weight: 700; }}
 #PageSubtitle {{ color: {t.muted}; font-size: 10.5pt; }}
 #SectionTitle {{ font-size: 11pt; font-weight: 700; }}
+#StartSection {{ font-size: 8.5pt; font-weight: 800; letter-spacing: 1.2px; color: {t.muted};
+                 padding: 10px 0 2px 2px; border-bottom: 1px solid {t.border}; }}
 
 #Card, QGroupBox {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 14px; }}
 #Hero {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {t.surface}, stop:1 {t.accent_soft(0.10)});
         border: 1px solid {t.border}; border-radius: 20px; }}
 QPushButton#Chip {{ border-radius: 17px; padding: 7px 14px; background: {t.surface2}; font-weight: 600; }}
 QPushButton#Chip:checked {{ background: {t.accent}; border-color: {t.accent}; color: #ffffff; }}
-QGroupBox {{ margin-top: 22px; padding: 14px 14px 12px 14px; font-weight: 700; }}
-QGroupBox::title {{ subcontrol-origin: margin; left: 14px; top: 2px; padding: 0 4px; color: {t.text}; }}
+QGroupBox {{ margin-top: 26px; padding: 16px 16px 14px 16px; font-weight: 700; }}
+QGroupBox::title {{ subcontrol-origin: margin; left: 6px; top: 4px; padding: 0 4px; color: {t.accent};
+                   font-size: 10pt; }}
 
 QPushButton, QToolButton#Plain {{
     background: {t.surface2}; border: 1px solid {t.border}; border-radius: 9px;
