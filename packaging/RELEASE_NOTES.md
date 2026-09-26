@@ -8,6 +8,12 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.33.0)
+- **Text live schreiben:** Beim Text anzeigen (Kachel „Text“ am PC und Handy → Senden → Text) gibt es den
+  Schalter **„Live“**. Dann erscheint jeder getippte Buchstabe sofort auf Monitor 2 – auch Löschen. Der Text
+  wird dabei nur ausgetauscht (kein Flackern, keine Überblendung). Am PC wird „Anzeigen“ zu „Fertig“; der
+  Schalter bleibt gespeichert, der fertige Text landet in „Zuletzt“.
+
 ### Neu in dieser Version (0.32.0)
 **AirPlay: Name und Code gelten jetzt immer**
 - Ursache für „iPhone zeigt den normalen UxPlay-Namen und fragt nicht nach dem Code“: Ein UxPlay, das nicht

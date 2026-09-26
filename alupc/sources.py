@@ -1114,6 +1114,12 @@ class TextSource(TextBase):
     def text(self):
         return self._text
 
+    def set_text(self, text: str) -> None:
+        """Live-Modus: Text austauschen, ohne die Quelle neu anzulegen."""
+        if text != self._text:
+            self._text = text
+            self.update()
+
 
 class ClockSource(TextBase):
     def __init__(self, cfg, parent=None):

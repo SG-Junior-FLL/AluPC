@@ -1888,6 +1888,11 @@ def test_alucast_end_to_end(env, tmp_path, monkeypatch):
     # Text, Befehle
     assert _http("POST", base + "/api/text", json.dumps({"text": "Hallo Klasse"}).encode(), ok)[0] == 200
     assert _until(lambda: (controller.content or {}).get("text") == "Hallo Klasse")
+    # Live vom Handy: Buchstabe für Buchstabe, auch leer (alles gelöscht)
+    for part in ("H", "Hi", ""):
+        assert _http("POST", base + "/api/text", json.dumps({"text": part, "live": True}).encode(), ok)[0] == 200
+        assert _until(lambda p=part: (controller.content or {}).get("text") == p)
+    assert _http("POST", base + "/api/text", json.dumps({"text": "  "}).encode(), ok)[0] == 400  # ohne live: leer
     assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "schwarz"}).encode(), ok)[0] == 200
     assert _until(lambda: controller.privacy)
     assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "sperren"}).encode(), ok)[0] == 400
@@ -2811,3 +2816,32 @@ def test_uxplay_connect_hint_parsing(tmp_path):
     for line in ("Open connections: 1", "Accepted IPv4 client on socket 23, port 7000"):
         assert any(k in line.lower() for k in handy.CONNECT_HINTS)
     assert not any(k in "Initialized server socket(s)".lower() for k in handy.CONNECT_HINTS)
+
+
+def test_live_text_pc(env):
+    """Text anzeigen, Live-Modus: jeder Buchstabe sofort auf Monitor 2 – dieselbe Quelle, kein Neuaufbau."""
+    from alupc.sources import TextSource
+
+    controller, window, _ = env
+    window.open_text_dialog()
+    pump()
+    dlg = window.text_dialog
+    dlg.live.setChecked(True)
+    assert dlg.show_btn.text() == "Fertig" and controller.config["text_live"] is True
+    dlg.text.setPlainText("H")
+    assert _until(lambda: (controller.content or {}).get("text") == "H", 2)
+    src = controller.output.content
+    assert isinstance(src, TextSource) and src.text() == "H"
+    for part in ("Ha", "Hal", "Hallo"):
+        dlg.text.setPlainText(part)
+        assert _until(lambda p=part: src.text() == p, 2)
+    assert controller.output.content is src  # nur Text ausgetauscht, nicht neu angelegt (kein Flackern)
+    dlg.show_btn.click()  # „Fertig“
+    pump()
+    assert controller.config["recent_texts"][0] == "Hallo" and not dlg.isVisible()
+    # nächster Aufruf merkt sich „Live“
+    window.open_text_dialog()
+    pump()
+    assert window.text_dialog.live.isChecked()
+    window.text_dialog.live.setChecked(False)
+    window.text_dialog.reject()

@@ -670,7 +670,10 @@ class Controller(QObject):
             self.show_source({"type": "website", "url": req["url"]})
             self.message.emit(f"Link vom Handy: {req.get('original', req['url'])}")
         elif kind == "text":
-            self.show_text(req["text"])
+            if req.get("live"):
+                self.live_text(req["text"])
+            else:
+                self.show_text(req["text"])
         elif kind == "laser":
             self._phone_laser(req.get("x"), req.get("y"))
             return
@@ -974,6 +977,31 @@ class Controller(QObject):
         self.changed.emit()
 
     # ------------------------------------------------------------ Befehle (Tastenkürzel, Kommandozeile)
+    def live_text(self, text: str) -> None:
+        """Live-Modus: jeder getippte Buchstabe sofort auf Monitor 2 – ohne Überblendung, ohne Ton.
+        Läuft schon ein Text, wird nur dessen Inhalt ausgetauscht (flackert nicht)."""
+        from .sources import TextSource
+
+        text = text[:2000]
+        cur = self.output.content
+        if self.mode == "content" and isinstance(cur, TextSource) and (self.content or {}).get("type") == "text" \
+                and not self.frozen and not self.privacy:
+            cur.set_text(text)
+            self.content = {**self.content, "text": text}
+            self.config.data["last_content"] = self.content  # ohne ständiges Speichern auf die Platte
+            self._live_changed()
+            return
+        self.show_source({"type": "text", "text": text, "live": True}, remember=True, sound=False)
+
+    def _live_changed(self) -> None:
+        # Vorschau & Handy nicht bei jedem Buchstaben komplett neu aufbauen – kurz gebündelt melden
+        from PySide6.QtCore import QTimer
+
+        if getattr(self, "_live_timer", None) is None:
+            self._live_timer = QTimer(self, singleShot=True, interval=300)
+            self._live_timer.timeout.connect(self.changed.emit)
+        self._live_timer.start()
+
     def show_text(self, text: str) -> None:
         """Text groß auf Monitor 2 (vom PC oder Handy) – die letzten Texte werden gemerkt."""
         text = text.strip()

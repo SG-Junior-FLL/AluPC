@@ -373,11 +373,13 @@ def _make_handler(server: CastServer):
                         url = "https://" + url
                     server.request.emit({"kind": "link", "url": youtube_embed(url), "original": url})
                 elif u.path == "/api/text":
-                    text = str(data.get("text", "")).strip()[:2000]
-                    if not text:
+                    live = bool(data.get("live"))
+                    text = str(data.get("text", ""))[:2000]
+                    text = text if live else text.strip()
+                    if not text and not live:  # live darf leer sein (alles gelöscht)
                         self._json(400, {"error": "Kein Text"})
                         return
-                    server.request.emit({"kind": "text", "text": text})
+                    server.request.emit({"kind": "text", "text": text, "live": live})
                 elif u.path == "/api/laser":
                     if data.get("up"):
                         server.request.emit({"kind": "laser", "x": None, "y": None})

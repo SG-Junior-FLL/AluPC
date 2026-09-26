@@ -73,6 +73,9 @@ textarea { min-height:80px; resize:vertical; }
 input[type=file] { display:none; }
 input[type=range] { width:100%; accent-color:#8b5cf6; height:30px; }
 .hint { color:var(--muted); font-size:12.5px; margin-top:8px; }
+.live-row { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:14px; color:var(--muted); }
+.live-row input { width:22px; height:22px; accent-color:#ef4444; }
+.live-row b { color:#ef4444; }
 .bar { height:8px; border-radius:4px; background:var(--line); overflow:hidden; margin-top:10px; display:none; }
 .bar > div { height:100%; width:0; background:var(--on); transition:width .15s; }
 .scenes { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; margin-top:8px; }
@@ -334,8 +337,9 @@ nav button.sel { background:var(--on); color:#fff; }
   </div>
   <div class="card">
     <h2>Text</h2>
-    <textarea id="text" placeholder="Text für Monitor 2"></textarea>
-    <button style="width:100%;margin-top:8px" onclick="sendText()"><svg class="i"><use href="#i-text"/></svg>Anzeigen</button>
+    <textarea id="text" placeholder="Text für Monitor 2" oninput="liveInput()"></textarea>
+    <label class="live-row"><input type="checkbox" id="live" onchange="liveToggle()"> <b>Live</b> – sofort auf Monitor 2</label>
+    <button id="text-btn" style="width:100%;margin-top:8px" onclick="sendText()"><svg class="i"><use href="#i-text"/></svg>Anzeigen</button>
   </div>
 </div>
 </div>
@@ -409,6 +413,27 @@ function sendText() {
   const t = $("text").value.trim(); if (!t) return;
   post("/api/text", { text: t }, "Angezeigt");
 }
+// Live: beim Tippen kurz gebündelt senden (höchstens ~8× pro Sekunde), immer der neueste Stand
+let liveTimer = null, liveBusy = false, livePending = false;
+function liveToggle() {
+  const on = $("live").checked;
+  $("text-btn").style.display = on ? "none" : "";
+  try { localStorage.setItem("alupc-live", on ? "1" : ""); } catch (e) {}
+  if (on) liveSend();
+}
+function liveInput() {
+  if (!$("live").checked) return;
+  clearTimeout(liveTimer); liveTimer = setTimeout(liveSend, 120);
+}
+async function liveSend() {
+  if (liveBusy) { livePending = true; return; }
+  liveBusy = true;
+  try { await api("/api/text", JSON.stringify({ text: $("text").value, live: true }), "application/json"); }
+  catch (e) { toast(e.message, true); }
+  liveBusy = false;
+  if (livePending) { livePending = false; liveSend(); }
+}
+try { if (localStorage.getItem("alupc-live")) { $("live").checked = true; $("text-btn").style.display = "none"; } } catch (e) {}
 
 let scenesKey = "", failures = 0;
 async function refresh() {
