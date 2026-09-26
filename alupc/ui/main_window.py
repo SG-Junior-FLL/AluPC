@@ -462,6 +462,11 @@ class MainWindow(QMainWindow):
         self.t_mirror, self.t_extend = self.tiles["mirror"], self.tiles["extend"]
         self.t_camera, self.t_program = self.tiles["camera"], self.tiles["program"]
         self.t_web, self.t_media, self.t_scenes = self.tiles["website"], self.tiles["media"], self.tiles["scenes"]
+        self.t_text = self.tiles["text"]
+        self.t_text.activated.connect(self.open_text_dialog)
+        self.text_menu = QMenu(self)
+        self.text_menu.aboutToShow.connect(lambda: self._fill_text_menu(self.text_menu))
+        self.t_text.set_menu(self.text_menu, split=True)
         self.t_freeze, self.t_black, self.t_pip = self.tiles["freeze"], self.tiles["black"], self.tiles["pip"]
         self.t_saver = self.tiles["screensaver"]
         self.t_draw = self.tiles["draw"]
@@ -721,6 +726,24 @@ class MainWindow(QMainWindow):
         dialog = ProgramDialog(self.controller, self)
         dialog.setAttribute(Qt.WA_DeleteOnClose)  # nicht bei jedem Öffnen ein Fenster übrig lassen
         dialog.exec()
+
+    def open_text_dialog(self):
+        from .text_dialog import TextDialog
+
+        self.text_dialog = TextDialog(self.controller, self)
+        self.text_dialog.open()
+
+    def _fill_text_menu(self, menu):
+        menu.clear()
+        t = theme.current().text
+        menu.addAction(icons.icon("edit", t, 18), "Neuer Text …", self.open_text_dialog)
+        recent = self.config.get("recent_texts", [])
+        if recent:
+            menu.addSection("Zuletzt")
+        for text in recent[:8]:
+            short = text.replace("\n", " ")
+            menu.addAction(icons.icon("text", t, 18), short if len(short) <= 40 else short[:39] + "…",
+                           lambda v=text: self.controller.show_text(v))
 
     def pick_website(self):
         dlg = WebsiteDialog(self.config, self)
@@ -1342,6 +1365,7 @@ class MainWindow(QMainWindow):
             (self.t_camera, typ == "camera"),
             (self.t_program, typ == "window" or (c.mode == "desktop" and c.desktop_note.startswith("Programm"))),
             (self.t_web, typ == "website"),
+            (self.t_text, typ == "text"),
             (self.t_media, typ in ("image", "video", "slideshow")),
             (self.t_scenes, typ == "scene"),
             (self.t_airplay, typ == "airplay" or (c.mode == "desktop" and c.desktop_note.startswith("iPhone"))),

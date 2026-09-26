@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from ..scenes import new_scene
 from ..screens import (
+    ANIMATED_NAME,
     CATEGORIES,
     CATEGORY_NAMES,
     DESIGNS,
@@ -34,6 +35,7 @@ from ..screens import (
     TEMPLATE_LABELS,
     build_template,
     design_defaults,
+    is_animated_template,
     render_preview,
     render_scene_preview,
 )
@@ -43,6 +45,24 @@ from .widgets import button, page_header
 THUMB = QSize(224, 126)
 EMPTY = ("leer", "")
 HEADER = ("kategorie", "")
+
+
+def badge_image(img: QImage) -> None:
+    """Kleines „✦ ANIMIERT“-Schild oben links aufs Vorschaubild."""
+    p = QPainter(img)
+    p.setRenderHint(QPainter.Antialiasing)
+    font = QFont()
+    font.setPixelSize(10)
+    font.setBold(True)
+    p.setFont(font)
+    text = "✦ ANIMIERT"
+    w = p.fontMetrics().horizontalAdvance(text) + 12
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(0, 0, 0, 170))
+    p.drawRoundedRect(6, 6, w, 18, 9, 9)
+    p.setPen(QColor("#fde68a"))
+    p.drawText(6, 6, w, 18, Qt.AlignCenter, text)
+    p.end()
 
 
 def header_image(title: str, count: int) -> QImage:
@@ -90,7 +110,7 @@ class TemplatesDialog(QDialog):
         filters = QHBoxLayout()
         filters.setSpacing(6)
         self.cat_group = QButtonGroup(self)
-        for i, label in enumerate(["Alle", *CATEGORY_NAMES]):
+        for i, label in enumerate(["Alle", *CATEGORY_NAMES, "✦ " + ANIMATED_NAME]):
             b = QPushButton(label.replace("&", "&&"))  # „&“ sonst als Tastenkürzel-Unterstrich
             b.setObjectName("Segment")
             b.setCheckable(True)
@@ -142,12 +162,16 @@ class TemplatesDialog(QDialog):
                 head.setIcon(icon)
                 self.list.addItem(head)
             item = QListWidgetItem(label)
+            animated = is_animated_template(kind, key)
             item.setData(Qt.UserRole, (kind, key))
             item.setData(Qt.UserRole + 1, cat)
-            item.setData(Qt.UserRole + 2, f"{label} {desc}".lower())
-            item.setToolTip(desc)
+            item.setData(Qt.UserRole + 2, f"{label} {desc} {'animiert bewegt' if animated else ''}".lower())
+            item.setData(Qt.UserRole + 3, animated)
+            item.setToolTip(desc + (" · animiert" if animated else ""))
             img = render_preview(design_defaults(key), THUMB.width(), THUMB.height()) if kind == "design" else \
                 render_scene_preview(build_template(key, {}), THUMB.width(), THUMB.height())
+            if animated:
+                badge_image(img)
             item.setIcon(QIcon(QPixmap.fromImage(img)))
             self.list.addItem(item)
         body.addWidget(self.list, 3)
@@ -204,7 +228,7 @@ class TemplatesDialog(QDialog):
 
     def _filter(self, *_):
         cat_id = self.cat_group.checkedId()
-        cat = None if cat_id <= 0 else CATEGORY_NAMES[cat_id - 1]
+        cat = None if cat_id <= 0 else ([*CATEGORY_NAMES, ANIMATED_NAME])[cat_id - 1]
         words = self.search.text().lower().split()
         for i in range(self.list.count()):
             item = self.list.item(i)
@@ -212,8 +236,8 @@ class TemplatesDialog(QDialog):
             if item.data(Qt.UserRole) == HEADER:
                 ok = cat is None and not words
             else:
-                ok = (cat is None or item.data(Qt.UserRole + 1) == cat or is_blank) \
-                    and all(w in item.data(Qt.UserRole + 2) for w in words)
+                in_cat = item.data(Qt.UserRole + 3) if cat == ANIMATED_NAME else item.data(Qt.UserRole + 1) == cat
+                ok = (cat is None or in_cat or is_blank) and all(w in item.data(Qt.UserRole + 2) for w in words)
             item.setHidden(not ok)
         current = self.list.currentItem()
         if current is None or current.isHidden():

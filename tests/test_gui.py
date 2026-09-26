@@ -2658,3 +2658,59 @@ def test_airplay_rename_while_running(env, tmp_path, monkeypatch):
     controller.show_source({"type": "clock"})
     pump()
     assert _until(lambda: not controller.airplay.running(), 5)
+
+
+def test_text_on_pc_like_phone(env):
+    """Kachel „Text“: wie am Handy – eintippen, Anzeigen, steht auf Monitor 2; letzte Texte gemerkt."""
+    controller, window, _ = env
+    from alupc.startpage import ordered_keys
+
+    assert "text" in ordered_keys(controller.config["start_page"])
+    window.t_text.activated.emit()
+    pump()
+    dlg = window.text_dialog
+    dlg.text.setPlainText("  Gleich geht's los!  ")
+    dlg.show_btn.click()
+    pump()
+    assert controller.content == {"type": "text", "text": "Gleich geht's los!"} and controller.mode == "content"
+    assert controller.config["recent_texts"][0] == "Gleich geht's los!"
+    assert window.t_text.active
+    # vom Handy gesendet → landet auch in „Zuletzt“, doppelte nur einmal
+    controller._cast_request({"kind": "text", "text": "Pause 10 min"})
+    controller.show_text("Gleich geht's los!")
+    assert controller.config["recent_texts"][:2] == ["Gleich geht's los!", "Pause 10 min"]
+    window.open_text_dialog()
+    pump()
+    dlg = window.text_dialog
+    assert dlg.text.toPlainText() == "Gleich geht's los!"  # läuft gerade → vorbefüllt
+    assert dlg.recent_box.isVisibleTo(dlg)
+    dlg.text.clear()
+    dlg.show_text()  # leer → nichts passiert
+    assert controller.content["text"] == "Gleich geht's los!"
+    dlg.reject()
+    window._fill_text_menu(window.text_menu)
+    assert any("Pause 10 min" in a.text() for a in window.text_menu.actions())
+
+
+def test_animated_template_filter(env):
+    """„Neue Szene“: Filter „Animiert“ zeigt nur Vorlagen mit dauerhafter Bewegung (Seiten und Szenen)."""
+    from alupc.screens import CATEGORY_NAMES, animated_designs, is_animated_template
+
+    controller, window, _ = env
+    moving = animated_designs()
+    assert {"laufschrift", "neon", "glitch", "synthwave", "geburtstag", "nowplaying"} <= moving
+    assert not {"willkommen", "wlan", "tabelle", "pause"} & moving  # nur Uhr/Restzeit zählt nicht
+    assert is_animated_template("scene", "partynacht") and not is_animated_template("scene", "gaeste_wlan")
+    window.new_scene()
+    pump()
+    dlg = window.templates_dialog
+    dlg.cat_group.button(len(CATEGORY_NAMES) + 1).click()  # „✦ Animiert“
+    visible = [dlg.list.item(i).data(Qt.UserRole) for i in range(dlg.list.count()) if not dlg.list.item(i).isHidden()]
+    assert ("design", "neon") in visible and ("scene", "partynacht") in visible
+    assert ("design", "wlan") not in visible and ("scene", "gaeste_wlan") not in visible
+    assert all(is_animated_template(*v) for v in visible if v != ("leer", ""))
+    dlg.cat_group.button(0).click()
+    dlg.search.setText("animiert")
+    found = [dlg.list.item(i).data(Qt.UserRole) for i in range(dlg.list.count()) if not dlg.list.item(i).isHidden()]
+    assert ("design", "glitch") in found and ("design", "wlan") not in found
+    dlg.close()

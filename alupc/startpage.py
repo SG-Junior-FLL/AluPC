@@ -12,6 +12,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "program": ("window", "Programm", "Fenster zeigen", "#a855f7", "anzeigen"),
     "website": ("globe", "Website", "Seite öffnen", "#06b6d4", "anzeigen"),
     "media": ("image", "Bild / Video", "Mediathek", "#10b981", "anzeigen"),
+    "text": ("text", "Text", "Schnell zeigen", "#14b8a6", "anzeigen"),
     "scenes": ("scenes", "Meine Szenen", "Eigene Szenen", "#ec4899", "anzeigen"),
     # Handy → Monitor 2: jeder Weg mit eigener Kachel
     "airplay": ("phone", "AirPlay", "iPhone & iPad", "#0ea5e9", "handy"),

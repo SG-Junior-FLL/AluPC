@@ -8,6 +8,14 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.30.0)
+- **Text anzeigen am PC – wie am Handy:** neue Kachel **„Text“** auf der Startseite. Text eintippen,
+  „Anzeigen“ (oder Strg+Enter) – steht groß auf Monitor 2. Die letzten Texte (auch vom Handy gesendete)
+  sind als „Zuletzt“ antippbar und über den Pfeil der Kachel mit einem Klick wieder da.
+- **Neue Szene → Filter „✦ Animiert“:** zeigt alle Vorlagen mit dauerhafter Bewegung (Laufschrift, Konfetti,
+  Neon-Flackern, Synthwave, Glitch, Equalizer …) – Seiten und Szenen. Vorschaubilder tragen ein
+  „✦ ANIMIERT“-Schild; auch die Suche nach „animiert“ findet sie.
+
 ### Neu in dieser Version (0.29.0)
 **AirPlay-/UxPlay-Einstellungen greifen zuverlässig**
 - Ein übrig gebliebenes UxPlay (z. B. nach einem Absturz) wird jetzt auch **unter Linux** beendet. Vorher lief

@@ -602,7 +602,7 @@ class Controller(QObject):
             self.show_source({"type": "website", "url": req["url"]})
             self.message.emit(f"Link vom Handy: {req.get('original', req['url'])}")
         elif kind == "text":
-            self.show_source({"type": "text", "text": req["text"]})
+            self.show_text(req["text"])
         elif kind == "laser":
             self._phone_laser(req.get("x"), req.get("y"))
             return
@@ -906,6 +906,15 @@ class Controller(QObject):
         self.changed.emit()
 
     # ------------------------------------------------------------ Befehle (Tastenkürzel, Kommandozeile)
+    def show_text(self, text: str) -> None:
+        """Text groß auf Monitor 2 (vom PC oder Handy) – die letzten Texte werden gemerkt."""
+        text = text.strip()
+        if not text:
+            return
+        self.show_source({"type": "text", "text": text}, remember=True)
+        recent = [t for t in self.config.get("recent_texts", []) if t != text]
+        self.config["recent_texts"] = [text] + recent[:7]
+
     def step_sources(self) -> list:
         """Alle gerade sichtbaren Seiten mit mehreren Punkten (Ablauf, Tabelle, Quiz, Siegerehrung …)."""
         from .screens import DesignSource, step_range

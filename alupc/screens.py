@@ -43,6 +43,7 @@ DESIGNS.update(CARD_DESIGNS)
 TIMED.update(MORE_TIMED)
 TIMED.update(CARD_TIMED)
 CATEGORY_NAMES = ["Style", "Party & Event", "Präsentation", "Info", "Zeit"]
+ANIMATED_NAME = "Animiert"  # Extra-Filter: alles, was sich dauerhaft bewegt (zusätzlich zur Kategorie)
 CATEGORIES = {"willkommen": "Party & Event", "ablauf": "Präsentation", "pause": "Zeit", "laufschrift": "Info",
               "zitat": "Style", "ankuendigung": "Info", "frage": "Präsentation", "wlan": "Info",
               **MORE_CATEGORIES, **{k: "Style" for k in CARD_DESIGNS},
@@ -52,6 +53,20 @@ CATEGORIES = {"willkommen": "Party & Event", "ablauf": "Präsentation", "pause":
 FIELD_LABELS = {"wlan": ("WLAN-Name:", "Passwort:"), "zitat": ("Zitat:", "Autor:"),
                 "ablauf": ("Überschrift:", "Punkte (je Zeile einer):"), "laufschrift": ("Titel:", "Laufschrift:"),
                 **MORE_LABELS, **CARD_LABELS}
+
+
+def animated_designs() -> set[str]:
+    """Seiten mit dauerhafter Bewegung (Laufschrift, Konfetti, Neon-Flackern, Equalizer …) –
+    nicht die, die nur die Uhrzeit weiterzählen."""
+    return {k for k, interval in TIMED.items() if interval <= 100}
+
+
+def is_animated_template(kind: str, key: str) -> bool:
+    if kind == "design":
+        return key in animated_designs()
+    if kind == "scene":
+        return any((slot or {}).get("design") in animated_designs() for slot in build_template(key, {})["slots"])
+    return False
 
 
 def design_defaults(design: str) -> dict:
