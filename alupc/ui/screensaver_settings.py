@@ -31,7 +31,7 @@ class ScreensaverSettings(QGroupBox):
     def __init__(self, controller, title: str = "Bildschirmschoner (Monitor 2)", parent=None,
                  data: dict | None = None, tile_mode: bool = False, on_change=None):
         super().__init__(parent)
-        from ..screensaver import STYLES, WHEN
+        from ..screensaver import STYLE_GROUPS, STYLES, WHEN
 
         self.controller = controller
         self.tile_mode = tile_mode
@@ -54,9 +54,19 @@ class ScreensaverSettings(QGroupBox):
             when.addItem(label, key)
         when.setCurrentIndex(max(0, when.findData(cfg.get("when", "desktop"))))
         style = QComboBox()
-        for key, label in STYLES.items():
-            style.addItem(label, key)
-        style.setCurrentIndex(max(0, style.findData(cfg.get("style", "uhr"))))
+        for group, keys in STYLE_GROUPS.items():
+            if style.count():
+                style.insertSeparator(style.count())
+            style.addItem(group.upper())  # Überschrift, nicht wählbar
+            head = style.model().item(style.count() - 1)
+            head.setEnabled(False)
+            font = head.font()
+            font.setBold(True)
+            head.setFont(font)
+            for key in keys:
+                style.addItem("   " + STYLES[key], key)
+        idx = style.findData(cfg.get("style", "uhr"))
+        style.setCurrentIndex(idx if idx >= 0 else style.findData("uhr"))
         text = QLineEdit(cfg.get("text", ""))
         text.setPlaceholderText("z. B. „Gleich geht's weiter“ (leer = Uhrzeit)")
         color = ColorButton(cfg.get("color", "#e8ecf3"))

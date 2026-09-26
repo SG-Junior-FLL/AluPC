@@ -5,7 +5,7 @@ Vorlagen gibt es nur hier – sie werden erst zur Szene, wenn man sie im Editor 
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
@@ -37,10 +37,42 @@ from ..screens import (
     render_preview,
     render_scene_preview,
 )
+from . import theme
 from .widgets import button, page_header
 
 THUMB = QSize(224, 126)
 EMPTY = ("leer", "")
+HEADER = ("kategorie", "")
+
+
+def header_image(title: str, count: int) -> QImage:
+    """Kachel für eine Kategorie-Überschrift in der Liste."""
+    t = theme.current()
+    accent = t.c("accent")
+    img = QImage(THUMB, QImage.Format_ARGB32_Premultiplied)
+    img.fill(Qt.transparent)
+    p = QPainter(img)
+    p.setRenderHint(QPainter.Antialiasing)
+    fill = QColor(accent)
+    fill.setAlpha(40)
+    p.setPen(Qt.NoPen)
+    p.setBrush(fill)
+    p.drawRoundedRect(img.rect().adjusted(2, 2, -2, -2), 14, 14)
+    p.setBrush(accent)
+    p.drawRoundedRect(18, THUMB.height() // 2 - 26, 6, 52, 3, 3)
+    font = QFont()
+    font.setPixelSize(24)
+    font.setBold(True)
+    p.setFont(font)
+    p.setPen(t.c("text"))
+    p.drawText(img.rect().adjusted(36, 0, -12, -18), Qt.AlignVCenter | Qt.AlignLeft, title)
+    font.setPixelSize(13)
+    font.setBold(False)
+    p.setFont(font)
+    p.setPen(t.c("muted"))
+    p.drawText(img.rect().adjusted(36, 34, -12, 0), Qt.AlignVCenter | Qt.AlignLeft, f"{count} Vorlagen")
+    p.end()
+    return img
 
 
 class TemplatesDialog(QDialog):
@@ -91,7 +123,24 @@ class TemplatesDialog(QDialog):
         self.list.addItem(blank)
         entries = [("scene", k, v[0], v[1], TEMPLATE_CATEGORIES.get(k, "")) for k, v in SCENE_TEMPLATES.items()]
         entries += [("design", k, v[0], v[1], CATEGORIES.get(k, "")) for k, v in DESIGNS.items()]
+        # nach Kategorie sortiert, je Kategorie eine Überschrift (nur bei „Alle“ ohne Suche sichtbar)
+        order = {c: i for i, c in enumerate(CATEGORY_NAMES)}
+        entries.sort(key=lambda e: order.get(e[4], len(order)))
+        last_cat = None
         for kind, key, label, desc, cat in entries:
+            if cat != last_cat:
+                last_cat = cat
+                head = QListWidgetItem("")
+                head.setData(Qt.UserRole, HEADER)
+                head.setData(Qt.UserRole + 1, cat)
+                head.setData(Qt.UserRole + 2, "")
+                head.setFlags(Qt.NoItemFlags)
+                count = sum(1 for e in entries if e[4] == cat)
+                pix = QPixmap.fromImage(header_image(cat or "Weitere", count))
+                icon = QIcon(pix)
+                icon.addPixmap(pix, QIcon.Disabled)  # sonst grau, weil nicht wählbar
+                head.setIcon(icon)
+                self.list.addItem(head)
             item = QListWidgetItem(label)
             item.setData(Qt.UserRole, (kind, key))
             item.setData(Qt.UserRole + 1, cat)
@@ -160,12 +209,16 @@ class TemplatesDialog(QDialog):
         for i in range(self.list.count()):
             item = self.list.item(i)
             is_blank = item.data(Qt.UserRole) == EMPTY
-            ok = (cat is None or item.data(Qt.UserRole + 1) == cat or is_blank) \
-                and all(w in item.data(Qt.UserRole + 2) for w in words)
+            if item.data(Qt.UserRole) == HEADER:
+                ok = cat is None and not words
+            else:
+                ok = (cat is None or item.data(Qt.UserRole + 1) == cat or is_blank) \
+                    and all(w in item.data(Qt.UserRole + 2) for w in words)
             item.setHidden(not ok)
         current = self.list.currentItem()
         if current is None or current.isHidden():
-            first = next((self.list.item(i) for i in range(self.list.count()) if not self.list.item(i).isHidden()),
+            first = next((self.list.item(i) for i in range(self.list.count())
+                          if not self.list.item(i).isHidden() and self.list.item(i).data(Qt.UserRole) != HEADER),
                          None)
             if first is not None:
                 self.list.setCurrentItem(first)
@@ -173,7 +226,8 @@ class TemplatesDialog(QDialog):
     # ------------------------------------------------------------ Auswahl
     def current(self) -> tuple[str, str]:
         item = self.list.currentItem()
-        return item.data(Qt.UserRole) if item else EMPTY
+        data = item.data(Qt.UserRole) if item else EMPTY
+        return EMPTY if data == HEADER else data
 
     def _selected(self, *_):
         kind, key = self.current()

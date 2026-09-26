@@ -16,30 +16,39 @@ from PySide6.QtWidgets import QWidget
 from .sources import create_source, format_date_de, list_images, load_image
 
 STYLES = {
-    "uhr": "Uhr (wandert langsam – schont den Bildschirm)",
-    "nachricht": "Nachricht (großer Text, kleine Uhr, optional Hintergrundbild)",
-    "schweben": "Schwebender Text oder Logo",
-    "diashow": "Diashow aus einem Ordner",
-    "farben": "Farbverlauf (ruhige Animation)",
-    "matrix": "Matrix – grüner Code-Regen",
-    "code": "Code-Editor – Programmcode tippt sich selbst",
-    "terminal": "Terminal – Befehle, Tests und Build laufen durch",
-    "netz": "Netzwerk – verbundene Punkte (Plexus)",
-    "sterne": "Sternenflug – Warp durchs All",
-    "aurora": "Polarlicht – leuchtende Bänder am Sternenhimmel",
-    "lava": "Lavalampe – weiche, fließende Farbblasen",
-    "bokeh": "Lichtkugeln – ruhig aufsteigende Lichter",
+    "uhr": "Uhr (wandert)",
+    "analog": "Analoguhr",
+    "flipuhr": "Klappuhr",
+    "nachricht": "Nachricht",
+    "schweben": "Schwebender Text / Logo",
+    "sprueche": "Sprüche im Wechsel",
+    "aurora": "Polarlicht",
     "wellen": "Meer bei Sonnenuntergang",
+    "sterne": "Sternenflug",
+    "schnee": "Schneefall",
+    "farben": "Farbverlauf",
+    "lava": "Lavalampe",
+    "bokeh": "Lichtkugeln",
     "feuerwerk": "Feuerwerk",
-    "analog": "Analoguhr mit Datum",
-    "flipuhr": "Klappuhr (Retro)",
-    "schnee": "Schneefall (optional mit Text)",
-    "sprueche": "Sprüche/Zitate im Wechsel (eigene mit | trennen)",
-    "szene": "Eine eigene Szene",
+    "netz": "Netzwerk (Plexus)",
+    "matrix": "Matrix",
+    "code": "Code-Editor",
+    "terminal": "Terminal",
+    "diashow": "Diashow (Ordner)",
+    "szene": "Eigene Szene",
+}
+# Gruppen fürs Auswahlmenü (jeder Stil genau einmal)
+STYLE_GROUPS = {
+    "Uhr": ["uhr", "analog", "flipuhr"],
+    "Text": ["nachricht", "schweben", "sprueche"],
+    "Natur": ["aurora", "wellen", "sterne", "schnee"],
+    "Farben & Licht": ["farben", "lava", "bokeh", "feuerwerk"],
+    "Tech": ["netz", "matrix", "code", "terminal"],
+    "Eigenes": ["diashow", "szene"],
 }
 WHEN = {
-    "desktop": "Nur wenn AluPC gerade nichts zeigt (Modus Erweitern)",
-    "immer": "Immer – auch über laufenden Inhalten",
+    "desktop": "Nur wenn nichts läuft",
+    "immer": "Immer",
 }
 
 

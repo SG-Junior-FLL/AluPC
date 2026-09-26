@@ -8,6 +8,12 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.24.0)
+- **Vorlagen nach Kategorien geordnet:** In „Neue Szene“ stehen bei „Alle“ die Vorlagen jetzt sortiert unter
+  Überschriften (Style · Party & Event · Präsentation · Info · Zeit) mit Anzahl. Filter-Knöpfe und Suche wie bisher.
+- **Bildschirmschoner in Gruppen:** Stil-Auswahl gegliedert in Uhr · Text · Natur · Farben & Licht · Tech · Eigenes,
+  mit kurzen Namen.
+
 ### Neu in dieser Version (0.23.0)
 - **Vorlagen nur beim Anlegen einer Szene:** Kachel „Vorlagen“ entfernt. **Szenen → „Neue Szene“** öffnet die
   Auswahl: „Leer“ oder Vorlage · Text eintragen · „Weiter“ → Szenen-Editor → Speichern. Echte Vorschaubilder.

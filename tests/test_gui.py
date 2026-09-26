@@ -2281,6 +2281,9 @@ def test_new_screensavers_and_design_pages(env):
     from alupc.screensaver import STYLES, ScreensaverView
 
     controller, window, _ = env
+    from alupc.screensaver import STYLE_GROUPS
+    grouped = [k for keys in STYLE_GROUPS.values() for k in keys]
+    assert sorted(grouped) == sorted(STYLES)  # jeder Stil genau einmal in einer Gruppe
     for style in screensaver_art.CLASSES:
         assert style in STYLES
         v = ScreensaverView({"style": style, "text": "A|B"}, controller.config.get_scene)
@@ -2408,15 +2411,22 @@ def test_many_templates_render_and_filter(env):
     window.new_scene()
     dlg = window.templates_dialog
     pump()
+    from alupc.screens import CATEGORY_NAMES
+    from alupc.ui.templates_dialog import HEADER
     total = sum(not dlg.list.item(i).isHidden() for i in range(dlg.list.count()))
-    assert total == len(DESIGNS) + len(SCENE_TEMPLATES) + 1  # + „Leer“
+    heads = [dlg.list.item(i).data(Qt.UserRole + 1) for i in range(dlg.list.count())
+             if dlg.list.item(i).data(Qt.UserRole) == HEADER]
+    assert heads == CATEGORY_NAMES  # bei „Alle“: nach Kategorie geordnet, je eine Überschrift
+    assert total == len(DESIGNS) + len(SCENE_TEMPLATES) + 1 + len(heads)  # + „Leer“
     dlg.search.setText("pause")
     visible = [dlg.list.item(i).data(Qt.UserRole) for i in range(dlg.list.count()) if not dlg.list.item(i).isHidden()]
     assert ("design", "pause") in visible and ("scene", "pause") in visible and len(visible) < total
+    assert HEADER not in visible  # Überschriften nur ohne Suche
     dlg.search.clear()
     dlg.cat_group.button(1).click()  # erste Kategorie
     visible = [dlg.list.item(i) for i in range(dlg.list.count()) if not dlg.list.item(i).isHidden()]
     assert 1 < len(visible) < total and not dlg.list.currentItem().isHidden()
+    assert all(v.data(Qt.UserRole) != HEADER for v in visible)
     dlg.close()
 
 
