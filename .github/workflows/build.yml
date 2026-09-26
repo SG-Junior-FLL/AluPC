@@ -155,6 +155,15 @@ jobs:
           # Diagnose (u. a. echte Probe-Aufnahme fürs Spiegeln) als Hinweise im Lauf sichtbar machen
           if (Test-Path $log) { Get-Content $log | Where-Object { $_ -like "DIAG *" } | ForEach-Object { Write-Output "::notice title=Windows-Diagnose::$($_.Substring(5))" } }
           if ($p.ExitCode -ne 0) { throw "AluPC.exe Selbsttest fehlgeschlagen (Exit-Code $($p.ExitCode))" }
+      - name: Erkundung – UxPlay für Windows (MSYS2)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $bash = "C:\msys64\usr\bin\bash.exe"
+          if (-not (Test-Path $bash)) { Write-Output "::notice title=UxPlay-Erkundung::kein MSYS2 auf dem Runner"; exit 0 }
+          $found = & $bash -lc "pacman -Sy >/dev/null 2>&1; pacman -Ss uxplay"
+          Write-Output "::notice title=UxPlay-Erkundung::Suche: $($found -join ' | ')"
+          & $bash -lc "pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-uxplay >/dev/null 2>&1; ls -la /ucrt64/bin/uxplay.exe; /ucrt64/bin/uxplay.exe -v; du -sh /ucrt64/lib/gstreamer-1.0" 2>&1 | ForEach-Object { Write-Output "::notice title=UxPlay-Erkundung::$_" }
       - name: Spiegel-Probe auf dem echten Windows-Desktop
         shell: pwsh
         continue-on-error: true
