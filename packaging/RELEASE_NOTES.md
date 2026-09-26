@@ -8,6 +8,36 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.18.0)
+**AirPlay repariert**
+- Monitor 2 ist bei AirPlay **nicht mehr „Erweitert“**: Er zeigt sofort einen großen **Warte-Bildschirm mit
+  Name und Code**. Verbindet sich das iPhone, legt AluPC dessen Bild **randlos und im Vordergrund** genau über
+  Monitor 2 – vorher ging das Fenster unter Windows im Hintergrund auf.
+- **Einstellungen werden übernommen:** Ändert man Name oder Code, startet der Empfänger sofort neu. Ältere
+  uxplay-windows-Versionen (1.x) ignorierten AluPCs Einstellungen – AluPC startet dort jetzt deren
+  `uxplay.exe` direkt. Ein schon laufendes uxplay-windows (eigener Autostart) wird vorher beendet.
+
+**Handy-Steuerung – komplett neu**
+- Vier Reiter: **Start**, **Zeichnen** (mit dem Finger direkt auf Monitor 2: Stift, Marker, Radierer, Laser,
+  Farben, Rückgängig, Vollbild), **Folien** (Klicker + **Touchpad für die PC-Maus**) und **Senden**.
+- Vom Handy aus: **Kamera, iPhone-Warte-Bildschirm, QR-Code und Timer** zeigen, **Timer-Vorgaben** 1–15 min.
+- Als **App auf den Home-Bildschirm** legen; Anzeige „Keine Verbindung“, wenn das WLAN weg ist.
+- **QR-Code:** AluPC nimmt jetzt die richtige WLAN-Adresse (nicht WSL/VPN/VirtualBox) – das war
+  wahrscheinlich der Grund, warum das Handy nur „Link kopieren“ anbot. Adresse im Handy-Fenster wählbar.
+
+**Mehr Einstellungen, weniger selbst einrichten**
+- **Beim Start zeigen:** zuletzt Gezeigtes, nichts, Spiegeln, Kamera, AirPlay, QR-Code oder **eine Szene**.
+- **Standard-Kamera:** vorausgewählt (die erste gefundene), Klick auf „Kamera“ startet sie sofort; der Pfeil
+  wählt eine andere. Anzeige „füllen“ oder „ganzes Bild“.
+- Neuer Setup-Bereich **Handy & Kamera**: AirPlay-Name, randlos an/aus, **was Handys dürfen** (senden,
+  fernsteuern, Live-Bild, Zeichnen), Handy-Steuerung beim Start.
+- **Windows-Firewall** wird automatisch freigegeben (Setup.exe bzw. Ersteinrichtung, nur private Netze).
+- Design: klarere Abschnitte auf der Startseite und im Setup.
+
+**Ehrlich:** Mit echtem iPhone und echtem Handy-Touchpad am echten PC nicht getestet. Geprüft: die Handy-Seite
+im echten Browser (Zeichnen, Touchpad, Klicks, Timer kommen an), AirPlay-Start und Bonjour auf einem echten
+Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (siehe CI).
+
 ### Neu in dieser Version (0.17.0) – AirPlay unter Windows
 - **AirPlay (iPhone/iPad) geht jetzt auch unter Windows ohne Handarbeit:** AluPC installiert über winget
   **„uxplay-windows“** (Paket `leapbtw.uxplay`, UxPlay fertig für Windows gebaut) und **Bonjour** – in der

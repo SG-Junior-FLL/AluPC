@@ -30,11 +30,11 @@ OBS-Studio-Fenster.
 |---|---|
 | **Spiegeln** | zeigt dasselbe wie Monitor 1 – mit Mauszeiger (AluPC nimmt Monitor 1 auf – dadurch gehen Standbild und Sichtschutz) |
 | **Erweitern** | Monitor 2 ist ein normaler zweiter Bildschirm |
-| **Kamera** | eine Kamera im Vollbild – bei nur einer Kamera sofort, sonst Auswahl. Läuft eine Kamera (auch in einer Szene), erscheint im Hauptfenster die **Kamera-Leiste**: **Zoom 1–5×** (optisch, wenn die Kamera das kann, sonst digital), Ausschnitt verschieben, **spiegeln**, **um 90° drehen**, **Helligkeit** (wenn die Kamera das unterstützt), Zurücksetzen. Gilt pro Kamera und bleibt gespeichert. AluPC wählt automatisch das schärfste flüssige Kamerabild bis Full HD |
+| **Kamera** | eine Kamera im Vollbild – **Klick startet sofort die Standard-Kamera** (vorausgewählt: die gewählte, sonst die erste), der Pfeil wählt eine andere (die dann Standard wird; auch in Setup → Handy & Kamera, samt Anzeige „füllen“/„ganzes Bild“). Läuft eine Kamera (auch in einer Szene), erscheint im Hauptfenster die **Kamera-Leiste**: **Zoom 1–5×** (optisch, wenn die Kamera das kann, sonst digital), Ausschnitt verschieben, **spiegeln**, **um 90° drehen**, **Helligkeit** (wenn die Kamera das unterstützt), Zurücksetzen. Gilt pro Kamera und bleibt gespeichert. AluPC wählt automatisch das schärfste flüssige Kamerabild bis Full HD |
 | **Programm** | ein Programm zeigen: *Anzeigen (Aufnahme)* oder *Fenster wirklich verschieben* |
 | **Website** | Adresse eingeben oder gespeicherte Website wählen → Vollbild. Pfeil an der Kachel: gespeicherte Websites, **Browser steuern** (eigenes Fenster: Adresse, Zurück/Vor, Zoom, Scrollen, Live-Vorschau zum Klicken und Tippen), aktuelle Seite **unter „Website“ speichern** |
 | **Bild / Video** | **Mediathek** mit Vorschaubildern: gespeicherte Bilder, Videos und Diashows, dazu automatisch „Zuletzt gezeigt“; Filter, Suche, Umbenennen. Pfeil an der Kachel: gespeicherte Einträge direkt starten. Läuft ein Video (auch in einer eigenen Szene), erscheint oben eine **Mediensteuerung**: Pause/Weiter, ±10 Sekunden, Zeitleiste zum Springen |
-| **Handy** | eigenes **Fenster „Handy“** mit zwei Wegen: **Jedes Handy** (QR-Code scannen, ohne App: Fotos/Videos/Links/Text senden und Monitor 2 **fernsteuern** – mit **Live-Bild**, **Präsentations-Klicker** und **Laserpointer per Finger**) und **iPhone & iPad** (AirPlay über UxPlay; unter Windows über „uxplay-windows“). Jede Karte zeigt, ob der Weg bereit ist. **Richtet sich selbst ein** (Kubuntu: Pakete mit einem Passwort, Windows: uxplay-windows und Bonjour über winget; Name und Code festlegen). Auf der Startseite: Kacheln „AirPlay“ und „Handy-Steuerung“ – Klick startet, Pfeil zeigt Optionen |
+| **Handy** | eigenes **Fenster „Handy“** mit zwei Wegen. **Jedes Handy** (QR-Code scannen, ohne App) – die Handy-Seite hat vier Reiter: **Start** (Live-Bild mit Laserpointer, Schwarz/Standbild/Spiegeln/Erweitern/Schoner, Kamera/iPhone/QR-Code/Timer zeigen, Szenen, Video, Lautstärke, **Timer mit Vorgaben** 1–15 min, RGB), **Zeichnen** (mit dem Finger **direkt auf Monitor 2**: Stift, Marker, Radierer, Laser, 7 Farben, Rückgängig, Vollbild), **Folien** (Präsentations-Klicker und **Touchpad für die PC-Maus** mit Klick, Rechtsklick und Scrollen) und **Senden** (Foto/Video, Link, Text). Lässt sich als **App auf den Home-Bildschirm** legen. Was Handys dürfen, stellt man in **Setup → Handy & Kamera** ein. **iPhone & iPad** per AirPlay (UxPlay; unter Windows „uxplay-windows“): Monitor 2 zeigt sofort einen **Warte-Bildschirm mit Name und Code**, beim Verbinden legt AluPC das iPhone-Bild randlos darüber. **Richtet sich selbst ein** (Kubuntu: Pakete mit einem Passwort; Windows: uxplay-windows, Bonjour und Firewall-Freigabe) |
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
 | **Standbild** | friert das Bild auf Monitor 2 ein; du arbeitest auf Monitor 1 unbemerkt weiter |
@@ -253,8 +253,12 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
 - **iPhone findet den PC nicht:** gleiches WLAN? Unter Kubuntu muss der Dienst avahi laufen, unter
   Windows „Bonjour“ installiert sein – „Ersteinrichtung starten“ erledigt das. Schul-/Gäste-WLANs
   trennen Geräte oft voneinander, dann geht AirPlay dort nicht.
-- **Windows fragt nach der Firewall:** beim ersten AirPlay-Start „Zugriff zulassen“ (privates Netzwerk)
-  für uxplay-windows – sonst sieht das iPhone den PC, kann sich aber nicht verbinden.
+- **Windows-Firewall:** Setup.exe (mit Adminrechten) bzw. die Ersteinrichtung (eine Windows-Abfrage) gibt
+  Handy-Steuerung und AirPlay für **private** Netzwerke frei. Steht das WLAN in Windows auf „Öffentlich“,
+  bitte auf „Privat“ stellen – sonst erreichen Handys den PC nicht.
+- **QR-Code öffnet nichts / Handy bietet nur „Link kopieren“:** meist steht im QR-Code eine Adresse, die das
+  Handy nicht erreicht (VPN, WSL, virtuelle Netze). AluPC nimmt jetzt automatisch die WLAN-Adresse; im
+  Handy-Fenster lässt sich die Adresse auch von Hand wählen.
 
 ## Ehrliche Grenzen
 
@@ -297,9 +301,13 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   **Community-Paket** eines einzelnen Entwicklers, das UxPlay für Windows fertig baut – nicht vom
   UxPlay-Projekt selbst, nicht signiert (Windows Defender kann warnen). AluPC schreibt Name und Code in
   dessen `arguments.txt` (`%APPDATA%\leapbtw\uxplay-windows`), startet und beendet es und legt dessen
-  Videofenster **maximiert** auf Monitor 2 (echtes Vollbild lässt sich bei fremden Fenstern nicht
-  erzwingen). Das Bild ist dort keine AluPC-Quelle (keine Szenen, kein Standbild). Läuft uxplay-windows
+  Videofenster **randlos und im Vordergrund** genau über Monitor 2 (abschaltbar: dann maximiert). Das Bild
+  ist dort keine AluPC-Quelle (keine Szenen, kein Standbild). Ältere uxplay-windows-Versionen (1.x) haben
+  keine Einstellungsdatei – dort startet AluPC deren mitgeliefertes `uxplay.exe` direkt. Läuft uxplay-windows
   schon (eigener Autostart), beendet AluPC es beim AirPlay-Start – es darf nur einen Empfänger geben.
+- **Touchpad und Folien per Handy** gehen unter Windows und unter Linux mit X11 – **nicht unter Wayland**
+  (das erlaubt Programmen keine fremden Klicks/Tasten). Die Lautstärketasten des Handys lassen sich im
+  Browser nicht abfangen.
 - **Mit echten iPhones ist AirPlay nicht getestet.** Geprüft ist: unter Linux startet echtes UxPlay und
   wird per avahi angekündigt; unter Windows (GitHub-Rechner) startet AluPC uxplay-windows, Port 7000 ist
   offen und der PC wird per Bonjour mit seinem Namen angekündigt.
