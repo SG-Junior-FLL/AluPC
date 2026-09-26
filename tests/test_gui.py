@@ -2410,7 +2410,58 @@ def test_agenda_step(env):
     controller.message.connect(messages.append)
     controller.show_source({"type": "clock"})
     controller.run_command("ablauf_weiter")
-    assert any("kein Ablauf" in m for m in messages)
+    assert any("nichts zum Weiterschalten" in m for m in messages)
+
+
+def test_step_pages_and_animation(env):
+    """Tabelle, Termine, Quiz, Siegerehrung, Pro & Contra, Gäste: weiterschalten mit Animation und Anzeige."""
+    import time as _time
+
+    from alupc.screens import (DesignSource, design_defaults, render_preview, step_design, step_label,
+                               step_range, step_value)
+    from alupc.screens_more import count_up
+
+    controller, window, _ = env
+    cases = {"tabelle": (0, 4), "termine": (0, 3), "abstimmung": (0, 4), "sieger": (3, 3),
+             "zweispaltig": (3, 3), "willkommen_gast": (1, 3), "ablauf": (1, 6)}
+    for design, (start, hi) in cases.items():
+        cfg = design_defaults(design)
+        assert step_range(cfg)[1] == hi, design
+        assert step_value(cfg) == start, design
+        assert step_design(cfg, 1) == (start < hi)
+        assert step_label(cfg)
+    assert step_range(design_defaults("willkommen")) is None
+    # Siegerehrung: zurück = Platz 1 wieder verdeckt, bis 0; mehr als 3 geht nicht
+    cfg = design_defaults("sieger")
+    for _ in range(5):
+        step_design(cfg, -1)
+    assert step_value(cfg) == 0 and step_label(cfg) == "0/3 aufgedeckt"
+    # auf Monitor 2: Tabelle weiterschalten, Seitenleiste zeigt den Stand
+    controller.show_source(design_defaults("tabelle"))
+    pump()
+    controller.step_page(1)
+    controller.step_page(1)
+    src = controller.step_sources()[0]
+    assert isinstance(src, DesignSource) and src.cfg["current"] == 2 and src.anim.isActive()
+    assert controller.step_label() == "Punkt 2/4"
+    assert window.step_row.isVisibleTo(window) and window.step_text.text() == "Punkt 2/4"
+    window.step_prev.click()
+    assert src.cfg["current"] == 1
+    controller._cast_snapshot()
+    assert controller.cast.snapshot["punkt"] == "Punkt 1/4"
+    # Animation: kurz nach dem Start noch unsichtbar, danach fertig; Vorschau immer fertig gezeichnet
+    for design in cases:
+        cfg = {**design_defaults(design), "_intro": _time.time()}
+        early = render_preview(cfg, 320, 180)
+        cfg["_intro"] = _time.time() - 5
+        late = render_preview(cfg, 320, 180)
+        assert early != late, design
+        assert render_preview(design_defaults(design), 320, 180) == late or design in ("sieger",), design
+    assert count_up("1.250 €", 0.4) == "500 €" and count_up("1.250 €", 1) == "1.250 €"
+    assert count_up("3,5 km", 0.5) == "1,8 km" and count_up("Platz 7", 0.1) == "Platz 7"
+    controller.show_source({"type": "clock"})
+    pump()
+    assert not window.step_row.isVisibleTo(window)
 
 
 def test_many_templates_render_and_filter(env):

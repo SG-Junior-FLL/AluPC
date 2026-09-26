@@ -33,7 +33,8 @@ DESIGNS: dict[str, tuple[str, str, str, str, str]] = {
 TIMED = {"willkommen": 1000, "pause": 500, "laufschrift": 33, "frage": 50}
 
 # Weitere Seiten (screens_more.py) dazunehmen
-from .screens_more import MORE_CATEGORIES, MORE_DESIGNS, MORE_LABELS, MORE_TIMED, PAINTERS, Ctx  # noqa: E402
+from .screens_more import (MORE_CATEGORIES, MORE_DESIGNS, MORE_LABELS, MORE_TIMED, PAINTERS, Ctx,  # noqa: E402
+                           changed, intro)
 
 from .screens_cards import CARD_DESIGNS, CARD_LABELS, CARD_PAINTERS, CARD_TIMED, paint_card  # noqa: E402
 
@@ -143,36 +144,65 @@ def paint_design(p: QPainter, w: int, h: int, cfg: dict, now: float | None = Non
 
     if design == "willkommen":
         area = QRectF(w * 0.1, h * 0.22, w * 0.8, h * 0.34)
+        a = intro(cfg, now, dur=0.8)
+        p.save()
+        p.setOpacity(a)
+        p.translate(0, (1 - a) * unit * 5)
         p.setPen(white)
         p.setFont(_fit(title, area, unit * 9))
         p.drawText(area, Qt.AlignCenter | Qt.TextWordWrap, title)
-        accent_bar(w / 2 - unit * 6, h * 0.6, unit * 12)
+        p.restore()
+        bar = unit * 12 * intro(cfg, now, 3)
+        accent_bar(w / 2 - bar / 2, h * 0.6, bar)
         sub = QRectF(w * 0.12, h * 0.64, w * 0.76, h * 0.16)
+        p.save()
+        p.setOpacity(intro(cfg, now, 5))
         p.setPen(muted)
         p.setFont(_fit(text, sub, unit * 3.6, bold=False))
         p.drawText(sub, Qt.AlignCenter | Qt.TextWordWrap, text)
+        p.restore()
         p.setFont(_font(unit * 2.4, True))
         p.setPen(QColor(255, 255, 255, 140))
         p.drawText(QRectF(0, h * 0.86, w, h * 0.08), Qt.AlignCenter, time.strftime("%H:%M", time.localtime(now)))
     elif design == "ablauf":
         items = [line.strip() for line in text.splitlines() if line.strip()]
         current = int(cfg.get("current", 1))
+        a = intro(cfg, now)
+        p.save()
+        p.setOpacity(a)
+        p.translate(-(1 - a) * w * 0.03, 0)
         p.setPen(white)
         p.setFont(_font(unit * 5, True))
         p.drawText(QRectF(w * 0.08, h * 0.07, w * 0.84, h * 0.12), Qt.AlignLeft | Qt.AlignVCenter, title)
         accent_bar(w * 0.08, h * 0.2, unit * 10)
+        p.restore()
         if items:
             row_h = min(h * 0.13, h * 0.68 / len(items))
+
+            def row_box(i):
+                return QRectF(w * 0.08, h * 0.25 + (i - 1) * row_h + row_h * 0.1, w * 0.84, row_h * 0.8)
+
+            if 1 <= current <= len(items):  # Markierung gleitet vom alten zum neuen Punkt
+                box = row_box(current)
+                prev = int(cfg.get("_prev") or 0)
+                t = changed(cfg, now)
+                if 1 <= prev <= len(items):
+                    box.moveTop(row_box(prev).top() + (box.top() - row_box(prev).top()) * t)
+                bg = QColor(color)
+                bg.setAlpha(60)
+                p.save()
+                p.setOpacity(intro(cfg, now, current))
+                p.setPen(QPen(color, max(1.0, unit * 0.25)))
+                p.setBrush(bg)
+                p.drawRoundedRect(box, row_h * 0.2, row_h * 0.2)
+                p.restore()
             for i, item in enumerate(items, start=1):
-                y = h * 0.25 + (i - 1) * row_h
                 active, done = i == current, i < current
-                box = QRectF(w * 0.08, y + row_h * 0.1, w * 0.84, row_h * 0.8)
-                if active:
-                    bg = QColor(color)
-                    bg.setAlpha(60)
-                    p.setPen(QPen(color, max(1.0, unit * 0.25)))
-                    p.setBrush(bg)
-                    p.drawRoundedRect(box, row_h * 0.2, row_h * 0.2)
+                box = row_box(i)
+                a = intro(cfg, now, i)
+                p.save()
+                p.setOpacity(a)
+                p.translate(-(1 - a) * w * 0.05, 0)
                 badge = QRectF(box.left() + row_h * 0.15, box.center().y() - row_h * 0.26, row_h * 0.52, row_h * 0.52)
                 p.setPen(Qt.NoPen)
                 p.setBrush(color if (active or done) else QColor(255, 255, 255, 40))
@@ -185,6 +215,7 @@ def paint_design(p: QPainter, w: int, h: int, cfg: dict, now: float | None = Non
                 p.drawText(box.adjusted(row_h * 0.9, 0, -unit, 0), Qt.AlignLeft | Qt.AlignVCenter,
                            QFontMetricsF(_font(row_h * 0.36, active)).elidedText(item, Qt.ElideRight,
                                                                                 box.width() - row_h * 1.2))
+                p.restore()
     elif design == "pause":
         total = max(1.0, float(cfg.get("minutes", 10)) * 60)
         left = max(0.0, total - (now - (started or now)))
@@ -232,15 +263,26 @@ def paint_design(p: QPainter, w: int, h: int, cfg: dict, now: float | None = Non
         p.setFont(_font(unit * 22, True))
         p.drawText(QRectF(w * 0.05, h * 0.02, w * 0.3, h * 0.4), Qt.AlignLeft | Qt.AlignTop, "“")
         area = QRectF(w * 0.12, h * 0.2, w * 0.76, h * 0.48)
+        p.save()
+        a = intro(cfg, now, dur=1.2)
+        p.setOpacity(a)
+        p.translate(0, (1 - a) * unit * 3)
         p.setPen(white)
         p.setFont(_fit(title, area, unit * 6))
         p.drawText(area, Qt.AlignCenter | Qt.TextWordWrap, title)
+        p.restore()
+        p.setOpacity(intro(cfg, now, 10))
         if text:
             accent_bar(w / 2 - unit * 4, h * 0.73, unit * 8)
             p.setPen(muted)
             p.setFont(_font(unit * 3, True))
             p.drawText(QRectF(0, h * 0.76, w, h * 0.1), Qt.AlignCenter, f"— {text}")
     elif design == "ankuendigung":
+        a = intro(cfg, now, dur=0.5)
+        p.setOpacity(a)
+        p.translate(w / 2, h / 2)
+        p.scale(0.92 + 0.08 * a, 0.92 + 0.08 * a)
+        p.translate(-w / 2, -h / 2)
         card = QRectF(w * 0.1, h * 0.18, w * 0.8, h * 0.64)
         p.setPen(QPen(color, unit * 0.4))
         p.setBrush(QColor(255, 255, 255, 14))
@@ -316,6 +358,84 @@ def paint_design(p: QPainter, w: int, h: int, cfg: dict, now: float | None = Non
                    Qt.AlignLeft | Qt.TextWordWrap, "Mit der Handy-Kamera den QR-Code scannen – das Handy verbindet sich.")
 
 
+# --------------------------------------------------------------------------- Weiterschalten
+# Seiten mit mehreren Punkten: design → (Art, kleinster Wert, Standard). „mark“ = aktueller Punkt ist markiert,
+# „reveal“ = so viele sind aufgedeckt (Standard None = alle).
+STEPS = {
+    "ablauf": ("mark", 1, 1),
+    "tabelle": ("mark", 0, 0),
+    "termine": ("mark", 0, 0),
+    "willkommen_gast": ("mark", 1, 1),
+    "abstimmung": ("mark", 0, 0),
+    "sieger": ("reveal", 0, None),
+    "zweispaltig": ("reveal", 0, None),
+}
+
+
+def step_range(cfg: dict) -> tuple[int, int] | None:
+    """(kleinster, größter) Wert fürs Weiterschalten – None, wenn die Seite nichts zum Weiterschalten hat."""
+    design = cfg.get("design")
+    if design not in STEPS:
+        return None
+    lines = [line for line in cfg.get("text", "").splitlines() if line.strip()]
+    n = len(lines)
+    if design == "ablauf":
+        n += 1  # nach dem letzten Punkt: alles erledigt
+    elif design == "abstimmung":
+        n = min(n, 6)
+    elif design == "sieger":
+        n = 3
+    elif design == "zweispaltig":
+        from .screens_more import zweispaltig_pairs
+
+        n = len(zweispaltig_pairs(cfg)[1])
+    lo = STEPS[design][1]
+    return (lo, max(lo, n))
+
+
+def step_value(cfg: dict) -> int:
+    rng = step_range(cfg)
+    if rng is None:
+        return 0
+    value = cfg.get("current")
+    if value is None or value == "":
+        value = STEPS[cfg["design"]][2]
+    if value is None:
+        value = rng[1]  # „reveal“: standardmäßig alles zu sehen
+    return max(rng[0], min(rng[1], int(value)))
+
+
+def step_design(cfg: dict, delta: int) -> bool:
+    """Eine Seite weiterschalten (delta ±1). Merkt sich den alten Wert und die Zeit für die Animation."""
+    rng = step_range(cfg)
+    if rng is None:
+        return False
+    old = step_value(cfg)
+    new = max(rng[0], min(rng[1], old + delta))
+    if new == old:
+        return False
+    cfg["_prev"], cfg["current"], cfg["_changed"] = old, new, time.time()
+    return True
+
+
+def step_label(cfg: dict) -> str:
+    """Kurz für Handy und Seitenleiste, z. B. „Punkt 2/5“, „3/3 aufgedeckt“."""
+    rng = step_range(cfg)
+    if rng is None:
+        return ""
+    value, hi = step_value(cfg), rng[1]
+    if cfg["design"] == "ablauf":
+        return "alles erledigt" if value >= hi else f"Punkt {value}/{hi - 1}"
+    if cfg["design"] == "abstimmung":
+        return f"Lösung: {'ABCDEF'[value - 1]}" if value else "Lösung offen"
+    if STEPS[cfg["design"]][0] == "reveal":
+        return f"{value}/{hi} aufgedeckt"
+    return f"Punkt {value}/{hi}" if value else "nichts markiert"
+
+
+ANIM_SECONDS = 2.0  # so lange nach Start/Weiterschalten flüssig neu zeichnen
+
+
 class DesignSource(QWidget):
     """Quelle „Gestaltete Seite“ für Monitor 2 und Szenen."""
 
@@ -323,15 +443,33 @@ class DesignSource(QWidget):
         super().__init__(parent)
         self.cfg = {**design_defaults(cfg.get("design", "willkommen")), **cfg}
         self.started = time.time()
+        self.cfg["_intro"] = self.started  # Einblend-Animation
         self.setAttribute(Qt.WA_OpaquePaintEvent)
         interval = TIMED.get(self.cfg["design"])
         self.timer = QTimer(self, interval=interval or 1000)
         self.timer.timeout.connect(self.update)
         if interval:
             self.timer.start()
+        self.anim = QTimer(self, interval=16)
+        self.anim.timeout.connect(self._anim_tick)
+        self.anim.start()
+
+    def _anim_tick(self):
+        self.update()
+        last = max(self.cfg.get("_intro") or 0, self.cfg.get("_changed") or 0)
+        if time.time() - last > ANIM_SECONDS:
+            self.anim.stop()
+
+    def step(self, delta: int) -> bool:
+        if not step_design(self.cfg, delta):
+            return False
+        self.anim.start()
+        self.update()
+        return True
 
     def stop(self):
         self.timer.stop()
+        self.anim.stop()
 
     def paintEvent(self, _e):
         p = QPainter(self)

@@ -477,7 +477,8 @@ class Controller(QObject):
             "timer": clock.text(),
             "keys": __import__("alupc.platform.keys", fromlist=["available"]).available(),
             "allow": {k: self.cast.allowed(k) for k in ("senden", "steuern", "live", "laser")},
-            "ablauf": bool(self.agenda_sources()),
+            "ablauf": bool(self.step_sources()),
+            "punkt": self.step_label(),
             "rgb": rgb,
             "flags": {"schwarz": self.privacy, "standbild": self.frozen, "schoner": self.screensaver.active,
                       "spiegeln": bool(self.mode == "content" and content.get("mirror")),
@@ -896,30 +897,39 @@ class Controller(QObject):
         self.changed.emit()
 
     # ------------------------------------------------------------ Befehle (Tastenkürzel, Kommandozeile)
-    def agenda_sources(self) -> list:
-        """Alle gerade sichtbaren Ablauf-Seiten (direkt oder in einer Szene)."""
-        from .screens import DesignSource
+    def step_sources(self) -> list:
+        """Alle gerade sichtbaren Seiten mit mehreren Punkten (Ablauf, Tabelle, Quiz, Siegerehrung …)."""
+        from .screens import DesignSource, step_range
 
         content = self.output.content
         if self.mode != "content" or content is None:
             return []
         found = [content] if isinstance(content, DesignSource) else content.findChildren(DesignSource)
-        return [s for s in found if s.cfg.get("design") == "ablauf"]
+        return [s for s in found if step_range(s.cfg) is not None]
 
-    def step_agenda(self, delta: int) -> None:
-        """Ablauf: nächsten/vorherigen Punkt markieren (Kachel, Tastenkürzel, Handy)."""
-        sources = self.agenda_sources()
+    agenda_sources = step_sources  # alter Name
+
+    def step_label(self) -> str:
+        from .screens import step_label
+
+        sources = self.step_sources()
+        return step_label(sources[0].cfg) if sources else ""
+
+    def step_page(self, delta: int) -> None:
+        """Nächsten/vorherigen Punkt (Kachel, Tastenkürzel, Handy, Seitenleiste) – mit Animation."""
+        sources = self.step_sources()
         if not sources:
-            self.message.emit("Auf Monitor 2 ist gerade kein Ablauf zu sehen.")
+            self.message.emit("Auf Monitor 2 ist gerade nichts zum Weiterschalten.")
             return
         for src in sources:
-            count = len([line for line in src.cfg.get("text", "").splitlines() if line.strip()])
-            src.cfg["current"] = max(1, min(count + 1, int(src.cfg.get("current", 1)) + delta))  # +1 = alles erledigt
-            src.update()
+            src.step(delta)
         if self.content and self.content.get("type") == "design":  # merken (auch für den nächsten Start)
-            self.content = {**self.content, "current": sources[0].cfg["current"]}
+            self.content = {**self.content, "current": sources[0].cfg["current"]} \
+                if "current" in sources[0].cfg else self.content
             self.config["last_content"] = self.content
         self.changed.emit()
+
+    step_agenda = step_page  # alter Name
 
     def run_command(self, command: str) -> None:
         command = command.strip()

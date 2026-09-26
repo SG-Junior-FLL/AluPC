@@ -8,6 +8,20 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.27.0)
+**Weiterschalten bei Seiten mit mehreren Punkten**
+- Nicht mehr nur der Ablauf: auch **Tabelle / Line-up, Termine, Abstimmung / Quiz** (Lösung aufdecken),
+  **Siegerehrung** (Platz 3 → 2 → 1 aufdecken), **Pro & Contra** (Zeile für Zeile) und **Willkommen Gäste**.
+- Steuern über **◀ ▶ in der Seitenleiste** (unter dem Monitor-2-Bild, mit Stand wie „Punkt 2/4“), die
+  Handy-Seite (Karte „Punkte“), Tastenkürzel und Kacheln („Weiter“ / „Zurück“). Klappt auch in Szenen.
+
+**Animationen**
+- Punkte, Zeilen und Namen fliegen beim Anzeigen nacheinander ein; die Markierung **gleitet** zum nächsten Punkt.
+- Quiz: Antworten ploppen auf, beim Aufdecken verblassen die falschen und die richtige hüpft.
+- Siegerehrung: Podeste wachsen nacheinander hoch. Große Zahl: **zählt hoch**. Willkommen, Zitat,
+  Ankündigung, Danke, Stichwort, Schlagzeile: Titel und Text gleiten weich herein.
+- Vorschaubilder zeigen immer das fertige Bild.
+
 ### Neu in dieser Version (0.26.0)
 - **AirPlay-Name wird übernommen:** Name und Code stehen in Setup und im Fenster „Handy“. Beide haben beim
   Speichern bisher *alle* Werte geschrieben – ein noch offenes Fenster setzte so den alten Namen zurück. Jetzt

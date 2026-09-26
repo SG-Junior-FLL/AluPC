@@ -338,6 +338,25 @@ class MainWindow(QMainWindow):
         self.side_monitor = MonitorCard()  # Monitor 2 immer im Blick: Live-Bild, Name, Zustand
         self.side_monitor.clicked.connect(lambda: self._go(0))
         lay.addWidget(self.side_monitor)
+        # Weiterschalten für Seiten mit mehreren Punkten (Ablauf, Tabelle, Quiz, Siegerehrung …)
+        self.step_row = QWidget()
+        row = QHBoxLayout(self.step_row)
+        row.setContentsMargins(8, 4, 8, 0)
+        row.setSpacing(4)
+        self.step_prev = button("", "back")
+        self.step_prev.setToolTip("Vorheriger Punkt")
+        self.step_prev.clicked.connect(lambda: self.controller.step_page(-1))
+        self.step_text = QLabel()
+        self.step_text.setObjectName("Muted")
+        self.step_text.setAlignment(Qt.AlignCenter)
+        self.step_next = button("", "forward", primary=True)
+        self.step_next.setToolTip("Nächster Punkt")
+        self.step_next.clicked.connect(lambda: self.controller.step_page(1))
+        row.addWidget(self.step_prev)
+        row.addWidget(self.step_text, 1)
+        row.addWidget(self.step_next)
+        self.step_row.hide()
+        lay.addWidget(self.step_row)
         lay.addSpacing(6)
         lock = NavButton("lock", "Computer sperren")
         lock.setToolTip("Wie Win+L – Monitor 2 zeigt weiter, was gerade läuft")
@@ -1238,6 +1257,9 @@ class MainWindow(QMainWindow):
         self.side_monitor.set(f"Monitor 2 · {out.name()}" if out else "Kein Monitor 2",
                               c.describe() if out else "Anschließen – AluPC erkennt ihn selbst",
                               state if out else ("FEHLT", t.danger), icon_name)
+        label = c.step_label()
+        self.step_row.setVisible(bool(label))
+        self.step_text.setText(label)
 
         self.t_mirror.set_state(is_mirror, badge="AKTIV" if is_mirror else "")
         handy_desktop = c.mode == "desktop" and c.desktop_note.startswith(HANDY_NOTES)
@@ -1324,6 +1346,7 @@ class MainWindow(QMainWindow):
         for b in (*self.nav_group.buttons(), self.lock_button):
             b.set_compact(compact)
         self.side_monitor.set_compact(compact)
+        self.step_text.setVisible(not compact)
         margin = (12, 12, 12, 10) if narrow else ((18, 16, 18, 14) if compact else (28, 24, 28, 20))
         for page in self.pages:
             inner = page.widget() if isinstance(page, QScrollArea) else page

@@ -202,10 +202,10 @@ nav button.sel { background:var(--on); color:#fff; }
     </div>
   </div>
   <div class="card hide" id="c-ablauf">
-    <h2>Ablauf</h2>
+    <h2>Punkte <span id="punkt" style="float:right;text-transform:none;letter-spacing:0"></span></h2>
     <div class="row">
       <button onclick="cmd('ablauf_zurueck')"><svg class="i"><use href="#i-prev"/></svg>Zurück</button>
-      <button class="primary" onclick="cmd('ablauf_weiter')">Nächster Punkt<svg class="i"><use href="#i-next"/></svg></button>
+      <button class="primary" onclick="cmd('ablauf_weiter')">Weiter<svg class="i"><use href="#i-next"/></svg></button>
     </div>
   </div>
   <div class="card" id="c-scenes">
@@ -432,6 +432,7 @@ async function refresh() {
                             ["b-erweitern", f.erweitern], ["b-schoner", f.schoner]]) $(id).classList.toggle("on", !!on);
     $("c-video").classList.toggle("hide", !s.video);
     $("c-ablauf").classList.toggle("hide", !s.ablauf);
+    $("punkt").textContent = s.punkt || "";
     $("c-vol").classList.toggle("hide", !s.sound);
     if (document.activeElement !== $("vol")) { $("vol").value = s.volume; $("vol-val").textContent = s.volume + " %"; }
     $("timer").textContent = s.timer || "–";
