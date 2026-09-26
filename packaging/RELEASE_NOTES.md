@@ -8,6 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.31.0)
+**Neues Schnellfenster in der Taskleiste**
+- Klick aufs AluPC-Symbol öffnet statt der langen Liste ein gestaltetes Schnellfenster: Live-Bild von Monitor 2
+  mit Zustand, Schalter (Standbild, Schwarz, Schoner, Mini-Bild), Kacheln zum Zeigen (Spiegeln, Erweitern,
+  Kamera, Text, iPhone, Handy, Timer, Zeichnen), Weiter/Zurück bei Ablauf & Co., bis zu 6 Szenen, Ton-Regler
+  (wenn etwas mit Ton läuft) und AluPC öffnen / Sperren / Beenden. Hell und dunkel, passend zur App.
+- Schalter lassen das Fenster offen, Aktionen schließen es; Esc, Klick daneben oder nochmal aufs Symbol = zu.
+- Rechtsklick zeigt weiter das klassische Menü – jetzt mit Abschnitten und „Text …“ (unter KDE zeichnet
+  Plasma dieses Menü selbst).
+- Linux: unter X11 öffnet es am Mauszeiger; unter Wayland bestimmt KWin die Position (unten rechts).
+
+**Linux geprüft – mit echtem UxPlay 1.68 (wie in Kubuntu 24.04)**
+- Name und Code kommen an (per avahi im Netz sichtbar), Umbenennen im Betrieb wirkt sofort, ein altes
+  UxPlay wird beendet.
+- Behoben: fälschliche Meldung „anderes AirPlay-Programm lässt sich nicht beenden“, obwohl es beendet wurde.
+
 ### Neu in dieser Version (0.30.0)
 - **Text anzeigen am PC – wie am Handy:** neue Kachel **„Text“** auf der Startseite. Text eintippen,
   „Anzeigen“ (oder Strg+Enter) – steht groß auf Monitor 2. Die letzten Texte (auch vom Handy gesendete)

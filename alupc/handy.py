@@ -129,8 +129,13 @@ def kill_uxplay_windows() -> bool:
         try:
             if subprocess.run(["pkill", "-x", "uxplay"], capture_output=True, timeout=5).returncode != 0:
                 return True  # lief keins
-            time.sleep(0.4)
-            return subprocess.run(["pgrep", "-x", "uxplay"], capture_output=True, timeout=5).returncode != 0
+            for _ in range(15):  # bis zu 3 s warten, bis es wirklich weg ist
+                time.sleep(0.2)
+                if not _living_uxplay():
+                    return True
+            subprocess.run(["pkill", "-9", "-x", "uxplay"], capture_output=True, timeout=5)
+            time.sleep(0.3)
+            return not _living_uxplay()
         except (OSError, subprocess.SubprocessError):
             return True
     for exe in (UXPLAY_WINDOWS_EXE, "uxplay-bluetooth-beacon.exe", "uxplay.exe"):
@@ -145,6 +150,15 @@ def kill_uxplay_windows() -> bool:
     except (OSError, subprocess.SubprocessError):
         return True
     return not any(f'"{exe}"' in out for exe in (UXPLAY_WINDOWS_EXE, "uxplay.exe"))
+
+
+def _living_uxplay() -> bool:
+    """Läuft (unter Linux) noch ein uxplay? Beendete, noch nicht abgeholte Prozesse („Zombies“) zählen nicht."""
+    try:
+        out = subprocess.run(["ps", "-C", "uxplay", "-o", "stat="], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return any(line.strip() and not line.strip().startswith("Z") for line in out.splitlines())
 
 
 STUCK_TEXT = ("Ein anderes AirPlay-Programm läuft schon (evtl. mit Adminrechten) und lässt sich nicht beenden – "

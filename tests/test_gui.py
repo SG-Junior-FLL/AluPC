@@ -2714,3 +2714,48 @@ def test_animated_template_filter(env):
     found = [dlg.list.item(i).data(Qt.UserRole) for i in range(dlg.list.count()) if not dlg.list.item(i).isHidden()]
     assert ("design", "glitch") in found and ("design", "wlan") not in found
     dlg.close()
+
+
+def test_tray_panel(env):
+    """Schnellfenster der Taskleiste: Zustand, Schalter, Modi, Szenen, Weiterschalten, schließen."""
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QKeyEvent
+
+    from alupc.screens import build_template, design_defaults
+
+    controller, window, _ = env
+    controller.config.put_scene(build_template("partynacht", {"name": "Party"}))
+    controller.show_source(design_defaults("ablauf"))
+    pump()
+    window.open_tray_panel()
+    pump()
+    panel = window.tray_panel
+    assert panel.isVisible()
+    assert panel.step_box.isVisibleTo(panel) and "Punkt 1/" in panel.step_label.text()
+    panel.step_next.click()
+    assert controller.step_label().startswith("Punkt 2/")
+    panel.toggles["freeze"].click()
+    pump()
+    assert controller.frozen and panel.toggles["freeze"].isChecked() and panel.isVisible()  # Schalter: bleibt offen
+    panel.toggles["freeze"].click()
+    assert not controller.frozen
+    scene_buttons = [panel.scene_grid.itemAt(i).widget() for i in range(panel.scene_grid.count())]
+    party = next(b for b in scene_buttons if b.text() == "Party")
+    party.click()
+    pump()
+    assert controller.content == {"type": "scene", "scene": "Party"} and not panel.isVisible()  # Aktion: zu
+    window.open_tray_panel()
+    pump()
+    assert any(b.text() == "Party" and b.isChecked() for b in
+               (panel.scene_grid.itemAt(i).widget() for i in range(panel.scene_grid.count())))
+    panel.modes["text"].click()
+    pump()
+    assert not panel.isVisible() and window.text_dialog.isVisible()
+    window.text_dialog.reject()
+    window.open_tray_panel()
+    pump()
+    QApplication.sendEvent(panel, QKeyEvent(QEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier))
+    assert not panel.isVisible()
+    window.open_tray_panel()
+    window.open_tray_panel()  # nochmal aufs Symbol = zu
+    assert not panel.isVisible()

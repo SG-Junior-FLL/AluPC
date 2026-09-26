@@ -1149,7 +1149,8 @@ class MainWindow(QMainWindow):
         menu = QMenu()
         self.a_status = menu.addAction("")
         self.a_status.setEnabled(False)
-        menu.addSeparator()
+        menu.addAction(ic("grid"), "Schnellfenster …", self.open_tray_panel)
+        menu.addSection("Monitor 2")
         self.a_freeze = QAction(ic("snowflake"), "Standbild", menu, checkable=True)
         self.a_freeze.triggered.connect(lambda _=False: c.toggle_freeze())
         self.a_black = QAction(ic("eye_off"), "Schwarz (Sichtschutz)", menu, checkable=True)
@@ -1175,13 +1176,14 @@ class MainWindow(QMainWindow):
             act.triggered.connect(lambda _=False, v=level: c.set_media_volume(volume=v, muted=False))
             self.tray_volume.addAction(act)
             self.a_levels.append((level, act))
-        menu.addSeparator()
+        menu.addSection("Zeigen")
         menu.addAction(ic("mirror"), "Spiegeln", c.mirror)
         menu.addAction(ic("extend"), "Erweitern", c.extend)
+        menu.addAction(ic("text"), "Text …", self.open_text_dialog)
         menu.addAction(ic("qr"), "Handy (QR-Code)", c.start_cast)
         self.tray_scenes = menu.addMenu(ic("scenes"), "Szenen")
         menu.addAction(ic("down"), "Nächste Szene", lambda: c.step_scene(1))
-        menu.addSeparator()
+        menu.addSection("AluPC")
         menu.addAction(ic("home"), "AluPC öffnen", self.show_normal_front)
         menu.addAction(ic("lock"), "Computer sperren", self.lock)
         menu.addAction(ic("power"), "Beenden", QApplication.instance().quit)
@@ -1261,9 +1263,21 @@ class MainWindow(QMainWindow):
             self.tray_menu.hide()
             self.show_normal_front()
         elif reason == QSystemTrayIcon.Trigger:
-            from PySide6.QtGui import QCursor
+            self.open_tray_panel()
 
-            self.tray_menu.popup(QCursor.pos())
+    def open_tray_panel(self):
+        """Schnellfenster neben dem Taskleisten-Symbol (Klick nochmal = zu)."""
+        from PySide6.QtGui import QCursor
+
+        from .tray_panel import TrayPanel
+
+        panel = getattr(self, "tray_panel", None)
+        if panel is None:
+            panel = self.tray_panel = TrayPanel(self)
+        if panel.isVisible():
+            panel.hide()
+            return
+        panel.popup_near(self.tray.geometry(), QCursor.pos())
 
     def show_normal_front(self):
         self.showNormal()
