@@ -172,6 +172,14 @@ jobs:
             N "kennt -vrtp: $($h -match '-vrtp') · kennt -pin: $($h -match '-pin') · kennt -p: $($h -match '(?m)^-p ')"
             $dir = Split-Path $ux.FullName; N "Ordner: $((Get-ChildItem $dir | Select-Object -First 12 | ForEach-Object Name) -join ', ')"
           }
+          $root = "C:\Program Files\uxplay-windows"
+          if (Test-Path $root) {
+            Get-ChildItem $root -Recurse -File | Sort-Object Length -Descending | Select-Object -First 25 | ForEach-Object { N "Datei: $($_.FullName.Substring($root.Length)) ($([math]::Round($_.Length/1KB)) KB)" }
+            N "Dateien gesamt: $((Get-ChildItem $root -Recurse -File).Count)"
+            $cand = Get-ChildItem $root -Recurse -Filter "*.exe" | Where-Object { $_.Name -notmatch "beacon|unins" }
+            foreach ($c in $cand) { $h = & $c.FullName -h 2>&1 | Select-Object -First 3; N "$($c.Name) -h: $($h -join ' | ')" }
+            Get-ChildItem $root -Recurse -Include *.txt,*.md,*.json,*.ini,*.toml -File | Select-Object -First 5 | ForEach-Object { N "Text $($_.Name): $((Get-Content $_.FullName -TotalCount 6) -join ' / ')" }
+          }
           Get-Process | Where-Object { $_.Name -match "uxplay" } | ForEach-Object { N "läuft nach Installation: $($_.Name) $($_.Path)" }
           Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue | Out-String | ForEach-Object { if ($_ -match "uxplay") { N "Autostart-Eintrag vorhanden" } }
           Get-Service | Where-Object { $_.Name -match "uxplay|bonjour|mdns" } | ForEach-Object { N "Dienst: $($_.Name) $($_.Status)" }
