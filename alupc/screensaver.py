@@ -186,8 +186,11 @@ class ScreensaverView(QWidget):
         self._last_tick = time.monotonic()
         fps = {"uhr": 2, "nachricht": 2, "diashow": 30, "schweben": 50, "farben": 25,
                **screensaver_code.FPS, **screensaver_art.FPS}.get(self.style_, 0)
-        self.timer = QTimer(self, interval=int(1000 / fps) if fps else 1000)
+        from . import perf
+
+        self.timer = QTimer(self, interval=perf.interval(int(1000 / fps)) if fps else 1000)
         self.timer.timeout.connect(self._tick)
+        self.governor = perf.FrameGovernor(self.timer)
         if fps:
             self.timer.start()
 
@@ -248,7 +251,14 @@ class ScreensaverView(QWidget):
         return self.cfg.get("text") or time.strftime("%H:%M")
 
     # ------------------------------------------------------------ Zeichnen
-    def paintEvent(self, _e):
+    def paintEvent(self, e):
+        self.governor.begin()
+        try:
+            self._paint(e)
+        finally:
+            self.governor.end()
+
+    def _paint(self, _e):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)

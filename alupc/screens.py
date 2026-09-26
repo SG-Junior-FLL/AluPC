@@ -460,12 +460,15 @@ class DesignSource(QWidget):
         self.started = time.time()
         self.cfg["_intro"] = self.started  # Einblend-Animation
         self.setAttribute(Qt.WA_OpaquePaintEvent)
+        from . import perf
+
         interval = TIMED.get(self.cfg["design"])
-        self.timer = QTimer(self, interval=interval or 1000)
+        self.timer = QTimer(self, interval=perf.interval(interval) if interval else 1000)
         self.timer.timeout.connect(self.update)
         if interval:
             self.timer.start()
-        self.anim = QTimer(self, interval=16)
+        self.governor = perf.FrameGovernor(self.timer)
+        self.anim = QTimer(self, interval=perf.interval(16))
         self.anim.timeout.connect(self._anim_tick)
         self.anim.start()
 
@@ -487,9 +490,11 @@ class DesignSource(QWidget):
         self.anim.stop()
 
     def paintEvent(self, _e):
+        self.governor.begin()
         p = QPainter(self)
         paint_design(p, self.width(), self.height(), self.cfg, started=self.started)
         p.end()
+        self.governor.end()
 
 
 def render_preview(cfg: dict, w: int = 320, h: int = 180) -> QImage:

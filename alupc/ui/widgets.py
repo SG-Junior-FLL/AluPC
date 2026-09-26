@@ -694,13 +694,21 @@ class ProgressRing(QWidget):
         self.value = 0.0  # 0..1; <0 = unbestimmt (dreht sich)
         self.state = "busy"  # busy | ok | error
         self._spin = 0
-        self._timer = QTimer(self, interval=16)
+        self._timer = QTimer(self, interval=33)  # dreht nur, solange sichtbar und „busy“ (siehe show/hide)
         self._timer.timeout.connect(self._tick)
-        self._timer.start()
         self.setFixedSize(150, 150)
 
+    def showEvent(self, e):
+        if self.value < 0 and self.state == "busy":
+            self._timer.start()
+        super().showEvent(e)
+
+    def hideEvent(self, e):
+        self._timer.stop()
+        super().hideEvent(e)
+
     def _tick(self):
-        self._spin = (self._spin + 4) % 360
+        self._spin = (self._spin + 8) % 360
         if self.value < 0 and self.state == "busy":
             self.update()
 
@@ -1029,7 +1037,9 @@ def theme_reduced_motion() -> bool:
     """Animationen aus (Einstellung „Animationen“ oder Test-/Offscreen-Umgebung ohne echten Bildschirm)."""
     import os
 
-    return os.environ.get("ALUPC_NO_ANIMATION") == "1"
+    from .. import perf
+
+    return os.environ.get("ALUPC_NO_ANIMATION") == "1" or perf._mode == "sparsam"
 
 
 def animate_height(widget, show: bool, ms: int = 240) -> None:

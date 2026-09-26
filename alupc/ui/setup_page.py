@@ -598,6 +598,21 @@ class SetupPage(QWidget):
         mode.currentIndexChanged.connect(save_mode)
         form.addRow("Design:", mode)
         form.addRow("Akzentfarbe:", swatches)
+        from .. import perf
+
+        power = QComboBox()
+        for key, label in perf.MODES.items():
+            power.addItem(label, key)
+        power.setCurrentIndex(max(0, power.findData(a.get("performance", "auto"))))
+        weak = "schwacher PC erkannt → sparsam" if perf.weak_pc() else "starker PC erkannt → flüssig"
+        power.setToolTip(f"Automatisch: {weak}. Sparsam: Animationen mit weniger Bildern, keine Übergänge in der App.")
+
+        def save_power():
+            self.config["appearance"] = {**self.config["appearance"], "performance": power.currentData()}
+            perf.configure(power.currentData())
+
+        power.currentIndexChanged.connect(save_power)
+        form.addRow("Leistung:", power)
         form.addRow("Szenenwechsel:", tr_row)
         hint = QLabel("Beim Wechsel auf Monitor 2 · je Szene änderbar")
         hint.setObjectName("Muted")

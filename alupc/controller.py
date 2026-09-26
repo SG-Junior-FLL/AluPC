@@ -55,6 +55,9 @@ class Controller(QObject):
         self.airplay.notice.connect(self._airplay_notice)
         self.airplay.settings_changed.connect(self._airplay_settings_changed)
         self.airplay.connected.connect(self._iphone_connected)
+        from . import perf
+
+        perf.configure(self.config["appearance"].get("performance", "auto"))
         s = self.config["handy"]
         if not s.get("airplay_simple"):  # AirPlay ohne Einstellungen: einmalig Name „AluPC“, kein Code
             self.config["handy"] = {**s, "airplay_simple": True, "pin": "", "airplay_idle": "bereit",
@@ -453,7 +456,8 @@ class Controller(QObject):
                               "abschaltbar: " + ", ".join(failed))
         self.airplay.set_background(True)
         if self._airplay_bg_timer is None:
-            self._airplay_bg_timer = QTimer(self, interval=2000)
+            # Windows: Fensterliste ist billig; Linux: wmctrl-Aufruf → seltener (UxPlay meldet Verbindungen ohnehin)
+            self._airplay_bg_timer = QTimer(self, interval=2000 if __import__("sys").platform.startswith("win") else 5000)
             self._airplay_bg_timer.timeout.connect(self._airplay_bg_poll)
         self._airplay_bg_timer.start()
 

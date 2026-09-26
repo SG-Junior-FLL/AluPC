@@ -55,7 +55,7 @@ def _font(px: float, bold: bool = True, family: str | None = None, italic: bool 
     return f
 
 
-def _fit(text: str, rect: QRectF, px: float, bold=True, flags=Qt.AlignCenter | Qt.TextWordWrap, family=None,
+def _fit_uncached(text: str, rect: QRectF, px: float, bold=True, flags=Qt.AlignCenter | Qt.TextWordWrap, family=None,
          spacing: float = 0.0) -> QFont:
     while px > 8:
         f = _font(px, bold, family)
@@ -68,37 +68,102 @@ def _fit(text: str, rect: QRectF, px: float, bold=True, flags=Qt.AlignCenter | Q
     return _font(8, bold, family)
 
 
+_FIT_CACHE: dict = {}
+
+
+def _fit(text: str, rect: QRectF, px: float, bold=True, flags=Qt.AlignCenter | Qt.TextWordWrap, family=None,
+         spacing: float = 0) -> QFont:
+    """Größte passende Schrift – zwischengespeichert (Animationen rufen das 30× pro Sekunde auf)."""
+    key = (text, round(rect.width()), round(rect.height()), round(px, 1), bold, int(flags), family, spacing)
+    font = _FIT_CACHE.get(key)
+    if font is None:
+        if len(_FIT_CACHE) > 256:
+            _FIT_CACHE.clear()
+        font = _FIT_CACHE[key] = _fit_uncached(text, rect, px, bold, flags, family, spacing)
+    return QFont(font)  # Kopie – Aufrufer ändern sie manchmal (kursiv …)
+
+
 def _draw(p: QPainter, rect: QRectF, text: str, font: QFont, color: QColor, flags=Qt.AlignCenter | Qt.TextWordWrap):
     p.setFont(font)
     p.setPen(color)
     p.drawText(rect, int(flags), text)
 
 
+_GLOW_CACHE: dict = {}
+_BG_CACHE: dict = {}
+
+
+def _static_bg(p, key: tuple, w: int, h: int, draw) -> None:
+    """Unbewegten Hintergrund einmal zeichnen und danach nur noch hineinkopieren."""
+    dpr = p.device().devicePixelRatioF() if p.device() else 1.0
+    full = (*key, w, h, dpr)
+    img = _BG_CACHE.get(full)
+    if img is None:
+        from PySide6.QtGui import QImage
+
+        img = QImage(int(w * dpr), int(h * dpr), QImage.Format_RGB32)
+        img.setDevicePixelRatio(dpr)
+        q = QPainter(img)
+        q.setRenderHint(QPainter.Antialiasing)
+        draw(q)
+        q.end()
+        if len(_BG_CACHE) > 12:
+            _BG_CACHE.clear()
+        _BG_CACHE[full] = img
+    p.drawImage(QPointF(0, 0), img)
+
+
 def _glow_text(p, rect, text, font, color: QColor, layers=6, spread=1.0, flags=Qt.AlignCenter | Qt.TextWordWrap):
-    """Leuchtschrift: mehrere verschobene, halbdurchsichtige Kopien, dann der helle Kern."""
-    for i in range(layers, 0, -1):
-        c = QColor(color)
-        c.setAlphaF(0.06 * (layers - i + 1) / layers + 0.02)
-        d = i * spread
-        for dx, dy in ((d, 0), (-d, 0), (0, d), (0, -d)):
-            _draw(p, rect.translated(dx, dy), text, font, c, flags)
-    _draw(p, rect, text, font, color.lighter(150), flags)
+    """Leuchtschrift: mehrere verschobene, halbdurchsichtige Kopien, dann der helle Kern. Einmal in ein Bild
+    gezeichnet und danach nur noch hineinkopiert – statt 25× Text pro Bild (spart auf schwachen PCs viel)."""
+    pad = int(layers * spread) + 2
+    key = (text, font.key(), color.rgba(), layers, round(spread, 2), int(flags), round(rect.width()),
+           round(rect.height()), p.device().devicePixelRatioF() if p.device() else 1.0)
+    img = _GLOW_CACHE.get(key)
+    if img is None:
+        from PySide6.QtGui import QImage
+
+        dpr = key[-1]
+        img = QImage(int((rect.width() + 2 * pad) * dpr), int((rect.height() + 2 * pad) * dpr),
+                     QImage.Format_ARGB32_Premultiplied)
+        img.setDevicePixelRatio(dpr)
+        img.fill(Qt.transparent)
+        q = QPainter(img)
+        q.setRenderHint(QPainter.Antialiasing)
+        q.setRenderHint(QPainter.TextAntialiasing)
+        local = QRectF(pad, pad, rect.width(), rect.height())
+        for i in range(layers, 0, -1):
+            c = QColor(color)
+            c.setAlphaF(color.alphaF() * (0.06 * (layers - i + 1) / layers + 0.02))
+            d = i * spread
+            for dx, dy in ((d, 0), (-d, 0), (0, d), (0, -d)):
+                _draw(q, local.translated(dx, dy), text, font, c, flags)
+        core = color.lighter(150)
+        core.setAlphaF(color.alphaF())
+        _draw(q, local, text, font, core, flags)
+        q.end()
+        if len(_GLOW_CACHE) > 32:
+            _GLOW_CACHE.clear()
+        _GLOW_CACHE[key] = img
+    p.drawImage(QPointF(rect.left() - pad, rect.top() - pad), img)
 
 
 # =========================================================================== Karten
 def c_neon(p, w, h, cfg, t, color, u):
-    p.fillRect(0, 0, w, h, QColor("#07030d"))
-    # Ziegelwand angedeutet
-    p.setPen(QPen(QColor(255, 255, 255, 10), max(1.0, u * 0.1)))
-    bh = h / 14
-    for row in range(15):
-        y = row * bh
-        p.drawLine(QPointF(0, y), QPointF(w, y))
-        off = (row % 2) * bh
-        x = off
-        while x < w:
-            p.drawLine(QPointF(x, y), QPointF(x, y + bh))
-            x += bh * 2
+    def wall(q):
+        q.fillRect(0, 0, w, h, QColor("#07030d"))
+        # Ziegelwand angedeutet
+        q.setPen(QPen(QColor(255, 255, 255, 10), max(1.0, u * 0.1)))
+        bh = h / 14
+        for row in range(15):
+            y = row * bh
+            q.drawLine(QPointF(0, y), QPointF(w, y))
+            x = (row % 2) * bh
+            while x < w:
+                q.drawLine(QPointF(x, y), QPointF(x, y + bh))
+                x += bh * 2
+
+    _static_bg(p, ("neon",), w, h, wall)
     rng = random.Random(int(t * 12))
     flicker = 0.35 if rng.random() < 0.04 else 1.0  # ab und zu kurz flackern
     col = QColor(color)
@@ -118,13 +183,15 @@ def c_neon(p, w, h, cfg, t, color, u):
 
 
 def c_glitch(p, w, h, cfg, t, color, u):
-    p.fillRect(0, 0, w, h, QColor("#030712"))
-    # Scanlines
-    p.setPen(QPen(QColor(255, 255, 255, 12), 1))
-    y = 0.0
-    while y < h:
-        p.drawLine(QPointF(0, y), QPointF(w, y))
-        y += max(2.0, u * 0.35)
+    def scanlines(q):
+        q.fillRect(0, 0, w, h, QColor("#030712"))
+        q.setPen(QPen(QColor(255, 255, 255, 12), 1))
+        y = 0.0
+        while y < h:
+            q.drawLine(QPointF(0, y), QPointF(w, y))
+            y += max(2.0, u * 0.35)
+
+    _static_bg(p, ("glitch",), w, h, scanlines)
     rect = QRectF(w * 0.06, h * 0.26, w * 0.88, h * 0.34)
     font = _fit(cfg["title"], rect, u * 12, family="Monospace", spacing=6)
     rng = random.Random(int(t * 8))
@@ -365,11 +432,14 @@ def c_versus(p, w, h, cfg, t, color, u):
     rp.lineTo(w, h)
     rp.lineTo(w * 0.44, h)
     rp.closeSubpath()
-    for path, col in ((lp, left_c), (rp, right_c)):
-        g = QLinearGradient(0, 0, w, h)
-        g.setColorAt(0, col.darker(170))
-        g.setColorAt(1, col.darker(300))
-        p.fillPath(path, g)
+    def halves(q):
+        for path, col in ((lp, left_c), (rp, right_c)):
+            g = QLinearGradient(0, 0, w, h)
+            g.setColorAt(0, col.darker(170))
+            g.setColorAt(1, col.darker(300))
+            q.fillPath(path, g)
+
+    _static_bg(p, ("versus", left_c.rgba()), w, h, halves)
     p.setPen(QPen(QColor("#ffffff"), u * 0.6))
     p.drawLine(QPointF(w * 0.56, 0), QPointF(w * 0.44, h))
     lr = QRectF(w * 0.03, h * 0.35, w * 0.42, h * 0.3)

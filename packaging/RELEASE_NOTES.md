@@ -8,6 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.35.0)
+**Flüssig und sparsam – auch auf schwachen PCs**
+- Animierte Seiten zeichnen bis zu **8× schneller**: Leuchtschrift, Schriftgrößen und unbewegte Hintergründe
+  werden einmal berechnet und dann nur noch kopiert (Neon: 70 → 13 ms pro Bild, Synthwave: 74 → 10 ms).
+  Gemessen: Neon auf Monitor 2 vorher über 100 % eines Prozessorkerns, jetzt ~15 %.
+- **Leistung** (Setup → Darstellung): Automatisch · Flüssig · Sparsam. „Automatisch“ erkennt schwache PCs
+  (≤ 4 Kerne) und zeichnet Animationen dann mit 15 statt 30 Bildern pro Sekunde; „Sparsam“ schaltet auch die
+  Übergänge in der App ab.
+- Jede Animation misst ihre Zeichenzeit und wird von selbst langsamer, wenn der PC nicht hinterherkommt.
+- Im Hintergrund: Fortschrittsring lief unsichtbar mit 60 Bildern/s weiter (behoben); AirPlay „immer bereit“
+  fragt unter Linux die Fensterliste nur noch alle 5 s ab.
+- Leerlauf, Uhr, Text, Timer: 2–3 % eines Kerns.
+
 ### Neu in dieser Version (0.34.0)
 **AirPlay: einfach bereit**
 - Keine Einstellungen mehr für Name und Code: AirPlay heißt einmalig und fest **„AluPC“**, ohne Code, und ist
