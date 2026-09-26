@@ -165,7 +165,8 @@ jobs:
             Write-Output "::notice title=AirPlay-Probe::winget $id -> $($out -join ' | ')"
           }
           Get-Process | Where-Object { $_.Name -match "uxplay" } | ForEach-Object { Write-Output "::notice title=AirPlay-Probe::läuft schon nach Installation: $($_.Name)" }
-          python .github/scripts/airplay_probe.py
+          python -X faulthandler .github/scripts/airplay_probe.py 2>&1 | Tee-Object -Variable probe
+          Write-Output "::notice title=AirPlay-Probe-Ende::Exit $LASTEXITCODE · $((($probe | Where-Object { $_ -notmatch '^::' }) | Select-Object -Last 6) -join ' | ')"
       - name: Spiegel-Probe auf dem echten Windows-Desktop
         shell: pwsh
         continue-on-error: true
