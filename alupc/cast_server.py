@@ -36,7 +36,7 @@ ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirm
                     "vorherige_szene", "zeichnungen_loeschen", "timer_start_pause", "timer_plus", "timer_minus",
                     "timer_neustart", "timer_zeigen", "video_pause", "video_vor", "video_zurueck",
                     "rgb_farbe", "rgb_monitor2", "rgb_aus", "zeichnung_zurueck", "kamera", "airplay", "qr",
-                    "timer_stopp"}
+                    "timer_stopp", "ablauf_weiter", "ablauf_zurueck"}
 MAX_FAILS = 10
 BLOCK_SECONDS = 60
 

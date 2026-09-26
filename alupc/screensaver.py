@@ -26,6 +26,15 @@ STYLES = {
     "terminal": "Terminal – Befehle, Tests und Build laufen durch",
     "netz": "Netzwerk – verbundene Punkte (Plexus)",
     "sterne": "Sternenflug – Warp durchs All",
+    "aurora": "Polarlicht – leuchtende Bänder am Sternenhimmel",
+    "lava": "Lavalampe – weiche, fließende Farbblasen",
+    "bokeh": "Lichtkugeln – ruhig aufsteigende Lichter",
+    "wellen": "Meer bei Sonnenuntergang",
+    "feuerwerk": "Feuerwerk",
+    "analog": "Analoguhr mit Datum",
+    "flipuhr": "Klappuhr (Retro)",
+    "schnee": "Schneefall (optional mit Text)",
+    "sprueche": "Sprüche/Zitate im Wechsel (eigene mit | trennen)",
     "szene": "Eine eigene Szene",
 }
 WHEN = {
@@ -161,12 +170,13 @@ class ScreensaverView(QWidget):
             self.child = create_source({"type": "scene", "scene": cfg["scene"]}, scene_lookup, 0, self)
             self.child.show()
         self.text_color = QColor(cfg.get("color") or "#e8ecf3")
-        from . import screensaver_code
+        from . import screensaver_art, screensaver_code
 
-        self.effect = screensaver_code.create(self.style_, self.rng, cfg)
+        self.effect = screensaver_code.create(self.style_, self.rng, cfg) or \
+            screensaver_art.create(self.style_, self.rng, cfg)
         self._last_tick = time.monotonic()
         fps = {"uhr": 2, "nachricht": 2, "diashow": 30, "schweben": 50, "farben": 25,
-               **screensaver_code.FPS}.get(self.style_, 0)
+               **screensaver_code.FPS, **screensaver_art.FPS}.get(self.style_, 0)
         self.timer = QTimer(self, interval=int(1000 / fps) if fps else 1000)
         self.timer.timeout.connect(self._tick)
         if fps:

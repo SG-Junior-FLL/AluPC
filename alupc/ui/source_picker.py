@@ -42,6 +42,7 @@ SOURCE_TYPES = [
     ("image", "Bild"),
     ("video", "Video"),
     ("slideshow", "Diashow (Ordner)"),
+    ("design", "Gestaltete Seite (Willkommen, Ablauf, Pause …)"),
     ("text", "Text"),
     ("clock", "Uhr"),
     ("countdown", "Countdown"),
@@ -349,6 +350,61 @@ class SourcePicker(QDialog):
         form.addRow("Schriftfarbe:", color)
         form.addRow("Hintergrund:", bg)
         return lambda: {"size": size.value(), "color": color.color(), "background": bg.color()}
+
+    def _page_design(self, init):
+        from ..screens import DESIGNS, design_defaults
+
+        page, form = self._form()
+        design = QComboBox()
+        for key, (label, desc, *_rest) in DESIGNS.items():
+            design.addItem(f"{label} – {desc}", key)
+        design.setCurrentIndex(max(0, design.findData(init.get("design", "willkommen"))))
+        title = QLineEdit()
+        text = QPlainTextEdit()
+        text.setMaximumHeight(120)
+        color = ColorButton(init.get("color") or DESIGNS[design.currentData()][4])
+        minutes = QSpinBox()
+        minutes.setRange(1, 240)
+        minutes.setSuffix(" min")
+        current = QSpinBox()
+        current.setRange(1, 30)
+        labels = {"wlan": ("WLAN-Name:", "Passwort:"), "zitat": ("Zitat:", "Autor:"),
+                  "ablauf": ("Überschrift:", "Punkte (je Zeile einer):"), "laufschrift": ("Titel:", "Laufschrift:")}
+        form.addRow("Design:", design)
+        form.addRow("Titel:", title)
+        form.addRow("Text:", text)
+        form.addRow("Farbe:", color)
+        form.addRow("Dauer:", minutes)
+        form.addRow("Aktueller Punkt:", current)
+        filled = {"key": None}
+
+        def apply_design(*_):
+            key = design.currentData()
+            base = {**design_defaults(key), **(init if init.get("design") == key else {})}
+            if filled["key"] is not None:  # beim Umschalten nur leere Felder mit Beispieltext füllen
+                base = {**base, **({"title": title.text()} if title.text() else {}),
+                        **({"text": text.toPlainText()} if text.toPlainText() else {})}
+            filled["key"] = key
+            title.setText(base.get("title", ""))
+            text.setPlainText(base.get("text", ""))
+            color.set_color(base.get("color", "#6366f1"))
+            minutes.setValue(int(base.get("minutes", 10)))
+            current.setValue(int(base.get("current", 1)))
+            a, b = labels.get(key, ("Titel:", "Text:"))
+            form.labelForField(title).setText(a)
+            form.labelForField(text).setText(b)
+            form.setRowVisible(minutes, key == "pause")
+            form.setRowVisible(current, key == "ablauf")
+
+        design.currentIndexChanged.connect(apply_design)
+        apply_design()
+        hint = QLabel("Alles wird passend zur Monitorgröße gezeichnet. Pause: der Countdown startet, sobald die "
+                      "Seite gezeigt wird.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        return page, lambda: {"design": design.currentData(), "title": title.text(), "text": text.toPlainText(),
+                              "color": color.color(), "minutes": minutes.value(), "current": current.value()}
 
     def _page_text(self, init):
         page, form = self._form()

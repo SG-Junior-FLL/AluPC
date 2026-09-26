@@ -467,6 +467,8 @@ class MainWindow(QMainWindow):
         self.scene_menu.aboutToShow.connect(lambda: self._fill_scene_menu(self.scene_menu))
         self.t_scenes.set_menu(self.scene_menu, split=True)
         self.t_scenes.activated.connect(lambda: self._go(1))  # Klick: Szenen-Seite, Pfeil: Szene starten
+        self.t_templates = self.tiles["vorlagen"]
+        self.t_templates.clicked.connect(lambda: self.open_templates())
         self.custom_tiles: dict[str, Tile] = {}
 
         self.section_labels = {}
@@ -601,6 +603,8 @@ class MainWindow(QMainWindow):
                            lambda n=name: self.controller.show_source({"type": "scene", "scene": n}))
         menu.addSeparator()
         menu.addAction(icons.icon("plus", theme.current().text, 18), "Neue Szene …", self.new_scene)
+        menu.addAction(icons.icon("star", theme.current().text, 18), "Aus Vorlage …",
+                       lambda: self.open_templates(scenes_first=True))
 
     def open_program_dialog(self):
         dialog = ProgramDialog(self.controller, self)
@@ -782,6 +786,9 @@ class MainWindow(QMainWindow):
         top.addWidget(page_header("Meine Szenen", "Eigene Zusammenstellungen – nur von dir erstellt."), 1)
         new = button("Neue Szene", "plus", primary=True)
         new.clicked.connect(self.new_scene)
+        from_template = button("Aus Vorlage …", "star")
+        from_template.clicked.connect(lambda: self.open_templates(scenes_first=True))
+        top.addWidget(from_template, 0, Qt.AlignTop)
         top.addWidget(new, 0, Qt.AlignTop)
         lay.addLayout(top)
 
@@ -882,6 +889,14 @@ class MainWindow(QMainWindow):
         scene = self._selected_scene()
         if scene:
             self.controller.show_source({"type": "scene", "scene": scene["name"]})
+
+    def open_templates(self, scenes_first: bool = False):
+        from .templates_dialog import TemplatesDialog
+
+        dlg = TemplatesDialog(self.controller, self, scenes_first=scenes_first)
+        dlg.setAttribute(Qt.WA_DeleteOnClose)
+        self.templates_dialog = dlg
+        dlg.show()
 
     def new_scene(self):
         dlg = SceneEditor(self.config, None, self)

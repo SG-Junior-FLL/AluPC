@@ -92,6 +92,15 @@ class ScreensaverSettings(QGroupBox):
             "uhr": [("Farbe:", color)],
             "diashow": [("Ordner:", folder_row), ("Wechsel alle:", interval)],
             "szene": [("Szene:", scene)],
+            "sprueche": [("Sprüche:", text), ("Farbe:", color)],
+            "schnee": [("Text:", text)],
+            "analog": [("Zeigerfarbe:", color)],
+            "flipuhr": [("Ziffernfarbe:", color)],
+            "lava": [("Grundfarbe:", color)],
+            "bokeh": [("Grundfarbe:", color)],
+            "wellen": [("Meeresfarbe:", color)],
+            "matrix": [("Farbe:", color)],
+            "netz": [("Farbe:", color)],
         }
         if not tile_mode:
             form.addRow("", enabled)

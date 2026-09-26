@@ -39,6 +39,8 @@ HOTKEY_LABELS = {
     "bildschirmschoner": "Bildschirmschoner an/aus",
     "naechste_szene": "Nächste Szene",
     "vorherige_szene": "Vorherige Szene",
+    "ablauf_weiter": "Ablauf: nächster Punkt",
+    "ablauf_zurueck": "Ablauf: vorheriger Punkt",
     "timer_start_pause": "Timer starten/pausieren",
     "timer_neustart": "Timer neu starten",
     "timer_plus": "Timer +1 Minute",

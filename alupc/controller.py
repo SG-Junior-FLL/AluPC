@@ -478,6 +478,7 @@ class Controller(QObject):
             "timer": clock.text(),
             "keys": __import__("alupc.platform.keys", fromlist=["available"]).available(),
             "allow": {k: self.cast.allowed(k) for k in ("senden", "steuern", "live", "laser")},
+            "ablauf": bool(self.agenda_sources()),
             "rgb": rgb,
             "flags": {"schwarz": self.privacy, "standbild": self.frozen, "schoner": self.screensaver.active,
                       "spiegeln": bool(self.mode == "content" and content.get("mirror")),
@@ -894,6 +895,31 @@ class Controller(QObject):
         self.changed.emit()
 
     # ------------------------------------------------------------ Befehle (Tastenkürzel, Kommandozeile)
+    def agenda_sources(self) -> list:
+        """Alle gerade sichtbaren Ablauf-Seiten (direkt oder in einer Szene)."""
+        from .screens import DesignSource
+
+        content = self.output.content
+        if self.mode != "content" or content is None:
+            return []
+        found = [content] if isinstance(content, DesignSource) else content.findChildren(DesignSource)
+        return [s for s in found if s.cfg.get("design") == "ablauf"]
+
+    def step_agenda(self, delta: int) -> None:
+        """Ablauf: nächsten/vorherigen Punkt markieren (Kachel, Tastenkürzel, Handy)."""
+        sources = self.agenda_sources()
+        if not sources:
+            self.message.emit("Auf Monitor 2 ist gerade kein Ablauf zu sehen.")
+            return
+        for src in sources:
+            count = len([line for line in src.cfg.get("text", "").splitlines() if line.strip()])
+            src.cfg["current"] = max(1, min(count + 1, int(src.cfg.get("current", 1)) + delta))  # +1 = alles erledigt
+            src.update()
+        if self.content and self.content.get("type") == "design":  # merken (auch für den nächsten Start)
+            self.content = {**self.content, "current": sources[0].cfg["current"]}
+            self.config["last_content"] = self.content
+        self.changed.emit()
+
     def run_command(self, command: str) -> None:
         command = command.strip()
         if command.startswith("szene:"):
@@ -930,6 +956,8 @@ class Controller(QObject):
             "laser": self.presenter_requested.emit,
             "zeichnen": self.presenter_requested.emit,
             "zeichnungen_loeschen": lambda: self.laser.clear_strokes(),
+            "ablauf_weiter": lambda: self.step_agenda(1),
+            "ablauf_zurueck": lambda: self.step_agenda(-1),
             "kamera_zoom_plus": lambda: self.camera_zoom(1.25),
             "kamera_zoom_minus": lambda: self.camera_zoom(0.8),
             "kamera_zoom_aus": lambda: self.camera_zoom(None),

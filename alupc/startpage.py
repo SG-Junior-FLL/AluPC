@@ -13,6 +13,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "website": ("globe", "Website", "Öffnen · Pfeil: Favoriten", "#06b6d4", "anzeigen"),
     "media": ("image", "Bild / Video", "Mediathek · Pfeil: Zuletzt", "#10b981", "anzeigen"),
     "scenes": ("scenes", "Meine Szenen", "Bearbeiten · Pfeil: starten", "#ec4899", "anzeigen"),
+    "vorlagen": ("star", "Vorlagen", "Willkommen, Ablauf, Pause, WLAN …", "#6366f1", "anzeigen"),
     # Handy → Monitor 2: jeder Weg mit eigener Kachel
     "airplay": ("phone", "AirPlay", "iPhone & iPad · Pfeil: mehr", "#0ea5e9", "handy"),
     "handy_remote": ("qr", "Handy-Steuerung", "QR-Code scannen · Pfeil: mehr", "#8b5cf6", "handy"),
@@ -41,6 +42,8 @@ COMMANDS = {
     "spiegeln": "Spiegeln",
     "erweitern": "Erweitern",
     "naechste_szene": "Nächste Szene",
+    "ablauf_weiter": "Ablauf: nächster Punkt",
+    "ablauf_zurueck": "Ablauf: vorheriger Punkt",
     "vorherige_szene": "Vorherige Szene",
     "timer_zeigen": "Timer auf Monitor 2 zeigen",
     "timer_start_pause": "Timer starten/pausieren",

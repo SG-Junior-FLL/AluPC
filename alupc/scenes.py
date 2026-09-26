@@ -135,4 +135,8 @@ def describe_source(cfg: dict | None) -> str:
         return f"Farbe: {cfg.get('color')}"
     if t == "scene":
         return f"Szene: {cfg.get('scene')}"
+    if t == "design":
+        from .screens import describe_design
+
+        return describe_design(cfg)
     return str(t)

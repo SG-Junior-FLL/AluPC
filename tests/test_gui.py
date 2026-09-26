@@ -603,6 +603,8 @@ def test_website_favorites_and_browser_control(env):
     controller, window, _ = env
     import time
 
+    from alupc.sources import fit_rect
+
     html = ("data:text/html,<html><head><title>Start</title></head><body style='margin:0'>"
             "<button id=b style='width:100vw;height:100vh' onclick=\"document.title='Geklickt'\">X</button>"
             "</body></html>")
@@ -651,6 +653,33 @@ def test_website_favorites_and_browser_control(env):
     assert view.title() == "Geklickt"
     bc._zoom(0.1)
     assert abs(view.zoomFactor() - 1.1) < 0.01
+    # Zeichnen direkt auf der Website: Strich landet auf Monitor 2 und in der Vorschau
+    controller.laser.clear_strokes()
+    bc.refresh()
+    img = bc.preview.image()
+    r = fit_rect(img.width(), img.height(), bc.preview.width(), bc.preview.height(), "contain")
+    a, b = QPointF(r.left() + r.width() * 0.2, r.center().y()), QPointF(r.left() + r.width() * 0.6, r.center().y())
+    bc.set_color("#22c55e")
+    assert bc.draw_tool == "stift"
+    for kind, pos, handler in ((QEvent.MouseButtonPress, a, bc.preview.mousePressEvent),
+                               (QEvent.MouseMove, b, bc.preview.mouseMoveEvent),
+                               (QEvent.MouseButtonRelease, b, bc.preview.mouseReleaseEvent)):
+        handler(QMouseEvent(kind, pos, pos, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+    assert len(controller.laser.strokes) == 1 and view.title() == "Geklickt"  # kein Klick an die Seite
+    (x0, y0), (x1, _y1) = controller.laser.strokes[0]["points"][0], controller.laser.strokes[0]["points"][-1]
+    assert abs(x0 - 0.2) < 0.03 and abs(x1 - 0.6) < 0.03 and abs(y0 - 0.5) < 0.03
+    bc.refresh()
+    px = bc.preview.image().pixelColor(int(bc.preview.image().width() * 0.4), bc.preview.image().height() // 2)
+    assert px.green() > 150 and px.red() < 120, px.name()  # grüner Strich in der Vorschau
+    bc.set_tool(None)
+    # Standbild: Vorschau zeigt die echte Seite dahinter, Hinweis und „Standbild aus“ sind da
+    controller.toggle_freeze()
+    pump()
+    bc.refresh()
+    assert controller.frozen and bc.freeze_banner.isVisible() and bc.unfreeze_btn.isVisible()
+    bc.unfreeze_btn.click()
+    pump()
+    assert not controller.frozen and not bc.freeze_banner.isVisible()
     # Keine Website mehr → Fenster zeigt Hinweis
     controller.show_source({"type": "clock"})
     pump()
@@ -2232,3 +2261,92 @@ def test_start_content_and_default_camera(env, monkeypatch):
     assert shown[-1]["name"] == "Dokumentenkamera"
     controller.config["default_camera"] = "gibt-es-nicht"
     assert controller.default_camera()["name"] == "Webcam A"
+
+
+# ---------------------------------------------------------------- 0.19: Schoner, Seiten, Vorlagen
+def test_new_screensavers_and_design_pages(env):
+    """Alle neuen Schoner und gestalteten Seiten laufen und zeichnen etwas (nicht nur Schwarz)."""
+    from alupc import screensaver_art
+    from alupc.screens import DESIGNS, SCENE_TEMPLATES, build_template, design_defaults, render_preview, wifi_payload
+    from alupc.screensaver import STYLES, ScreensaverView
+
+    controller, window, _ = env
+    for style in screensaver_art.CLASSES:
+        assert style in STYLES
+        v = ScreensaverView({"style": style, "text": "A|B"}, controller.config.get_scene)
+        v.resize(320, 180)
+        for _ in range(20):
+            v._last_tick -= 0.05
+            v._tick()
+        img = v.grab().toImage()
+        colors = {img.pixelColor(x, y).name() for x in range(0, 320, 16) for y in range(0, 180, 12)}
+        assert len(colors) > 3, style
+        v.stop()
+    for key in DESIGNS:
+        img = render_preview(design_defaults(key), 320, 180)
+        colors = {img.pixelColor(x, y).name() for x in range(0, 320, 8) for y in range(0, 180, 8)}
+        assert len(colors) > 5, key
+    assert wifi_payload("Mein;Netz", "p:w") == r"WIFI:T:WPA;S:Mein\;Netz;P:p\:w;;"
+    assert wifi_payload("Offen", "") == "WIFI:T:nopass;S:Offen;P:;;"
+    for key in SCENE_TEMPLATES:
+        scene = build_template(key, {"name": f"T {key}", "title": "Hallo", "text": "Welt", "minutes": 3})
+        assert scene["name"] == f"T {key}" and scene["slots"] and all(scene["slots"])
+    # Seite direkt auf Monitor 2
+    controller.show_source({**design_defaults("pause"), "minutes": 1})
+    pump()
+    assert controller.describe().startswith("Pause")
+
+
+def test_templates_dialog_show_and_save(env):
+    controller, window, _ = env
+    window.open_templates()
+    dlg = window.templates_dialog
+    pump()
+    # Seite: eigenen Text eingeben und zeigen
+    row = next(i for i in range(dlg.list.count()) if dlg.list.item(i).data(Qt.UserRole) == ("design", "willkommen"))
+    dlg.list.setCurrentRow(row)
+    dlg.title.setText("Hallo 7b")
+    dlg.show_now()
+    pump()
+    assert controller.content["type"] == "design" and controller.content["title"] == "Hallo 7b"
+    # Szenen-Vorlage: als Szene speichern (zweimal → eindeutiger Name) und zeigen
+    row = next(i for i in range(dlg.list.count()) if dlg.list.item(i).data(Qt.UserRole) == ("scene", "pause"))
+    dlg.list.setCurrentRow(row)
+    dlg.name.setText("Kaffeepause")
+    dlg.minutes.setValue(15)
+    assert dlg.save_scene() == "Kaffeepause"
+    assert dlg.save_scene() == "Kaffeepause 2"
+    scene = controller.config.get_scene("Kaffeepause")
+    assert scene["slots"][0]["design"] == "pause" and scene["slots"][0]["minutes"] == 15
+    dlg.show_now()
+    pump()
+    assert controller.content == {"type": "scene", "scene": "Kaffeepause 3"}
+    dlg.close()
+
+
+def test_agenda_step(env):
+    from alupc.screens import build_template, design_defaults
+
+    controller, window, _ = env
+    controller.show_source({**design_defaults("ablauf"), "text": "A\nB\nC", "current": 1})
+    pump()
+    controller.run_command("ablauf_weiter")
+    controller.run_command("ablauf_weiter")
+    assert controller.agenda_sources()[0].cfg["current"] == 3 and controller.content["current"] == 3
+    for _ in range(5):
+        controller.run_command("ablauf_weiter")
+    assert controller.agenda_sources()[0].cfg["current"] == 4  # alles erledigt, nicht weiter
+    controller._cast_snapshot()
+    assert controller.cast.snapshot["ablauf"] is True
+    # auch in einer Szene (Ablauf + Uhr + Hinweis)
+    controller.config.put_scene(build_template("ablauf_uhr", {"name": "Plan", "text": "X\nY"}))
+    controller.show_source({"type": "scene", "scene": "Plan"})
+    pump()
+    controller.run_command("ablauf_zurueck")
+    controller.run_command("ablauf_weiter")
+    assert controller.agenda_sources()[0].cfg["current"] == 2
+    messages = []
+    controller.message.connect(messages.append)
+    controller.show_source({"type": "clock"})
+    controller.run_command("ablauf_weiter")
+    assert any("kein Ablauf" in m for m in messages)

@@ -1306,6 +1306,10 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             if depth >= MAX_SCENE_DEPTH:
                 return TextSource({"text": "Szenen zu tief verschachtelt", "size": 10}, parent)
             return SceneSource(cfg, scene_lookup, depth, parent)
+        if t == "design":  # gestaltete Seite (screens.py)
+            from .screens import DesignSource
+
+            return DesignSource(cfg, parent)
         factory = {
             "camera": CameraSource,
             "screen": ScreenSource,

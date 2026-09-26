@@ -548,7 +548,7 @@ def paint(p: QPainter, name: str, rect: QRectF, color: str | QColor, stroke: flo
 SOURCE_ICONS = {
     "camera": "camera", "window": "window", "screen": "monitor", "website": "globe", "image": "image",
     "video": "video", "slideshow": "slides", "text": "text", "clock": "clock", "countdown": "timer",
-    "color": "palette", "scene": "scenes", "airplay": "phone", "cast": "qr",
+    "color": "palette", "scene": "scenes", "airplay": "phone", "cast": "qr", "design": "star",
 }
 
 

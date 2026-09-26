@@ -8,6 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.19.0)
+- **9 neue Bildschirmschoner:** Polarlicht, Lavalampe, Lichtkugeln, Meer bei Sonnenuntergang, Feuerwerk,
+  Analoguhr, Klappuhr, Schneefall (mit eigenem Text) und **Sprüche/Zitate im Wechsel** (eigene mit | trennen).
+- **Neue Seiten für Monitor 2** („Gestaltete Seite“) – jeweils mit eigenem Text: **Willkommen**,
+  **Ablauf/Agenda** (aktueller Punkt markiert, weiterschalten per Kachel, Tastenkürzel oder Handy),
+  **Pause** mit Restzeit und „weiter um …“, **Laufschrift**, **Zitat**, **Ankündigung**, **Fragen?** und
+  **WLAN-Zugang mit QR-Code** (Handy scannt und verbindet sich).
+- **Vorlagen** (neue Kachel, auch unter Szenen „Aus Vorlage …“): Seiten und **fertige Szenen** (Begrüßung mit
+  Uhr, Ablauf + Uhr + Hinweis, Pause, Kamera + Laufschrift, Fragerunde, Gäste-WLAN, Countdown bis zum Start) –
+  Text eingeben, Vorschau sehen, **sofort zeigen oder als Szene speichern**.
+- **Browser steuern:** jetzt mit **Stift, Marker und Radierer** – direkt auf die Website auf Monitor 2 zeichnen
+  (mit Farben, Rückgängig, Löschen).
+- **Browser bei Standbild:** Die Vorschau zeigt jetzt die **echte Seite hinter dem Standbild** – man kann schon
+  weiterklicken/scrollen, während das Publikum noch das eingefrorene Bild sieht; „Standbild aus“ zeigt dann das
+  Ergebnis. Vorher zeigte die Vorschau nur das eingefrorene Bild.
+
 ### Neu in dieser Version (0.18.0)
 **AirPlay repariert**
 - Monitor 2 ist bei AirPlay **nicht mehr „Erweitert“**: Er zeigt sofort einen großen **Warte-Bildschirm mit
