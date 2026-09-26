@@ -484,6 +484,42 @@ class Controller(QObject):
                       "erweitern": self.mode == "desktop" and self.desktop_note.startswith("Erweitert")},
         }
 
+    def _phone_draw(self, req: dict) -> None:
+        """Mit dem Finger auf Monitor 2 zeichnen (Live-Bild auf dem Handy = Monitor 2)."""
+        from PySide6.QtCore import QPointF
+
+        phase = req.get("phase")
+        if phase == "up":
+            self.laser.end_stroke()
+            return
+        point = QPointF(float(req["x"]), float(req["y"]))
+        if req.get("tool") == "radierer":
+            self.laser.erase_at(point, 0.03)
+            return
+        if phase == "down":
+            self.laser.begin_stroke("marker" if req.get("tool") == "marker" else "pen", req.get("color", "#ef4444"),
+                                    0.005, point)  # Marker: breiter und halb durchsichtig (laser.stroke_pen)
+        else:
+            self.laser.extend_stroke(point)
+
+    def _phone_mouse(self, req: dict) -> None:
+        """Handy als Touchpad: Zeiger bewegen, klicken, scrollen (Windows und Linux/X11)."""
+        from PySide6.QtGui import QCursor
+
+        from .platform import keys
+
+        if "click" in req:
+            ok = keys.click(req["click"])
+        elif "scroll" in req:
+            ok = keys.scroll(int(req["scroll"]))
+        else:
+            pos = QCursor.pos()
+            QCursor.setPos(pos.x() + round(float(req.get("dx", 0))), pos.y() + round(float(req.get("dy", 0))))
+            ok = True
+        if not ok and not getattr(self, "_mouse_hint", False):
+            self._mouse_hint = True
+            self.message.emit("Klicks vom Handy gehen unter Wayland nicht – bitte die X11-Sitzung nutzen.")
+
     def _phone_laser(self, x, y) -> None:
         """Laserpointer vom Handy (Finger auf dem Live-Bild)."""
         from PySide6.QtCore import QPointF
@@ -561,6 +597,12 @@ class Controller(QObject):
         elif kind == "laser":
             self._phone_laser(req.get("x"), req.get("y"))
             return
+        elif kind == "draw":
+            self._phone_draw(req)
+            return
+        elif kind == "mouse":
+            self._phone_mouse(req)
+            return
         elif kind == "cmd":
             cmd = req.get("cmd", "")
             videos = video_sources(self.output.content) if self.mode == "content" else []
@@ -570,6 +612,25 @@ class Controller(QObject):
                 if not keys.send(cmd.split(":", 1)[1]):
                     self.message.emit("Tasten vom Handy gehen unter Wayland nicht – bitte die X11-Sitzung nutzen "
                                       "(Anmeldebildschirm: „Plasma (X11)“).")
+            elif cmd.startswith("timer:"):  # Timer-Vorgabe vom Handy (Sekunden), gleich zeigen und starten
+                from .timer import clock
+
+                seconds = max(1, min(6 * 3600, int(cmd.split(":", 1)[1])))
+                clock.set(seconds, "countdown", self.config["timer"].get("finished_text", ""))
+                self.show_source(self.timer_source())  # nicht show_timer: setzt frische Timer auf die Setup-Dauer
+                clock.start()
+                self.sounds.play_event("timer_start")
+                self.changed.emit()
+            elif cmd == "timer_stopp":
+                self.timer_action("reset")
+            elif cmd == "zeichnung_zurueck":
+                self.laser.undo()
+            elif cmd == "kamera":
+                self.start_camera()
+            elif cmd == "airplay":
+                self.start_airplay()
+            elif cmd == "qr":
+                self.start_cast()
             elif cmd.startswith("lautstaerke:"):
                 self.set_media_volume(volume=max(0, min(100, int(cmd.split(":", 1)[1]))), muted=False)
             elif cmd.startswith("video_"):

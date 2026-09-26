@@ -1,4 +1,4 @@
-"""Tastendruck an das gerade aktive Programm senden (Handy als Präsentations-Fernbedienung).
+"""Tastendruck und Mausklicks an den PC senden (Handy als Präsentations-Fernbedienung und Touchpad).
 
 Windows: SendInput/keybd_event (user32). Linux X11: XTest (libXtst). Wayland erlaubt das Programmen aus
 Sicherheitsgründen nicht – dann meldet AluPC das ehrlich.
@@ -44,15 +44,7 @@ def send(name: str) -> bool:
         return True
     if not available():
         return False
-    x11 = ctypes.CDLL(ctypes.util.find_library("X11"))
-    xtst = ctypes.CDLL(ctypes.util.find_library("Xtst"))
-    x11.XOpenDisplay.restype = ctypes.c_void_p
-    x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
-    x11.XKeysymToKeycode.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
-    x11.XKeysymToKeycode.restype = ctypes.c_ubyte
-    x11.XFlush.argtypes = [ctypes.c_void_p]
-    x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
-    xtst.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+    x11, xtst = _x11()
     display = x11.XOpenDisplay(None)
     if not display:
         return False
@@ -62,6 +54,65 @@ def send(name: str) -> bool:
             return False
         xtst.XTestFakeKeyEvent(display, code, 1, 0)
         xtst.XTestFakeKeyEvent(display, code, 0, 0)
+        x11.XFlush(display)
+        return True
+    finally:
+        x11.XCloseDisplay(display)
+
+
+def _x11():
+    x11 = ctypes.CDLL(ctypes.util.find_library("X11"))
+    xtst = ctypes.CDLL(ctypes.util.find_library("Xtst"))
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    x11.XKeysymToKeycode.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+    x11.XKeysymToKeycode.restype = ctypes.c_ubyte
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    xtst.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+    xtst.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+    return x11, xtst
+
+
+# Maustaste → (Windows: drücken, loslassen), X11-Knopf
+BUTTONS = {"links": ((0x0002, 0x0004), 1), "rechts": ((0x0008, 0x0010), 3), "mitte": ((0x0020, 0x0040), 2)}
+
+
+def click(button: str = "links") -> bool:
+    """Mausklick an der aktuellen Zeigerposition (Handy als Touchpad). False = geht hier nicht."""
+    if button not in BUTTONS:
+        raise ValueError(f"unbekannte Maustaste: {button}")
+    (down, up), xbutton = BUTTONS[button]
+    if sys.platform.startswith("win"):
+        user32 = ctypes.windll.user32
+        user32.mouse_event(down, 0, 0, 0, 0)
+        user32.mouse_event(up, 0, 0, 0, 0)
+        return True
+    return _x11_buttons([xbutton])
+
+
+def scroll(steps: int) -> bool:
+    """Mausrad: positive Zahl = nach oben scrollen."""
+    steps = max(-20, min(20, int(steps)))
+    if not steps:
+        return True
+    if sys.platform.startswith("win"):
+        ctypes.windll.user32.mouse_event(0x0800, 0, 0, ctypes.c_uint32(120 * steps & 0xFFFFFFFF).value, 0)
+        return True
+    return _x11_buttons([4 if steps > 0 else 5] * abs(steps))
+
+
+def _x11_buttons(buttons: list[int]) -> bool:
+    if not available():
+        return False
+    x11, xtst = _x11()
+    display = x11.XOpenDisplay(None)
+    if not display:
+        return False
+    try:
+        for b in buttons:
+            xtst.XTestFakeButtonEvent(display, b, 1, 0)
+            xtst.XTestFakeButtonEvent(display, b, 0, 0)
         x11.XFlush(display)
         return True
     finally:

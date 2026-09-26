@@ -1722,7 +1722,7 @@ def _http(method, url, body=None, headers=None, timeout=10):
     return result["status"], result["body"]
 
 
-def test_alucast_end_to_end(env, tmp_path):
+def test_alucast_end_to_end(env, tmp_path, monkeypatch):
     import json
 
     controller, window, _ = env
@@ -1768,12 +1768,54 @@ def test_alucast_end_to_end(env, tmp_path):
     assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "sperren"}).encode(), ok)[0] == 400
     assert _http("POST", base + "/api/link", json.dumps({"url": "kein link"}).encode(), ok)[0] == 400
 
+    # Zeichnen mit dem Finger: Strich landet genau dort auf Monitor 2
+    controller.laser.clear_strokes()
+    for body in ({"phase": "down", "x": 0.25, "y": 0.5, "tool": "stift", "color": "#22c55e"},
+                 {"phase": "move", "x": 0.5, "y": 0.5, "tool": "stift", "color": "#22c55e"},
+                 {"phase": "up"}):
+        assert _http("POST", base + "/api/draw", json.dumps(body).encode(), ok)[0] == 200
+    assert _until(lambda: len(controller.laser.strokes) == 1)
+    stroke = controller.laser.strokes[0]
+    assert stroke["color"] == "#22c55e" and stroke["points"][0] == (0.25, 0.5) and stroke["points"][-1] == (0.5, 0.5)
+    assert _http("POST", base + "/api/draw", json.dumps({"phase": "down", "x": 2, "y": 0}).encode(), ok)[0] == 400
+    assert _http("POST", base + "/api/draw", json.dumps({"phase": "down", "x": 0.1, "y": 0.1, "tool": "stift",
+                                                         "color": "red;x"}).encode(), ok)[0] == 400
+    assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "zeichnung_zurueck"}).encode(), ok)[0] == 200
+    assert _until(lambda: not controller.laser.strokes)
+    # Touchpad: Zeiger bewegen, Klick (Klick selbst simuliert – im Test keine echte Maus)
+    from alupc.platform import keys as keys_mod
+    from PySide6.QtGui import QCursor
+
+    clicks = []
+    monkeypatch.setattr(keys_mod, "click", lambda b="links": clicks.append(b) or True)
+    QCursor.setPos(100, 100)
+    start = QCursor.pos()
+    assert _http("POST", base + "/api/mouse", json.dumps({"dx": 30, "dy": -10}).encode(), ok)[0] == 200
+    assert _http("POST", base + "/api/mouse", json.dumps({"click": "rechts"}).encode(), ok)[0] == 200
+    assert _http("POST", base + "/api/mouse", json.dumps({"click": "mitte; rm"}).encode(), ok)[0] == 400
+    assert _until(lambda: clicks == ["rechts"])
+    moved = QCursor.pos() - start
+    assert (moved.x(), moved.y()) in ((30, -10), (0, 0))  # offscreen-Plattform kann den Zeiger evtl. nicht setzen
+    # Timer-Vorgabe vom Handy: zeigen und starten
+    assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "timer:180"}).encode(), ok)[0] == 200
+    from alupc.timer import clock
+
+    assert _until(lambda: clock.running and 170 < clock.remaining() <= 180)
+    assert (controller.content or {}).get("type") == "countdown"
+    assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "timer_stopp"}).encode(), ok)[0] == 200
+    assert _until(lambda: not clock.running)
+    # „Zum Home-Bildschirm“: Manifest und Symbol ohne Code
+    status, body = _http("GET", base + "/manifest.json")
+    assert status == 200 and json.loads(body)["display"] == "standalone"
+    status, body = _http("GET", base + "/icon.png")
+    assert status == 200 and body[:4] == b"\x89PNG"
+
     # Rechte (Setup → Handy & Kamera): Ausgeschaltetes wird abgelehnt und dem Handy gemeldet
     controller.config["cast"] = {**controller.config["cast"], "allow": {"senden": False, "steuern": False,
                                                                          "live": False, "laser": True}}
-    assert _http("POST", base + "/api/text", json.dumps({"text": "x"}).encode(), ok)[0] == 403
-    assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "schwarz"}).encode(), ok)[0] == 403
-    assert _http("GET", base + "/api/preview", headers=ok)[0] == 403
+    assert _http("POST", base + "/api/text", json.dumps({"text": "x"}).encode(), ok)[0] == 423
+    assert _http("POST", base + "/api/cmd", json.dumps({"cmd": "schwarz"}).encode(), ok)[0] == 423
+    assert _http("GET", base + "/api/preview", headers=ok)[0] == 423
     controller._cast_snapshot()
     status, body = _http("GET", base + "/api/status", headers=ok)
     assert status == 200 and json.loads(body)["allow"] == {"senden": False, "steuern": False, "live": False,

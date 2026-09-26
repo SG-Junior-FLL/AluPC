@@ -35,7 +35,8 @@ MIME_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "ima
 ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirmschoner", "naechste_szene",
                     "vorherige_szene", "zeichnungen_loeschen", "timer_start_pause", "timer_plus", "timer_minus",
                     "timer_neustart", "timer_zeigen", "video_pause", "video_vor", "video_zurueck",
-                    "rgb_farbe", "rgb_monitor2", "rgb_aus"}
+                    "rgb_farbe", "rgb_monitor2", "rgb_aus", "zeichnung_zurueck", "kamera", "airplay", "qr",
+                    "timer_stopp"}
 MAX_FAILS = 10
 BLOCK_SECONDS = 60
 
@@ -175,6 +176,28 @@ class CastServer(QObject):
     def settings(self) -> dict:
         return {"port": 8765, "code": "", "autostart": False, **self.config["cast"]}
 
+    def icon_png(self) -> bytes:
+        """App-Symbol fürs Handy (Home-Bildschirm, Browser-Tab) – einmal erzeugt."""
+        from PySide6.QtCore import QThread
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if getattr(self, "_icon", None) is None and app is not None and QThread.currentThread() == app.thread():
+            try:
+                from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+
+                from .ui import icons
+
+                data = QByteArray()
+                buf = QBuffer(data)
+                buf.open(QIODevice.WriteOnly)
+                icons.app_icon().pixmap(192, 192).toImage().save(buf, "PNG")
+                buf.close()
+                self._icon = bytes(data)
+            except Exception:  # noqa: BLE001 – ohne Symbol geht es auch
+                self._icon = b""
+        return getattr(self, "_icon", None) or b""
+
     def allowed(self, what: str) -> bool:
         """Darf ein Handy das? („senden“, „steuern“, „live“, „laser“ – im Setup ausschaltbar)"""
         return bool({"senden": True, "steuern": True, "live": True, "laser": True,
@@ -205,6 +228,7 @@ class CastServer(QObject):
             return True
         self._fails.clear()  # neuer Start → alte Sperren vergessen
         self.code()
+        self.icon_png()  # im Qt-Hauptthread erzeugen – der Webserver-Thread liefert es nur aus
         first = int(self.settings()["port"])
         handler = _make_handler(self)
         for port in range(first, first + 10):
@@ -307,15 +331,22 @@ def _make_handler(server: CastServer):
                         self._send(200, server.preview, "image/jpeg")
                     else:
                         self._send(204, b"", "image/jpeg")
-            elif path == "/favicon.ico":
-                self._send(204, b"", "image/x-icon")
+            elif path in ("/icon.png", "/apple-touch-icon.png", "/favicon.ico"):
+                self._send(200, server.icon_png(), "image/png")
+            elif path == "/manifest.json":  # „Zum Home-Bildschirm“: öffnet wie eine App (ohne Browserleiste)
+                self._send(200, json.dumps({"name": "AluPC-Fernbedienung", "short_name": "AluPC",
+                                            "start_url": "/", "display": "standalone",
+                                            "background_color": "#0b1020", "theme_color": "#0b1020",
+                                            "icons": [{"src": "/icon.png", "sizes": "192x192",
+                                                       "type": "image/png"}]}).encode(),
+                           "application/manifest+json")
             else:
                 self._json(404, {"error": "Nicht gefunden"})
 
         def _may(self, what: str) -> bool:
             if server.allowed(what):
                 return True
-            self._json(403, {"error": "In AluPC ausgeschaltet (Setup → Handy & Kamera)"})
+            self._json(423, {"error": "In AluPC ausgeschaltet (Setup → Handy & Kamera)"})
             return False
 
         def do_POST(self):
@@ -323,7 +354,8 @@ def _make_handler(server: CastServer):
             if not self._auth():
                 return
             need = {"/api/upload": "senden", "/api/link": "senden", "/api/text": "senden",
-                    "/api/laser": "laser", "/api/cmd": "steuern"}.get(u.path)
+                    "/api/laser": "laser", "/api/draw": "laser", "/api/cmd": "steuern",
+                    "/api/mouse": "steuern"}.get(u.path)
             if need and not self._may(need):
                 self.close_connection = True
                 return
@@ -354,10 +386,38 @@ def _make_handler(server: CastServer):
                         if not (0 <= x <= 1 and 0 <= y <= 1):
                             raise ValueError("außerhalb")
                         server.request.emit({"kind": "laser", "x": x, "y": y})
+                elif u.path == "/api/draw":  # mit dem Finger auf Monitor 2 zeichnen
+                    phase = str(data.get("phase", ""))
+                    if phase not in ("down", "move", "up"):
+                        raise ValueError("phase")
+                    req = {"kind": "draw", "phase": phase}
+                    if phase != "up":
+                        x, y = float(data.get("x")), float(data.get("y"))
+                        if not (0 <= x <= 1 and 0 <= y <= 1):
+                            raise ValueError("außerhalb")
+                        tool = str(data.get("tool", "stift"))
+                        color = str(data.get("color", "#ef4444"))
+                        if tool not in ("stift", "marker", "radierer") or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+                            raise ValueError("Werkzeug")
+                        req.update(x=x, y=y, tool=tool, color=color)
+                    server.request.emit(req)
+                elif u.path == "/api/mouse":  # Handy als Touchpad
+                    if "click" in data:
+                        button = str(data["click"])
+                        if button not in ("links", "rechts"):
+                            raise ValueError("Taste")
+                        server.request.emit({"kind": "mouse", "click": button})
+                    elif "scroll" in data:
+                        server.request.emit({"kind": "mouse", "scroll": max(-10, min(10, int(data["scroll"])))})
+                    else:
+                        dx, dy = float(data.get("dx", 0)), float(data.get("dy", 0))
+                        if abs(dx) > 2000 or abs(dy) > 2000:
+                            raise ValueError("zu weit")
+                        server.request.emit({"kind": "mouse", "dx": dx, "dy": dy})
                 elif u.path == "/api/cmd":
                     cmd = str(data.get("cmd", ""))
                     if not (cmd in ALLOWED_COMMANDS or cmd.startswith("szene:")
-                            or re.fullmatch(r"lautstaerke:\d{1,3}", cmd)
+                            or re.fullmatch(r"lautstaerke:\d{1,3}", cmd) or re.fullmatch(r"timer:\d{1,5}", cmd)
                             or re.fullmatch(r"taste:(weiter|zurueck|rechts|links|start|ende|schwarz|leer)", cmd)):
                         self._json(400, {"error": "Unbekannter Befehl"})
                         return
