@@ -49,7 +49,8 @@ from .setup_page import SetupPage
 from .source_picker import IMAGE_FILTER, VIDEO_FILTER
 from ..startpage import BUILTIN_TILES, SECTIONS, custom_key, find_custom, ordered_keys, section_of
 from .start_page_dialog import StartPageDialog
-from .widgets import EmptyState, NavButton, SceneCard, StatusCard, Tile, Toast, button, font, page_header
+from .widgets import (EmptyState, MonitorCard, NavButton, SceneCard, StatusCard, Tile, Toast, button, font,
+                      page_header)
 
 __all__ = ["MainWindow", "app_icon"]
 
@@ -252,6 +253,8 @@ class MainWindow(QMainWindow):
         root.setSpacing(0)
         root.addWidget(self._sidebar())
         self.stack = QStackedWidget()
+        self.stack.setObjectName("Content")
+        self.stack.setAttribute(Qt.WA_StyledBackground, True)
         root.addWidget(self.stack, 1)
         self.setCentralWidget(central)
 
@@ -314,11 +317,10 @@ class MainWindow(QMainWindow):
         self.nav_group.idClicked.connect(self._go)
         lay.addStretch(1)
 
-        self.side_monitor = QLabel()
-        self.side_monitor.setObjectName("Muted")
-        self.side_monitor.setWordWrap(True)
-        self.side_monitor.setContentsMargins(14, 0, 8, 8)
+        self.side_monitor = MonitorCard()  # Monitor 2 immer im Blick: Live-Bild, Name, Zustand
+        self.side_monitor.clicked.connect(lambda: self._go(0))
         lay.addWidget(self.side_monitor)
+        lay.addSpacing(6)
         lock = NavButton("lock", "Computer sperren")
         lock.setToolTip("Wie Win+L – Monitor 2 zeigt weiter, was gerade läuft")
         lock.setCheckable(False)
@@ -1147,18 +1149,23 @@ class MainWindow(QMainWindow):
 
         c = self.controller
         card = self.status_card
-        if not self.isVisible() or self.isMinimized() or self.stack.currentIndex() != 0:
+        if not self.isVisible() or self.isMinimized():
             return
+        on_start = self.stack.currentIndex() == 0
         out = c.output
         image = None
         if out.isVisible() and (c.mode == "content" or c.privacy or c.frozen or c.screensaver.active):
             dpr = card.preview.devicePixelRatioF()
             pw, ph = card.preview.width(), card.preview.height()
+            if not on_start:  # nur die kleine Karte in der Seitenleiste braucht ein Bild
+                pw, ph = 200, 113
             image = grab_scaled(out, QSize(int(pw * dpr), int(ph * dpr)))
             from ..laser import draw_overlay
 
             draw_overlay(c, image)
-        card.preview.set(image, card.preview.icon_name)
+        if on_start:
+            card.preview.set(image, card.preview.icon_name)
+        self.side_monitor.set_image(image)
 
     def refresh(self):
         c = self.controller
@@ -1202,10 +1209,10 @@ class MainWindow(QMainWindow):
         self.media_bar.sync()
         self.camera_bar.sync()
         self._sync_tray_volume()
-        dot = theme.current().success if out else theme.current().danger
-        self.side_monitor.setText(f'<span style="color:{dot}">●</span> ' + (
-            f"Monitor 2: <b>{out.name()}</b><br>&nbsp;&nbsp;&nbsp;&nbsp;{out.size().width()} × {out.size().height()}" if out
-            else "Kein Monitor 2 angeschlossen"))
+        state = pills[0] if pills else ("", t.success)
+        self.side_monitor.set(f"Monitor 2 · {out.name()}" if out else "Kein Monitor 2",
+                              c.describe() if out else "Anschließen – AluPC erkennt ihn selbst",
+                              state if out else ("FEHLT", t.danger), icon_name)
 
         self.t_mirror.set_state(is_mirror, badge="AKTIV" if is_mirror else "")
         handy_desktop = c.mode == "desktop" and c.desktop_note.startswith(HANDY_NOTES)

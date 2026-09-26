@@ -2043,7 +2043,7 @@ def test_phone_remote_preview_laser_and_flags(env):
 
 
 # ---------------------------------------------------------------- 0.14.1: eigene Kacheln je Handy-Weg
-def test_handy_tiles_start_each_way(env):
+def test_handy_tiles_start_each_way(env, monkeypatch):
     from alupc.startpage import section_of
 
     controller, window, _ = env
@@ -2056,9 +2056,9 @@ def test_handy_tiles_start_each_way(env):
     pump()
     assert controller.cast.running() and controller.content == {"type": "cast"}
     assert window.t_remote.badge == "LÄUFT"
-    if not controller.airplay.binary():
-        window.t_airplay.activated.emit()
-        assert any("UxPlay fehlt" in m for m in messages)
+    monkeypatch.setattr(controller.airplay, "binary", lambda: None)  # kein Empfänger installiert
+    window.t_airplay.activated.emit()
+    assert any("Empfänger fehlt" in m for m in messages)
     controller.stop_cast()
     pump()
     assert window.t_remote.badge == ""

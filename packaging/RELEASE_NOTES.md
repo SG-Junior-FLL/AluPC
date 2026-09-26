@@ -32,7 +32,14 @@
 - Neuer Setup-Bereich **Handy & Kamera**: AirPlay-Name, randlos an/aus, **was Handys dürfen** (senden,
   fernsteuern, Live-Bild, Zeichnen), Handy-Steuerung beim Start.
 - **Windows-Firewall** wird automatisch freigegeben (Setup.exe bzw. Ersteinrichtung, nur private Netze).
-- Design: klarere Abschnitte auf der Startseite und im Setup.
+
+**Design-Update**
+- Neue Farbpalette (tiefes Nachtblau im dunklen, klares Weiß-Grau im hellen Design), sanfter Farbverlauf
+  hinter den Seiten.
+- **Kacheln** mit eigener Farbe je Funktion, Symbol im Farbverlauf, **leuchtender Rand**, wenn aktiv.
+- **Seitenleiste:** gewählter Bereich als farbige Fläche; unten eine **Monitor-2-Karte mit Live-Bild** und
+  Zustand (LIVE, SCHWARZ …) – auf jeder Seite sichtbar, Klick führt zur Startseite.
+- Seitenköpfe mit Symbol (auch in Dialogen), Setup-Bereiche mit Akzentbalken, klarere Abschnitte.
 
 **Ehrlich:** Mit echtem iPhone und echtem Handy-Touchpad am echten PC nicht getestet. Geprüft: die Handy-Seite
 im echten Browser (Zeichnen, Touchpad, Klicks, Timer kommen an), AirPlay-Start und Bonjour auf einem echten

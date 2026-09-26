@@ -75,11 +75,11 @@ def system_prefers_dark() -> bool:
 def make_theme(mode: str = "system", accent: str = "blau") -> Theme:
     dark = system_prefers_dark() if mode == "system" else mode == "dunkel"
     accent_hex = ACCENTS.get(accent, ACCENTS["blau"])[1]
-    if dark:
-        return Theme(True, accent_hex, bg="#0e1116", surface="#161a22", surface2="#1e2430",
-                     border="#2a3140", text="#e8ecf3", muted="#8f99ab")
-    return Theme(False, accent_hex, bg="#f3f5f9", surface="#ffffff", surface2="#eef1f6",
-                 border="#dce2eb", text="#141a26", muted="#5d6678")
+    if dark:  # tiefes Nachtblau statt Grau – mehr Kontrast für farbige Symbole
+        return Theme(True, accent_hex, bg="#0a0d14", surface="#121722", surface2="#1a2130",
+                     border="#242c3c", text="#eef1f7", muted="#8b95a8")
+    return Theme(False, accent_hex, bg="#f2f4f9", surface="#ffffff", surface2="#eef1f7",
+                 border="#dfe4ee", text="#111827", muted="#5b6477")
 
 
 def current() -> Theme:
@@ -139,18 +139,23 @@ QMainWindow, QDialog {{ background: {t.bg}; }}
 QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {t.border};
             border-radius: 6px; padding: 6px 8px; }}
 
-#Sidebar {{ background: {t.surface}; border-right: 1px solid {t.border}; }}
+#Sidebar {{ background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {t.surface}, stop:1 {t.bg});
+             border-right: 1px solid {t.border}; }}
+#Content {{ background: qlineargradient(x1:0, y1:0, x2:0.35, y2:1, stop:0 {t.accent_soft(0.07)}, stop:0.4 {t.bg},
+             stop:1 {t.bg}); }}
+#PageIcon {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {accent_top}, stop:1 {accent_bottom});
+             border-radius: 12px; }}
 #Brand {{ font-size: 15pt; font-weight: 700; }}
 #BrandSub, #Muted, QLabel[muted="true"] {{ color: {t.muted}; }}
-#PageTitle {{ font-size: 18pt; font-weight: 700; }}
+#PageTitle {{ font-size: 19pt; font-weight: 800; }}
 #PageSubtitle {{ color: {t.muted}; font-size: 10.5pt; }}
 #SectionTitle {{ font-size: 11pt; font-weight: 700; }}
 #StartSection {{ font-size: 8.5pt; font-weight: 800; letter-spacing: 1.2px; color: {t.muted};
                  padding: 10px 0 2px 2px; border-bottom: 1px solid {t.border}; }}
 
-#Card, QGroupBox {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 14px; }}
-#Hero {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {t.surface}, stop:1 {t.accent_soft(0.10)});
-        border: 1px solid {t.border}; border-radius: 20px; }}
+#Card, QGroupBox {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 16px; }}
+#Hero {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {t.surface}, stop:0.55 {t.surface},
+        stop:1 {t.accent_soft(0.16)}); border: 1px solid {t.border}; border-radius: 22px; }}
 QPushButton#Chip {{ border-radius: 17px; padding: 7px 14px; background: {t.surface2}; font-weight: 600; }}
 QPushButton#Chip:checked {{ background: {t.accent}; border-color: {t.accent}; color: #ffffff; }}
 QGroupBox {{ margin-top: 26px; padding: 16px 16px 14px 16px; font-weight: 700; }}
@@ -158,8 +163,8 @@ QGroupBox::title {{ subcontrol-origin: margin; left: 6px; top: 4px; padding: 0 4
                    font-size: 10pt; }}
 
 QPushButton, QToolButton#Plain {{
-    background: {t.surface2}; border: 1px solid {t.border}; border-radius: 9px;
-    padding: 7px 14px; min-height: 20px; }}
+    background: {t.surface2}; border: 1px solid {t.border}; border-radius: 10px;
+    padding: 7px 14px; min-height: 20px; font-weight: 600; }}
 QPushButton:hover, QToolButton#Plain:hover {{ background: {hover}; }}
 QPushButton:pressed {{ background: {t.border}; }}
 QPushButton:disabled {{ color: {t.muted}; background: {t.surface}; }}
@@ -196,6 +201,10 @@ QListWidget {{ background: {t.surface}; border: 1px solid {t.border}; border-rad
 QListWidget::item {{ padding: 7px 8px; border-radius: 7px; }}
 QListWidget::item:hover {{ background: {hover}; }}
 QListWidget::item:selected {{ background: {t.accent_soft(0.28)}; color: {t.text}; }}
+QListWidget#SetupNav {{ background: {t.surface}; border-radius: 16px; padding: 6px; }}
+QListWidget#SetupNav::item {{ padding: 8px 10px; margin: 1px 0; border-radius: 10px; border-left: 3px solid transparent; }}
+QListWidget#SetupNav::item:selected {{ background: {t.accent_soft(0.18)}; border-left: 3px solid {t.accent};
+    font-weight: 700; }}
 
 QTabWidget::pane {{ border: 1px solid {t.border}; border-radius: 10px; top: -1px; background: {t.surface}; }}
 QTabBar::tab {{ background: transparent; padding: 8px 14px; margin-right: 4px; border-radius: 8px; color: {t.muted}; }}

@@ -240,6 +240,7 @@ class SetupPage(QWidget):
         self.nav.setObjectName("SetupNav")
         self.nav.setFixedWidth(230)
         self.nav.setIconSize(QSize(20, 20))
+        self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.stack = QStackedWidget()
         t = theme.current()
         for icon_name, title, sub in self.SECTIONS:

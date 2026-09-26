@@ -6,13 +6,13 @@ import uuid
 
 # id: (Symbol, Titel, Untertitel, Farbe oder None = Akzentfarbe, Bereich)
 BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
-    "mirror": ("mirror", "Spiegeln", "Zeigt dasselbe wie Monitor 1", None, "anzeigen"),
-    "extend": ("extend", "Erweitern", "Normaler zweiter Bildschirm", None, "anzeigen"),
-    "camera": ("camera", "Kamera", "Kamera im Vollbild", None, "anzeigen"),
-    "program": ("window", "Programm", "Ein Programm zeigen", None, "anzeigen"),
-    "website": ("globe", "Website", "Öffnen · Pfeil: Favoriten", None, "anzeigen"),
-    "media": ("image", "Bild / Video", "Mediathek · Pfeil: Zuletzt", None, "anzeigen"),
-    "scenes": ("scenes", "Meine Szenen", "Bearbeiten · Pfeil: starten", None, "anzeigen"),
+    "mirror": ("mirror", "Spiegeln", "Zeigt dasselbe wie Monitor 1", "#3b82f6", "anzeigen"),
+    "extend": ("extend", "Erweitern", "Normaler zweiter Bildschirm", "#6366f1", "anzeigen"),
+    "camera": ("camera", "Kamera", "Standard-Kamera · Pfeil: andere", "#ef4444", "anzeigen"),
+    "program": ("window", "Programm", "Ein Programm zeigen", "#a855f7", "anzeigen"),
+    "website": ("globe", "Website", "Öffnen · Pfeil: Favoriten", "#06b6d4", "anzeigen"),
+    "media": ("image", "Bild / Video", "Mediathek · Pfeil: Zuletzt", "#10b981", "anzeigen"),
+    "scenes": ("scenes", "Meine Szenen", "Bearbeiten · Pfeil: starten", "#ec4899", "anzeigen"),
     # Handy → Monitor 2: jeder Weg mit eigener Kachel
     "airplay": ("phone", "AirPlay", "iPhone & iPad · Pfeil: mehr", "#0ea5e9", "handy"),
     "handy_remote": ("qr", "Handy-Steuerung", "QR-Code scannen · Pfeil: mehr", "#8b5cf6", "handy"),

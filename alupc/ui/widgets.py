@@ -53,19 +53,38 @@ def button(text: str, icon_name: str | None = None, primary: bool = False, dange
     return b
 
 
-def page_header(title: str, subtitle: str = "") -> QWidget:
+# Symbol je Seitenkopf (automatisch nach Titel – so bekommen alle Dialoge ein einheitliches Aussehen)
+PAGE_ICONS = {"Setup": "sliders", "Meine Szenen": "scenes", "Fingerabdruck": "fingerprint", "Mediathek": "image",
+              "Handy auf Monitor 2": "phone", "Website anzeigen": "globe", "Programm auf Monitor 2": "window",
+              "Bildschirmschoner": "moon", "Quelle wählen": "plus", "Startseite anpassen": "edit",
+              "Eigene Kachel": "plus", "Fingerabdruck einrichten": "fingerprint", "Neue Szene": "scenes",
+              "Szene bearbeiten": "scenes"}
+
+
+def page_header(title: str, subtitle: str = "", icon_name: str | None = None) -> QWidget:
     w = QWidget()
-    lay = QVBoxLayout(w)
-    lay.setContentsMargins(0, 0, 0, 6)
-    lay.setSpacing(2)
+    row = QHBoxLayout(w)
+    row.setContentsMargins(0, 0, 0, 8)
+    row.setSpacing(14)
+    icon_name = icon_name or PAGE_ICONS.get(title)
+    if icon_name:
+        chip = QLabel()
+        chip.setObjectName("PageIcon")
+        chip.setFixedSize(46, 46)
+        chip.setAlignment(Qt.AlignCenter)
+        chip.setPixmap(icons.pixmap(icon_name, "#ffffff", 24))
+        row.addWidget(chip, 0, Qt.AlignTop)
+    col = QVBoxLayout()
+    col.setSpacing(2)
     t = QLabel(title)
     t.setObjectName("PageTitle")
-    lay.addWidget(t)
+    col.addWidget(t)
     if subtitle:
         s = QLabel(subtitle)
         s.setObjectName("PageSubtitle")
         s.setWordWrap(True)
-        lay.addWidget(s)
+        col.addWidget(s)
+    row.addLayout(col, 1)
     return w
 
 
@@ -186,28 +205,38 @@ class Tile(HoverMixin, QAbstractButton):
             p.fillPath(rounded(r, 16), soft)
         else:
             p.fillPath(rounded(r, 16), bg)
+        if self.active or self.alert:  # Leuchtrand
+            for i, a in enumerate((0.22, 0.12, 0.06)):
+                glow = QColor(accent)
+                glow.setAlphaF(a)
+                p.setPen(QPen(glow, 2 + i * 2))
+                p.setBrush(Qt.NoBrush)
+                p.drawPath(rounded(r.adjusted(-i, -i, i, i), 16 + i))
         border = QColor(accent) if (self.active or self.alert) else t.mix(t.border, t.muted, 0.35 * self._hover)
-        p.setPen(QPen(border, 2 if (self.active or self.alert) else 1))
+        p.setPen(QPen(border, 1.6 if (self.active or self.alert) else 1))
+        p.setBrush(Qt.NoBrush)
         p.drawPath(rounded(r, 16))
         if self.isDown():
             p.fillPath(rounded(r, 16), QColor(0, 0, 0, 30))
 
-        # Symbol links im Quadrat
+        # Symbol links: farbiger Verlauf (aktiv kräftiger), weißes Symbol
         pad = 14
         chip = QRectF(r.left() + pad, r.center().y() - 22, 44, 44)
         p.setPen(Qt.NoPen)
-        if self.active or self.alert:  # aktiv: kräftiger Verlauf
-            grad = QLinearGradient(chip.topLeft(), chip.bottomRight())
-            grad.setColorAt(0, accent.lighter(118))
-            grad.setColorAt(1, accent.darker(108))
-            p.setBrush(grad)
-        else:
-            chip_col = QColor(accent)
-            chip_col.setAlphaF((0.18 if t.dark else 0.12) + 0.08 * self._hover)
-            p.setBrush(chip_col)
-        p.drawRoundedRect(chip, 12, 12)
-        icon_col = "#ffffff" if (self.active or self.alert) else accent.name()
-        icons.paint(p, self.icon_name, chip.adjusted(11, 11, -11, -11), icon_col, 2.0)
+        grad = QLinearGradient(chip.topLeft(), chip.bottomRight())
+        top, bottom = QColor(accent.lighter(125)), QColor(accent.darker(112))
+        if not (self.active or self.alert):
+            strength = 0.82 + 0.18 * self._hover
+            top.setAlphaF(strength)
+            bottom.setAlphaF(strength)
+        grad.setColorAt(0, top)
+        grad.setColorAt(1, bottom)
+        p.setBrush(grad)
+        p.drawRoundedRect(chip, 13, 13)
+        shine = QColor(255, 255, 255, 40)  # leichter Glanz oben
+        p.setBrush(shine)
+        p.drawRoundedRect(QRectF(chip.left() + 3, chip.top() + 2, chip.width() - 6, chip.height() * 0.42), 10, 10)
+        icons.paint(p, self.icon_name, chip.adjusted(11, 11, -11, -11), "#ffffff", 2.1)
 
         right = r.right() - pad
         # Menü-Pfeil rechts mittig
@@ -272,19 +301,103 @@ class NavButton(HoverMixin, QAbstractButton):
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(8, 2, -8, -2)
         if self.isChecked():
-            soft = QColor(t.accent)
-            soft.setAlphaF(0.18)
-            p.fillPath(rounded(r, 10), soft)
-            p.fillPath(rounded(QRectF(r.left(), r.top() + 10, 3.5, r.height() - 20), 1.75), QColor(t.accent))
+            accent = QColor(t.accent)
+            grad = QLinearGradient(r.topLeft(), r.bottomRight())
+            grad.setColorAt(0, accent.lighter(112))
+            grad.setColorAt(1, accent.darker(108))
+            glow = QColor(accent)
+            glow.setAlphaF(0.25)
+            p.fillPath(rounded(r.adjusted(0, 2, 0, 3), 12), glow)
+            p.fillPath(rounded(r, 12), grad)
         elif self._hover > 0:
             h = QColor(t.text)
-            h.setAlphaF(0.06 * self._hover)
-            p.fillPath(rounded(r, 10), h)
-        col = t.accent if self.isChecked() else t.muted
+            h.setAlphaF(0.07 * self._hover)
+            p.fillPath(rounded(r, 12), h)
+        col = "#ffffff" if self.isChecked() else t.muted
         icons.paint(p, self.icon_name, QRectF(r.left() + 14, r.center().y() - 10, 20, 20), col, 2.0)
-        p.setPen(QColor(t.text if self.isChecked() else t.muted))
+        p.setPen(QColor("#ffffff" if self.isChecked() else t.text))
         p.setFont(font(10.5, QFont.DemiBold if self.isChecked() else QFont.Medium))
         p.drawText(r.adjusted(46, 0, 0, 0), Qt.AlignLeft | Qt.AlignVCenter, self.text_)
+        p.end()
+
+
+class MonitorCard(QWidget):
+    """Seitenleiste unten: Monitor 2 als kleines Live-Bild mit Name und Zustand – auf jeder Seite sichtbar."""
+
+    clicked = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.image = None
+        self.name = ""
+        self.detail = ""
+        self.state = ("", "#22c55e")
+        self.icon_name = "monitor"
+        self.setFixedHeight(166)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip("Monitor 2 – Klick: zur Startseite")
+
+    def set(self, name: str, detail: str, state: tuple[str, str], icon_name: str):
+        self.name, self.detail, self.state, self.icon_name = name, detail, state, icon_name
+        self.update()
+
+    def set_image(self, image):
+        self.image = image if image is not None and not image.isNull() else None
+        self.update()
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.clicked.emit()
+
+    def paintEvent(self, _e):
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        r = QRectF(self.rect()).adjusted(8, 0, -8, -1)
+        p.fillPath(rounded(r, 14), QColor(t.surface2))
+        p.setPen(QPen(QColor(t.border), 1))
+        p.drawPath(rounded(r, 14))
+        thumb = QRectF(r.left() + 8, r.top() + 8, r.width() - 16, (r.width() - 16) * 9 / 16)
+        path = rounded(thumb, 9)
+        p.fillPath(path, QColor("#000000" if self.image is not None else t.bg))
+        if self.image is not None:
+            p.save()
+            p.setClipPath(path)
+            iw, ih = self.image.width(), self.image.height()
+            scale = min(thumb.width() / iw, thumb.height() / ih)
+            target = QRectF(0, 0, iw * scale, ih * scale)
+            target.moveCenter(thumb.center())
+            p.drawImage(target, self.image)
+            p.restore()
+        else:
+            s_ = 30
+            icons.paint(p, self.icon_name, QRectF(thumb.center().x() - s_ / 2, thumb.center().y() - s_ / 2, s_, s_),
+                        t.muted, 1.8)
+        label, color = self.state
+        if label:  # Zustand als kleines Etikett oben links im Bild
+            f = font(7, QFont.Bold)
+            p.setFont(f)
+            bw = QFontMetrics(f).horizontalAdvance(label) + 20
+            badge = QRectF(thumb.left() + 6, thumb.top() + 6, bw, 16)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(0, 0, 0, 150))
+            p.drawRoundedRect(badge, 8, 8)
+            p.setBrush(QColor(color))
+            p.drawEllipse(QPointF(badge.left() + 8, badge.center().y()), 3, 3)
+            p.setPen(QColor("#ffffff"))
+            p.drawText(badge.adjusted(14, 0, 0, 0), Qt.AlignLeft | Qt.AlignVCenter, label)
+        y = thumb.bottom() + 6
+        p.setPen(QColor(t.text))
+        tf = font(9.5, QFont.DemiBold)
+        p.setFont(tf)
+        p.drawText(QRectF(r.left() + 10, y, r.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter,
+                   QFontMetrics(tf).elidedText(self.name, Qt.ElideRight, int(r.width() - 20)))
+        p.setPen(QColor(t.muted))
+        sf = font(8)
+        p.setFont(sf)
+        p.drawText(QRectF(r.left() + 10, y + 17, r.width() - 20, 16), Qt.AlignLeft | Qt.AlignVCenter,
+                   QFontMetrics(sf).elidedText(self.detail, Qt.ElideRight, int(r.width() - 20)))
         p.end()
 
 
