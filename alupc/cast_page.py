@@ -11,7 +11,7 @@ PAGE = r"""<!doctype html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#0b1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -30,7 +30,8 @@ PAGE = r"""<!doctype html>
           --nav:rgba(255,255,255,.86); }
 }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html, body { margin:0; }
+html, body { margin:0; touch-action:manipulation; }  /* kein Doppeltipp-Zoom */
+button, .btn, nav, .card { touch-action:manipulation; }
 body { font:16px/1.4 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif; color:var(--text); min-height:100vh;
        background:radial-gradient(120% 60% at 50% -10%, rgba(99,102,241,.35), transparent 60%), var(--bg);
        padding:0 14px calc(96px + env(safe-area-inset-bottom)); -webkit-user-select:none; user-select:none; }
@@ -348,6 +349,10 @@ nav button.sel { background:var(--on); color:#fff; }
 <div class="toast" id="toast"></div>
 
 <script>
+// iOS ignoriert user-scalable=no: Seite darf nicht per Zwei-Finger- oder Doppeltipp-Zoom „wegrutschen“
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend'])
+  document.addEventListener(ev, e => e.preventDefault(), {passive: false});
+document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, {passive: false});
 const params = new URLSearchParams(location.search);
 const store = {  // privater Modus: Speicher kann fehlen → dann eben nur für diese Seite merken
   get(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } },

@@ -103,7 +103,7 @@ DEFAULTS: dict = {
              # gespeicherte Zeichnungen und zu welchem Inhalt sie gehören (bleiben über Neustarts)
              "strokes": [], "strokes_for": ""},
     # iPhone → Monitor 2 per AirPlay (UxPlay); leerer Pfad = automatisch suchen
-    "handy": {"airplay_name": "AluPC", "pin": "", "uxplay_path": "", "setup_done": False},
+    "handy": {"airplay_name": "AluPC", "pin": "", "uxplay_path": "", "setup_done": False, "airplay_idle": "bereit"},
     # AluCast (Handy per Browser): Anschluss, Zugangscode, beim Start von AluPC mitstarten
     "cast": {"port": 8765, "code": "", "autostart": False, "ip": "",
              # Was Handys dürfen: Fotos/Videos/Links/Text senden, Monitor 2 fernsteuern, Live-Bild sehen, Laser

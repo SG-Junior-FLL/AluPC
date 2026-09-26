@@ -2456,3 +2456,29 @@ def test_small_window_and_same_font(env):
     pump(20)
     assert not window.compact and window.setup.nav.width() == 230
     window._go(0)
+
+
+# ---------------------------------------------------------------- 0.25: AirPlay ohne iPhone
+def test_airplay_idle_styles(env):
+    """Ohne iPhone: „AirPlay bereit“ (fast nur Schwarz), ganz schwarz oder die ausführliche Anleitung."""
+    from PySide6.QtWidgets import QWidget
+
+    from alupc.sources import AIRPLAY_IDLE, paint_airplay_waiting
+
+    class View(QWidget):
+        style = "bereit"
+
+        def paintEvent(self, _e):
+            paint_airplay_waiting(self, "AluPC", "1234", self.style)
+
+    v = View()
+    v.resize(640, 360)
+    dark = {}
+    for style in AIRPLAY_IDLE:
+        v.style = style
+        img = v.grab().toImage()
+        px = [img.pixelColor(x, y) for x in range(0, 640, 4) for y in range(0, 360, 4)]
+        dark[style] = sum(c.lightness() < 8 for c in px) / len(px)
+    assert dark["schwarz"] == 1.0
+    assert 0.9 < dark["bereit"] < 1.0  # etwas Text und Symbol, sonst schwarz
+    assert dark["anleitung"] < 0.5  # farbiger Hintergrund mit Anleitung

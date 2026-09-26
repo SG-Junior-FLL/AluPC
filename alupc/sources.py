@@ -646,7 +646,8 @@ class AirPlaySource(SinkView):
         self._convert()
         if self._image is not None or not getattr(self, "_waiting", False):
             return super().paintEvent(event)
-        paint_airplay_waiting(self, self.server.settings()["airplay_name"], self.server.pin_code)
+        s = self.server.settings()
+        paint_airplay_waiting(self, s["airplay_name"], self.server.pin_code, s.get("airplay_idle", "bereit"))
 
     def set_message(self, text: str) -> None:
         self._waiting = False
@@ -706,13 +707,51 @@ class AirPlaySource(SinkView):
             self.server.release()
 
 
-def paint_airplay_waiting(widget, name: str, code: str) -> None:
-    """Warte-Bildschirm für AirPlay auf Monitor 2: groß, gut lesbar aus der Entfernung."""
+AIRPLAY_IDLE = {"bereit": "„AirPlay bereit“", "schwarz": "Schwarz", "anleitung": "Anleitung"}
+
+
+def paint_airplay_waiting(widget, name: str, code: str, style: str = "bereit") -> None:
+    """Monitor 2, solange kein iPhone verbunden ist: „AirPlay bereit“ (klein, ruhig), schwarz oder Anleitung."""
     from PySide6.QtGui import QLinearGradient, QPen
 
     w, h = widget.width(), widget.height()
     p = QPainter(widget)
     p.setRenderHint(QPainter.Antialiasing)
+    if style == "schwarz":
+        p.fillRect(widget.rect(), QColor("#000000"))
+        p.end()
+        return
+    if style != "anleitung":
+        p.fillRect(widget.rect(), QColor("#000000"))
+        unit = max(6, min(w, h) // 54)
+        # AirPlay-Symbol: Bildschirm mit Dreieck
+        sw, sh = unit * 7, unit * 4.6
+        sx, sy = (w - sw) / 2, h / 2 - unit * 6
+        p.setPen(QPen(QColor("#6b7280"), max(2, unit // 3)))
+        p.setBrush(Qt.NoBrush)
+        p.drawRoundedRect(QRectF(sx, sy, sw, sh), unit * 0.5, unit * 0.5)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#6b7280"))
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QPolygonF
+        tip = sy + sh - unit * 1.2
+        p.drawPolygon(QPolygonF([QPointF(w / 2, tip), QPointF(w / 2 - unit * 2, tip + unit * 2.6),
+                                 QPointF(w / 2 + unit * 2, tip + unit * 2.6)]))
+
+        def line(y, size, value, color, bold=False):
+            font = QFont()
+            font.setPixelSize(int(size))
+            font.setBold(bold)
+            p.setFont(font)
+            p.setPen(QColor(color))
+            p.drawText(QRectF(unit, y, w - 2 * unit, size * 1.6), Qt.AlignCenter, value)
+
+        y = tip + unit * 3.6
+        line(y, unit * 1.8, "AirPlay bereit", "#d1d5db", True)
+        y += unit * 3
+        line(y, unit * 1.1, name + (f"  ·  Code {code}" if code else ""), "#6b7280")
+        p.end()
+        return
     grad = QLinearGradient(0, 0, w, h)
     grad.setColorAt(0, QColor("#0b1020"))
     grad.setColorAt(1, QColor("#1b2346"))

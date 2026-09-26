@@ -645,6 +645,13 @@ class SetupPage(QWidget):
         name.setToolTip("So heißt der PC in der iPhone-Liste „Bildschirmsynchronisierung“")
         borderless = QCheckBox("Randlos im Vollbild")
         borderless.setChecked(bool(s.get("airplay_borderless", True)))
+        from ..sources import AIRPLAY_IDLE
+
+        idle = QComboBox()
+        for key, label in AIRPLAY_IDLE.items():
+            idle.addItem(label, key)
+        idle.setCurrentIndex(max(0, idle.findData(s.get("airplay_idle", "bereit"))))
+        idle.setToolTip("Was Monitor 2 zeigt, solange kein iPhone verbunden ist")
         from .handy_page import link_button
 
         more = link_button("Einrichten …", lambda: self.window().open_handy_window()
@@ -652,12 +659,18 @@ class SetupPage(QWidget):
 
         def save(*_):
             self.config["handy"] = {**self.config["handy"], "airplay_name": name.text().strip() or "AluPC",
-                                    "airplay_borderless": borderless.isChecked()}
+                                    "airplay_borderless": borderless.isChecked(),
+                                    "airplay_idle": idle.currentData()}
+            src = getattr(self.controller.output, "content", None)
+            if src is not None and hasattr(src, "_show_waiting"):
+                src.update()  # Warte-Bild sofort neu zeichnen
             self.controller.airplay.restart_if_changed()  # läuft es gerade → mit neuem Namen neu starten
 
         name.editingFinished.connect(save)
         borderless.toggled.connect(save)
+        idle.currentIndexChanged.connect(save)
         form.addRow("Name am iPhone:", name)
+        form.addRow("Ohne iPhone:", idle)
         form.addRow("", borderless)
         form.addRow("", more)
         return box
