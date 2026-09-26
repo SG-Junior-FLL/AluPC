@@ -473,13 +473,9 @@ class Controller(QObject):
             windows = self.windows.list_windows()
         except Exception:  # noqa: BLE001
             return False
-        for w in windows:
-            app = (w.app or "").lower()
-            if app in ("uxplay-windows", "uxplay") and w.title != "uxplay-windows" and "log" not in w.title.lower():
-                return True
-            if any(t and t in w.title for t in titles):
-                return True
-        return False
+        from .handy import is_iphone_window
+
+        return any(is_iphone_window(w.title, w.app, titles) for w in windows)
 
     def _airplay_bg_poll(self) -> None:
         if not self.airplay.running() or self._airplay_shown():
@@ -758,11 +754,11 @@ class Controller(QObject):
                 windows = self.windows.list_windows()
             except Exception:  # noqa: BLE001
                 return
+            from .handy import is_iphone_window
+
             present = set()
             for w in windows:
-                own_app = (w.app or "").lower() in apps and w.title != "uxplay-windows" \
-                    and "log" not in w.title.lower()  # nicht dessen Einstellungs-/Protokollfenster
-                if own_app or any(t in w.title for t in titles):
+                if is_iphone_window(w.title, w.app, titles):
                     present.add(w.id)
                     if w.id not in placed:
                         try:

@@ -161,6 +161,27 @@ def _living_uxplay() -> bool:
     return any(line.strip() and not line.strip().startswith("Z") for line in out.splitlines())
 
 
+# Programme, deren Fenster NIE das iPhone-Bild sind (ihr Titel kann „AluPC“ oder „UxPlay“ enthalten)
+NOT_IPHONE_APPS = {"firefox", "chrome", "chromium", "chromium-browser", "google-chrome", "msedge", "brave",
+                   "opera", "vivaldi", "explorer", "code", "notepad", "notepad++", "kate", "dolphin", "konsole",
+                   "alupc", "python", "pythonw", "navigator", "thunderbird", "discord", "teams", "obs64", "obs"}
+
+
+def is_iphone_window(title: str, app: str, titles) -> bool:
+    """Ist das UxPlays Fenster mit dem iPhone-Bild? Nur das Fenster des UxPlay-Programms selbst oder ein Fenster,
+    dessen Titel GENAU so heißt – nicht jeder Browser-Tab, in dessen Titel „AluPC“ vorkommt."""
+    app = (app or "").lower()
+    if app.endswith(".exe"):
+        app = app[:-4]
+    title = (title or "").replace("\u00a0", " ").strip()
+    if app in NOT_IPHONE_APPS:
+        return False
+    if app in ("uxplay-windows", "uxplay"):
+        low = title.lower()
+        return title != "uxplay-windows" and "log" not in low and "einstell" not in low and "setting" not in low
+    return any(title == (t or "").replace("\u00a0", " ").strip() for t in titles if t)
+
+
 # Zeilen in UxPlays Ausgabe, wenn sich ein iPhone verbindet (Versionen 1.6x–1.7x, uxplay-windows)
 CONNECT_HINTS = ("open connections: 1", "accepted ipv4 client", "accepted ipv6 client", "client connected",
                  "raop_rtp_mirror starting", "begin streaming to gstreamer")

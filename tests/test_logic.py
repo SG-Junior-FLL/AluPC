@@ -772,3 +772,31 @@ def test_cast_address_choice(monkeypatch):
     assert cmd[0] == "powershell" and "-Verb RunAs" in cmd[-1]
     assert "localport=8765-8774" in cmd[-1] and "localport=7000,7001,7100" in cmd[-1]
     assert "profile=private,domain" in cmd[-1]
+
+
+def test_iphone_window_not_browser():
+    """Nur UxPlays Fenster ist das iPhone-Bild – kein Browser-Tab mit „AluPC“ oder „UxPlay“ im Titel."""
+    from alupc.handy import is_iphone_window
+
+    titles = ["AluPC", "AluPC", "UxPlay", "AirPlay Video"]
+    # darf NICHT auf Monitor 2 wandern
+    for title, app in [("AluCast – AluPC-Fernbedienung — Mozilla Firefox", "firefox"),
+                       ("GitHub - SG-Junior-FLL/AluPC", "msedge.exe"),
+                       ("AluPC", "chrome"),  # auch bei genau passendem Titel: Browser nie
+                       ("UxPlay – Wikipedia", "Navigator"),
+                       ("Releases · AluPC", ""),
+                       ("uxplay-windows", "uxplay-windows"),  # dessen Einstellungsfenster
+                       ("uxplay-windows log", "uxplay-windows"),
+                       ("AluPC", "alupc")]:  # AluPCs eigene Fenster
+        assert not is_iphone_window(title, app, titles), (title, app)
+    # das echte iPhone-Fenster
+    for title, app in [("AluPC", ""), ("AluPC", "uxplay"), ("AluPC\u00a0", "gst"),
+                       ("Direct3D11 renderer", "uxplay-windows"), ("UxPlay", "")]:
+        assert is_iphone_window(title, app, titles), (title, app)
+
+
+def test_kwin_follow_script_exact_match():
+    from alupc.platform.linux_windows import build_follow_script
+
+    js = build_follow_script(["AluPC", "UxPlay"], "HDMI-1", (1920, 0, 1280, 720))
+    assert "indexOf(titles[t])" not in js and "cap === " in js and "resourceClass" in js

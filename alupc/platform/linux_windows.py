@@ -55,9 +55,14 @@ KWIN_FOLLOW_SCRIPT = r"""
     var targetName = %(name)s;
     var rect = %(rect)s;
     function matches(w) {
-        if (!w || !w.caption) { return false; }
+        // nur UxPlays eigenes Fenster (Programmklasse) oder GENAU dieser Titel – kein Browser-Tab mit „AluPC“
+        if (!w) { return false; }
+        var cls = String(w.resourceClass || "").toLowerCase();
+        if (cls.indexOf("uxplay") >= 0) { return true; }
+        if (!w.caption) { return false; }
+        var cap = String(w.caption).replace(/\u00a0/g, " ").trim();
         for (var t = 0; t < titles.length; t++) {
-            if (w.caption.indexOf(titles[t]) >= 0) { return true; }
+            if (cap === String(titles[t]).replace(/\u00a0/g, " ").trim()) { return true; }
         }
         return false;
     }

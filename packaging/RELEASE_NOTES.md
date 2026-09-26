@@ -8,6 +8,13 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.36.0)
+- **Behoben: Statt „AirPlay bereit“ erschien manchmal ein offenes Browserfenster auf Monitor 2.** AluPC hat das
+  iPhone-Fenster über den Titel gesucht – und jedes Fenster genommen, in dessen Titel „AluPC“ vorkam (z. B. die
+  Handy-Steuerung im Browser oder die GitHub-Seite). Jetzt zählt nur noch UxPlays eigenes Fenster oder ein Fenster,
+  das **genau** so heißt; Browser, Explorer, Editoren und AluPC selbst sind ausgeschlossen – auf Windows, unter
+  Linux und im KWin-Skript (KDE).
+
 ### Neu in dieser Version (0.35.0)
 **Flüssig und sparsam – auch auf schwachen PCs**
 - Animierte Seiten zeichnen bis zu **8× schneller**: Leuchtschrift, Schriftgrößen und unbewegte Hintergründe
