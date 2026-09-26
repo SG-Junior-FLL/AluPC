@@ -690,7 +690,7 @@ def test_airplay_setup_script_and_errors():
     from alupc.platform.linux_windows import build_follow_script
 
     script = handy.linux_setup_script(["uxplay", "gstreamer1.0-libav"], True, 8765)
-    assert "apt-get install -y uxplay gstreamer1.0-libav" in script
+    assert "apt-get -o DPkg::Lock::Timeout=600 install -y uxplay gstreamer1.0-libav" in script
     assert "systemctl enable --now avahi-daemon" in script
     assert "ufw allow 7000:7001/tcp" in script and "ufw allow 8765/tcp" in script and "ufw allow 5353/udp" in script
     assert handy.linux_setup_script([], False, None) == "set -e\nexport DEBIAN_FRONTEND=noninteractive"

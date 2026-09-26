@@ -333,7 +333,8 @@ class FprintdBackend(FingerprintBackend):
             raise RuntimeError("Automatisch installieren geht nur unter Ubuntu/Kubuntu. Bitte selbst installieren: "
                                + " ".join(packages))
         names = " ".join(p for p in packages if p in PACKAGES)  # nur bekannte Namen in die Befehlszeile
-        script = f"apt-get update -q || true; apt-get install -y {names}"
+        lock = "-o DPkg::Lock::Timeout=600"  # laufen gerade Updates: warten statt „Sperrung nicht möglich“
+        script = f"apt-get {lock} update -q || true; apt-get {lock} install -y {names}"
         proc = subprocess.run(["pkexec", "env", "DEBIAN_FRONTEND=noninteractive", "sh", "-c", script],
                               capture_output=True, text=True, timeout=900)
         if proc.returncode == 126 or proc.returncode == 127:

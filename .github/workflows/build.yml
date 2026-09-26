@@ -74,7 +74,9 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "v=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT";
           else echo "v=$(python -c 'import alupc; print(alupc.__version__)')" >> "$GITHUB_OUTPUT"; fi
       - name: .deb-Paket bauen
-        run: packaging/linux/build_deb.sh "${{ steps.version.outputs.v }}"
+        run: |
+          packaging/linux/build_deb.sh "${{ steps.version.outputs.v }}"
+          cp packaging/linux/AluPC-installieren.sh dist/
       - name: .deb installieren und starten (Test)
         run: |
           sudo apt-get install -y "./dist/alupc_${{ steps.version.outputs.v }}_amd64.deb"
@@ -91,6 +93,18 @@ jobs:
               echo "::error title=UxPlay startet nicht aus AluPC::$line"; exit 1
             fi
           fi
+      - name: Installationsskript – wartet, wenn die Paketverwaltung gesperrt ist („Sperrung nicht möglich“)
+        run: |
+          cp dist/alupc_*_amd64.deb dist/AluPC-installieren.sh "$RUNNER_TEMP/"
+          # anderes Programm hält 15 s die dpkg-Sperre (wie Discover/automatische Updates)
+          sudo bash -c 'exec 9>/var/lib/dpkg/lock-frontend; sleep 15' &
+          sleep 1
+          start=$(date +%s)
+          sudo bash "$RUNNER_TEMP/AluPC-installieren.sh" < /dev/null | tee "$RUNNER_TEMP/inst.txt"
+          took=$(( $(date +%s) - start ))
+          echo "::notice title=Installationsskript::gewartet ${took} s · $(tail -1 "$RUNNER_TEMP/inst.txt")"
+          grep -q "AluPC ist installiert" "$RUNNER_TEMP/inst.txt"
+          test "$took" -ge 10
       - name: Spiegel-Probe unter X11 (Xvfb, echtes Bildschirmaufnehmen)
         continue-on-error: true
         run: |
@@ -127,6 +141,7 @@ jobs:
           path: |
             dist/alupc_*_amd64.deb
             dist/AluPC-linux-x86_64-*.tar.gz
+            dist/AluPC-installieren.sh
 
   build-windows:
     runs-on: windows-latest

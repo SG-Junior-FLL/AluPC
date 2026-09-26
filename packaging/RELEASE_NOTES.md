@@ -8,6 +8,16 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.39.0)
+**Linux installieren: „Sperrung nicht möglich“**
+- Die Meldung kommt von der Paketverwaltung: Ein anderes Programm (Discover, automatische Updates) installiert
+  gerade. Neu im Release: **AluPC-installieren.sh** – zusammen mit der `.deb` in einen Ordner laden, dann
+  Rechtsklick → „Als Programm ausführen“ (oder im Terminal `bash AluPC-installieren.sh`). Es wartet, bis die
+  Paketverwaltung frei ist (bis 15 Min.), repariert eine abgebrochene Installation und installiert AluPC.
+  Ohne .deb daneben lädt es die neueste selbst.
+- Auch AluPCs eigene Einrichtung (UxPlay, Fingerabdruck) wartet jetzt auf die Sperre statt abzubrechen.
+- Geprüft: mit gehaltener Sperre wartet das Skript und installiert danach (lokal mit 0.38.0 und in der CI).
+
 ### Neu in dieser Version (0.38.0)
 - **Linux: AirPlay „UxPlay hat sich beendet, Exit-Code 127“ behoben.** Die fertige Linux-Version gab gestarteten
   Programmen ihren eigenen Bibliotheksordner mit (LD_LIBRARY_PATH) – UxPlay lud dadurch AluPCs ältere GLib und

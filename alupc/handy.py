@@ -652,7 +652,9 @@ def random_pin() -> str:
 
 def install_command(program: str) -> list[str]:
     """Kubuntu: Paket per pkexec installieren (Passwortabfrage)."""
-    return ["pkexec", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", *APT_PACKAGES[program]]
+    # Lock::Timeout: laufen gerade Updates (Discover …), warten statt „Sperrung nicht möglich“
+    return ["pkexec", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "-o", "DPkg::Lock::Timeout=600", "install",
+            "-y", *APT_PACKAGES[program]]
 
 
 APT_PACKAGES = {"uxplay": ["uxplay", "gstreamer1.0-plugins-good", "gstreamer1.0-plugins-bad", "gstreamer1.0-libav",
@@ -710,7 +712,7 @@ def linux_setup_script(packages: list[str], avahi: bool, firewall_port: int | No
     """Ein Skript für EINE Passwortabfrage: Pakete, avahi-Dienst, Firewall (nur feste Werte, keine Eingaben)."""
     lines = ["set -e", "export DEBIAN_FRONTEND=noninteractive"]
     if packages:
-        lines.append("apt-get install -y " + " ".join(packages))
+        lines.append("apt-get -o DPkg::Lock::Timeout=600 install -y " + " ".join(packages))
     if avahi:
         lines.append("systemctl enable --now avahi-daemon")
     if firewall_port:
