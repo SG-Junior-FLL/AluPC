@@ -411,8 +411,10 @@ class Controller(QObject):
         self._handy_window = "airplay"
         self._set_desktop("iPhone/iPad (AirPlay, eigenes Fenster)")
         name = self.airplay.settings()["airplay_name"]
-        self.message.emit(f"AirPlay bereit: am iPhone/iPad „Bildschirmsynchronisierung“ → „{name}“ wählen.")
-        self._place_handy_window(name, "UxPlay")
+        code = f" · Code {self.airplay.pin_code}" if self.airplay.pin_code else ""
+        self.message.emit(f"AirPlay bereit: am iPhone/iPad „Bildschirmsynchronisierung“ → „{name}“ wählen.{code}")
+        # uxplay-windows: Videofenster gehört zum Programm „uxplay-windows“ (Titel je nach Version verschieden)
+        self._place_handy_window(name, "UxPlay", "AirPlay Video", apps=("uxplay-windows",))
 
     def _airplay_failed(self, reason: str) -> None:
         self.message.emit(f"AirPlay läuft nicht: {reason}")
@@ -573,7 +575,7 @@ class Controller(QObject):
                 self.run_command(cmd)
         self._cast_snapshot()
 
-    def _place_handy_window(self, *titles: str) -> None:
+    def _place_handy_window(self, *titles: str, apps: tuple[str, ...] = ()) -> None:
         """iPhone-Fenster (UxPlay) auf Monitor 2 legen – dauerhaft: auch wenn es erst
         viel später erscheint (UxPlay 1.68 öffnet sein Fenster erst, wenn sich das iPhone verbindet) oder nach
         einer neuen Verbindung neu aufgeht."""
@@ -603,7 +605,9 @@ class Controller(QObject):
                 return
             present = set()
             for w in windows:
-                if any(t in w.title for t in titles):
+                own_app = (w.app or "").lower() in apps and w.title != "uxplay-windows" \
+                    and "log" not in w.title.lower()  # nicht dessen Einstellungs-/Protokollfenster
+                if own_app or any(t in w.title for t in titles):
                     present.add(w.id)
                     if w.id not in placed:
                         try:

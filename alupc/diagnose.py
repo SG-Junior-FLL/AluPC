@@ -83,8 +83,18 @@ def report(controller, probe: bool = True) -> str:
     lines.append("")
     lines.append("== AirPlay (iPhone) ==")
     ux = controller.airplay.binary()
-    lines.append(f"  UxPlay: {ux or 'NICHT installiert'}"
-                 + (f" · {_run([ux, '-v']).splitlines()[0] if _run([ux, '-v']) else ''}" if ux else ""))
+    if handy.is_uxplay_windows(ux):
+        lines.append(f"  UxPlay: {ux} (uxplay-windows, Community-Paket, Bild im eigenen Fenster)")
+        lines.append(f"  Optionen-Datei: {handy.uxplay_windows_arguments_file()}"
+                     + (" · ACHTUNG: Maschinen-Datei hat Vorrang" if handy.uxplay_windows_machine_file().exists()
+                        else ""))
+        tail = handy.uxplay_windows_log_tail(6)
+        if tail:
+            lines.append("  Protokoll: " + " | ".join(tail))
+    else:
+        version = _run([ux, "-v"]) if ux else ""
+        lines.append(f"  UxPlay: {ux or 'NICHT installiert'}"
+                     + (f" · {version.splitlines()[0]}" if version else ""))
     if ux:
         lines.append(f"  Bild direkt in AluPC (ab 1.73): {'ja' if handy.supports_vrtp(ux) else 'nein, eigenes Fenster'}")
     if sys.platform.startswith("win"):

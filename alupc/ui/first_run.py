@@ -222,7 +222,7 @@ class FirstRunDialog(QDialog):
     def _step_install(self):
         plan = handy.setup_plan(self.config)
         if not plan:
-            missing = [] if handy.find_program("uxplay", "", handy.WINDOWS_UXPLAY if IS_WINDOWS else []) else ["UxPlay"]
+            missing = [] if self.controller.airplay.binary() else ["UxPlay"]
             if missing and not (handy.can_install() or handy.can_winget()):
                 self._next("warn", "Automatisch installieren geht hier nicht – fehlt: " + ", ".join(missing))
             else:

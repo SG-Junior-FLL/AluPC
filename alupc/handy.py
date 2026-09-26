@@ -6,8 +6,8 @@ leitet das Bild dann als Videostrom an AluPC weiter und AluPC zeigt es als ganz 
 zeigen das Bild in einem eigenen Fenster – das legt AluPC im Vollbild auf Monitor 2.
 
 
-Beide Programme werden nicht mitgeliefert; AluPC findet sie (bzw. installiert sie unter Kubuntu nach
-Rückfrage mit apt).
+UxPlay wird nicht mitgeliefert: Kubuntu installiert es per apt; unter Windows installiert AluPC per winget
+„uxplay-windows“ (Community-Paket mit eingebautem UxPlay) und steuert es über dessen arguments.txt.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from .config import config_dir
 
 IS_WINDOWS = sys.platform.startswith("win")
 def bundled_uxplay_dir() -> Path | None:
-    """Windows-Installer: UxPlay liegt mit seinen GStreamer-Bibliotheken im Programmordner (uxplay\)."""
+    """Windows-Installer: UxPlay liegt mit seinen GStreamer-Bibliotheken im Programmordner (uxplay/)."""
     base = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
     folder = base / "uxplay"
     return folder if (folder / "bin" / "uxplay.exe").is_file() else None
@@ -46,6 +46,77 @@ def uxplay_environment(uxplay: str) -> dict[str, str]:
     if scanner.is_file():
         env["GST_PLUGIN_SCANNER"] = str(scanner)
     return env
+
+
+# „uxplay-windows“ (Community-Paket von leapbtw, winget „leapbtw.uxplay“): Tray-Programm mit eingebautem UxPlay.
+# Es liest seine UxPlay-Optionen aus arguments.txt – darüber steuert AluPC Name, Code und Ports.
+UXPLAY_WINDOWS_EXE = "uxplay-windows.exe"
+
+
+def uxplay_windows_candidates() -> list[str]:
+    env = os.environ
+    bases = [env.get("ProgramFiles", r"C:\Program Files"), env.get("ProgramW6432", ""),
+             env.get("ProgramFiles(x86)", ""), os.path.join(env.get("LOCALAPPDATA", ""), "Programs")]
+    return [os.path.join(b, "uxplay-windows", UXPLAY_WINDOWS_EXE) for b in bases if b]
+
+
+def find_uxplay_windows(configured: str = "") -> str | None:
+    if configured and configured.lower().endswith(UXPLAY_WINDOWS_EXE) and Path(configured).is_file():
+        return configured
+    if not IS_WINDOWS:
+        return None
+    for candidate in uxplay_windows_candidates():
+        if Path(candidate).is_file():
+            return candidate
+    return None
+
+
+def is_uxplay_windows(path: str | None) -> bool:
+    return bool(path) and re.split(r"[\\/]", path)[-1].lower() == UXPLAY_WINDOWS_EXE
+
+
+def uxplay_windows_arguments_file() -> Path:
+    """Die Datei, aus der uxplay-windows seine Optionen liest (Benutzer-Datei unter %APPDATA%)."""
+    return Path(os.environ.get("APPDATA", str(Path.home()))) / "leapbtw" / "uxplay-windows" / "arguments.txt"
+
+
+def uxplay_windows_machine_file() -> Path:
+    """Liegt diese Datei vor, hat sie bei uxplay-windows Vorrang (nur mit Adminrechten änderbar)."""
+    return Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "uxplay-windows" / "arguments.txt"
+
+
+def uxplay_windows_command_line(args: list[str]) -> str:
+    """Optionen als eine Zeile für arguments.txt (uxplay-windows zerlegt sie wie eine Kommandozeile)."""
+    out = []
+    for a in args:
+        a = a.replace('"', "").replace("%", "")  # %…% würde uxplay-windows als Umgebungsvariable ersetzen
+        out.append(f'"{a}"' if (not a or " " in a) else a)
+    return " ".join(out)
+
+
+def uxplay_windows_log_tail(lines: int = 15) -> list[str]:
+    """Letzte Zeilen aus dem neuesten Protokoll von uxplay-windows (für verständliche Fehlermeldungen)."""
+    folder = Path(os.environ.get("LOCALAPPDATA", "")) / "uxplay-windows" / "logs"
+    try:
+        logs = sorted(folder.glob("uxplay-*.log"), key=lambda f: f.stat().st_mtime)
+        if not logs:
+            return []
+        text = logs[-1].read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    return [line.strip() for line in text.splitlines() if line.strip()][-lines:]
+
+
+def kill_uxplay_windows() -> None:
+    """Laufendes uxplay-windows (z. B. aus dessen eigenem Autostart) beenden – es darf nur einen AirPlay-Empfänger geben."""
+    if not IS_WINDOWS:
+        return
+    for exe in (UXPLAY_WINDOWS_EXE, "uxplay-bluetooth-beacon.exe"):
+        try:
+            subprocess.run(["taskkill", "/F", "/T", "/IM", exe], capture_output=True, timeout=10,
+                           creationflags=0x08000000)
+        except (OSError, subprocess.SubprocessError):
+            pass
 
 
 WINDOWS_UXPLAY = [r"C:\msys64\ucrt64\bin\uxplay.exe", r"C:\msys64\mingw64\bin\uxplay.exe",
@@ -77,6 +148,8 @@ _vrtp_cache: dict[str, bool] = {}
 
 def supports_vrtp(uxplay: str) -> bool:
     """Kann diese UxPlay-Version das Bild an AluPC weiterleiten (-vrtp, ab 1.73)?"""
+    if is_uxplay_windows(uxplay):
+        return False  # Tray-Programm: „-h“ würde es starten; zeigt das Bild immer im eigenen Fenster
     if uxplay not in _vrtp_cache:
         try:
             out = subprocess.run([uxplay, "-h"], capture_output=True, text=True, timeout=8)
@@ -141,7 +214,9 @@ class AirPlayServer(QObject):
         configured = self.settings()["uxplay_path"]
         if IS_WINDOWS and bundled and not configured:
             return extra[0]  # mitgeliefertes UxPlay zuerst
-        return find_program("uxplay", configured, extra)
+        if is_uxplay_windows(configured):
+            return find_uxplay_windows(configured)
+        return find_program("uxplay", configured, extra) or find_uxplay_windows()
 
     def sdp_path(self) -> Path:
         return config_dir() / "airplay.sdp"
@@ -160,6 +235,8 @@ class AirPlayServer(QObject):
             self.users -= 1
             return "fehlt"
         s = self.settings()
+        if is_uxplay_windows(uxplay):
+            return self._start_uxplay_windows(uxplay, s)
         stream = want_stream and supports_vrtp(uxplay)
         self.port = free_udp_port() if stream else 0
         if stream:
@@ -185,10 +262,37 @@ class AirPlayServer(QObject):
         self.status.emit("läuft")
         return self.mode
 
+    def _start_uxplay_windows(self, exe: str, s: dict) -> str:
+        """Windows: uxplay-windows mit AluPCs Name/Code starten. Es zeigt das Bild in einem eigenen Fenster."""
+        pin = s.get("pin", "")
+        if pin == "zufall":  # das Protokoll von uxplay-windows liest AluPC nicht live → Code selbst würfeln
+            pin = random_pin()
+        self.pin_code = pin
+        args = ["-n", s["airplay_name"] or "AluPC", "-nh", "-p"] + (["-pin", pin] if pin else [])
+        kill_uxplay_windows()  # evtl. mit anderen Einstellungen schon laufend (eigener Autostart)
+        try:
+            target = uxplay_windows_arguments_file()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(uxplay_windows_command_line(args), encoding="utf-8")
+        except OSError as exc:
+            self.log = (self.log + [f"arguments.txt nicht schreibbar: {exc}"])[-60:]
+        if uxplay_windows_machine_file().exists():
+            self.log = (self.log + [f"Hinweis: {uxplay_windows_machine_file()} hat Vorrang – Name/Code von AluPC "
+                                    "gelten dann nicht"])[-60:]
+        self.proc = QProcess(self)
+        self.proc.finished.connect(self._finished)
+        self.proc.setWorkingDirectory(str(Path(exe).parent))
+        self.proc.start(exe, [])
+        self.port = 0
+        self.mode = "fenster"
+        self.status.emit("läuft")
+        return self.mode
+
     def _finished(self, *_):
         self.status.emit("beendet")
         if self.users > 0:  # sollte laufen, ist aber weg → Grund aus den Meldungen ableiten
-            self.failed.emit(explain_uxplay_error(self.log))
+            log = self.log + (uxplay_windows_log_tail() if is_uxplay_windows(self.binary()) else [])
+            self.failed.emit(explain_uxplay_error(log))
             self.proc = None
 
     def release(self) -> None:
@@ -199,9 +303,14 @@ class AirPlayServer(QObject):
 
     def _really_stop(self):
         if self.users == 0 and self.proc is not None:
-            self.proc.terminate()
-            if not self.proc.waitForFinished(2000):
+            tray_app = IS_WINDOWS and is_uxplay_windows(self.proc.program())
+            if not tray_app:
+                self.proc.terminate()  # uxplay-windows ist ein Tray-Programm und reagiert darauf nicht
+            if tray_app or not self.proc.waitForFinished(2000):
                 self.proc.kill()
+                self.proc.waitForFinished(2000)
+            if tray_app:
+                kill_uxplay_windows()  # auch den Bluetooth-Helfer
             self.proc = None
             self.status.emit("gestoppt")
 
@@ -268,7 +377,7 @@ def install_command(program: str) -> list[str]:
 
 APT_PACKAGES = {"uxplay": ["uxplay", "gstreamer1.0-plugins-good", "gstreamer1.0-plugins-bad", "gstreamer1.0-libav",
                            "avahi-daemon"]}
-WINGET_IDS = {"bonjour": "Apple.Bonjour"}
+WINGET_IDS = {"bonjour": "Apple.Bonjour", "uxplay": "leapbtw.uxplay"}
 
 
 def can_install() -> bool:
@@ -346,8 +455,11 @@ def setup_plan(config) -> list[tuple[str, list[str]]]:
             if firewall:
                 parts.append("Firewall für AirPlay/Handy öffnen")
             plan.append((", ".join(parts), ["pkexec", "sh", "-c", linux_setup_script(packages, avahi, firewall)]))
-    elif can_winget() and not bonjour_installed():
-        plan.append(("Bonjour (damit das iPhone den PC findet) installieren", _winget(WINGET_IDS["bonjour"])))
+    elif can_winget():
+        if not bonjour_installed():
+            plan.append(("Bonjour (damit das iPhone den PC findet) installieren", _winget(WINGET_IDS["bonjour"])))
+        if not (find_uxplay_windows() or find_program("uxplay", "", WINDOWS_UXPLAY)):
+            plan.append(("AirPlay-Empfänger (UxPlay für Windows) installieren", _winget(WINGET_IDS["uxplay"])))
     return plan
 
 
@@ -357,10 +469,17 @@ def _winget(package_id: str) -> list[str]:
 
 
 def bonjour_installed() -> bool:
+    """Windows: gibt es den Dienst „Bonjour Service“ (Apple-Bonjour oder der von uxplay-windows)?"""
     if not IS_WINDOWS:
         return True
-    return os.path.exists(os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "Bonjour",
-                                       "mDNSResponder.exe"))
+    if os.path.exists(os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "Bonjour",
+                                   "mDNSResponder.exe")):
+        return True
+    try:
+        return subprocess.run(["sc", "query", "Bonjour Service"], capture_output=True, timeout=10,
+                              creationflags=0x08000000).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def run_plan(plan: list[tuple[str, list[str]]], status=None) -> list[str]:

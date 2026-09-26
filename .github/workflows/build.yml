@@ -155,34 +155,17 @@ jobs:
           # Diagnose (u. a. echte Probe-Aufnahme fürs Spiegeln) als Hinweise im Lauf sichtbar machen
           if (Test-Path $log) { Get-Content $log | Where-Object { $_ -like "DIAG *" } | ForEach-Object { Write-Output "::notice title=Windows-Diagnose::$($_.Substring(5))" } }
           if ($p.ExitCode -ne 0) { throw "AluPC.exe Selbsttest fehlgeschlagen (Exit-Code $($p.ExitCode))" }
-      - name: Erkundung – uxplay-windows (winget) wirklich installieren
+      - name: AirPlay echt – uxplay-windows über winget installieren und von AluPC starten lassen
         shell: pwsh
         continue-on-error: true
+        timeout-minutes: 10
         run: |
-          function N($t) { Write-Output "::notice title=UxPlay-Erkundung::$t" }
-          $out = winget install --id leapbtw.uxplay -e --silent --accept-source-agreements --accept-package-agreements 2>&1 | Select-Object -Last 3
-          N "install: $($out -join ' | ')"
-          $roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA, "$env:LOCALAPPDATA\Microsoft\WinGet\Packages", $env:APPDATA)
-          $exes = foreach ($r in $roots) { if ($r -and (Test-Path $r)) { Get-ChildItem $r -Recurse -Filter "*uxplay*.exe" -ErrorAction SilentlyContinue | Select-Object -First 5 } }
-          foreach ($e in $exes) { N "gefunden: $($e.FullName) ($([math]::Round($e.Length/1KB)) KB)" }
-          $ux = $exes | Where-Object { $_.Name -eq "uxplay.exe" } | Select-Object -First 1
-          if ($ux) {
-            $v = & $ux.FullName -v 2>&1 | Select-Object -First 2; N "Version: $($v -join ' | ')"
-            $h = & $ux.FullName -h 2>&1 | Out-String
-            N "kennt -vrtp: $($h -match '-vrtp') · kennt -pin: $($h -match '-pin') · kennt -p: $($h -match '(?m)^-p ')"
-            $dir = Split-Path $ux.FullName; N "Ordner: $((Get-ChildItem $dir | Select-Object -First 12 | ForEach-Object Name) -join ', ')"
+          foreach ($id in "Apple.Bonjour", "leapbtw.uxplay") {
+            $out = winget install --id $id -e --silent --accept-source-agreements --accept-package-agreements 2>&1 | Select-Object -Last 2
+            Write-Output "::notice title=AirPlay-Probe::winget $id -> $($out -join ' | ')"
           }
-          $root = "C:\Program Files\uxplay-windows"
-          if (Test-Path $root) {
-            Get-ChildItem $root -Recurse -File | Sort-Object Length -Descending | Select-Object -First 25 | ForEach-Object { N "Datei: $($_.FullName.Substring($root.Length)) ($([math]::Round($_.Length/1KB)) KB)" }
-            N "Dateien gesamt: $((Get-ChildItem $root -Recurse -File).Count)"
-            $cand = Get-ChildItem $root -Recurse -Filter "*.exe" | Where-Object { $_.Name -notmatch "beacon|unins" }
-            foreach ($c in $cand) { $h = & $c.FullName -h 2>&1 | Select-Object -First 3; N "$($c.Name) -h: $($h -join ' | ')" }
-            Get-ChildItem $root -Recurse -Include *.txt,*.md,*.json,*.ini,*.toml -File | Select-Object -First 5 | ForEach-Object { N "Text $($_.Name): $((Get-Content $_.FullName -TotalCount 6) -join ' / ')" }
-          }
-          Get-Process | Where-Object { $_.Name -match "uxplay" } | ForEach-Object { N "läuft nach Installation: $($_.Name) $($_.Path)" }
-          Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue | Out-String | ForEach-Object { if ($_ -match "uxplay") { N "Autostart-Eintrag vorhanden" } }
-          Get-Service | Where-Object { $_.Name -match "uxplay|bonjour|mdns" } | ForEach-Object { N "Dienst: $($_.Name) $($_.Status)" }
+          Get-Process | Where-Object { $_.Name -match "uxplay" } | ForEach-Object { Write-Output "::notice title=AirPlay-Probe::läuft schon nach Installation: $($_.Name)" }
+          python .github/scripts/airplay_probe.py
       - name: Spiegel-Probe auf dem echten Windows-Desktop
         shell: pwsh
         continue-on-error: true

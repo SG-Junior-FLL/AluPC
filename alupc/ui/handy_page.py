@@ -202,7 +202,7 @@ class HandyPage(QWidget):
                 left.append("Automatisch installieren geht auf diesem System nicht (kein apt/pkexec bzw. winget) – "
                             "fehlende Programme bitte selbst installieren")
             if IS_WINDOWS and not self.controller.airplay.binary():
-                left.append("AirPlay unter Windows braucht UxPlay (von Hand, siehe Karte)")
+                left.append("AirPlay-Empfänger fehlt – ohne winget bitte „uxplay-windows“ selbst installieren")
             self.setup_text.setText(" · ".join(left) or "Alles, was automatisch geht, ist eingerichtet.")
             self.setup_btn.hide()
 
@@ -418,11 +418,14 @@ class HandyPage(QWidget):
                                          f"„{name}“ wählen"))
         if ux and handy.supports_vrtp(ux):
             air.set_status("BEREIT", READY, "Das iPhone-Bild erscheint direkt in AluPC (auch in Szenen).")
+        elif ux and handy.is_uxplay_windows(ux):
+            air.set_status("BEREIT", READY, "Über „uxplay-windows“: Bild im eigenen Fenster, AluPC legt es "
+                                            "maximiert auf Monitor 2.")
         elif ux:
             air.set_status("BEREIT", READY, "Ältere UxPlay-Version: Bild im eigenen Vollbild-Fenster auf Monitor 2.")
         elif IS_WINDOWS:
-            air.set_status("VON HAND", SETUP, "Braucht UxPlay (MSYS2-Build, github.com/FDH2/UxPlay) und Apple "
-                                              "„Bonjour“ – danach „UxPlay wählen …“.")
+            air.set_status("EINRICHTEN", SETUP, "Empfänger fehlt – „Automatisch einrichten“ oben installiert "
+                                                "„uxplay-windows“ und Bonjour über winget.")
         else:
             air.set_status("EINRICHTEN", SETUP, "UxPlay fehlt – „Automatisch einrichten“ oben installiert es.")
         self.air_start.setEnabled(bool(ux))

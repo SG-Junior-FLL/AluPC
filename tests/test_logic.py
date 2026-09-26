@@ -669,8 +669,12 @@ def test_handy_setup_plan(monkeypatch, tmp_path):
     monkeypatch.setattr(handy, "can_install", lambda: False)
     monkeypatch.setattr(handy, "can_winget", lambda: True)
     monkeypatch.setattr(handy, "bonjour_installed", lambda: False)
+    monkeypatch.setattr(handy, "find_uxplay_windows", lambda configured="": None)
     plan = handy.setup_plan(cfg)
-    assert [p[1][3] for p in plan] == ["Apple.Bonjour"]
+    assert [p[1][3] for p in plan] == ["Apple.Bonjour", "leapbtw.uxplay"]
+    monkeypatch.setattr(handy, "find_uxplay_windows", lambda configured="": r"C:\x\uxplay-windows.exe")
+    monkeypatch.setattr(handy, "bonjour_installed", lambda: True)
+    assert handy.setup_plan(cfg) == []
     import sys
 
     errors = handy.run_plan([("Test ok", [sys.executable, "-c", "pass"]),
@@ -698,6 +702,43 @@ def test_airplay_setup_script_and_errors():
     assert "-p" in handy.uxplay_args("A", "", None)  # feste Ports für die Firewall
     js = build_follow_script(["AluPC (PC)", "UxPlay"], "HDMI-A-1", (1920, 0, 1280, 720))
     assert '["AluPC (PC)", "UxPlay"]' in js and "windowAdded" in js and "captionChanged" in js
+
+
+def test_uxplay_windows_control(monkeypatch, tmp_path):
+    """Windows-AirPlay über „uxplay-windows“: AluPC schreibt Name/Code in dessen arguments.txt und startet es."""
+    import os
+    import stat
+    import sys
+
+    from alupc import handy
+    from alupc.config import Config
+
+    line = handy.uxplay_windows_command_line(["-n", "AluPC (Mein PC)", "-nh", "-p", "-pin", "1234"])
+    assert line == '-n "AluPC (Mein PC)" -nh -p -pin 1234'
+    assert "%" not in handy.uxplay_windows_command_line(["-n", "%USERNAME%"])
+    assert handy.is_uxplay_windows(r"C:\Program Files\uxplay-windows\uxplay-windows.exe")
+    assert not handy.is_uxplay_windows("/usr/bin/uxplay")
+    assert handy.supports_vrtp(r"C:\nicht\da\uxplay-windows.exe") is False  # „-h“ würde das Tray-Programm starten
+    monkeypatch.setenv("APPDATA", str(tmp_path / "roaming"))
+    assert handy.uxplay_windows_arguments_file() == tmp_path / "roaming" / "leapbtw" / "uxplay-windows" / "arguments.txt"
+    if sys.platform.startswith("win"):
+        return  # der Start eines Ersatzprogramms (Shell-Skript) geht nur unter Linux
+    fake = tmp_path / "uxplay-windows" / "uxplay-windows.exe"
+    fake.parent.mkdir()
+    fake.write_text("#!/bin/sh\nsleep 30\n")
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    cfg = Config(tmp_path / "c.json")
+    cfg["handy"] = {**cfg["handy"], "uxplay_path": str(fake), "airplay_name": "AluPC (Test)", "pin": "zufall"}
+    server = handy.AirPlayServer(cfg)
+    assert server.binary() == str(fake)
+    assert server.acquire(want_stream=True) == "fenster"  # uxplay-windows zeigt immer ein eigenes Fenster
+    assert server.proc.waitForStarted(5000) and server.running()
+    text = handy.uxplay_windows_arguments_file().read_text(encoding="utf-8")
+    assert text.startswith('-n "AluPC (Test)" -nh -p -pin ') and len(server.pin_code) == 4
+    assert text.endswith(server.pin_code)  # zufälliger Code, den AluPC anzeigen kann
+    server.shutdown()
+    assert not server.running()
+    assert os.path.exists(fake)
 
 
 def test_presentation_keys():

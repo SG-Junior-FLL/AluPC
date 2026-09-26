@@ -1575,6 +1575,11 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
     open_windows[:] = [WindowInfo(id="0x2", title="AluPC", app="uxplay")]  # neue Verbindung → neues Fenster
     controller._follow_timer.timeout.emit()
     assert moved[-1][0] == "0x2"
+    # uxplay-windows: Videofenster am Programm erkennen (Titel je nach Version) – nicht dessen Einstellungsfenster
+    open_windows[:] = [WindowInfo(id="0x3", title="uxplay-windows", app="uxplay-windows"),
+                       WindowInfo(id="0x4", title="Direct3D11 renderer", app="uxplay-windows")]
+    controller._follow_timer.timeout.emit()
+    assert [m[0] for m in moved[-1:]] == ["0x4"] and "0x3" not in [m[0] for m in moved]
     assert not controller.cursor_should_stay_home()
     pump()
     assert window.t_airplay.active and not window.t_extend.active and not window.t_program.active
