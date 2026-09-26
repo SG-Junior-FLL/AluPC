@@ -86,12 +86,12 @@ def uxplay_windows_machine_file() -> Path:
 
 
 def uxplay_windows_command_line(args: list[str]) -> str:
-    """Optionen als eine Zeile für arguments.txt (uxplay-windows zerlegt sie wie eine Kommandozeile)."""
-    out = []
-    for a in args:
-        a = a.replace('"', "").replace("%", "")  # %…% würde uxplay-windows als Umgebungsvariable ersetzen
-        out.append(f'"{a}"' if (not a or " " in a) else a)
-    return " ".join(out)
+    """Optionen als eine Zeile für arguments.txt.
+
+    uxplay-windows 2.0.0.1736 (winget) trennt die Zeile einfach an Leerzeichen – Anführungszeichen helfen
+    nicht. Leerzeichen im Namen werden deshalb zu geschützten Leerzeichen (U+00A0): Das iPhone zeigt sie wie
+    normale Leerzeichen an. „%…%“ ersetzen neuere Versionen durch Umgebungsvariablen – deshalb weg damit."""
+    return " ".join(a.replace('"', "").replace("%", "").replace(" ", "\u00a0") for a in args)
 
 
 def uxplay_windows_log_tail(lines: int = 15) -> list[str]:
@@ -280,6 +280,13 @@ class AirPlayServer(QObject):
             self.log = (self.log + [f"Hinweis: {uxplay_windows_machine_file()} hat Vorrang – Name/Code von AluPC "
                                     "gelten dann nicht"])[-60:]
         self.proc = QProcess(self)
+        from PySide6.QtCore import QProcessEnvironment
+
+        env = QProcessEnvironment.systemEnvironment()
+        env.insert("QT_FORCE_STDERR_LOGGING", "1")  # Meldungen auf stderr statt ins Windows-Debug-Protokoll
+        self.proc.setProcessEnvironment(env)
+        self.proc.setProcessChannelMode(QProcess.MergedChannels)
+        self.proc.readyReadStandardOutput.connect(self._read)
         self.proc.finished.connect(self._finished)
         self.proc.setWorkingDirectory(str(Path(exe).parent))
         self.proc.start(exe, [])
@@ -288,8 +295,10 @@ class AirPlayServer(QObject):
         self.status.emit("läuft")
         return self.mode
 
-    def _finished(self, *_):
+    def _finished(self, code=None, *_):
         self.status.emit("beendet")
+        if code is not None:
+            self.log = (self.log + [f"(Programm beendet, Exit-Code {code})"])[-60:]
         if self.users > 0:  # sollte laufen, ist aber weg → Grund aus den Meldungen ableiten
             log = self.log + (uxplay_windows_log_tail() if is_uxplay_windows(self.binary()) else [])
             self.failed.emit(explain_uxplay_error(log))

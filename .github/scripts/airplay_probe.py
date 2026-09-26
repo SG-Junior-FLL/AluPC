@@ -37,7 +37,8 @@ def main():
     while time.time() < end and not failed:
         app.processEvents()
         time.sleep(0.1)
-    note(f"läuft nach 20 s: {server.running()}" + (f" · Fehler: {failed[0]}" if failed else ""))
+    note(f"läuft nach 20 s: {server.running()}" + (f" · Fehler: {failed[0]}" if failed else "")
+         + " · Ausgabe: " + " | ".join(line[:120] for line in server.log[-10:]))
     note(f"arguments.txt: {handy.uxplay_windows_arguments_file().read_text(encoding='utf-8')!r}")
     ports = subprocess.run(["netstat", "-ano", "-p", "tcp"], capture_output=True, text=True).stdout
     listening = sorted({line.split()[1].rsplit(":", 1)[-1] for line in ports.splitlines()

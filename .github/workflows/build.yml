@@ -165,8 +165,13 @@ jobs:
             Write-Output "::notice title=AirPlay-Probe::winget $id -> $($out -join ' | ')"
           }
           Get-Process | Where-Object { $_.Name -match "uxplay" } | ForEach-Object { Write-Output "::notice title=AirPlay-Probe::läuft schon nach Installation: $($_.Name)" }
-          python -X faulthandler .github/scripts/airplay_probe.py 2>&1 | Tee-Object -Variable probe
-          Write-Output "::notice title=AirPlay-Probe-Ende::Exit $LASTEXITCODE · $((($probe | Where-Object { $_ -notmatch '^::' }) | Select-Object -Last 6) -join ' | ')"
+          $n = @(Get-Process explorer -ErrorAction SilentlyContinue).Count
+          Write-Output "::notice title=AirPlay-Probe::Explorer (Taskleiste/Tray) läuft: $n Prozess(e)"
+          # pythonw: ohne eigene Konsole – sonst schreibt uxplay-windows (AttachConsole) an AluPC vorbei
+          $out = Join-Path $env:RUNNER_TEMP "airplay-probe.txt"
+          $p = Start-Process -FilePath (Join-Path (Split-Path (Get-Command python).Source) "pythonw.exe") -ArgumentList ".github/scripts/airplay_probe.py" -RedirectStandardOutput $out -RedirectStandardError "$out.err" -Wait -PassThru -NoNewWindow
+          Get-Content $out -ErrorAction SilentlyContinue
+          Write-Output "::notice title=AirPlay-Probe-Ende::Exit $($p.ExitCode) · $((Get-Content "$out.err" -ErrorAction SilentlyContinue | Select-Object -Last 6) -join ' | ')"
       - name: Spiegel-Probe auf dem echten Windows-Desktop
         shell: pwsh
         continue-on-error: true

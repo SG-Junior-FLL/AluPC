@@ -714,7 +714,7 @@ def test_uxplay_windows_control(monkeypatch, tmp_path):
     from alupc.config import Config
 
     line = handy.uxplay_windows_command_line(["-n", "AluPC (Mein PC)", "-nh", "-p", "-pin", "1234"])
-    assert line == '-n "AluPC (Mein PC)" -nh -p -pin 1234'
+    assert line == '-n AluPC\u00a0(Mein\u00a0PC) -nh -p -pin 1234' and len(line.split(" ")) == 6
     assert "%" not in handy.uxplay_windows_command_line(["-n", "%USERNAME%"])
     assert handy.is_uxplay_windows(r"C:\Program Files\uxplay-windows\uxplay-windows.exe")
     assert not handy.is_uxplay_windows("/usr/bin/uxplay")
@@ -734,7 +734,7 @@ def test_uxplay_windows_control(monkeypatch, tmp_path):
     assert server.acquire(want_stream=True) == "fenster"  # uxplay-windows zeigt immer ein eigenes Fenster
     assert server.proc.waitForStarted(5000) and server.running()
     text = handy.uxplay_windows_arguments_file().read_text(encoding="utf-8")
-    assert text.startswith('-n "AluPC (Test)" -nh -p -pin ') and len(server.pin_code) == 4
+    assert text.startswith('-n AluPC\u00a0(Test) -nh -p -pin ') and len(server.pin_code) == 4
     assert text.endswith(server.pin_code)  # zufälliger Code, den AluPC anzeigen kann
     server.shutdown()
     assert not server.running()
