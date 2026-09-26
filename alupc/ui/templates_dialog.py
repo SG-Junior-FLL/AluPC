@@ -59,14 +59,14 @@ class TemplatesDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 20, 24, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Vorlagen", "Fertige Seiten und Szenen – eigenen Text eingeben, zeigen oder "
+        lay.addWidget(page_header("Vorlagen", "Fertige Karten und Szenen – eigenen Text eingeben, zeigen oder "
                                               "als Szene speichern.", "star"))
         # Filter: Art (Seiten/Szenen), Kategorie, Suche
         filters = QHBoxLayout()
         filters.setSpacing(6)
         self.kind_group = QButtonGroup(self)
         self.cat_group = QButtonGroup(self)
-        for group, labels in ((self.kind_group, ["Alle", "Seiten", "Szenen"]),
+        for group, labels in ((self.kind_group, ["Alle", "Karten", "Szenen"]),
                               (self.cat_group, ["Alle Themen", *CATEGORY_NAMES])):
             for i, label in enumerate(labels):
                 b = QPushButton(label)
@@ -93,7 +93,7 @@ class TemplatesDialog(QDialog):
         self.list.setMovement(QListWidget.Static)
         self.list.setWordWrap(True)
         self.list.setMinimumWidth(500)
-        entries = [("design", k, f"Seite: {v[0]}") for k, v in DESIGNS.items()]
+        entries = [("design", k, f"Karte: {v[0]}") for k, v in DESIGNS.items()]
         scenes = [("scene", k, f"Szene: {v[0]}") for k, v in SCENE_TEMPLATES.items()]
         for kind, key, label in (scenes + entries if scenes_first else entries + scenes):
             item = QListWidgetItem(label)

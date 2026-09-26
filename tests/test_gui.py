@@ -2361,7 +2361,14 @@ def test_many_templates_render_and_filter(env):
     from alupc.screens_more import _parse_target
 
     controller, window, _ = env
-    assert len(DESIGNS) >= 28 and len(SCENE_TEMPLATES) >= 23
+    assert len(DESIGNS) >= 30 and len(SCENE_TEMPLATES) >= 22
+    # keine Lehrer-/Schulvorlagen mehr; alte Szenen mit entfernten Vorlagen zeigen trotzdem Titel und Text
+    for removed in ("aufgabe", "regeln", "gruppen", "hausaufgaben", "stimmung", "tuerschild", "speiseplan", "ruhe"):
+        assert removed not in DESIGNS
+        img = render_preview({"type": "design", "design": removed, "title": "Alt", "text": "Szene"}, 320, 180)
+        assert len({img.pixelColor(x, y).name() for x in range(0, 320, 8) for y in range(0, 180, 8)}) > 5
+    for key in ("neon", "glitch", "synthwave", "poster", "nowplaying", "live", "versus", "linkkarte", "glas"):
+        assert key in DESIGNS
     for key in DESIGNS:
         assert CATEGORIES[key]
         img = render_preview(design_defaults(key), 320, 180)

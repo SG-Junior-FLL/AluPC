@@ -13,75 +13,50 @@ import time
 from dataclasses import dataclass
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPainterPath, QPen, QRadialGradient
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen, QRadialGradient
 
 MORE_DESIGNS: dict[str, tuple[str, str, str, str, str]] = {
     "event_countdown": ("Countdown bis …", "Restzeit bis zu einer Uhrzeit oder einem Datum", "Es geht los in",
                         "18:00", "#ec4899"),
     "geburtstag": ("Geburtstag", "Glückwunsch mit Konfetti", "Alles Gute, Lea!",
                    "Wir wünschen dir einen tollen Tag!", "#f59e0b"),
-    "tabelle": ("Tabelle / Stundenplan", "Zeilen, Spalten mit | trennen", "Stundenplan Montag",
-                "08:00 | Mathe\n08:45 | Deutsch\n09:45 | Pause\n10:05 | Englisch\n10:50 | Sport", "#0ea5e9"),
+    "tabelle": ("Tabelle / Line-up", "Zeilen, Spalten mit | trennen", "Line-up heute",
+                "19:00 | Einlass\n19:30 | Warm-up\n20:15 | Main Act\n22:00 | Aftershow", "#0ea5e9"),
     "abstimmung": ("Abstimmung / Quiz", "Frage und bis zu 6 Antworten A, B, C …", "Was ist die Hauptstadt von Australien?",
                    "Sydney\nCanberra\nMelbourne\nPerth", "#8b5cf6"),
-    "aufgabe": ("Arbeitsauftrag", "Aufgabe in Schritten, mit Zeitangabe", "Arbeitsauftrag",
-                "Lies den Text auf S. 42.\nMarkiere wichtige Stellen.\nBeantworte die Fragen 1–3.", "#22c55e"),
-    "regeln": ("Regeln / Hinweise", "Liste mit Häkchen", "Unsere Regeln",
-               "Wir lassen einander ausreden.\nHandys bleiben in der Tasche.\nWir helfen uns gegenseitig.", "#14b8a6"),
-    "gruppen": ("Gruppeneinteilung", "Je Zeile: Gruppe: Mitglieder", "Gruppen",
-                "Gruppe 1: Anna, Ben, Chris\nGruppe 2: Dana, Emil, Finn\nGruppe 3: Greta, Hanna, Ida\n"
-                "Gruppe 4: Jonas, Kim, Lena", "#f97316"),
-    "ruhe": ("Stillarbeit / Ruhe", "Ruhige Seite mit sanfter Animation", "Stillarbeit", "Bitte leise arbeiten.",
-             "#38bdf8"),
-    "danke": ("Danke / Ende", "Abschluss einer Stunde oder Veranstaltung", "Danke!", "Bis zum nächsten Mal.",
+    "danke": ("Danke / Ende", "Abschluss eines Abends oder Vortrags", "Danke!", "Bis zum nächsten Mal.",
               "#6366f1"),
-    "hausaufgaben": ("Hausaufgaben", "Aufgabe | bis wann, je Zeile", "Hausaufgaben",
-                     "S. 42 Nr. 3 | Mittwoch\nVokabeln Unit 4 | Freitag\nReferat vorbereiten | nächste Woche",
-                     "#eab308"),
-    "schlagzeile": ("Schlagzeile", "Nachrichten-Stil mit Eilmeldung", "Schulfest am Freitag!",
-                    "Ab 14 Uhr auf dem Schulhof – alle sind eingeladen.", "#dc2626"),
+    "schlagzeile": ("Schlagzeile", "Nachrichten-Stil mit Eilmeldung", "Großes Finale am Freitag!",
+                    "Ab 19 Uhr – alle sind eingeladen.", "#dc2626"),
     "kennzahl": ("Große Zahl", "Eine Zahl mit Beschriftung", "1.250 €", "gesammelt für den guten Zweck", "#10b981"),
     "termine": ("Termine", "Datum | Termin, je Zeile", "Nächste Termine",
-                "12.10. | Elternabend\n24.10. | Wandertag\n03.11. | Projektwoche", "#a855f7"),
-    "tuerschild": ("Türschild", "Raum, Klasse, Hinweis", "Raum 204", "Klasse 7b · Mathematik\nBitte nicht stören",
-                   "#64748b"),
-    "speiseplan": ("Speiseplan", "Tag | Gericht, je Zeile", "Mensa diese Woche",
-                   "Mo | Spaghetti Bolognese\nDi | Gemüsecurry\nMi | Fischstäbchen\nDo | Pizza\nFr | Kartoffelsuppe",
-                   "#84cc16"),
+                "12.10. | Kinoabend\n24.10. | Turnier\n03.11. | Party", "#a855f7"),
     "sieger": ("Siegerehrung", "Plätze 1–3 mit Podest", "Siegerehrung", "Team Blau\nTeam Rot\nTeam Grün", "#eab308"),
-    "stimmung": ("Stimmungsbarometer", "Wie geht's euch? Fünf Gesichter", "Wie geht es euch heute?",
-                 "Zeigt mit den Fingern: 1 bis 5", "#22c55e"),
     "zweispaltig": ("Pro & Contra", "Zwei Spalten gegenüberstellen (Zeilen: links | rechts)", "Pro & Contra",
                     "Spart Zeit | Kostet Geld\nMacht Spaß | Braucht Übung\nGut fürs Team | Mehr Absprachen", "#0ea5e9"),
-    "begriff": ("Begriff / Definition", "Wort groß, Erklärung darunter", "Photosynthese",
-                "Pflanzen bilden mit Licht aus Wasser und CO₂ Zucker und Sauerstoff.", "#16a34a"),
+    "begriff": ("Stichwort", "Ein Wort groß, Erklärung darunter", "Open Source",
+                "Software, deren Code jeder ansehen, ändern und weitergeben darf.", "#16a34a"),
     "willkommen_gast": ("Willkommen Gäste", "Begrüßung für Besucher mit Namen", "Herzlich willkommen",
-                        "Familie Müller\nTeam Schulentwicklung\nGäste aus Partnerschule", "#f97316"),
+                        "Anna & Ben\nDas ganze Team\nUnd alle Gäste", "#f97316"),
 }
 
 MORE_CATEGORIES = {
-    "event_countdown": "Veranstaltung", "geburtstag": "Spaß", "tabelle": "Unterricht", "abstimmung": "Unterricht",
-    "aufgabe": "Unterricht", "regeln": "Info", "gruppen": "Unterricht", "ruhe": "Pause & Zeit",
-    "danke": "Veranstaltung", "hausaufgaben": "Unterricht", "schlagzeile": "Info", "kennzahl": "Info",
-    "termine": "Info", "tuerschild": "Info", "speiseplan": "Info", "sieger": "Spaß", "stimmung": "Unterricht",
-    "zweispaltig": "Unterricht", "begriff": "Unterricht", "willkommen_gast": "Veranstaltung",
+    "event_countdown": "Zeit", "geburtstag": "Party & Event", "tabelle": "Präsentation", "abstimmung": "Präsentation",
+    
+    "danke": "Party & Event", "schlagzeile": "Info", "kennzahl": "Info",
+    "termine": "Info", "sieger": "Party & Event", 
+    "zweispaltig": "Präsentation", "begriff": "Präsentation", "willkommen_gast": "Party & Event",
 }
-MORE_TIMED = {"event_countdown": 500, "geburtstag": 33, "ruhe": 50, "sieger": 40, "schlagzeile": 1000}
+MORE_TIMED = {"event_countdown": 500, "geburtstag": 33, "sieger": 40, "schlagzeile": 1000}
 MORE_LABELS = {
     "event_countdown": ("Text oben:", "Uhrzeit/Datum (z. B. 18:00 oder 24.12.2026 18:00):"),
     "tabelle": ("Überschrift:", "Zeilen (Spalten mit | trennen):"),
     "abstimmung": ("Frage:", "Antworten (je Zeile eine):"),
-    "aufgabe": ("Überschrift:", "Schritte (je Zeile einer):"),
-    "regeln": ("Überschrift:", "Regeln (je Zeile eine):"),
-    "gruppen": ("Überschrift:", "Gruppen (Name: Mitglieder):"),
-    "hausaufgaben": ("Überschrift:", "Aufgabe | bis wann:"),
     "termine": ("Überschrift:", "Datum | Termin:"),
-    "speiseplan": ("Überschrift:", "Tag | Gericht:"),
     "sieger": ("Überschrift:", "Platz 1, 2, 3 (je Zeile):"),
     "kennzahl": ("Zahl:", "Beschriftung:"),
     "zweispaltig": ("Überschrift:", "Zeilen: links | rechts"),
     "begriff": ("Begriff:", "Erklärung:"),
-    "tuerschild": ("Raum:", "Zeilen darunter:"),
     "willkommen_gast": ("Titel:", "Namen (je Zeile):"),
 }
 
@@ -272,20 +247,11 @@ def p_tabelle(c: Ctx):
     _rows(c, top, [_split(line) for line in c.lines()])
 
 
-def p_hausaufgaben(c: Ctx):
-    top = _heading(c)
-    rows = [_split(line) for line in c.lines()]
-    _rows(c, top, [(b, a) if a else ("", b) for a, b in rows])  # „bis wann“ als Marke links
-
 
 def p_termine(c: Ctx):
     top = _heading(c)
     _rows(c, top, [_split(line) for line in c.lines()])
 
-
-def p_speiseplan(c: Ctx):
-    top = _heading(c)
-    _rows(c, top, [_split(line) for line in c.lines()])
 
 
 def p_abstimmung(c: Ctx):
@@ -315,94 +281,8 @@ def p_abstimmung(c: Ctx):
               ans + ("  ✓" if solved == i + 1 else ""), ch * 0.3, True, WHITE, Qt.AlignLeft | Qt.AlignVCenter)
 
 
-def p_aufgabe(c: Ctx):
-    top = _heading(c)
-    steps = c.lines()
-    minutes = c.cfg.get("minutes")
-    if minutes:
-        badge = QRectF(c.w * 0.73, c.h * 0.075, c.w * 0.2, c.h * 0.09)
-        c.p.setPen(Qt.NoPen)
-        c.p.setBrush(c.color)
-        c.p.drawRoundedRect(badge, badge.height() / 2, badge.height() / 2)
-        _text(c, badge, f"⏱ {int(minutes)} min", badge.height() * 0.45)
-    if not steps:
-        return
-    row_h = min(c.h * 0.15, (c.h * 0.9 - top) / len(steps))
-    for i, step in enumerate(steps, start=1):
-        y = top + (i - 1) * row_h
-        circle = QRectF(c.w * 0.08, y + row_h * 0.18, row_h * 0.64, row_h * 0.64)
-        c.p.setPen(QPen(c.color, c.unit * 0.35))
-        c.p.setBrush(QColor(255, 255, 255, 10))
-        c.p.drawEllipse(circle)
-        _text(c, circle, str(i), row_h * 0.3)
-        _text(c, QRectF(circle.right() + c.unit * 2, y, c.w * 0.8, row_h), step, row_h * 0.36, False, WHITE,
-              Qt.AlignLeft | Qt.AlignVCenter | Qt.TextWordWrap)
 
 
-def p_regeln(c: Ctx):
-    top = _heading(c)
-    items = c.lines()
-    if not items:
-        return
-    row_h = min(c.h * 0.14, (c.h * 0.9 - top) / len(items))
-    for i, item in enumerate(items):
-        y = top + i * row_h
-        tick = QRectF(c.w * 0.08, y + row_h * 0.2, row_h * 0.6, row_h * 0.6)
-        c.p.setPen(Qt.NoPen)
-        c.p.setBrush(c.color)
-        c.p.drawRoundedRect(tick, tick.width() * 0.25, tick.width() * 0.25)
-        c.p.setPen(QPen(QColor("#ffffff"), row_h * 0.07, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        path = QPainterPath(QPointF(tick.left() + tick.width() * 0.25, tick.center().y()))
-        path.lineTo(tick.left() + tick.width() * 0.43, tick.bottom() - tick.height() * 0.27)
-        path.lineTo(tick.right() - tick.width() * 0.22, tick.top() + tick.height() * 0.28)
-        c.p.setBrush(Qt.NoBrush)
-        c.p.drawPath(path)
-        _text(c, QRectF(tick.right() + c.unit * 2, y, c.w * 0.8, row_h), item, row_h * 0.38, False, WHITE,
-              Qt.AlignLeft | Qt.AlignVCenter | Qt.TextWordWrap)
-
-
-def p_gruppen(c: Ctx):
-    top = _heading(c)
-    groups = [_split(line, ":") for line in c.lines()]
-    if not groups:
-        return
-    cols = 2 if len(groups) > 3 else len(groups)
-    cols = max(1, min(cols, 3))
-    rows = math.ceil(len(groups) / cols)
-    gap = c.unit * 1.5
-    area = QRectF(c.w * 0.07, top, c.w * 0.86, c.h * 0.92 - top)
-    cw = (area.width() - gap * (cols - 1)) / cols
-    ch = (area.height() - gap * (rows - 1)) / rows
-    for i, (name, members) in enumerate(groups):
-        r = QRectF(area.left() + (i % cols) * (cw + gap), area.top() + (i // cols) * (ch + gap), cw, ch)
-        c.p.setPen(QPen(c.color, c.unit * 0.3))
-        c.p.setBrush(QColor(255, 255, 255, 14))
-        c.p.drawRoundedRect(r, c.unit * 1.5, c.unit * 1.5)
-        _text(c, QRectF(r.left() + c.unit * 1.5, r.top() + c.unit, r.width() - c.unit * 3, r.height() * 0.35),
-              name or f"Gruppe {i + 1}", min(ch * 0.2, c.unit * 3.5), True, c.color.lighter(140),
-              Qt.AlignLeft | Qt.AlignVCenter)
-        _text(c, QRectF(r.left() + c.unit * 1.5, r.top() + r.height() * 0.38, r.width() - c.unit * 3,
-                        r.height() * 0.56), members, min(ch * 0.17, c.unit * 3), False, WHITE,
-              Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap)
-
-
-def p_ruhe(c: Ctx):
-    t = c.now - (c.started or c.now)
-    center = QPointF(c.w / 2, c.h * 0.42)
-    for i in range(4):  # langsam atmende Kreise
-        phase = (t * 0.25 + i / 4) % 1.0
-        r = min(c.w, c.h) * (0.08 + 0.32 * phase)
-        col = QColor(c.color)
-        col.setAlphaF(0.35 * (1 - phase))
-        c.p.setPen(QPen(col, c.unit * 0.4))
-        c.p.setBrush(Qt.NoBrush)
-        c.p.drawEllipse(center, r, r)
-    c.p.setPen(Qt.NoPen)
-    c.p.setBrush(c.color)
-    breathe = 1 + 0.08 * math.sin(t * 1.3)
-    c.p.drawEllipse(center, min(c.w, c.h) * 0.07 * breathe, min(c.w, c.h) * 0.07 * breathe)
-    _text(c, QRectF(c.w * 0.1, c.h * 0.66, c.w * 0.8, c.h * 0.13), c.title, c.unit * 6)
-    _text(c, QRectF(c.w * 0.1, c.h * 0.8, c.w * 0.8, c.h * 0.1), c.text, c.unit * 3, False, MUTED)
 
 
 def p_danke(c: Ctx):
@@ -438,20 +318,6 @@ def p_kennzahl(c: Ctx):
     _text(c, QRectF(c.w * 0.1, c.h * 0.62, c.w * 0.8, c.h * 0.16), c.text, c.unit * 4, False, WHITE)
 
 
-def p_tuerschild(c: Ctx):
-    u = c.unit
-    card = QRectF(c.w * 0.08, c.h * 0.12, c.w * 0.84, c.h * 0.76)
-    c.p.setPen(Qt.NoPen)
-    c.p.setBrush(QColor("#f8fafc"))
-    c.p.drawRoundedRect(card, u * 2, u * 2)
-    c.p.setBrush(c.color)
-    c.p.drawRoundedRect(QRectF(card.left(), card.top(), u * 2, card.height()), u, u)
-    _text(c, QRectF(card.left() + u * 5, card.top() + u * 3, card.width() - u * 8, card.height() * 0.42), c.title,
-          u * 12, True, QColor("#0f172a"), Qt.AlignLeft | Qt.AlignVCenter)
-    _text(c, QRectF(card.left() + u * 5, card.top() + card.height() * 0.5, card.width() - u * 8,
-                    card.height() * 0.42), c.text, u * 4.5, False, QColor("#334155"),
-          Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap)
-
 
 def p_sieger(c: Ctx):
     _confetti(c, 80)
@@ -471,29 +337,6 @@ def p_sieger(c: Ctx):
         _text(c, QRectF(r.left() - u * 2, r.top() - c.h * 0.13, r.width() + u * 4, c.h * 0.12), names[idx],
               u * 3.2, True, WHITE)
 
-
-def p_stimmung(c: Ctx):
-    _text(c, QRectF(c.w * 0.07, c.h * 0.08, c.w * 0.86, c.h * 0.18), c.title, c.unit * 5.5)
-    colors = ["#ef4444", "#f97316", "#eab308", "#84cc16", "#22c55e"]
-    size = min(c.w * 0.14, c.h * 0.3)
-    gap = (c.w * 0.86 - size * 5) / 4
-    for i, col in enumerate(colors):
-        center = QPointF(c.w * 0.07 + size / 2 + i * (size + gap), c.h * 0.52)
-        c.p.setPen(Qt.NoPen)
-        c.p.setBrush(QColor(col))
-        c.p.drawEllipse(center, size / 2, size / 2)
-        c.p.setBrush(QColor("#111827"))
-        for dx in (-0.16, 0.16):
-            c.p.drawEllipse(QPointF(center.x() + dx * size, center.y() - size * 0.1), size * 0.05, size * 0.06)
-        curve = (i - 2) / 2  # -1 traurig … +1 fröhlich
-        path = QPainterPath(QPointF(center.x() - size * 0.2, center.y() + size * 0.16))
-        path.quadTo(QPointF(center.x(), center.y() + size * (0.16 + 0.18 * curve)),
-                    QPointF(center.x() + size * 0.2, center.y() + size * 0.16))
-        c.p.setPen(QPen(QColor("#111827"), size * 0.045, Qt.SolidLine, Qt.RoundCap))
-        c.p.setBrush(Qt.NoBrush)
-        c.p.drawPath(path)
-        _text(c, QRectF(center.x() - size / 2, center.y() + size * 0.55, size, size * 0.3), str(i + 1), size * 0.2)
-    _text(c, QRectF(c.w * 0.1, c.h * 0.86, c.w * 0.8, c.h * 0.08), c.text, c.unit * 2.6, False, MUTED)
 
 
 def p_zweispaltig(c: Ctx):
@@ -543,8 +386,8 @@ def p_willkommen_gast(c: Ctx):
 
 PAINTERS = {
     "event_countdown": p_event_countdown, "geburtstag": p_geburtstag, "tabelle": p_tabelle,
-    "abstimmung": p_abstimmung, "aufgabe": p_aufgabe, "regeln": p_regeln, "gruppen": p_gruppen, "ruhe": p_ruhe,
-    "danke": p_danke, "hausaufgaben": p_hausaufgaben, "schlagzeile": p_schlagzeile, "kennzahl": p_kennzahl,
-    "termine": p_termine, "tuerschild": p_tuerschild, "speiseplan": p_speiseplan, "sieger": p_sieger,
-    "stimmung": p_stimmung, "zweispaltig": p_zweispaltig, "begriff": p_begriff, "willkommen_gast": p_willkommen_gast,
+    "abstimmung": p_abstimmung, 
+    "danke": p_danke, "schlagzeile": p_schlagzeile, "kennzahl": p_kennzahl,
+    "termine": p_termine, "sieger": p_sieger,
+    "zweispaltig": p_zweispaltig, "begriff": p_begriff, "willkommen_gast": p_willkommen_gast,
 }

@@ -19,7 +19,7 @@ DESIGNS: dict[str, tuple[str, str, str, str, str]] = {
     "willkommen": ("Willkommen", "Großer Titel, Untertitel, Uhrzeit", "Herzlich willkommen!",
                    "Schön, dass ihr da seid.", "#6366f1"),
     "ablauf": ("Ablauf / Agenda", "Punkte untereinander, der aktuelle ist markiert", "Heute",
-               "Begrüßung\nThema der Stunde\nGruppenarbeit\nErgebnisse\nAusblick", "#0ea5e9"),
+               "Intro\nDas Wichtigste\nLive-Demo\nFragen\nAusklang", "#0ea5e9"),
     "pause": ("Pause", "Pause mit Restzeit und „weiter um …“", "Pause", "Gleich geht's weiter.", "#22c55e"),
     "laufschrift": ("Laufschrift", "Titel und laufende Textzeile unten", "Aktuelles",
                     "Hier kann eine Nachricht durchlaufen – einfach eigenen Text eingeben.", "#f97316"),
@@ -35,15 +35,22 @@ TIMED = {"willkommen": 1000, "pause": 500, "laufschrift": 33, "frage": 50}
 # Weitere Seiten (screens_more.py) dazunehmen
 from .screens_more import MORE_CATEGORIES, MORE_DESIGNS, MORE_LABELS, MORE_TIMED, PAINTERS, Ctx  # noqa: E402
 
+from .screens_cards import CARD_DESIGNS, CARD_LABELS, CARD_PAINTERS, CARD_TIMED, paint_card  # noqa: E402
+
 DESIGNS.update(MORE_DESIGNS)
+DESIGNS.update(CARD_DESIGNS)
 TIMED.update(MORE_TIMED)
-CATEGORY_NAMES = ["Unterricht", "Veranstaltung", "Info", "Pause & Zeit", "Spaß"]
-CATEGORIES = {"willkommen": "Veranstaltung", "ablauf": "Unterricht", "pause": "Pause & Zeit", "laufschrift": "Info",
-              "zitat": "Info", "ankuendigung": "Info", "frage": "Unterricht", "wlan": "Info", **MORE_CATEGORIES}
+TIMED.update(CARD_TIMED)
+CATEGORY_NAMES = ["Style", "Party & Event", "Präsentation", "Info", "Zeit"]
+CATEGORIES = {"willkommen": "Party & Event", "ablauf": "Präsentation", "pause": "Zeit", "laufschrift": "Info",
+              "zitat": "Style", "ankuendigung": "Info", "frage": "Präsentation", "wlan": "Info",
+              **MORE_CATEGORIES, **{k: "Style" for k in CARD_DESIGNS},
+              "nowplaying": "Party & Event", "live": "Party & Event", "versus": "Party & Event",
+              "linkkarte": "Info", "comingsoon": "Info"}
 # Beschriftung der Eingabefelder je Seite (Titel, Text)
 FIELD_LABELS = {"wlan": ("WLAN-Name:", "Passwort:"), "zitat": ("Zitat:", "Autor:"),
                 "ablauf": ("Überschrift:", "Punkte (je Zeile einer):"), "laufschrift": ("Titel:", "Laufschrift:"),
-                **MORE_LABELS}
+                **MORE_LABELS, **CARD_LABELS}
 
 
 def design_defaults(design: str) -> dict:
@@ -53,8 +60,6 @@ def design_defaults(design: str) -> dict:
         cfg["minutes"] = 10
     if design == "ablauf":
         cfg["current"] = 1
-    if design == "aufgabe":
-        cfg["minutes"] = 15
     if design == "abstimmung":
         cfg["current"] = 0  # 0 = noch nicht aufgelöst, sonst Nummer der richtigen Antwort
     return cfg
@@ -122,9 +127,14 @@ def paint_design(p: QPainter, w: int, h: int, cfg: dict, now: float | None = Non
     muted = QColor(255, 255, 255, 170)
     unit = min(w, h / 0.5625) / 100  # 1 % der Breite eines 16:9-Bilds
 
+    if design in CARD_PAINTERS:  # Design-Karten zeichnen ihren eigenen Hintergrund
+        paint_card(p, w, h, cfg, now, started, color, unit)
+        return
     if design in PAINTERS:
         PAINTERS[design](Ctx(p, w, h, cfg, now, started, color, unit))
         return
+    if design not in DESIGNS:  # z. B. entfernte Vorlage in einer alten Szene: Titel und Text schlicht zeigen
+        design = "willkommen"
 
     def accent_bar(x, y, length):
         p.setPen(Qt.NoPen)
@@ -359,7 +369,7 @@ SCENE_TEMPLATES = {
                                     [{**design_defaults("ablauf"), "title": v["title"], "text": v["text"]},
                                      _clock(),
                                      {**design_defaults("ankuendigung"), "title": "Tipp",
-                                      "text": "Fragen jederzeit per Handzeichen."}])),
+                                      "text": "Fragen gerne am Ende."}])),
     "pause": ("Pause mit Countdown", "Pause-Seite mit Restzeit", ("title", "text", "minutes"),
               lambda v: _scene(v["name"], "vollbild",
                                [{**design_defaults("pause"), "title": v["title"], "text": v["text"],
@@ -373,7 +383,7 @@ SCENE_TEMPLATES = {
                    lambda v: _scene(v["name"], "ecke_oben_rechts",
                                     [{**design_defaults("frage"), "title": v["title"], "text": v["text"]},
                                      _clock()])),
-    "gaeste_wlan": ("Gäste-WLAN", "WLAN-Name und Passwort mit QR-Code", ("title", "text"),
+    "gaeste_wlan": ("WLAN für Gäste", "WLAN-Name und Passwort mit QR-Code", ("title", "text"),
                     lambda v: _scene(v["name"], "vollbild",
                                      [{**design_defaults("wlan"), "title": v["title"], "text": v["text"]}])),
     "countdown_start": ("Countdown bis zum Start", "Willkommen-Seite und Countdown", ("title", "minutes"),
@@ -396,41 +406,17 @@ def _qr() -> dict:
 
 
 SCENE_TEMPLATES.update({
-    "stillarbeit": ("Stillarbeit mit Timer", "Ruhe-Seite, Countdown unten", ("title", "text", "minutes"),
-                    lambda v: _scene(v["name"], "uebereinander",
-                                     [_design("ruhe", title=v["title"], text=v["text"]), _countdown(v["minutes"])])),
-    "gruppenarbeit": ("Gruppenarbeit", "Gruppeneinteilung groß, Countdown und Arbeitsauftrag", ("title", "text", "minutes"),
-                      lambda v: _scene(v["name"], "gross_zwei_klein",
-                                       [_design("gruppen", title=v["title"], text=v["text"]), _countdown(v["minutes"]),
-                                        _design("ankuendigung", title="Auftrag", text="Ergebnisse auf Plakat festhalten.")])),
-    "auftrag_timer": ("Arbeitsauftrag + Timer", "Aufgabe links, Countdown rechts", ("title", "text", "minutes"),
-                      lambda v: _scene(v["name"], "nebeneinander",
-                                       [_design("aufgabe", title=v["title"], text=v["text"], minutes=v["minutes"]),
-                                        _countdown(v["minutes"])])),
     "quiz": ("Quiz mit Zeit", "Frage mit Antworten, Countdown klein", ("title", "text", "minutes"),
              lambda v: _scene(v["name"], "ecke_oben_rechts",
                               [_design("abstimmung", title=v["title"], text=v["text"]), _countdown(v["minutes"])])),
     "abstimmung_handy": ("Abstimmung per Handy", "Frage und QR-Code: Handys scannen und senden", ("title", "text"),
                          lambda v: _scene(v["name"], "ecke_unten_rechts",
                                           [_design("abstimmung", title=v["title"], text=v["text"]), _qr()])),
-    "stundenende": ("Ende der Stunde", "Danke-Seite und Hausaufgaben nebeneinander", ("title", "text"),
-                    lambda v: _scene(v["name"], "nebeneinander",
-                                     [_design("danke", title=v["title"] or "Danke!", text="Bis zum nächsten Mal."),
-                                      _design("hausaufgaben", text=v["text"])])),
-    "stundenplan_uhr": ("Stundenplan + Uhr", "Tabelle groß, Uhr klein", ("title", "text"),
-                        lambda v: _scene(v["name"], "ecke_oben_rechts",
-                                         [_design("tabelle", title=v["title"], text=v["text"]), _clock()])),
     "termine_uhr": ("Termine + Uhr", "Nächste Termine, Uhr klein", ("title", "text"),
                     lambda v: _scene(v["name"], "ecke_oben_rechts",
                                      [_design("termine", title=v["title"], text=v["text"]), _clock()])),
     "geburtstag": ("Geburtstag", "Glückwunsch mit Konfetti", ("title", "text"),
                    lambda v: _scene(v["name"], "vollbild", [_design("geburtstag", title=v["title"], text=v["text"])])),
-    "tuerschild_uhr": ("Türschild", "Raum und Hinweis, Uhr klein", ("title", "text"),
-                       lambda v: _scene(v["name"], "ecke_unten_rechts",
-                                        [_design("tuerschild", title=v["title"], text=v["text"]), _clock()])),
-    "mensa": ("Speiseplan", "Mensa-Woche mit Uhr", ("title", "text"),
-              lambda v: _scene(v["name"], "ecke_oben_rechts",
-                               [_design("speiseplan", title=v["title"], text=v["text"]), _clock()])),
     "siegerehrung": ("Siegerehrung", "Podest mit Konfetti", ("title", "text"),
                      lambda v: _scene(v["name"], "vollbild", [_design("sieger", title=v["title"], text=v["text"])])),
     "event_countdown": ("Countdown zum Event", "Restzeit bis zur Uhrzeit, Laufschrift unten", ("title", "text"),
@@ -446,46 +432,74 @@ SCENE_TEMPLATES.update({
     "handy_willkommen": ("Willkommen + Handy-QR", "Begrüßung und QR-Code zum Mitmachen", ("title", "text"),
                          lambda v: _scene(v["name"], "nebeneinander",
                                           [_design("willkommen", title=v["title"], text=v["text"]), _qr()])),
-    "begriff_kamera": ("Begriff + Kamera", "Begriff erklären, Dokumentenkamera daneben", ("title", "text"),
-                       lambda v: _scene(v["name"], "nebeneinander",
-                                        [_design("begriff", title=v["title"], text=v["text"]),
-                                         {"type": "camera", "fit": "contain"}])),
 })
+def _card(key: str, v: dict, **extra) -> dict:
+    return _design(key, title=v.get("title"), text=v.get("text"), **extra)
+
+
+SCENE_TEMPLATES.update({
+    "stream": ("Stream-Overlay", "LIVE-Karte groß, Kamera klein unten rechts", ("title", "text"),
+               lambda v: _scene(v["name"], "ecke_unten_rechts", [_card("live", v), {"type": "camera", "fit": "cover"}])),
+    "stream_start": ("Stream startet gleich", "Coming soon mit Countdown", ("title", "minutes"),
+                     lambda v: _scene(v["name"], "uebereinander",
+                                      [_design("comingsoon", title=v["title"], text="Stay tuned"),
+                                       _countdown(v["minutes"])])),
+    "partynacht": ("Partynacht", "Neon-Schild mit Musik-Karte klein", ("title", "text"),
+                   lambda v: _scene(v["name"], "ecke_unten_rechts",
+                                    [_card("neon", v), _design("nowplaying")])),
+    "musik": ("Musik läuft", "Now Playing im Vollbild", ("title", "text"),
+              lambda v: _scene(v["name"], "vollbild", [_card("nowplaying", v)])),
+    "gaming": ("Gaming-Duell", "Versus-Bildschirm mit Countdown", ("title", "text", "minutes"),
+               lambda v: _scene(v["name"], "bauchbinde",
+                                [_card("versus", v), _countdown(v["minutes"])])),
+    "retro": ("Retro-Abend", "Synthwave mit Uhr", ("title", "text"),
+              lambda v: _scene(v["name"], "ecke_oben_rechts", [_card("synthwave", v), _clock()])),
+    "link_teilen": ("Link teilen", "Link-Karte mit QR-Code im Vollbild", ("title", "text"),
+                    lambda v: _scene(v["name"], "vollbild", [_card("linkkarte", v)])),
+    "praesentation_start": ("Präsentation startet", "Glas-Karte und Countdown", ("title", "text", "minutes"),
+                            lambda v: _scene(v["name"], "uebereinander",
+                                             [_card("glas", v), _countdown(v["minutes"])])),
+    "kamera_neon": ("Kamera + Neon-Titel", "Kamera groß, Neon-Schrift als Leiste unten", ("title", "text"),
+                    lambda v: _scene(v["name"], "bauchbinde",
+                                     [{"type": "camera", "fit": "cover"}, _card("neon", v)])),
+})
+
 TEMPLATE_CATEGORIES = {
-    "begruessung": "Veranstaltung", "ablauf_uhr": "Unterricht", "pause": "Pause & Zeit",
-    "kamera_laufschrift": "Info", "fragerunde": "Unterricht", "gaeste_wlan": "Info",
-    "countdown_start": "Veranstaltung", "stillarbeit": "Pause & Zeit", "gruppenarbeit": "Unterricht",
-    "auftrag_timer": "Unterricht", "quiz": "Unterricht", "abstimmung_handy": "Unterricht",
-    "stundenende": "Unterricht", "stundenplan_uhr": "Info", "termine_uhr": "Info", "geburtstag": "Spaß",
-    "tuerschild_uhr": "Info", "mensa": "Info", "siegerehrung": "Spaß", "event_countdown": "Veranstaltung",
-    "nachrichten": "Info", "handy_willkommen": "Veranstaltung", "begriff_kamera": "Unterricht",
+    "stream": "Party & Event", "stream_start": "Party & Event", "partynacht": "Party & Event", "musik": "Party & Event",
+    "gaming": "Party & Event", "retro": "Style", "link_teilen": "Info", "praesentation_start": "Präsentation",
+    "kamera_neon": "Style",
+    "begruessung": "Party & Event", "ablauf_uhr": "Präsentation", "pause": "Zeit",
+    "kamera_laufschrift": "Info", "fragerunde": "Präsentation", "gaeste_wlan": "Info",
+    "countdown_start": "Party & Event", "quiz": "Präsentation", "abstimmung_handy": "Präsentation", "termine_uhr": "Info", "geburtstag": "Party & Event", "siegerehrung": "Party & Event", "event_countdown": "Party & Event",
+    "nachrichten": "Info", "handy_willkommen": "Party & Event",
 }
-TEMPLATE_LABELS = {"gaeste_wlan": ("WLAN-Name:", "Passwort:"), "ablauf_uhr": ("Überschrift:", "Punkte:"),
-                   "kamera_laufschrift": ("Titel:", "Textleiste:"), "gruppenarbeit": ("Überschrift:", "Gruppen:"),
-                   "auftrag_timer": ("Überschrift:", "Schritte:"), "quiz": ("Frage:", "Antworten:"),
-                   "abstimmung_handy": ("Frage:", "Antworten:"), "stundenende": ("Titel:", "Hausaufgaben:"),
-                   "stundenplan_uhr": ("Überschrift:", "Zeilen (| trennt Spalten):"),
-                   "termine_uhr": ("Überschrift:", "Datum | Termin:"), "tuerschild_uhr": ("Raum:", "Zeilen darunter:"),
-                   "mensa": ("Überschrift:", "Tag | Gericht:"), "siegerehrung": ("Überschrift:", "Platz 1, 2, 3:"),
+TEMPLATE_LABELS = {"gaming": ("Links:", "Rechts:"), "musik": ("Song:", "Künstler:"), "link_teilen": ("Titel:", "Link:"),
+                   "partynacht": ("Neon-Text:", "Zeile darunter:"),"gaeste_wlan": ("WLAN-Name:", "Passwort:"), "ablauf_uhr": ("Überschrift:", "Punkte:"),
+                   "kamera_laufschrift": ("Titel:", "Textleiste:"), "quiz": ("Frage:", "Antworten:"),
+                   "abstimmung_handy": ("Frage:", "Antworten:"),
+                   "termine_uhr": ("Überschrift:", "Datum | Termin:"), "siegerehrung": ("Überschrift:", "Platz 1, 2, 3:"),
                    "event_countdown": ("Text oben:", "Uhrzeit/Datum:"), "begriff_kamera": ("Begriff:", "Erklärung:")}
 
 TEMPLATE_DEFAULTS = {
     "begruessung": {"title": "Herzlich willkommen!", "text": "Schön, dass ihr da seid."},
     "ablauf_uhr": {"title": "Heute", "text": DESIGNS["ablauf"][3]},
     "pause": {"title": "Pause", "text": "Gleich geht's weiter.", "minutes": 10},
-    "kamera_laufschrift": {"text": "Live aus dem Klassenraum"},
+    "kamera_laufschrift": {"text": "Live dabei – schön, dass du zuschaust"},
     "fragerunde": {"title": "Fragen?", "text": "Jetzt ist Zeit für eure Fragen."},
-    "gaeste_wlan": {"title": "Gäste-WLAN", "text": ""},
+    "gaeste_wlan": {"title": "Gäste-WLAN", "text": ""},  # Passwort bitte selbst eintragen
     "countdown_start": {"title": "Herzlich willkommen!", "minutes": 5},
     **{key: {"title": DESIGNS[d][2], "text": DESIGNS[d][3], "minutes": m} for key, d, m in (
-        ("stillarbeit", "ruhe", 20), ("gruppenarbeit", "gruppen", 15), ("auftrag_timer", "aufgabe", 15),
-        ("quiz", "abstimmung", 1), ("abstimmung_handy", "abstimmung", 5), ("stundenende", "hausaufgaben", 5),
-        ("stundenplan_uhr", "tabelle", 5), ("termine_uhr", "termine", 5), ("geburtstag", "geburtstag", 5),
-        ("tuerschild_uhr", "tuerschild", 5), ("mensa", "speiseplan", 5), ("siegerehrung", "sieger", 5),
+        ("quiz", "abstimmung", 1), ("abstimmung_handy", "abstimmung", 5), ("termine_uhr", "termine", 5), ("geburtstag", "geburtstag", 5), ("siegerehrung", "sieger", 5),
         ("event_countdown", "event_countdown", 5), ("nachrichten", "schlagzeile", 5),
-        ("handy_willkommen", "willkommen", 5), ("begriff_kamera", "begriff", 5))},
+        ("handy_willkommen", "willkommen", 5),
+        ("stream", "live", 5), ("stream_start", "comingsoon", 5), ("partynacht", "neon", 5), ("musik", "nowplaying", 5),
+        ("gaming", "versus", 3), ("retro", "synthwave", 5), ("link_teilen", "linkkarte", 5),
+        ("praesentation_start", "glas", 5), ("kamera_neon", "neon", 5))},
 }
-TEMPLATE_DEFAULTS["stundenende"]["title"] = "Danke!"
+TEMPLATE_DEFAULTS["stream_start"]["title"] = "Stream startet gleich"
+TEMPLATE_DEFAULTS["praesentation_start"].update(title="Gleich geht's los", text="Schnapp dir einen Platz")
+TEMPLATE_DEFAULTS["kamera_neon"].update(title="ON AIR", text="")
+
 
 
 def build_template(key: str, values: dict) -> dict:

@@ -8,6 +8,18 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.21.0) – Design-Karten statt Schul-Vorlagen
+- **12 neue Design-Karten** für alles Mögliche: **Neon-Schild** (leuchtet und flackert), **Glitch** (Cyberpunk),
+  **Synthwave** (80er-Sonnenuntergang mit Raster), **Poster**, **Minimal**, **Spotlight** (wandernder
+  Scheinwerfer), **Now Playing** (Musik-Karte mit Equalizer), **LIVE**-Overlay, **Versus** (Duell/Gaming),
+  **Link-Karte** mit QR-Code, **Coming soon** und **Glas-Karte**. Alle animiert und mit eigenem Text.
+- **9 neue Szenen:** Stream-Overlay (LIVE + Kamera), Stream startet gleich, Partynacht, Musik läuft,
+  Gaming-Duell, Retro-Abend, Link teilen, Präsentation startet, Kamera + Neon-Titel.
+- **Entfernt:** Vorlagen für Lehrer (Arbeitsauftrag, Regeln, Gruppeneinteilung, Hausaufgaben,
+  Stimmungsbarometer, Türschild, Speiseplan, Stillarbeit) und die dazugehörigen Szenen. Beispieltexte ohne
+  Schulbezug. Gespeicherte Szenen mit einer entfernten Vorlage zeigen weiterhin Titel und Text.
+- Neue Kategorien: Style, Party & Event, Präsentation, Info, Zeit.
+
 ### Neu in dieser Version (0.20.0) – viel mehr Vorlagen
 - **28 gestaltete Seiten** (20 neu): Countdown bis Uhrzeit/Datum, Geburtstag mit Konfetti, Tabelle/Stundenplan,
   **Abstimmung/Quiz** (A–F, richtige Antwort hervorheben), Arbeitsauftrag mit Zeit, Regeln, **Gruppeneinteilung**,
