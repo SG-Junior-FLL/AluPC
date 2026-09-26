@@ -34,9 +34,11 @@ def bundled_uxplay_dir() -> Path | None:
 
 
 def uxplay_environment(uxplay: str) -> dict[str, str]:
-    """Umgebung für ein mitgeliefertes UxPlay: eigene DLLs und GStreamer-Plugins statt Systemsuche."""
-    folder = bundled_uxplay_dir()
-    if folder is None or Path(uxplay).resolve() != (folder / "bin" / "uxplay.exe").resolve():
+    """Umgebung für ein UxPlay, das seine DLLs und GStreamer-Plugins selbst mitbringt (…/bin/uxplay.exe mit
+    …/lib/gstreamer-1.0 daneben): mitgeliefert von AluPC oder aus uxplay-windows 1.x."""
+    exe = Path(uxplay)
+    folder = exe.parent.parent
+    if exe.parent.name.lower() != "bin" or not (folder / "lib" / "gstreamer-1.0").is_dir():
         return {}
     plugins = str(folder / "lib" / "gstreamer-1.0")
     env = {"PATH": str(folder / "bin") + os.pathsep + os.environ.get("PATH", ""),
@@ -107,11 +109,22 @@ def uxplay_windows_log_tail(lines: int = 15) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()][-lines:]
 
 
+def old_uxplay_windows_binary() -> str | None:
+    """uxplay-windows 1.x (Python-Tray) startet ein mitgeliefertes bin/uxplay.exe OHNE Einstellungsdatei –
+    AluPC startet dieses uxplay.exe deshalb direkt selbst (dann gelten Name, Code usw.)."""
+    for candidate in uxplay_windows_candidates():
+        exe = Path(candidate).parent / "bin" / "uxplay.exe"
+        if exe.is_file():
+            return str(exe)
+    return None
+
+
 def kill_uxplay_windows() -> None:
-    """Laufendes uxplay-windows (z. B. aus dessen eigenem Autostart) beenden – es darf nur einen AirPlay-Empfänger geben."""
+    """Andere laufende AirPlay-Empfänger (uxplay-windows mit eigenem Autostart, dessen uxplay.exe) beenden –
+    es darf nur einen geben, sonst sind die Ports belegt und AluPCs Einstellungen gelten nicht."""
     if not IS_WINDOWS:
         return
-    for exe in (UXPLAY_WINDOWS_EXE, "uxplay-bluetooth-beacon.exe"):
+    for exe in (UXPLAY_WINDOWS_EXE, "uxplay-bluetooth-beacon.exe", "uxplay.exe"):
         try:
             subprocess.run(["taskkill", "/F", "/T", "/IM", exe], capture_output=True, timeout=10,
                            creationflags=0x08000000)
@@ -178,10 +191,11 @@ def uxplay_args(name: str, pin: str, port: int | None, window_title: bool = True
         args += ["-pin", pin] if pin != "zufall" else ["-pin"]
     if port is not None:  # Bild an AluPC weiterleiten statt selbst anzeigen
         args += ["-vrtp", f"config-interval=1 ! udpsink host=127.0.0.1 port={port}"]
-    else:  # eigenes Fenster im Vollbild (AluPC schiebt es auf Monitor 2)
+    elif not IS_WINDOWS:  # eigenes Fenster im Vollbild (AluPC schiebt es auf Monitor 2)
         args += ["-fs"]
-        if not IS_WINDOWS and window_title:
+        if window_title:
             args += ["-vs", "ximagesink"]  # X11-Fenster: Titel = Name, lässt sich überall platzieren
+    # Windows: kein -fs – Vollbild landete auf Monitor 1; AluPC legt das Fenster selbst randlos auf Monitor 2
     return args
 
 
@@ -216,6 +230,9 @@ class AirPlayServer(QObject):
             return extra[0]  # mitgeliefertes UxPlay zuerst
         if is_uxplay_windows(configured):
             return find_uxplay_windows(configured)
+        if IS_WINDOWS:
+            old = old_uxplay_windows_binary()
+            extra += [old] if old else []
         return find_program("uxplay", configured, extra) or find_uxplay_windows()
 
     def sdp_path(self) -> Path:
@@ -245,9 +262,11 @@ class AirPlayServer(QObject):
         pin = s.get("pin", "")
         self.pin_code = pin if pin and pin != "zufall" else ""
         args = uxplay_args(s["airplay_name"], pin, self.port if stream else None)
+        kill_uxplay_windows()  # fremde Empfänger (z. B. uxplay-windows im Autostart) belegen sonst die Ports
+        self._started_with = self._wanted()
         self.proc = QProcess(self)
         extra_env = uxplay_environment(uxplay)
-        if extra_env:  # mitgeliefertes UxPlay (Windows-Installer): eigene GStreamer-Plugins
+        if extra_env:  # UxPlay mit eigenen GStreamer-Plugins (mitgeliefert bzw. uxplay-windows 1.x)
             from PySide6.QtCore import QProcessEnvironment
 
             env = QProcessEnvironment.systemEnvironment()
@@ -262,6 +281,22 @@ class AirPlayServer(QObject):
         self.status.emit("läuft")
         return self.mode
 
+    def _wanted(self) -> tuple:
+        s = self.settings()
+        return (s.get("airplay_name"), s.get("pin"), self.binary())
+
+    def restart_if_changed(self) -> bool:
+        """Name/Code/Programm geändert, während der Empfang läuft → mit den neuen Einstellungen neu starten."""
+        if not self.running() or self._wanted() == getattr(self, "_started_with", None):
+            return False
+        users, mode = self.users, self.mode
+        self.users = 0
+        self._really_stop()
+        self.users = max(0, users - 1)
+        self.acquire(want_stream=(mode == "stream"))
+        self.status.emit("neu gestartet")
+        return True
+
     def _start_uxplay_windows(self, exe: str, s: dict) -> str:
         """Windows: uxplay-windows mit AluPCs Name/Code starten. Es zeigt das Bild in einem eigenen Fenster."""
         pin = s.get("pin", "")
@@ -270,6 +305,7 @@ class AirPlayServer(QObject):
         self.pin_code = pin
         args = ["-n", s["airplay_name"] or "AluPC", "-nh", "-p"] + (["-pin", pin] if pin else [])
         kill_uxplay_windows()  # evtl. mit anderen Einstellungen schon laufend (eigener Autostart)
+        self._started_with = self._wanted()
         try:
             target = uxplay_windows_arguments_file()
             target.parent.mkdir(parents=True, exist_ok=True)

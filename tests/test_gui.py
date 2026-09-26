@@ -1561,7 +1561,13 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
                         lambda wid, out, rect, full=False: moved.append((wid, out, rect, full)))
     controller.start_airplay()
     pump()
-    assert controller.mode == "desktop" and controller.desktop_note.startswith("iPhone/iPad")
+    # Monitor 2 zeigt den Warte-Bildschirm (AluPC-Inhalt) – NICHT „Erweitert“
+    assert controller.mode == "content" and controller.content == {"type": "airplay"}
+    from alupc.sources import AirPlaySource
+
+    assert isinstance(controller.output.content, AirPlaySource) and controller.output.content._waiting
+    assert "AluPC" in controller.output.content._message or controller.airplay.settings()["airplay_name"] in \
+        controller.output.content._message
     assert _until(lambda: controller.airplay.running() and log.exists(), 5)
     assert "-fs" in log.read_text() and "-vrtp" not in log.read_text()
     # UxPlay öffnet sein Fenster erst, wenn sich das iPhone verbindet – auch viel später
@@ -1580,9 +1586,13 @@ def test_handy_windows_mode(env, tmp_path, monkeypatch):
                        WindowInfo(id="0x4", title="Direct3D11 renderer", app="uxplay-windows")]
     controller._follow_timer.timeout.emit()
     assert [m[0] for m in moved[-1:]] == ["0x4"] and "0x3" not in [m[0] for m in moved]
-    assert not controller.cursor_should_stay_home()
+    assert controller.cursor_should_stay_home()  # kein Erweitern: Maus bleibt auf Monitor 1
     pump()
     assert window.t_airplay.active and not window.t_extend.active and not window.t_program.active
+    # Name geändert, während es läuft → UxPlay startet mit dem neuen Namen neu
+    controller.config["handy"] = {**controller.config["handy"], "airplay_name": "Neuer Name"}
+    assert controller.airplay.restart_if_changed()
+    assert _until(lambda: controller.airplay.running() and "Neuer Name" in log.read_text(), 5)
     controller.extend()
     assert _until(lambda: not controller.airplay.running(), 5)  # AirPlay beendet
     assert controller._handy_window == ""

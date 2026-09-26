@@ -278,6 +278,8 @@ class Controller(QObject):
         window_settings["restore_minimized"] = bool(self.config["program"].get("restore_minimized", True))
         self._sync_camera_settings()
         self.output.set_content(create_source(cfg, self.config.get_scene), self.transition_for(cfg))
+        if cfg.get("type") == "airplay":
+            self._follow_airplay_window()
         if remember:
             self.config["last_content"] = cfg
             from . import media_library
@@ -392,33 +394,35 @@ class Controller(QObject):
 
     # ------------------------------------------------------------ Handy → Monitor 2
     def start_airplay(self) -> None:
-        """iPhone/iPad: als Quelle (UxPlay ≥ 1.73) oder im eigenen Vollbild-Fenster (ältere Versionen)."""
-        from .handy import supports_vrtp
-
-        uxplay = self.airplay.binary()
-        if not uxplay:
-            self.message.emit("AirPlay: UxPlay fehlt – Seite „Handy“ → „Automatisch einrichten“.")
-            return
-        if supports_vrtp(uxplay):
-            self.show_source({"type": "airplay"})
+        """iPhone/iPad auf Monitor 2. Monitor 2 zeigt sofort einen Warte-Bildschirm (Name, Code) – kein
+        „Erweitert“. Kann UxPlay das Bild an AluPC weitergeben (ab 1.73), erscheint es direkt darin; sonst legt
+        AluPC UxPlays eigenes Fenster randlos und im Vordergrund darüber, sobald sich das iPhone verbindet."""
+        if not self.airplay.binary():
+            self.message.emit("AirPlay: Der Empfänger fehlt – Handy → „Automatisch einrichten“ installiert ihn.")
             return
         if self.output_screen() is None:
             self.message.emit("Kein zweiter Monitor gefunden.")
             return
-        self._stop_handy_window()
-        self.ensure_extended()
-        self.airplay.acquire(want_stream=False)
-        self._handy_window = "airplay"
-        self._set_desktop("iPhone/iPad (AirPlay, eigenes Fenster)")
+        self.show_source({"type": "airplay"})
         name = self.airplay.settings()["airplay_name"]
         code = f" · Code {self.airplay.pin_code}" if self.airplay.pin_code else ""
         self.message.emit(f"AirPlay bereit: am iPhone/iPad „Bildschirmsynchronisierung“ → „{name}“ wählen.{code}")
-        # uxplay-windows: Videofenster gehört zum Programm „uxplay-windows“ (Titel je nach Version verschieden)
-        self._place_handy_window(name, "UxPlay", "AirPlay Video", apps=("uxplay-windows",))
+
+    def _follow_airplay_window(self) -> None:
+        """UxPlay zeigt das Bild im eigenen Fenster → dieses Fenster dauerhaft auf Monitor 2 legen."""
+        from .sources import AirPlaySource
+
+        src = self.output.content
+        if isinstance(src, AirPlaySource) and src.mode == "fenster":
+            self._handy_window = "airplay-quelle"  # UxPlay gehört der Quelle (gibt es beim Wechsel selbst frei)
+            name = self.airplay.settings()["airplay_name"]
+            # uxplay-windows/uxplay.exe: Fenster am Programm erkennen (Titel je nach Version verschieden)
+            self._place_handy_window(name, name.replace(" ", "\u00a0"), "UxPlay", "AirPlay Video",
+                                     apps=("uxplay-windows", "uxplay"))
 
     def _airplay_failed(self, reason: str) -> None:
         self.message.emit(f"AirPlay läuft nicht: {reason}")
-        if self._handy_window == "airplay":
+        if self._handy_window in ("airplay", "airplay-quelle"):
             self._stop_following()
             self._handy_window = ""
 
@@ -611,7 +615,11 @@ class Controller(QObject):
                     present.add(w.id)
                     if w.id not in placed:
                         try:
-                            self.windows.move_window(w.id, screen.name(), rect, True)
+                            present = getattr(self.windows, "present_window", None)
+                            if present:  # Windows: randlos, genau Monitor 2, im Vordergrund
+                                present(w.id, screen.name(), rect)
+                            else:
+                                self.windows.move_window(w.id, screen.name(), rect, True)
                             placed.add(w.id)
                         except Exception:  # noqa: BLE001
                             pass

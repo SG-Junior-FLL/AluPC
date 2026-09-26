@@ -618,24 +618,53 @@ class AirPlaySource(SinkView):
             self.set_message("AirPlay-Empfang: Das Programm UxPlay fehlt.\n\nSeite „Handy“ → „Automatisch "
                              "einrichten“ installiert es.")
             return
+        self.server.failed.connect(self._failed)
+        self.server.status.connect(self._status)
         if self.mode == "fenster":
-            self.set_message("Diese UxPlay-Version kann das Bild nicht an AluPC weitergeben (erst ab 1.73).\n\n"
-                             "Über die Kachel „Handy“ klappt AirPlay trotzdem – im eigenen Vollbild-Fenster.")
+            # UxPlay zeigt das Bild im eigenen Fenster, AluPC legt es über diesen Warte-Bildschirm
+            self._show_waiting()
             return
         self.sink.videoFrameChanged.connect(self._got_frame)
         self._show_waiting()
         self._start_player()
         self._watch.start()
 
+    def _failed(self, reason: str):
+        try:
+            self.set_message(f"AirPlay-Empfang läuft nicht\n\n{reason}")
+        except RuntimeError:
+            pass
+
+    def _status(self, state: str):
+        if state in ("neu gestartet", "pin") and self._image is None:  # laufendes Bild nicht wegnehmen
+            try:
+                self._show_waiting()
+            except RuntimeError:
+                pass
+
+    def paintEvent(self, event):
+        self._convert()
+        if self._image is not None or not getattr(self, "_waiting", False):
+            return super().paintEvent(event)
+        paint_airplay_waiting(self, self.server.settings()["airplay_name"], self.server.pin_code)
+
+    def set_message(self, text: str) -> None:
+        self._waiting = False
+        super().set_message(text)
+
     def _show_waiting(self):
+        self._waiting = True
         s = self.server.settings()
         text = (f"iPhone/iPad: Kontrollzentrum → Bildschirmsynchronisierung → „{s['airplay_name']}“\n"
                 "(gleiches WLAN wie dieser PC)")
         if self.server.pin_code:
             text += f"\n\nCode: {self.server.pin_code}"
+        if self.mode == "fenster":
+            text += "\n\nSobald sich das iPhone verbindet, erscheint sein Bild hier."
         self._image = None
         self._pending = None
-        self.set_message(text)
+        SinkView.set_message(self, text)  # Text für Tests/Vorschau; gezeichnet wird der Warte-Bildschirm
+        self._waiting = True
 
     def _start_player(self):
         if self.player is not None:
@@ -666,10 +695,59 @@ class AirPlaySource(SinkView):
 
     def stop(self):
         self._watch.stop()
+        for sig, slot in ((self.server.failed, self._failed), (self.server.status, self._status)):
+            try:
+                sig.disconnect(slot)
+            except (RuntimeError, TypeError):
+                pass
         if self.player is not None:
             self.player.stop()
         if self.mode in ("stream", "fenster"):
             self.server.release()
+
+
+def paint_airplay_waiting(widget, name: str, code: str) -> None:
+    """Warte-Bildschirm für AirPlay auf Monitor 2: groß, gut lesbar aus der Entfernung."""
+    from PySide6.QtGui import QLinearGradient, QPen
+
+    w, h = widget.width(), widget.height()
+    p = QPainter(widget)
+    p.setRenderHint(QPainter.Antialiasing)
+    grad = QLinearGradient(0, 0, w, h)
+    grad.setColorAt(0, QColor("#0b1020"))
+    grad.setColorAt(1, QColor("#1b2346"))
+    p.fillRect(widget.rect(), grad)
+    unit = max(8, min(w, h) // 36)
+    # stilisiertes Handy mit Spiegel-Symbol
+    pw, ph = unit * 6, unit * 11
+    px, py = (w - pw) / 2, h * 0.14
+    p.setPen(QPen(QColor("#8ab4ff"), max(2, unit // 3)))
+    p.setBrush(QColor(255, 255, 255, 18))
+    p.drawRoundedRect(QRectF(px, py, pw, ph), unit, unit)
+    p.drawLine(int(px + pw * 0.38), int(py + unit * 0.9), int(px + pw * 0.62), int(py + unit * 0.9))
+    p.drawRoundedRect(QRectF(px + pw * 0.25, py + ph * 0.36, pw * 0.5, ph * 0.28), unit * 0.3, unit * 0.3)
+
+    def text(y, size, value, color, bold=False):
+        font = QFont()
+        font.setPixelSize(int(size))
+        font.setBold(bold)
+        p.setFont(font)
+        p.setPen(QColor(color))
+        p.drawText(QRectF(unit, y, w - 2 * unit, size * 1.6), Qt.AlignCenter | Qt.TextWordWrap, value)
+
+    y = py + ph + unit * 1.6
+    text(y, unit * 1.3, "iPhone / iPad – Bildschirmsynchronisierung", "#9aa7c7")
+    y += unit * 2.4
+    text(y, unit * 2.8, name, "#ffffff", True)
+    y += unit * 4.4
+    if code:
+        text(y, unit * 1.3, "Code am iPhone eingeben", "#9aa7c7")
+        y += unit * 2.0
+        text(y, unit * 3.2, "  ".join(code), "#ffd166", True)
+        y += unit * 5.0
+    text(y, unit * 1.05, "Kontrollzentrum öffnen → Bildschirmsynchronisierung → Namen wählen · gleiches WLAN",
+         "#7f8bab")
+    p.end()
 
 
 # --------------------------------------------------------------------------- AluCast (QR-Code)

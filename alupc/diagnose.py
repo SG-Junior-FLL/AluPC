@@ -105,6 +105,12 @@ def report(controller, probe: bool = True) -> str:
                  f"{'ja' if controller.airplay.running() else 'nein'}")
     if controller.airplay.log:
         lines.append("  Letzte Meldungen: " + " | ".join(controller.airplay.log[-5:]))
+    try:  # Wird das Bild-Fenster gefunden? (AluPC legt es auf Monitor 2)
+        wins = [f"„{w.title}“ ({w.app})" for w in controller.windows.list_windows()
+                if "uxplay" in (w.app or "").lower() or "uxplay" in w.title.lower()]
+        lines.append("  AirPlay-Fenster: " + (", ".join(wins) if wins else "keins offen (erst bei Verbindung)"))
+    except Exception:  # noqa: BLE001
+        pass
 
     lines.append("")
     lines.append("== Handy-Steuerung (QR) ==")

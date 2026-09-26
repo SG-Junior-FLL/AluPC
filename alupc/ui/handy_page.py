@@ -339,6 +339,8 @@ class HandyPage(QWidget):
         pin = self.pin.text() if mode == "fest" and len(self.pin.text()) == 4 else ("zufall" if mode == "zufall" else "")
         self.config["handy"] = {**self.config["handy"], "airplay_name": self.name.text().strip() or "AluPC",
                                 "pin": pin}
+        if self.controller.airplay.restart_if_changed():  # läuft gerade → neue Einstellungen sofort übernehmen
+            self.controller.message.emit("AirPlay mit den neuen Einstellungen neu gestartet.")
         self.refresh()
 
     def _log(self, line: str):
@@ -355,6 +357,7 @@ class HandyPage(QWidget):
         if path:
             self.config["handy"] = {**self.config["handy"], f"{program}_path": path}
             handy._vrtp_cache.pop(path, None)
+            self.controller.airplay.restart_if_changed()
             self.refresh()
 
     # ================================================================ Zustand

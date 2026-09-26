@@ -21,6 +21,13 @@ SWP_NOZORDER = 0x0004
 SWP_NOACTIVATE = 0x0010
 SWP_SHOWWINDOW = 0x0040
 HWND_BOTTOM = 1
+HWND_TOPMOST = -1
+GWL_STYLE = -16
+WS_CAPTION = 0x00C00000
+WS_THICKFRAME = 0x00040000
+WS_MINIMIZE = 0x20000000
+WS_MAXIMIZE = 0x01000000
+SWP_FRAMECHANGED = 0x0020
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 # Fenster der Windows-Oberfläche selbst (Desktop „Program Manager“, Taskleisten …)
 SHELL_CLASSES = {"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "Windows.UI.Core.CoreWindow",
@@ -38,6 +45,8 @@ class WindowsWindowBackend(WindowBackend):
         # Typen festlegen, damit 64-Bit-Fensterhandles nicht abgeschnitten werden
         u.GetWindowLongW.argtypes = [HWND, ctypes.c_int]
         u.GetWindowLongW.restype = ctypes.c_long
+        u.SetWindowLongW.argtypes = [HWND, ctypes.c_int, ctypes.c_long]
+        u.SetWindowLongW.restype = ctypes.c_long
         u.GetWindow.argtypes = [HWND, wintypes.UINT]
         u.GetWindow.restype = HWND
         u.GetForegroundWindow.restype = HWND
@@ -126,6 +135,17 @@ class WindowsWindowBackend(WindowBackend):
         # Fremde Programme lassen sich nicht zuverlässig in echtes Vollbild zwingen → maximieren
         self.user32.ShowWindow(hwnd, SW_MAXIMIZE)
         self.user32.SetForegroundWindow(hwnd)
+
+    def present_window(self, window_id, output_name, rect) -> None:
+        """Fremdes Fenster (z. B. AirPlay-Bild) randlos genau über Monitor 2 legen, immer im Vordergrund –
+        auch wenn es später im Hintergrund aufgeht (Windows lässt fremde Fenster sonst nicht nach vorne)."""
+        hwnd = int(window_id)
+        x, y, w, h = monitor_rect(output_name) or rect
+        u = self.user32
+        style = u.GetWindowLongW(hwnd, GWL_STYLE)
+        u.SetWindowLongW(hwnd, GWL_STYLE, style & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE))
+        u.ShowWindow(hwnd, SW_RESTORE)
+        u.SetWindowPos(hwnd, wintypes.HWND(HWND_TOPMOST), x, y, w, h, SWP_SHOWWINDOW | SWP_FRAMECHANGED)
 
     def move_window(self, window_id, output_name, rect, fullscreen=False):
         self._move(int(window_id), output_name, rect, fullscreen)
