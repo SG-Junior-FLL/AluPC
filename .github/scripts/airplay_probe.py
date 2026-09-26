@@ -23,40 +23,59 @@ def note(text: str) -> None:
     print(f"::notice title=AirPlay-Probe::{text}", flush=True)
 
 
-def main():
-    app = QCoreApplication([])
-    cfg = Config(Path(os.environ.get("RUNNER_TEMP", ".")) / "airplay-probe.json")
-    cfg["handy"] = {**cfg["handy"], "airplay_name": "AluPC CI-Test", "pin": "1234"}
-    server = handy.AirPlayServer(cfg)
-    note(f"Programm: {server.binary()} · Bonjour: {handy.bonjour_installed()} · "
-         f"noch einzurichten: {[label for label, _ in handy.setup_plan(cfg)]}")
-    note(f"Modus: {server.acquire(want_stream=False)}")
-    failed = []
-    server.failed.connect(failed.append)
-    end = time.time() + 20
-    while time.time() < end and not failed:
-        app.processEvents()
-        time.sleep(0.1)
-    note(f"läuft nach 20 s: {server.running()}" + (f" · Fehler: {failed[0]}" if failed else "")
-         + " · Ausgabe: " + " | ".join(line[:120] for line in server.log[-10:]))
-    note(f"arguments.txt: {handy.uxplay_windows_arguments_file().read_text(encoding='utf-8')!r}")
-    ports = subprocess.run(["netstat", "-ano", "-p", "tcp"], capture_output=True, text=True).stdout
-    listening = sorted({line.split()[1].rsplit(":", 1)[-1] for line in ports.splitlines()
-                        if "LISTEN" in line and line.split()[1].rsplit(":", 1)[-1] in ("7000", "7001", "7100")})
-    note(f"AirPlay-Ports offen: {listening or 'keiner'}")
+def bonjour_names() -> list[str]:
     try:
         browse = subprocess.run(["dns-sd", "-B", "_airplay._tcp", "local"], capture_output=True, text=True, timeout=8)
         found = browse.stdout
     except subprocess.TimeoutExpired as exc:  # dns-sd läuft endlos – nach 8 s abbrechen und Ausgabe lesen
         found = exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
     except OSError as exc:
-        found = f"(dns-sd nicht ausführbar: {exc})"
-    lines = [line.strip() for line in found.splitlines() if "AluPC" in line or "dns-sd" in line]
-    note("Bonjour-Suche _airplay._tcp: " + (" | ".join(lines) if lines else "AluPC NICHT gefunden"))
-    note("Protokoll: " + " | ".join(line[:160] for line in handy.uxplay_windows_log_tail(8)))  # max. 10 Hinweise/Schritt
+        return [f"(dns-sd nicht ausführbar: {exc})"]
+    names = set()
+    for line in found.splitlines():
+        if " Add " in line and "_airplay._tcp." in line:
+            names.add(line.split("_airplay._tcp.", 1)[1].strip().replace("\xa0", " "))  # geschütztes Leerzeichen
+    return sorted(names)
+
+
+def wait(app, seconds, stop=lambda: False):
+    end = time.time() + seconds
+    while time.time() < end and not stop():
+        app.processEvents()
+        time.sleep(0.1)
+
+
+def main():
+    app = QCoreApplication([])
+    cfg = Config(Path(os.environ.get("RUNNER_TEMP", ".")) / "airplay-probe.json")
+    cfg["handy"] = {**cfg["handy"], "airplay_name": "AluPC CI-Test", "pin": "1234"}
+    server = handy.AirPlayServer(cfg)
+    failed, notices = [], []
+    server.failed.connect(failed.append)
+    server.notice.connect(notices.append)
+    mode = server.acquire(want_stream=False)
+    note(f"Programm: {server.binary()} · Bonjour: {handy.bonjour_installed()} · Modus: {mode} · "
+         f"noch einzurichten: {[label for label, _ in handy.setup_plan(cfg)]}")
+    wait(app, 20, lambda: bool(failed))
+    ports = subprocess.run(["netstat", "-ano", "-p", "tcp"], capture_output=True, text=True).stdout
+    listening = sorted({line.split()[1].rsplit(":", 1)[-1] for line in ports.splitlines()
+                        if "LISTEN" in line and line.split()[1].rsplit(":", 1)[-1] in ("7000", "7001", "7100")})
+    note(f"Start: läuft {server.running()} · Ports {listening or 'keiner'} · "
+         f"arguments.txt {handy.uxplay_windows_arguments_file().read_text(encoding='utf-8')!r}"
+         + (f" · Fehler: {failed[0]}" if failed else "") + (f" · Hinweis: {notices[0]}" if notices else ""))
+    note(f"Bonjour nach Start: {bonjour_names()}")
+    # Umbenennen und Code ändern, WÄHREND es läuft – so wie in Setup oder im Fenster „Handy“
+    restarted = server.update_settings(airplay_name="AluPC Umbenannt", pin="4711")
+    wait(app, 15, lambda: bool(failed))
+    names = bonjour_names()
+    ok = "AluPC Umbenannt" in names and "AluPC CI-Test" not in names
+    note(f"UMBENENNEN IM BETRIEB: {'OK' if ok else 'FEHLER'} · neu gestartet {restarted} · läuft "
+         f"{server.running()} · Bonjour {names} · arguments.txt "
+         f"{handy.uxplay_windows_arguments_file().read_text(encoding='utf-8')!r} · läuft als "
+         f"{server.running_settings()}" + (f" · Fehler: {failed[-1]}" if failed else "")
+         + (f" · Hinweise: {notices}" if notices else ""))
+    note("Protokoll: " + " | ".join(line[:140] for line in handy.uxplay_windows_log_tail(6)))
     server.shutdown()
-    time.sleep(1)
-    note(f"nach dem Beenden läuft es noch: {server.running()}")
 
 
 try:
