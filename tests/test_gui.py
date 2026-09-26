@@ -341,6 +341,32 @@ def test_custom_tile_and_scene_steps(env):
     assert not controller.frozen
 
 
+def test_several_screensaver_tiles(env):
+    """Mehrere Bildschirmschoner als eigene Kacheln auf die Startseite – jeder mit eigenem Stil."""
+    controller, window, _ = env
+    from alupc.ui.start_page_dialog import StartPageDialog
+
+    dlg = StartPageDialog(controller.config, window, controller)
+    dlg.add_saver("aurora")
+    dlg.add_saver("matrix")
+    dlg.add_saver("flipuhr")
+    dlg._save()
+    tiles = [t for t in controller.config["start_page"]["custom"]
+             if (t.get("action") or {}).get("kind") == "screensaver"]
+    assert [t["action"]["screensaver"]["style"] for t in tiles[-3:]] == ["aurora", "matrix", "flipuhr"]
+    for t in tiles[-3:]:
+        assert f"custom:{t['id']}" in controller.config["start_page"]["tiles"]  # sichtbar
+    window.rebuild_start()
+    assert all(f"custom:{t['id']}" in window.custom_tiles for t in tiles[-3:])
+    if controller.output_screen() is not None:
+        controller.run_tile(tiles[-3]["id"])
+        assert controller.screensaver.active and controller.screensaver.override_id == tiles[-3]["id"]
+        controller.run_tile(tiles[-2]["id"])  # anderer Schoner → wechselt statt zu beenden
+        assert controller.screensaver.active and controller.screensaver.override_id == tiles[-2]["id"]
+        controller.run_tile(tiles[-2]["id"])  # gleicher nochmal → aus
+        assert not controller.screensaver.active
+
+
 def test_start_page_dialog_roundtrip(env):
     controller, window, _ = env
     from alupc.ui.start_page_dialog import StartPageDialog
@@ -1646,9 +1672,20 @@ def test_handy_page_airplay_settings(env, tmp_path):
     page.name.setText("Physikraum")
     page.pin_mode.setCurrentIndex(page.pin_mode.findData("fest"))
     page.pin.setText("2468")
-    page._save_airplay()
+    page._save_name()
+    page._save_pin()
     assert controller.config["handy"]["airplay_name"] == "Physikraum"
     assert controller.config["handy"]["pin"] == "2468"
+    # anderswo (Setup) umbenannt → Handy-Fenster zieht nach und schreibt beim Code-Ändern nicht den alten Namen zurück
+    controller.airplay.update_settings(airplay_name="Beamer Keller")
+    assert page.name.text() == "Beamer Keller"
+    page.pin.setText("1357")
+    page._save_pin()
+    assert controller.config["handy"]["airplay_name"] == "Beamer Keller"
+    # bewusst „AluPC“ gewählt → Einrichtung macht keinen anderen Namen daraus
+    controller.airplay.update_settings(airplay_name="AluPC")
+    controller.airplay.ensure_unique_name()
+    assert controller.config["handy"]["airplay_name"] == "AluPC"
     page.pin_mode.setCurrentIndex(page.pin_mode.findData("zufall"))
     assert controller.config["handy"]["pin"] == "zufall" and page.pin.isHidden()
     assert {"airplay", "handy_remote"} <= set(window.tiles)

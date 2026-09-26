@@ -242,9 +242,7 @@ class FirstRunDialog(QDialog):
         run_async(lambda status: handy.run_plan(plan, status), done, lambda t: done([t]), on_progress=progress)
 
     def _step_names(self):
-        s = self.config["handy"]
-        if s.get("airplay_name", "AluPC") == "AluPC":
-            self.config["handy"] = {**s, "airplay_name": handy.default_airplay_name()}
+        self.controller.airplay.ensure_unique_name()
         code = self.controller.cast.code()
         self._next("ok", f"iPhone sieht „{self.config['handy']['airplay_name']}“ · Handy-Code {code[:3]} {code[3:]}")
 

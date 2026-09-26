@@ -279,6 +279,7 @@ class StartPageDialog(QDialog):
             ("Nach oben", "up", lambda: self._move(-1), {}),
             ("Nach unten", "down", lambda: self._move(1), {}),
             ("Eigene Kachel …", "plus", self._add, {"primary": True}),
+            ("Bildschirmschoner", "moon", self._add_saver_menu, {}),
             ("Bearbeiten …", "edit", self._edit, {}),
             ("Löschen", "trash", self._delete, {"danger": True}),
             ("Standard", "refresh", self._reset, {}),
@@ -380,6 +381,39 @@ class StartPageDialog(QDialog):
             self.cfg["tiles"] = self.cfg["tiles"] + [custom_key(dlg.tile)]
             self._set_hotkey(dlg.tile["id"], dlg.hotkey_text())
             self._fill(custom_key(dlg.tile))
+
+    def _add_saver_menu(self):
+        """Menü: Bildschirmschoner als eigene Kachel – beliebig viele, jeder mit eigenem Stil."""
+        from PySide6.QtGui import QCursor
+        from PySide6.QtWidgets import QMenu
+
+        from ..screensaver import STYLE_GROUPS, STYLES
+
+        menu = QMenu(self)
+        for group, keys in STYLE_GROUPS.items():
+            menu.addSection(group)
+            for key in keys:
+                menu.addAction(STYLES[key], lambda k=key: self.add_saver(k))
+        menu.exec(QCursor.pos())
+
+    def add_saver(self, style: str) -> None:
+        from ..screensaver import STYLES
+
+        self._sync()
+        tile = new_custom_tile()
+        n = len(self.cfg.get("custom", []))
+        tile.update({"title": STYLES[style], "subtitle": "Bildschirmschoner", "icon": "moon",
+                     "color": TILE_COLORS[n % len(TILE_COLORS)],
+                     "action": {"kind": "screensaver", "screensaver": {"style": style, "text": ""}}})
+        if style in ("diashow", "szene"):  # braucht Ordner bzw. Szene → erst einstellen
+            dlg = CustomTileDialog(self.config, tile, "", self, self.controller)
+            if dlg.exec() != QDialog.Accepted:
+                return
+            tile = dlg.tile
+            self._set_hotkey(tile["id"], dlg.hotkey_text())
+        self.cfg.setdefault("custom", []).append(tile)
+        self.cfg["tiles"] = self.cfg["tiles"] + [custom_key(tile)]
+        self._fill(custom_key(tile))
 
     def _edit(self):
         item = self.list.currentItem()

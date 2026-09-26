@@ -8,6 +8,14 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.26.0)
+- **AirPlay-Name wird übernommen:** Name und Code stehen in Setup und im Fenster „Handy“. Beide haben beim
+  Speichern bisher *alle* Werte geschrieben – ein noch offenes Fenster setzte so den alten Namen zurück. Jetzt
+  speichert jedes Feld nur sich selbst, beide Stellen zeigen sofort den neuen Stand, und läuft AirPlay gerade,
+  startet es mit dem neuen Namen neu. Wer bewusst „AluPC“ einträgt, behält den Namen auch nach „Einrichten“.
+- **Mehrere Bildschirmschoner auf der Startseite:** Startseite anpassen → „Bildschirmschoner“ → Stil wählen.
+  Beliebig viele, jeder als eigene Kachel; Klick startet ihn, anderer Schoner wechselt, nochmal = aus.
+
 ### Neu in dieser Version (0.25.0)
 - **AirPlay ohne iPhone:** Solange kein iPhone verbunden ist, zeigt Monitor 2 nur noch schlicht **„AirPlay bereit“**
   (schwarz, kleines Symbol, Name und ggf. Code) statt der großen Anleitung. Einstellbar unter

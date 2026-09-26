@@ -206,6 +206,7 @@ class AirPlayServer(QObject):
     status = Signal(str)
     log_line = Signal(str)
     failed = Signal(str)  # UxPlay hat sich unerwartet beendet – verständliche Erklärung
+    settings_changed = Signal()  # Name/Code o. Ä. geändert – alle Anzeigen neu einlesen
 
     def __init__(self, config, parent=None):
         super().__init__(parent)
@@ -221,6 +222,28 @@ class AirPlayServer(QObject):
 
     def settings(self) -> dict:
         return {"airplay_name": "AluPC", "pin": "", "uxplay_path": "", **self.config["handy"]}
+
+    def update_settings(self, **values) -> bool:
+        """Nur die übergebenen AirPlay-Einstellungen ändern (nie veraltete Werte anderer Felder mitschreiben),
+        bei laufendem Empfang sofort neu starten. Rückgabe: neu gestartet?"""
+        if "airplay_name" in values:
+            values["airplay_name"] = (values["airplay_name"] or "").strip() or "AluPC"
+            values["name_set"] = True  # vom Nutzer gewählt → Einrichtung ersetzt ihn nicht mehr
+        current = self.config["handy"]
+        if all(current.get(k) == v for k, v in values.items()):
+            return False
+        self.config["handy"] = {**current, **values}
+        restarted = self.restart_if_changed()
+        self.settings_changed.emit()
+        return restarted
+
+    def ensure_unique_name(self) -> None:
+        """Bei der Einrichtung: aus „AluPC“ einen eindeutigen Namen machen – aber nur, wenn ihn niemand gewählt hat."""
+        s = self.config["handy"]
+        if not s.get("name_set") and s.get("airplay_name", "AluPC") == "AluPC":
+            self.config["handy"] = {**s, "airplay_name": default_airplay_name()}
+            self.restart_if_changed()
+            self.settings_changed.emit()
 
     def binary(self) -> str | None:
         bundled = bundled_uxplay_dir() if IS_WINDOWS else None

@@ -207,9 +207,7 @@ class HandyPage(QWidget):
         """Fehlende Programme installieren, Name/Code festlegen – alles, was automatisch geht."""
         if self._setup_running:
             return
-        s = self.config["handy"]
-        if s.get("airplay_name", "AluPC") == "AluPC":  # eindeutiger Name in der iPhone-Liste
-            self.config["handy"] = {**s, "airplay_name": handy.default_airplay_name()}
+        self.controller.airplay.ensure_unique_name()  # eindeutiger Name in der iPhone-Liste
         self.controller.cast.code()  # Zugangscode für AluCast anlegen
         plan = handy.setup_plan(self.config)
         self.config["handy"] = {**self.config["handy"], "setup_done": True}
@@ -317,7 +315,8 @@ class HandyPage(QWidget):
         form.setHorizontalSpacing(10)
         form.addWidget(QLabel("Name:"), 0, 0)
         self.name = QLineEdit(s["airplay_name"])
-        self.name.editingFinished.connect(self._save_airplay)
+        self._name_loaded = s["airplay_name"]  # zuletzt gespeicherter Stand – Abweichung = noch nicht gespeichert
+        self.name.editingFinished.connect(self._save_name)
         form.addWidget(self.name, 0, 1)
         form.addWidget(QLabel("Code:"), 1, 0)
         pin_row = QHBoxLayout()
@@ -328,9 +327,11 @@ class HandyPage(QWidget):
         self.pin_mode.setCurrentIndex(max(0, self.pin_mode.findData("fest" if pin.isdigit() else pin)))
         self.pin = QLineEdit(pin if pin.isdigit() else handy.random_pin())
         self.pin.setInputMask("9999")
+        self._pin_loaded = self.pin.text()
         self.pin.setMaximumWidth(70)
-        self.pin_mode.currentIndexChanged.connect(self._save_airplay)
-        self.pin.editingFinished.connect(self._save_airplay)
+        self.pin_mode.currentIndexChanged.connect(self._save_pin)
+        self.pin.editingFinished.connect(self._save_pin)
+        self.controller.airplay.settings_changed.connect(self._sync_airplay)
         pin_row.addWidget(self.pin_mode, 1)
         pin_row.addWidget(self.pin)
         form.addLayout(pin_row, 1, 1)
@@ -358,14 +359,38 @@ class HandyPage(QWidget):
         card.buttons.addStretch(1)
         return card
 
-    def _save_airplay(self, *_):
+    def _save_name(self):
+        self._apply(airplay_name=self.name.text())
+        self._name_loaded = self.name.text()
+
+    def _save_pin(self, *_):
         mode = self.pin_mode.currentData()
         pin = self.pin.text() if mode == "fest" and len(self.pin.text()) == 4 else ("zufall" if mode == "zufall" else "")
-        self.config["handy"] = {**self.config["handy"], "airplay_name": self.name.text().strip() or "AluPC",
-                                "pin": pin}
-        if self.controller.airplay.restart_if_changed():  # läuft gerade → neue Einstellungen sofort übernehmen
+        self._pin_loaded = self.pin.text()
+        self._apply(pin=pin)
+
+    def _apply(self, **values):
+        if self.controller.airplay.update_settings(**values):  # läuft gerade → sofort mit neuen Werten
             self.controller.message.emit("AirPlay neu gestartet")
         self.refresh()
+
+    def _sync_airplay(self):
+        """Anderswo geändert (Setup, Einrichtung) → Felder hier nachziehen, sonst schreiben sie Altes zurück."""
+        try:
+            s = self.controller.airplay.settings()
+            if self.name.text() == self._name_loaded:  # nichts Ungespeichertes überschreiben
+                self.name.setText(s["airplay_name"])
+            self._name_loaded = s["airplay_name"]
+            pin = s.get("pin", "")
+            self.pin_mode.blockSignals(True)
+            self.pin_mode.setCurrentIndex(max(0, self.pin_mode.findData("fest" if pin.isdigit() else pin)))
+            self.pin_mode.blockSignals(False)
+            if pin.isdigit() and self.pin.text() == self._pin_loaded:
+                self.pin.setText(pin)
+                self._pin_loaded = pin
+            self.refresh()
+        except RuntimeError:  # Fenster schon zu
+            pass
 
     def _log(self, line: str):
         try:

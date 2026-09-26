@@ -657,18 +657,33 @@ class SetupPage(QWidget):
         more = link_button("Einrichten …", lambda: self.window().open_handy_window()
                            if hasattr(self.window(), "open_handy_window") else None)
 
-        def save(*_):
-            self.config["handy"] = {**self.config["handy"], "airplay_name": name.text().strip() or "AluPC",
-                                    "airplay_borderless": borderless.isChecked(),
-                                    "airplay_idle": idle.currentData()}
+        air = self.controller.airplay
+
+        def save(**values):  # nur das geänderte Feld – nie einen veralteten Namen zurückschreiben
+            air.update_settings(**values)  # läuft es gerade → mit neuem Namen sofort neu starten
             src = getattr(self.controller.output, "content", None)
             if src is not None and hasattr(src, "_show_waiting"):
                 src.update()  # Warte-Bild sofort neu zeichnen
-            self.controller.airplay.restart_if_changed()  # läuft es gerade → mit neuem Namen neu starten
 
-        name.editingFinished.connect(save)
-        borderless.toggled.connect(save)
-        idle.currentIndexChanged.connect(save)
+        loaded = [name.text()]  # zuletzt gespeicherter Stand – Abweichung = noch nicht gespeichert
+
+        def sync():
+            try:
+                now = air.settings()["airplay_name"]
+                if name.text() == loaded[0]:
+                    name.setText(now)
+                loaded[0] = now
+            except RuntimeError:
+                pass
+
+        def save_name():
+            loaded[0] = name.text()
+            save(airplay_name=name.text())
+
+        name.editingFinished.connect(save_name)
+        borderless.toggled.connect(lambda on: save(airplay_borderless=on))
+        idle.currentIndexChanged.connect(lambda _i: save(airplay_idle=idle.currentData()))
+        air.settings_changed.connect(sync)
         form.addRow("Name am iPhone:", name)
         form.addRow("Ohne iPhone:", idle)
         form.addRow("", borderless)
