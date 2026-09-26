@@ -18,6 +18,7 @@ import re
 import shutil
 import socket
 import subprocess
+import time
 import sys
 from pathlib import Path
 
@@ -119,17 +120,35 @@ def old_uxplay_windows_binary() -> str | None:
     return None
 
 
-def kill_uxplay_windows() -> None:
-    """Andere laufende AirPlay-Empfänger (uxplay-windows mit eigenem Autostart, dessen uxplay.exe) beenden –
-    es darf nur einen geben, sonst sind die Ports belegt und AluPCs Einstellungen gelten nicht."""
+def kill_uxplay_windows() -> bool:
+    """Andere laufende AirPlay-Empfänger beenden (Windows: uxplay-windows mit eigenem Autostart, dessen
+    uxplay.exe; Linux: ein übrig gebliebenes uxplay, z. B. nach einem Absturz). Es darf nur einen geben –
+    sonst sind die Ports belegt, das iPhone sieht weiter den alten Namen und AluPCs Einstellungen gelten nicht.
+    Rückgabe: False, wenn danach noch einer läuft (z. B. mit Adminrechten gestartet)."""
     if not IS_WINDOWS:
-        return
+        try:
+            if subprocess.run(["pkill", "-x", "uxplay"], capture_output=True, timeout=5).returncode != 0:
+                return True  # lief keins
+            time.sleep(0.4)
+            return subprocess.run(["pgrep", "-x", "uxplay"], capture_output=True, timeout=5).returncode != 0
+        except (OSError, subprocess.SubprocessError):
+            return True
     for exe in (UXPLAY_WINDOWS_EXE, "uxplay-bluetooth-beacon.exe", "uxplay.exe"):
         try:
             subprocess.run(["taskkill", "/F", "/T", "/IM", exe], capture_output=True, timeout=10,
                            creationflags=0x08000000)
         except (OSError, subprocess.SubprocessError):
             pass
+    try:
+        out = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, timeout=10, text=True,
+                             creationflags=0x08000000).stdout.lower()
+    except (OSError, subprocess.SubprocessError):
+        return True
+    return not any(f'"{exe}"' in out for exe in (UXPLAY_WINDOWS_EXE, "uxplay.exe"))
+
+
+STUCK_TEXT = ("Ein anderes AirPlay-Programm läuft schon (evtl. mit Adminrechten) und lässt sich nicht beenden – "
+              "dann gelten Name und Code von AluPC nicht. Im Task-Manager „uxplay“ beenden oder den PC neu starten.")
 
 
 WINDOWS_UXPLAY = [r"C:\msys64\ucrt64\bin\uxplay.exe", r"C:\msys64\mingw64\bin\uxplay.exe",
@@ -206,6 +225,7 @@ class AirPlayServer(QObject):
     status = Signal(str)
     log_line = Signal(str)
     failed = Signal(str)  # UxPlay hat sich unerwartet beendet – verständliche Erklärung
+    notice = Signal(str)  # Hinweis für den Nutzer (z. B. fremdes UxPlay lässt sich nicht beenden)
     settings_changed = Signal()  # Name/Code o. Ä. geändert – alle Anzeigen neu einlesen
 
     def __init__(self, config, parent=None):
@@ -285,7 +305,8 @@ class AirPlayServer(QObject):
         pin = s.get("pin", "")
         self.pin_code = pin if pin and pin != "zufall" else ""
         args = uxplay_args(s["airplay_name"], pin, self.port if stream else None)
-        kill_uxplay_windows()  # fremde Empfänger (z. B. uxplay-windows im Autostart) belegen sonst die Ports
+        if not kill_uxplay_windows():  # fremde Empfänger (z. B. uxplay-windows im Autostart) belegen sonst die Ports
+            self._stuck()
         self._started_with = self._wanted()
         self.proc = QProcess(self)
         extra_env = uxplay_environment(uxplay)
@@ -308,6 +329,17 @@ class AirPlayServer(QObject):
         s = self.settings()
         return (s.get("airplay_name"), s.get("pin"), self.binary())
 
+    def _stuck(self) -> None:
+        self.log = (self.log + [STUCK_TEXT])[-60:]
+        self.notice.emit(STUCK_TEXT)
+
+    def running_settings(self) -> dict:
+        """Womit UxPlay gerade wirklich läuft (Name, Code) – leer, wenn es nicht läuft."""
+        if not self.running() or not getattr(self, "_started_with", None):
+            return {}
+        name, pin, _binary = self._started_with
+        return {"airplay_name": name or "AluPC", "pin": self.pin_code or ("zufall" if pin == "zufall" else "")}
+
     def restart_if_changed(self) -> bool:
         """Name/Code/Programm geändert, während der Empfang läuft → mit den neuen Einstellungen neu starten."""
         if not self.running() or self._wanted() == getattr(self, "_started_with", None):
@@ -315,8 +347,10 @@ class AirPlayServer(QObject):
         users, mode = self.users, self.mode
         self.users = 0
         self._really_stop()
-        self.users = max(0, users - 1)
         self.acquire(want_stream=(mode == "stream"))
+        self.users = users  # gleich viele Nutzer wie vorher (sonst läuft es nach dem Schließen ewig weiter)
+        if users == 0:
+            self._stop_timer.start()
         self.status.emit("neu gestartet")
         return True
 
@@ -327,7 +361,8 @@ class AirPlayServer(QObject):
             pin = random_pin()
         self.pin_code = pin
         args = ["-n", s["airplay_name"] or "AluPC", "-nh", "-p"] + (["-pin", pin] if pin else [])
-        kill_uxplay_windows()  # evtl. mit anderen Einstellungen schon laufend (eigener Autostart)
+        if not kill_uxplay_windows():  # evtl. mit anderen Einstellungen schon laufend (eigener Autostart)
+            self._stuck()
         self._started_with = self._wanted()
         try:
             target = uxplay_windows_arguments_file()
@@ -335,9 +370,15 @@ class AirPlayServer(QObject):
             target.write_text(uxplay_windows_command_line(args), encoding="utf-8")
         except OSError as exc:
             self.log = (self.log + [f"arguments.txt nicht schreibbar: {exc}"])[-60:]
-        if uxplay_windows_machine_file().exists():
-            self.log = (self.log + [f"Hinweis: {uxplay_windows_machine_file()} hat Vorrang – Name/Code von AluPC "
-                                    "gelten dann nicht"])[-60:]
+            self.notice.emit(f"AirPlay-Einstellungen ließen sich nicht speichern ({target})")
+        machine = uxplay_windows_machine_file()
+        if machine.exists():  # hat bei uxplay-windows Vorrang → mit überschreiben, wenn erlaubt
+            try:
+                machine.write_text(uxplay_windows_command_line(args), encoding="utf-8")
+            except OSError:
+                self.log = (self.log + [f"Hinweis: {machine} hat Vorrang – Name/Code von AluPC gelten dann nicht"])[-60:]
+                self.notice.emit(f"Name/Code gelten nicht: {machine} hat Vorrang und ist schreibgeschützt – "
+                                 "Datei löschen (Adminrechte), dann klappt es.")
         self.proc = QProcess(self)
         from PySide6.QtCore import QProcessEnvironment
 

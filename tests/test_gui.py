@@ -2619,3 +2619,42 @@ def test_airplay_idle_styles(env):
     assert dark["schwarz"] == 1.0
     assert 0.9 < dark["bereit"] < 1.0  # etwas Text und Symbol, sonst schwarz
     assert dark["anleitung"] < 0.5  # farbiger Hintergrund mit Anleitung
+
+
+def test_airplay_rename_while_running(env, tmp_path, monkeypatch):
+    """Name ändern, während AirPlay läuft: UxPlay startet mit dem neuen Namen neu, AluPC sucht das
+    iPhone-Fenster unter dem neuen Titel, „Randlos“ aus → normal verschieben; danach stoppt UxPlay wieder."""
+    import sys
+
+    if sys.platform.startswith("win"):
+        pytest.skip("Fake-Programm ist ein Shell-Skript")
+    controller, window, _ = env
+    uxplay, log = _fake_uxplay(tmp_path, False)
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": uxplay, "pin": "",
+                                  "airplay_name": "Alt"}
+    from alupc.platform.base import WindowInfo
+
+    moved, open_windows, follow_calls = [], [], []
+    monkeypatch.setattr(controller.windows, "follow_windows", lambda *a: follow_calls.append(a))
+    monkeypatch.setattr(controller.windows, "list_windows", lambda: list(open_windows))
+    monkeypatch.setattr(controller.windows, "move_window",
+                        lambda wid, out, rect, full=False: moved.append((wid, full)))
+    controller.start_airplay()
+    pump()
+    assert _until(lambda: controller.airplay.running() and log.exists() and "Alt" in log.read_text(), 5)
+    assert controller.airplay.running_settings()["airplay_name"] == "Alt"
+    log.unlink()
+    assert controller.airplay.update_settings(airplay_name="Neu Name")  # läuft → Neustart
+    assert _until(lambda: log.exists() and "Neu Name" in log.read_text(), 5)
+    assert controller.airplay.running_settings()["airplay_name"] == "Neu Name"
+    assert "Neu Name" in follow_calls[-1][0]  # sucht das Fenster jetzt unter dem neuen Titel
+    open_windows.append(WindowInfo(id="0x9", title="Neu Name", app="irgendwas"))
+    controller._follow_timer.timeout.emit()
+    assert moved and moved[-1][0] == "0x9"
+    # Randlos aus: KDE-Skript bekommt fullscreen=False
+    controller.airplay.update_settings(airplay_borderless=False)
+    assert follow_calls[-1][3] is False
+    # Quelle weg → UxPlay beendet sich (Nutzerzahl stimmt nach dem Neustart)
+    controller.show_source({"type": "clock"})
+    pump()
+    assert _until(lambda: not controller.airplay.running(), 5)

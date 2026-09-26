@@ -154,6 +154,7 @@ class HandyPage(QWidget):
 
         controller.cast.state_changed.connect(self.refresh)
         controller.changed.connect(self.refresh)
+        controller.airplay.status.connect(lambda _s: self.refresh())  # läuft / neu gestartet / beendet
         controller.airplay.log_line.connect(self._log)
         self._first = True
         self.refresh()
@@ -467,7 +468,11 @@ class HandyPage(QWidget):
         name = c.airplay.settings()["airplay_name"]
         self.airplay_steps.setText(steps("Auf Monitor 2 zeigen", "iPhone: Bildschirmsynchronisierung",
                                          f"„{name}“ wählen"))
-        if ux and handy.supports_vrtp(ux):
+        running = c.airplay.running_settings()
+        if running:  # zeigt, womit UxPlay WIRKLICH läuft – so sieht man, ob eine Änderung angekommen ist
+            code = f" · Code <b>{running['pin']}</b>" if running.get("pin") and running["pin"] != "zufall" else ""
+            air.set_status("LÄUFT", LIVE, f"Läuft als <b>„{running['airplay_name']}“</b>{code}")
+        elif ux and handy.supports_vrtp(ux):
             air.set_status("BEREIT", READY, "Bild direkt in AluPC")
         elif ux and handy.is_uxplay_windows(ux):
             air.set_status("BEREIT", READY, "Über uxplay-windows")

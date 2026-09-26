@@ -184,7 +184,8 @@ class WindowBackend:
                            fullscreen: bool = False) -> None:
         raise NotImplementedError
 
-    def follow_windows(self, titles: list[str], output_name: str, rect: tuple[int, int, int, int]):
+    def follow_windows(self, titles: list[str], output_name: str, rect: tuple[int, int, int, int],
+                       fullscreen: bool = True):
         """Dauerhaft: Fenster mit diesen Titeln auf den Monitor legen, sobald sie erscheinen.
         Rückgabe: Kennung zum Beenden – oder None, dann sucht AluPC selbst regelmäßig (move_by_title)."""
         return None

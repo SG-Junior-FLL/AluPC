@@ -8,6 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.29.0)
+**AirPlay-/UxPlay-Einstellungen greifen zuverlässig**
+- Ein übrig gebliebenes UxPlay (z. B. nach einem Absturz) wird jetzt auch **unter Linux** beendet. Vorher lief
+  es weiter, belegte die Ports – das iPhone sah weiter den alten Namen, AluPCs neues UxPlay startete nicht.
+- Lässt sich ein fremdes UxPlay nicht beenden (z. B. mit Adminrechten gestartet), sagt AluPC das jetzt klar.
+- Windows: Liegt eine vorrangige Einstellungsdatei von uxplay-windows unter ProgramData, schreibt AluPC Name
+  und Code auch dort hinein (bzw. meldet, dass sie schreibgeschützt ist).
+- Name geändert, während AirPlay läuft: AluPC sucht das iPhone-Fenster jetzt unter dem **neuen** Namen
+  (vorher blieb es dann auf Monitor 1).
+- „Randlos im Vollbild“ wirkt jetzt auch unter KDE (aus = maximiert statt Vollbild).
+- Nach einem Neustart wegen geänderter Einstellungen beendet sich UxPlay wieder, wenn AirPlay aus ist.
+- Fenster „Handy“ zeigt, womit UxPlay **wirklich** läuft: „Läuft als „Name“ · Code …“.
+
 ### Neu in dieser Version (0.28.0)
 **Eigene Bereiche auf der Startseite**
 - Startseite anpassen → Reiter **„Bereiche“**: eigene Bereiche anlegen (z. B. „Party“), umbenennen, sortieren,

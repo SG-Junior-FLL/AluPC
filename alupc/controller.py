@@ -52,6 +52,8 @@ class Controller(QObject):
 
         self.airplay = airplay_server(config)
         self.airplay.failed.connect(self._airplay_failed)
+        self.airplay.notice.connect(lambda text: self.message.emit(text))
+        self.airplay.settings_changed.connect(self._airplay_settings_changed)
         self.recent_messages: list[str] = []  # für „Diagnose kopieren“
         self.message.connect(lambda m: self.recent_messages.append(m) or
                              self.recent_messages.__delitem__(slice(0, -30)))
@@ -419,6 +421,12 @@ class Controller(QObject):
             self._place_handy_window(name, name.replace(" ", "\u00a0"), "UxPlay", "AirPlay Video",
                                      apps=("uxplay-windows", "uxplay"))
 
+    def _airplay_settings_changed(self) -> None:
+        """Name/Randlos geändert, während das iPhone-Fenster verfolgt wird → mit neuem Namen weiter verfolgen
+        (sonst sucht AluPC das Fenster unter dem alten Titel und es bleibt auf Monitor 1)."""
+        if self._handy_window == "airplay-quelle":
+            self._follow_airplay_window()
+
     def _airplay_failed(self, reason: str) -> None:
         self.message.emit(f"AirPlay läuft nicht: {reason}")
         if self._handy_window in ("airplay", "airplay-quelle"):
@@ -655,7 +663,8 @@ class Controller(QObject):
         rect = (g.x(), g.y(), g.width(), g.height())
         titles = [t for t in titles if t]
         try:
-            self._follow_token = self.windows.follow_windows(titles, screen.name(), rect)
+            self._follow_token = self.windows.follow_windows(
+                titles, screen.name(), rect, bool(self.config["handy"].get("airplay_borderless", True)))
         except Exception:  # noqa: BLE001
             self._follow_token = None
         if self._follow_token:

@@ -73,7 +73,7 @@ KWIN_FOLLOW_SCRIPT = r"""
                 if (a.x === rect[0] && a.y === rect[1]) { workspace.sendClientToScreen(w, j); break; }
             }
         }
-        w.fullScreen = true;
+        if (%(fullscreen)s) { w.fullScreen = true; } else { w.setMaximize(true, true); }
         w.keepAbove = true;  // über dem Warte-Bildschirm von AluPC
     }
     function watch(w) {
@@ -89,9 +89,10 @@ KWIN_FOLLOW_SCRIPT = r"""
 """
 
 
-def build_follow_script(titles: list[str], output_name: str, rect: tuple[int, int, int, int]) -> str:
+def build_follow_script(titles: list[str], output_name: str, rect: tuple[int, int, int, int],
+                        fullscreen: bool = True) -> str:
     return KWIN_FOLLOW_SCRIPT % {"titles": json.dumps([t for t in titles if t]), "name": json.dumps(output_name),
-                                 "rect": json.dumps(list(rect))}
+                                 "rect": json.dumps(list(rect)), "fullscreen": "true" if fullscreen else "false"}
 
 
 ACTIVE_WINDOW = "(workspace.activeWindow !== undefined) ? workspace.activeWindow : workspace.activeClient"
@@ -203,11 +204,11 @@ class LinuxWindowBackend(WindowBackend):
             raise RuntimeError("Nur unter KDE Plasma möglich (KWin)")
         run_kwin_script(build_kwin_script(output_name, rect, fullscreen))
 
-    def follow_windows(self, titles, output_name, rect):
+    def follow_windows(self, titles, output_name, rect, fullscreen=True):
         """KDE: KWin-Skript bleibt aktiv und legt passende Fenster sofort beim Erscheinen auf den Monitor."""
         if self.kde and dbus_util.HAVE_JEEPNEY:
             try:
-                return start_kwin_script(build_follow_script(list(titles), output_name, rect))
+                return start_kwin_script(build_follow_script(list(titles), output_name, rect, fullscreen))
             except Exception:  # noqa: BLE001
                 return None
         return None
