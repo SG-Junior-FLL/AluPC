@@ -1151,6 +1151,9 @@ class MainWindow(QMainWindow):
             dpr = card.preview.devicePixelRatioF()
             pw, ph = card.preview.width(), card.preview.height()
             image = grab_scaled(out, QSize(int(pw * dpr), int(ph * dpr)))
+            from ..laser import draw_overlay
+
+            draw_overlay(c, image)
         card.preview.set(image, card.preview.icon_name)
 
     def refresh(self):

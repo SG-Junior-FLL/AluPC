@@ -339,3 +339,24 @@ class LaserWindow(QWidget):
         if self.point is not None:
             paint_dot(p, self.point, r, color)
         p.end()
+
+
+def draw_overlay(controller, image) -> None:
+    """Zeichnungen und Laserpunkt von Monitor 2 in ein Vorschaubild malen (Bild-in-Bild, Vorschau, Handy).
+
+    Sie liegen in einem eigenen Fenster über Monitor 2 – ein Foto der Anzeige enthält sie deshalb nicht."""
+    laser = getattr(controller, "laser", None)
+    if laser is None or image is None or image.isNull() or controller.privacy:
+        return
+    if not laser.strokes and laser.point is None:
+        return
+    p = QPainter(image)
+    area = QRectF(0, 0, image.width() / image.devicePixelRatio(), image.height() / image.devicePixelRatio())
+    if laser.strokes:
+        paint_strokes(p, laser.strokes, area)
+    if laser.point is not None and laser.width() > 0 and laser.height() > 0:
+        pt = QPointF(laser.point.x() / laser.width() * area.width(), laser.point.y() / laser.height() * area.height())
+        color = QColor(controller.config["draw"].get("color", "#ef4444"))
+        paint_dot(p, pt, max(3.0, area.height() / 110), color)
+    p.end()
+

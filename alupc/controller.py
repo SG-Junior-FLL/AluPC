@@ -581,6 +581,9 @@ class Controller(QObject):
         out = self.output
         if out.isVisible() and out.width() > 0:
             img = grab_scaled(out, QSize(640, 360))
+            from .laser import draw_overlay
+
+            draw_overlay(self, img)
         else:  # Erweitern: Monitor 2 ist ein normaler Bildschirm – nur ein Hinweis
             img = QImage(640, 360, QImage.Format_RGB32)
             img.fill(QColor("#0f172a"))

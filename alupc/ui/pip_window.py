@@ -109,7 +109,11 @@ class PipWindow(QWidget):
             self._stop_live()
             from ..output_window import grab_scaled
 
-            self.view.set_image(grab_scaled(out, self.view.size() * self.view.devicePixelRatioF()))
+            from ..laser import draw_overlay
+
+            image = grab_scaled(out, self.view.size() * self.view.devicePixelRatioF())
+            draw_overlay(self.controller, image)  # Zeichnungen/Laser liegen in einem eigenen Fenster darüber
+            self.view.set_image(image)
             return
         screen = self.controller.output_screen()
         if screen is None:

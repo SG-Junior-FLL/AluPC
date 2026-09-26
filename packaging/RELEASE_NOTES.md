@@ -8,6 +8,11 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.15.2)
+- Behoben: **Zeichnungen und Laserpunkt fehlten in Bild-in-Bild** (und in der Live-Vorschau im Hauptfenster
+  und im Live-Bild auf dem Handy). Sie liegen in einem eigenen Fenster über Monitor 2 und werden jetzt in
+  alle Vorschauen mit eingezeichnet (bei „Schwarz“ wie auf Monitor 2 nicht).
+
 ### Neu in dieser Version (0.15.1)
 - Behoben: Beim Beenden konnten noch laufende Hintergrundaufgaben (z. B. Android-Suche, Miracast-Prüfung)
   einen Absturz auslösen – AluPC wartet jetzt kurz, bis sie fertig sind.

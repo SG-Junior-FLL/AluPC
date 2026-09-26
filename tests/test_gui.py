@@ -2090,3 +2090,41 @@ def test_first_run_wizard(env, monkeypatch):
     controller.mirror()
     assert calls
     dlg.close()
+
+
+# ---------------------------------------------------------------- 0.15.2: Zeichnungen in Bild-in-Bild
+def test_drawings_visible_in_pip_and_previews(env):
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QImage
+
+    controller, window, _ = env
+    controller.show_source({"type": "color", "color": "#00ff00"})
+    pump(30)
+    laser = controller.laser
+    laser.begin_stroke("pen", "#ff0000", 0.05, QPointF(0.1, 0.5))  # dicker roter Strich quer durch die Mitte
+    laser.extend_stroke(QPointF(0.9, 0.5))
+    laser.end_stroke()
+    pump()
+
+    def red_in_middle(img):
+        c = img.pixelColor(img.width() // 2, img.height() // 2)
+        return c.red() > 180 and c.green() < 120, c.name()
+
+    controller.toggle_pip()
+    pump(10)
+    controller.pip.refresh()
+    ok, col = red_in_middle(controller.pip.view.image())
+    assert ok, f"Bild-in-Bild zeigt die Zeichnung nicht ({col})"
+    window._go(0)
+    window._update_preview()
+    ok, col = red_in_middle(window.status_card.preview.image)
+    assert ok, f"Vorschau zeigt die Zeichnung nicht ({col})"
+    ok, col = red_in_middle(QImage.fromData(controller._preview_jpeg()))
+    assert ok, f"Handy-Bild zeigt die Zeichnung nicht ({col})"
+    controller.toggle_privacy()  # bei „Schwarz“ keine Zeichnung zeigen
+    pump(10)
+    controller.pip.refresh()
+    assert not red_in_middle(controller.pip.view.image())[0]
+    controller.toggle_privacy()
+    controller.toggle_pip()
+    laser.clear_strokes()
