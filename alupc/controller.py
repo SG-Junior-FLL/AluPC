@@ -52,8 +52,10 @@ class Controller(QObject):
 
         self.airplay = airplay_server(config)
         self.airplay.failed.connect(self._airplay_failed)
-        self.airplay.notice.connect(lambda text: self.message.emit(text))
+        self.airplay.notice.connect(self._airplay_notice)
         self.airplay.settings_changed.connect(self._airplay_settings_changed)
+        self.airplay.connected.connect(self._iphone_connected)
+        self._airplay_bg_timer = None
         self.recent_messages: list[str] = []  # für „Diagnose kopieren“
         self.message.connect(lambda m: self.recent_messages.append(m) or
                              self.recent_messages.__delitem__(slice(0, -30)))
@@ -420,6 +422,72 @@ class Controller(QObject):
             # uxplay-windows/uxplay.exe: Fenster am Programm erkennen (Titel je nach Version verschieden)
             self._place_handy_window(name, name.replace(" ", "\u00a0"), "UxPlay", "AirPlay Video",
                                      apps=("uxplay-windows", "uxplay"))
+
+    # ------------------------------------------------------------ AirPlay „immer bereit“
+    def airplay_background(self, on: bool | None = None) -> None:
+        """AirPlay dauerhaft im Hintergrund – mit AluPCs Name und Code. Fremde UxPlay-Autostarts (z. B. von
+        uxplay-windows: Standardname, kein Code) werden abgeschaltet, sonst sieht das iPhone die statt AluPC.
+        Verbindet sich ein iPhone, schaltet Monitor 2 von selbst aufs iPhone-Bild."""
+        from PySide6.QtCore import QTimer
+
+        from . import handy
+
+        s = self.config["handy"]
+        if on is None:
+            on = bool(s.get("airplay_always", True)) and bool(s.get("setup_done")) and bool(self.airplay.binary())
+        if not on:
+            self.airplay.set_background(False)
+            if self._airplay_bg_timer is not None:
+                self._airplay_bg_timer.stop()
+            return
+        done, failed = handy.disable_uxplay_autostarts()
+        if done:
+            self.message.emit("UxPlay-Autostart aus – AluPC übernimmt AirPlay (Name/Code aus AluPC)")
+        if failed:
+            self.message.emit("UxPlay startet selbst mit Windows (für alle Benutzer) – nur mit Adminrechten "
+                              "abschaltbar: " + ", ".join(failed))
+        self.airplay.set_background(True)
+        if self._airplay_bg_timer is None:
+            self._airplay_bg_timer = QTimer(self, interval=2000)
+            self._airplay_bg_timer.timeout.connect(self._airplay_bg_poll)
+        self._airplay_bg_timer.start()
+
+    def _airplay_shown(self) -> bool:
+        from .sources import AirPlaySource
+
+        return self.mode == "content" and isinstance(self.output.content, AirPlaySource)
+
+    def _uxplay_window_present(self) -> bool:
+        name = self.airplay.settings()["airplay_name"]
+        titles = [name, name.replace(" ", "\u00a0"), "UxPlay", "AirPlay Video"]
+        try:
+            windows = self.windows.list_windows()
+        except Exception:  # noqa: BLE001
+            return False
+        for w in windows:
+            app = (w.app or "").lower()
+            if app in ("uxplay-windows", "uxplay") and w.title != "uxplay-windows" and "log" not in w.title.lower():
+                return True
+            if any(t and t in w.title for t in titles):
+                return True
+        return False
+
+    def _airplay_bg_poll(self) -> None:
+        if not self.airplay.running() or self._airplay_shown():
+            return
+        if self.airplay.mode == "fenster" and self._uxplay_window_present():
+            self._iphone_connected()
+
+    def _iphone_connected(self) -> None:
+        """iPhone verbindet sich → Monitor 2 zeigt es (auch wenn gerade etwas anderes lief)."""
+        if self._airplay_shown() or self.output_screen() is None:
+            return
+        if not self.config["handy"].get("airplay_auto_show", True):
+            return
+        self.start_airplay()
+
+    def _airplay_notice(self, text: str) -> None:
+        self.message.emit(text)
 
     def _airplay_settings_changed(self) -> None:
         """Name/Randlos geändert, während das iPhone-Fenster verfolgt wird → mit neuem Namen weiter verfolgen
@@ -1139,10 +1207,15 @@ class Controller(QObject):
         self.airplay.shutdown()
         self.cast.stop()
         self._cast_timer.stop()
-        try:
-            self.airplay.failed.disconnect(self._airplay_failed)
-        except (RuntimeError, TypeError):
-            pass
+        if self._airplay_bg_timer is not None:
+            self._airplay_bg_timer.stop()
+        for sig, slot in ((self.airplay.failed, self._airplay_failed), (self.airplay.notice, self._airplay_notice),
+                          (self.airplay.settings_changed, self._airplay_settings_changed),
+                          (self.airplay.connected, self._iphone_connected)):
+            try:  # der AirPlay-Server ist ein Einzelstück – nicht an einen beendeten Controller gebunden lassen
+                sig.disconnect(slot)
+            except (RuntimeError, TypeError):
+                pass
         try:  # der Server ist ein Einzelstück – nicht an einen beendeten Controller gebunden lassen
             self.cast.request.disconnect(self._cast_request)
         except (RuntimeError, TypeError):

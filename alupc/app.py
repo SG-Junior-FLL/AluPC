@@ -143,6 +143,10 @@ def main(argv=None) -> int:
         ensure_user_entry()
 
     controller.restore_last()
+    # AirPlay „immer bereit“: UxPlay mit AluPCs Name/Code im Hintergrund (übernimmt fremde Autostarts)
+    from PySide6.QtCore import QTimer
+
+    QTimer.singleShot(2500, controller.airplay_background)
     if args.befehl and args.befehl != "zeigen":
         on_command(args.befehl)
     if not (args.minimiert or config["start_minimized"]) or not window.tray.isVisible():

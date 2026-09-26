@@ -2759,3 +2759,55 @@ def test_tray_panel(env):
     window.open_tray_panel()
     window.open_tray_panel()  # nochmal aufs Symbol = zu
     assert not panel.isVisible()
+
+
+def test_airplay_always_ready_takes_over(env, tmp_path, monkeypatch):
+    """„Immer bereit“: fremder UxPlay-Autostart (Standardname, kein Code) wird abgeschaltet, AluPCs UxPlay läuft
+    im Hintergrund mit Name/Code; meldet UxPlay eine Verbindung, zeigt Monitor 2 das iPhone."""
+    import sys
+
+    from alupc import handy
+
+    if sys.platform.startswith("win"):
+        pytest.skip("Fake-Programm ist ein Shell-Skript")
+    controller, window, _ = env
+    auto = tmp_path / "xdg" / "autostart"
+    auto.mkdir(parents=True)
+    (auto / "uxplay.desktop").write_text("[Desktop Entry]\nExec=uxplay -n Irgendwas\n")
+    (auto / "anderes.desktop").write_text("[Desktop Entry]\nExec=firefox\n")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    monkeypatch.setattr(handy.shutil, "which", lambda name: None if name == "systemctl" else "/usr/bin/" + name)
+    assert [a[0] for a in handy.uxplay_autostarts()] == ["datei"]
+    uxplay, log = _fake_uxplay(tmp_path, False)
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": uxplay, "pin": "4711",
+                                  "airplay_name": "Mein Beamer", "airplay_always": True}
+    msgs = []
+    controller.message.connect(msgs.append)
+    controller.airplay_background()
+    assert not (auto / "uxplay.desktop").exists() and (auto / "uxplay.desktop.aus-durch-AluPC").exists()
+    assert (auto / "anderes.desktop").exists()  # nur UxPlay-Autostarts
+    assert any("Autostart aus" in m for m in msgs)
+    assert _until(lambda: controller.airplay.running() and log.exists(), 5)
+    assert "-n Mein Beamer" in log.read_text() and "-pin 4711" in log.read_text()
+    assert not controller._airplay_shown()  # läuft im Hintergrund, Monitor 2 bleibt, wie er ist
+    controller.show_source({"type": "clock"})
+    pump()
+    assert controller.airplay.running()  # Quellwechsel beendet den Hintergrund-Empfang nicht
+    controller.airplay._read_line = None
+    controller.airplay.connected.emit()  # UxPlay meldet: iPhone verbindet sich
+    pump()
+    assert controller._airplay_shown()
+    controller.show_source({"type": "clock"})
+    pump()
+    assert _until(lambda: True, 2) and controller.airplay.running()
+    controller.airplay_background(False)
+    assert _until(lambda: not controller.airplay.running(), 5), (controller.airplay.users,
+                                                                 controller.airplay._background)
+
+
+def test_uxplay_connect_hint_parsing(tmp_path):
+    from alupc import handy
+
+    for line in ("Open connections: 1", "Accepted IPv4 client on socket 23, port 7000"):
+        assert any(k in line.lower() for k in handy.CONNECT_HINTS)
+    assert not any(k in "Initialized server socket(s)".lower() for k in handy.CONNECT_HINTS)

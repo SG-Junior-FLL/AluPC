@@ -652,6 +652,12 @@ class SetupPage(QWidget):
             idle.addItem(label, key)
         idle.setCurrentIndex(max(0, idle.findData(s.get("airplay_idle", "bereit"))))
         idle.setToolTip("Was Monitor 2 zeigt, solange kein iPhone verbunden ist")
+        always = QCheckBox("Immer bereit (iPhone findet den PC jederzeit)")
+        always.setToolTip("AluPC startet AirPlay mit diesem Namen und Code im Hintergrund und schaltet fremde "
+                          "UxPlay-Autostarts ab (die zeigen sonst den Standardnamen ohne Code)")
+        always.setChecked(bool(s.get("airplay_always", True)))
+        auto_show = QCheckBox("Bei Verbindung sofort auf Monitor 2")
+        auto_show.setChecked(bool(s.get("airplay_auto_show", True)))
         from .handy_page import link_button
 
         more = link_button("Einrichten …", lambda: self.window().open_handy_window()
@@ -683,9 +689,18 @@ class SetupPage(QWidget):
         name.editingFinished.connect(save_name)
         borderless.toggled.connect(lambda on: save(airplay_borderless=on))
         idle.currentIndexChanged.connect(lambda _i: save(airplay_idle=idle.currentData()))
+
+        def set_always(on):
+            save(airplay_always=on)
+            self.controller.airplay_background(on)
+
+        always.toggled.connect(set_always)
+        auto_show.toggled.connect(lambda on: save(airplay_auto_show=on))
         air.settings_changed.connect(sync)
         form.addRow("Name am iPhone:", name)
         form.addRow("Ohne iPhone:", idle)
+        form.addRow("", always)
+        form.addRow("", auto_show)
         form.addRow("", borderless)
         form.addRow("", more)
         return box

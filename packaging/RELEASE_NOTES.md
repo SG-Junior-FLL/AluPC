@@ -8,6 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.32.0)
+**AirPlay: Name und Code gelten jetzt immer**
+- Ursache für „iPhone zeigt den normalen UxPlay-Namen und fragt nicht nach dem Code“: Ein UxPlay, das nicht
+  AluPC gestartet hat (z. B. uxplay-windows mit eigenem Autostart), lief mit Standardname und ohne Code.
+  AluPC hat es bisher erst beendet, wenn man in AluPC auf AirPlay klickte.
+- Neu **„Immer bereit“** (Standard, Setup → Handy & Kamera → AirPlay): AluPC startet UxPlay beim Start selbst
+  im Hintergrund – mit **deinem Namen und Code** – und schaltet fremde UxPlay-Autostarts ab (Windows:
+  Autostart-Eintrag, Autostart-Ordner, Aufgabenplanung; Linux: ~/.config/autostart, systemd). Dateien werden
+  nur umbenannt („.aus-durch-AluPC“), also umkehrbar.
+- **Verbindet sich ein iPhone, schaltet Monitor 2 von selbst aufs iPhone-Bild** („Bei Verbindung sofort auf
+  Monitor 2“, abschaltbar).
+- Windows: Name/Code landen bei jeder Änderung sofort in der Einstellungsdatei von uxplay-windows – auch wenn
+  AirPlay gerade nicht läuft.
+- Geprüft unter Linux mit echtem UxPlay 1.68: vorher „UxPlay@Rechner“ ohne Code im Netz, danach nur noch der
+  AluPC-Name mit Code.
+
 ### Neu in dieser Version (0.31.0)
 **Neues Schnellfenster in der Taskleiste**
 - Klick aufs AluPC-Symbol öffnet statt der langen Liste ein gestaltetes Schnellfenster: Live-Bild von Monitor 2

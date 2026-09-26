@@ -50,11 +50,22 @@ def main():
     app = QCoreApplication([])
     cfg = Config(Path(os.environ.get("RUNNER_TEMP", ".")) / "airplay-probe.json")
     cfg["handy"] = {**cfg["handy"], "airplay_name": "AluPC CI-Test", "pin": "1234"}
+    # Wie beim Nutzer: uxplay-windows läuft schon mit EIGENEN Einstellungen (Autostart, Standardname, kein Code)
+    autostarts = handy.uxplay_autostarts()
+    exe = handy.find_uxplay_windows()
+    try:
+        handy.uxplay_windows_arguments_file().unlink()
+    except OSError:
+        pass
+    foreign = subprocess.Popen([exe], cwd=str(Path(exe).parent)) if exe else None
+    time.sleep(12)
+    note(f"FREMD vorher: Autostarts {autostarts} · Bonjour {bonjour_names()} · läuft {foreign and foreign.poll() is None}")
     server = handy.AirPlayServer(cfg)
     failed, notices = [], []
     server.failed.connect(failed.append)
     server.notice.connect(notices.append)
-    mode = server.acquire(want_stream=False)
+    done, not_done = handy.disable_uxplay_autostarts()
+    mode = server.set_background(True)  # wie AluPC beim Start („immer bereit“)
     note(f"Programm: {server.binary()} · Bonjour: {handy.bonjour_installed()} · Modus: {mode} · "
          f"noch einzurichten: {[label for label, _ in handy.setup_plan(cfg)]}")
     wait(app, 20, lambda: bool(failed))
@@ -64,7 +75,9 @@ def main():
     note(f"Start: läuft {server.running()} · Ports {listening or 'keiner'} · "
          f"arguments.txt {handy.uxplay_windows_arguments_file().read_text(encoding='utf-8')!r}"
          + (f" · Fehler: {failed[0]}" if failed else "") + (f" · Hinweis: {notices[0]}" if notices else ""))
-    note(f"Bonjour nach Start: {bonjour_names()}")
+    names = bonjour_names()
+    note(f"ÜBERNAHME: {'OK' if names == ['AluPC CI-Test'] else 'FEHLER'} · Bonjour {names} · Autostart aus {done} "
+         f"· nicht möglich {not_done} · noch da {handy.uxplay_autostarts()}")
     # Umbenennen und Code ändern, WÄHREND es läuft – so wie in Setup oder im Fenster „Handy“
     restarted = server.update_settings(airplay_name="AluPC Umbenannt", pin="4711")
     wait(app, 15, lambda: bool(failed))
@@ -75,7 +88,6 @@ def main():
          f"{handy.uxplay_windows_arguments_file().read_text(encoding='utf-8')!r} · läuft als "
          f"{server.running_settings()}" + (f" · Fehler: {failed[-1]}" if failed else "")
          + (f" · Hinweise: {notices}" if notices else ""))
-    note("Protokoll: " + " | ".join(line[:140] for line in handy.uxplay_windows_log_tail(6)))
     server.shutdown()
 
 

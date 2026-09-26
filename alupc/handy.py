@@ -161,6 +161,110 @@ def _living_uxplay() -> bool:
     return any(line.strip() and not line.strip().startswith("Z") for line in out.splitlines())
 
 
+# Zeilen in UxPlays Ausgabe, wenn sich ein iPhone verbindet (Versionen 1.6x–1.7x, uxplay-windows)
+CONNECT_HINTS = ("open connections: 1", "accepted ipv4 client", "accepted ipv6 client", "client connected",
+                 "raop_rtp_mirror starting", "begin streaming to gstreamer")
+
+
+def uxplay_autostarts() -> list[tuple[str, str, str]]:
+    """Fremde Autostarts von UxPlay (starten es mit eigenen Einstellungen – Standardname, kein Code):
+    (Art, Kennung, Anzeige). Windows: Run-Schlüssel, Autostart-Ordner, Aufgabenplanung; Linux:
+    ~/.config/autostart und systemd (Benutzer)."""
+    found: list[tuple[str, str, str]] = []
+    if IS_WINDOWS:
+        try:
+            import winreg
+
+            run = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            for hive, hive_name, path in ((winreg.HKEY_CURRENT_USER, "HKCU", run),
+                                          (winreg.HKEY_LOCAL_MACHINE, "HKLM", run),
+                                          (winreg.HKEY_LOCAL_MACHINE, "HKLM",
+                                           r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run")):
+                try:
+                    key = winreg.OpenKey(hive, path)
+                except OSError:
+                    continue
+                with key:
+                    i = 0
+                    while True:
+                        try:
+                            name, value, _t = winreg.EnumValue(key, i)
+                        except OSError:
+                            break
+                        i += 1
+                        if "uxplay" in f"{name} {value}".lower():
+                            found.append(("reg", f"{hive_name}|{path}|{name}", f"Autostart „{name}“ ({hive_name})"))
+        except ImportError:
+            pass
+        for folder in (Path(os.environ.get("APPDATA", "")) / "Microsoft/Windows/Start Menu/Programs/Startup",
+                       Path(os.environ.get("ProgramData", "")) / "Microsoft/Windows/Start Menu/Programs/StartUp"):
+            try:
+                for f in folder.iterdir():
+                    if "uxplay" in f.name.lower():
+                        found.append(("datei", str(f), f"Autostart-Ordner: {f.name}"))
+            except OSError:
+                pass
+        try:
+            out = subprocess.run(["schtasks", "/query", "/fo", "csv", "/nh"], capture_output=True, text=True,
+                                 timeout=15, creationflags=0x08000000).stdout
+            for line in out.splitlines():
+                task = line.split('","')[0].strip('"')
+                if "uxplay" in task.lower():
+                    found.append(("aufgabe", task, f"Aufgabenplanung: {task}"))
+        except (OSError, subprocess.SubprocessError):
+            pass
+        return found
+    autostart = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "autostart"
+    try:
+        for f in autostart.glob("*.desktop"):
+            try:
+                if "uxplay" in f.read_text(encoding="utf-8", errors="replace").lower():
+                    found.append(("datei", str(f), f"Autostart: {f.name}"))
+            except OSError:
+                pass
+    except OSError:
+        pass
+    if shutil.which("systemctl"):
+        for unit in ("uxplay.service",):
+            try:
+                state = subprocess.run(["systemctl", "--user", "is-enabled", unit], capture_output=True, text=True,
+                                       timeout=5).stdout.strip()
+            except (OSError, subprocess.SubprocessError):
+                continue
+            if state in ("enabled", "enabled-runtime"):
+                found.append(("systemd", unit, f"systemd: {unit}"))
+    return found
+
+
+def disable_uxplay_autostarts() -> tuple[list[str], list[str]]:
+    """Fremde UxPlay-Autostarts abschalten (umkehrbar: Dateien bekommen die Endung „.aus-durch-AluPC“).
+    Rückgabe: (abgeschaltet, nicht möglich – z. B. für alle Benutzer, nur mit Adminrechten)."""
+    done, failed = [], []
+    for kind, ident, label in uxplay_autostarts():
+        try:
+            if kind == "reg":
+                import winreg
+
+                hive_name, path, name = ident.split("|", 2)
+                hive = winreg.HKEY_CURRENT_USER if hive_name == "HKCU" else winreg.HKEY_LOCAL_MACHINE
+                with winreg.OpenKey(hive, path, 0, winreg.KEY_SET_VALUE) as key:
+                    winreg.DeleteValue(key, name)
+            elif kind == "datei":
+                os.replace(ident, ident + ".aus-durch-AluPC")
+            elif kind == "aufgabe":
+                ok = subprocess.run(["schtasks", "/change", "/tn", ident, "/disable"], capture_output=True,
+                                    timeout=15, creationflags=0x08000000).returncode == 0
+                if not ok:
+                    raise PermissionError(ident)
+            elif kind == "systemd":
+                subprocess.run(["systemctl", "--user", "disable", "--now", ident], capture_output=True, timeout=15,
+                               check=True)
+            done.append(label)
+        except (OSError, subprocess.SubprocessError, ImportError):
+            failed.append(label)
+    return done, failed
+
+
 STUCK_TEXT = ("Ein anderes AirPlay-Programm läuft schon (evtl. mit Adminrechten) und lässt sich nicht beenden – "
               "dann gelten Name und Code von AluPC nicht. Im Task-Manager „uxplay“ beenden oder den PC neu starten.")
 
@@ -240,6 +344,7 @@ class AirPlayServer(QObject):
     log_line = Signal(str)
     failed = Signal(str)  # UxPlay hat sich unerwartet beendet – verständliche Erklärung
     notice = Signal(str)  # Hinweis für den Nutzer (z. B. fremdes UxPlay lässt sich nicht beenden)
+    connected = Signal()  # ein iPhone verbindet sich (aus UxPlays Meldungen)
     settings_changed = Signal()  # Name/Code o. Ä. geändert – alle Anzeigen neu einlesen
 
     def __init__(self, config, parent=None):
@@ -251,6 +356,7 @@ class AirPlayServer(QObject):
         self.port = 0
         self.log: list[str] = []
         self.pin_code = ""
+        self._background = False  # „Immer bereit“: hält UxPlay dauerhaft am Laufen
         self._stop_timer = QTimer(self, singleShot=True, interval=1500)
         self._stop_timer.timeout.connect(self._really_stop)
 
@@ -268,6 +374,8 @@ class AirPlayServer(QObject):
             return False
         self.config["handy"] = {**current, **values}
         restarted = self.restart_if_changed()
+        if not restarted:
+            self.sync_windows_arguments()
         self.settings_changed.emit()
         return restarted
 
@@ -368,16 +476,8 @@ class AirPlayServer(QObject):
         self.status.emit("neu gestartet")
         return True
 
-    def _start_uxplay_windows(self, exe: str, s: dict) -> str:
-        """Windows: uxplay-windows mit AluPCs Name/Code starten. Es zeigt das Bild in einem eigenen Fenster."""
-        pin = s.get("pin", "")
-        if pin == "zufall":  # das Protokoll von uxplay-windows liest AluPC nicht live → Code selbst würfeln
-            pin = random_pin()
-        self.pin_code = pin
-        args = ["-n", s["airplay_name"] or "AluPC", "-nh", "-p"] + (["-pin", pin] if pin else [])
-        if not kill_uxplay_windows():  # evtl. mit anderen Einstellungen schon laufend (eigener Autostart)
-            self._stuck()
-        self._started_with = self._wanted()
+    def _write_windows_arguments(self, args: list[str]) -> None:
+        """uxplay-windows liest Name/Code aus arguments.txt – auch ein von Windows selbst gestartetes."""
         try:
             target = uxplay_windows_arguments_file()
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -393,6 +493,37 @@ class AirPlayServer(QObject):
                 self.log = (self.log + [f"Hinweis: {machine} hat Vorrang – Name/Code von AluPC gelten dann nicht"])[-60:]
                 self.notice.emit(f"Name/Code gelten nicht: {machine} hat Vorrang und ist schreibgeschützt – "
                                  "Datei löschen (Adminrechte), dann klappt es.")
+
+    def sync_windows_arguments(self) -> None:
+        """Einstellungen sofort in arguments.txt – auch wenn AirPlay gerade nicht läuft (fester Code/aus)."""
+        if not IS_WINDOWS or not is_uxplay_windows(self.binary()) or self.running():
+            return
+        s = self.settings()
+        pin = s.get("pin", "")
+        pin = pin if pin.isdigit() else ""  # Zufallscode würfelt AluPC erst beim Start
+        self._write_windows_arguments(["-n", s["airplay_name"] or "AluPC", "-nh", "-p"] + (["-pin", pin] if pin else []))
+
+    def set_background(self, on: bool) -> str:
+        """„Immer bereit“: UxPlay läuft mit AluPCs Name/Code dauerhaft im Hintergrund (eigener Nutzer-Zähler)."""
+        if on and not self._background:
+            self._background = True
+            return self.acquire(want_stream=True)
+        if not on and self._background:
+            self._background = False
+            self.release()
+        return self.mode if self.running() else ""
+
+    def _start_uxplay_windows(self, exe: str, s: dict) -> str:
+        """Windows: uxplay-windows mit AluPCs Name/Code starten. Es zeigt das Bild in einem eigenen Fenster."""
+        pin = s.get("pin", "")
+        if pin == "zufall":  # das Protokoll von uxplay-windows liest AluPC nicht live → Code selbst würfeln
+            pin = random_pin()
+        self.pin_code = pin
+        args = ["-n", s["airplay_name"] or "AluPC", "-nh", "-p"] + (["-pin", pin] if pin else [])
+        if not kill_uxplay_windows():  # evtl. mit anderen Einstellungen schon laufend (eigener Autostart)
+            self._stuck()
+        self._started_with = self._wanted()
+        self._write_windows_arguments(args)
         self.proc = QProcess(self)
         from PySide6.QtCore import QProcessEnvironment
 
@@ -446,6 +577,8 @@ class AirPlayServer(QObject):
             self.log = (self.log + [line])[-60:]
             self.log_line.emit(line)
             low = line.lower()
+            if any(k in low for k in CONNECT_HINTS):
+                self.connected.emit()
             if "pin" in low and any(ch.isdigit() for ch in line):  # „-pin“ ohne feste Zahl: Code steht im Log
                 digits = "".join(ch for ch in line.split(":")[-1] if ch.isdigit())
                 if len(digits) == 4:
@@ -453,6 +586,7 @@ class AirPlayServer(QObject):
                     self.status.emit("pin")
 
     def shutdown(self):
+        self._background = False
         self.users = 0
         self._really_stop()
 
