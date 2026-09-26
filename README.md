@@ -301,7 +301,8 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   erzwingen). Das Bild ist dort keine AluPC-Quelle (keine Szenen, kein Standbild). Läuft uxplay-windows
   schon (eigener Autostart), beendet AluPC es beim AirPlay-Start – es darf nur einen Empfänger geben.
 - **Mit echten iPhones ist AirPlay nicht getestet.** Geprüft ist: unter Linux startet echtes UxPlay und
-  wird per avahi angekündigt; unter Windows (GitHub-Rechner) siehe Versionshinweise.
+  wird per avahi angekündigt; unter Windows (GitHub-Rechner) startet AluPC uxplay-windows, Port 7000 ist
+  offen und der PC wird per Bonjour mit seinem Namen angekündigt.
 - **Fingerabdruck unter Linux** geht nur mit Sensoren, die **libfprint** unterstützt.
   Viele neuere Notebook-Sensoren (z. B. manche von Goodix/Synaptics) werden nicht erkannt.
 - **Windows erlaubt Fremdprogrammen nicht**, Finger für die Windows-Anmeldung anzulernen oder

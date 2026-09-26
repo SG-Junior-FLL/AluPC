@@ -8,6 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.17.0) – AirPlay unter Windows
+- **AirPlay (iPhone/iPad) geht jetzt auch unter Windows ohne Handarbeit:** AluPC installiert über winget
+  **„uxplay-windows“** (Paket `leapbtw.uxplay`, UxPlay fertig für Windows gebaut) und **Bonjour** – in der
+  Ersteinrichtung, über „Automatisch einrichten“ im Handy-Fenster oder gleich im Setup.exe.
+- AluPC trägt **Name und Code** in dessen Einstellungsdatei ein, startet und beendet den Empfänger selbst und
+  legt das iPhone-Fenster **maximiert auf Monitor 2**. Läuft uxplay-windows schon (eigener Autostart), wird es
+  dafür beendet – es darf nur einen AirPlay-Empfänger geben.
+- Geprüft auf einem echten Windows-Rechner (GitHub): AluPC startet uxplay-windows, Port 7000 ist offen und der
+  PC wird per Bonjour als „AluPC CI-Test“ angekündigt – genau das, was ein iPhone in der Liste
+  „Bildschirmsynchronisierung“ sieht. **Mit einem echten iPhone ist es nicht getestet.**
+- Ehrlich: uxplay-windows ist ein **Community-Paket** eines einzelnen Entwicklers (nicht vom UxPlay-Projekt),
+  nicht signiert – Windows Defender kann warnen. Beim ersten Start fragt die Windows-Firewall: „Zugriff
+  zulassen“ klicken, sonst sieht das iPhone den PC, kann sich aber nicht verbinden.
+- Behoben: Namen mit Leerzeichen (z. B. „AluPC (Mein-PC)“) wären bei uxplay-windows zerbrochen.
+- Diagnose zeigt jetzt Pfad, Einstellungsdatei und Meldungen von uxplay-windows.
+
 ### Neu in dieser Version (0.16.0)
 - **Handy-Stream (Android/scrcpy) und Miracast entfernt** – Kacheln, Einrichtung, Diagnose und Installer.
   Handy auf Monitor 2 heißt jetzt: **AirPlay** (iPhone/iPad) und **Handy-Steuerung** (QR-Code, jedes Handy).
