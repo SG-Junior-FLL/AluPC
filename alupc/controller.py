@@ -57,6 +57,7 @@ class Controller(QObject):
         self.airplay.notice.connect(self._airplay_notice)
         self.airplay.settings_changed.connect(self._airplay_settings_changed)
         self.airplay.connected.connect(self._iphone_connected)
+        self.airplay.disconnected.connect(self._iphone_disconnected)
         from . import perf
 
         perf.configure(self.config["appearance"].get("performance", "auto"))
@@ -521,11 +522,23 @@ class Controller(QObject):
 
     def _iphone_connected(self) -> None:
         """iPhone verbindet sich → Monitor 2 zeigt es (auch wenn gerade etwas anderes lief)."""
+        if self._airplay_shown() and self._handy_window == "airplay-quelle":
+            if not getattr(self, "_follow_token", None):
+                return  # Windows/X11: AluPC sieht das Fenster selbst und blendet dann aus (_place_handy_window)
+            # KDE (KWin legt das UxPlay-Fenster hin): Warte-Bildschirm weg, damit er es auf keinen Fall verdeckt
+            # (unter Wayland sieht AluPC fremde Fenster nicht und kann nicht prüfen, ob es schon oben liegt)
+            self.output.set_suspended(True)
+            return
         if self._airplay_shown() or self.output_screen() is None:
             return
         if not self.config["handy"].get("airplay_auto_show", True):
             return
         self.start_airplay()
+
+    def _iphone_disconnected(self) -> None:
+        if self._airplay_shown() and self._handy_window == "airplay-quelle" \
+                and getattr(self, "_follow_token", None):
+            self.output.set_suspended(False)  # wieder „AirPlay bereit“
 
     def _airplay_notice(self, text: str) -> None:
         self.message.emit(text)
@@ -1280,7 +1293,8 @@ class Controller(QObject):
             self._airplay_bg_timer.stop()
         for sig, slot in ((self.airplay.failed, self._airplay_failed), (self.airplay.notice, self._airplay_notice),
                           (self.airplay.settings_changed, self._airplay_settings_changed),
-                          (self.airplay.connected, self._iphone_connected)):
+                          (self.airplay.connected, self._iphone_connected),
+                          (self.airplay.disconnected, self._iphone_disconnected)):
             try:  # der AirPlay-Server ist ein Einzelstück – nicht an einen beendeten Controller gebunden lassen
                 sig.disconnect(slot)
             except (RuntimeError, TypeError):

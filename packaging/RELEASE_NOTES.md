@@ -8,6 +8,15 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.45.0)
+**Linux: iPad/iPhone verbunden (Ton kommt), aber kein Bild auf Monitor 2**
+- In einer virtuellen Maschine startet AluPC UxPlay jetzt mit Software-Decoder und ohne Zeitstempel-Abgleich
+  (`-avdec -vsync no`, nur wenn die UxPlay-Version das kennt). Die Uhr einer VM läuft ungleichmäßig – UxPlay hat
+  dann jedes Bild als „zu spät“ verworfen: Ton ja, Bild nein.
+- KDE: Sobald sich das Gerät verbindet, verschwindet der „AirPlay bereit“-Bildschirm, damit er UxPlays Fenster
+  nicht verdecken kann; beim Trennen kommt er wieder. Das UxPlay-Fenster wird außerdem nach vorne geholt.
+- „Diagnose kopieren“ zeigt, ob AluPC eine virtuelle Maschine erkannt hat und welche UxPlay-Zusätze gelten.
+
 ### Neu in dieser Version (0.44.0)
 - **Websites/YouTube auf Monitor 2 jetzt mit Ton.** Der eingebaute Browser (Chromium) spielte Ton erst nach einem
   Klick auf die Seite – auf Monitor 2 klickt aber niemand, also blieb es stumm („NotAllowedError“). Jetzt dürfen

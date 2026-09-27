@@ -80,6 +80,8 @@ KWIN_FOLLOW_SCRIPT = r"""
         }
         if (%(fullscreen)s) { w.fullScreen = true; } else { w.setMaximize(true, true); }
         w.keepAbove = true;  // über dem Warte-Bildschirm von AluPC
+        // nach vorne holen – sonst legt KWin ein neues Fenster eines Hintergrund-Programms ggf. unter das aktive
+        if (workspace.activeWindow !== undefined) { workspace.activeWindow = w; } else { workspace.activeClient = w; }
     }
     function watch(w) {
         if (!w) { return; }

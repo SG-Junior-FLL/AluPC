@@ -2979,3 +2979,27 @@ def test_website_plays_sound_without_click():
     view = QWebEngineView()
     allow_autoplay(view)
     assert not view.settings().testAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture)
+
+
+def test_handy_window_mode_kde_hides_waiting_screen(env, tmp_path, monkeypatch):
+    """KDE/Wayland: KWin legt UxPlays Fenster hin, AluPC sieht es nicht. Verbindet sich das iPad (UxPlay-Meldung),
+    verschwindet der Warte-Bildschirm, damit er das Bild nicht verdeckt; beim Trennen kommt er wieder."""
+    import sys
+
+    if sys.platform.startswith("win"):
+        pytest.skip("Fake-Programm ist ein Shell-Skript")
+    controller, _window, _ = env
+    uxplay, log = _fake_uxplay(tmp_path, False)
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": uxplay, "pin": ""}
+    monkeypatch.setattr(controller.windows, "follow_windows", lambda *a: "kwin-skript")
+    monkeypatch.setattr(controller.windows, "stop_follow", lambda token: None)
+    controller.start_airplay()
+    pump()
+    assert _until(lambda: controller.airplay.running(), 5)
+    assert controller.output.isVisible() and not controller.output.suspended
+    controller.airplay.connected.emit()
+    assert controller.output.suspended and not controller.output.isVisible()
+    controller.airplay.disconnected.emit()
+    assert not controller.output.suspended and controller.output.isVisible()
+    controller.extend()
+    assert _until(lambda: not controller.airplay.running(), 5)

@@ -134,6 +134,9 @@ def report(controller, probe: bool = True) -> str:
                  f"{'ja' if controller.airplay.running() else 'nein'}")
     if sys.platform.startswith("linux"):
         lines.append("  Ton: " + audio_check())
+        if handy.in_virtual_machine():
+            opts = " ".join(handy.vm_options(handy.uxplay_help(ux))) if ux else ""
+            lines.append(f"  Virtuelle Maschine: ja · UxPlay-Zusatz: {opts or 'keiner (Version kennt ihn nicht)'}")
     if controller.airplay.log:
         lines.append("  Letzte Meldungen: " + " | ".join(controller.airplay.log[-5:]))
         audio = [x for x in controller.airplay.log if "audio" in x.lower() or "aac" in x.lower()]

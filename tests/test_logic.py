@@ -970,3 +970,19 @@ def gap_ok(fake):
     pos = {o.name: o.x for o in fake.outs}
     return pos["A"] - (pos["B"] + 1920) >= 100
 
+
+
+def test_uxplay_vm_options_and_disconnect():
+    """VM: Software-Decoder + ohne Zeitstempel-Abgleich (sonst Ton ohne Bild) – aber nur Optionen, die die
+    UxPlay-Version kennt. Trennen wird aus UxPlays Meldungen erkannt."""
+    from alupc import handy
+    from alupc.platform.linux_windows import build_follow_script
+
+    new = "-avdec    Force software h264\n-vsync [x]Mirror mode\n"
+    assert handy.vm_options(new) == ["-avdec", "-vsync", "no"]
+    assert handy.vm_options("-avdec    Force software h264\n") == ["-avdec"]  # alte Version ohne -vsync
+    assert handy.vm_options("") == []
+    args = handy.uxplay_args("AluPC", "", None, extra=handy.vm_options(new))
+    assert args[:4] == ["-n", "AluPC", "-nh", "-p"] and "-avdec" in args and args[args.index("-vsync") + 1] == "no"
+    assert any("open connections: 0" in h for h in handy.DISCONNECT_HINTS)
+    assert "activeWindow = w" in build_follow_script(["AluPC"], "HDMI-A-1", (1920, 0, 1920, 1080))

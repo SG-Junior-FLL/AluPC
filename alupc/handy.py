@@ -183,6 +183,7 @@ def is_iphone_window(title: str, app: str, titles) -> bool:
 
 
 # Zeilen in UxPlays Ausgabe, wenn sich ein iPhone verbindet (Versionen 1.6x–1.7x, uxplay-windows)
+DISCONNECT_HINTS = ("open connections: 0", "connection closed", "client disconnected", "stopped mirroring")
 CONNECT_HINTS = ("open connections: 1", "accepted ipv4 client", "accepted ipv6 client", "client connected",
                  "raop_rtp_mirror starting", "begin streaming to gstreamer")
 
@@ -314,20 +315,39 @@ def find_program(name: str, configured: str = "", extra: list[str] | None = None
     return None
 
 
-_vrtp_cache: dict[str, bool] = {}
+_vrtp_cache: dict[str, str] = {}  # UxPlay → Hilfetext
 
 
 def supports_vrtp(uxplay: str) -> bool:
     """Kann diese UxPlay-Version das Bild an AluPC weiterleiten (-vrtp, ab 1.73)?"""
     if is_uxplay_windows(uxplay):
         return False  # Tray-Programm: „-h“ würde es starten; zeigt das Bild immer im eigenen Fenster
+    return "-vrtp" in uxplay_help(uxplay)
+
+
+def uxplay_help(uxplay: str) -> str:
+    """Hilfetext dieser UxPlay-Version (zeigt, welche Optionen sie kennt)."""
+    if is_uxplay_windows(uxplay):
+        return ""
     if uxplay not in _vrtp_cache:
         try:
             out = subprocess.run([uxplay, "-h"], capture_output=True, text=True, timeout=8)
-            _vrtp_cache[uxplay] = "-vrtp" in (out.stdout + out.stderr)
+            _vrtp_cache[uxplay] = out.stdout + out.stderr
         except (OSError, subprocess.SubprocessError):
-            _vrtp_cache[uxplay] = False
+            _vrtp_cache[uxplay] = ""
     return _vrtp_cache[uxplay]
+
+
+def vm_options(help_text: str) -> list[str]:
+    """Virtuelle Maschine: keine Hardware-Videodecoder (Software-Decoder erzwingen), und ihre Uhr läuft oft
+    ungleichmäßig – mit Zeitstempel-Abgleich verwirft UxPlay dann jedes Bild (Ton ja, Bild nein).
+    Nur Optionen, die diese UxPlay-Version kennt (ältere brechen bei unbekannten Optionen ab)."""
+    opts = []
+    if re.search(r"^\s*-avdec\b", help_text, re.M):
+        opts += ["-avdec"]
+    if re.search(r"^\s*-vsync\b", help_text, re.M):
+        opts += ["-vsync", "no"]
+    return opts
 
 
 def free_udp_port() -> int:
@@ -342,9 +362,30 @@ def sdp_text(port: int) -> str:
             f"m=video {port} RTP/AVP 96\na=rtpmap:96 H264/90000\n")
 
 
-def uxplay_args(name: str, pin: str, port: int | None, window_title: bool = True) -> list[str]:
+_VM: bool | None = None
+
+
+def in_virtual_machine() -> bool:
+    """Linux in VirtualBox/VMware/KVM? (einmal ermitteln)"""
+    global _VM
+    if _VM is None:
+        _VM = False
+        if sys.platform.startswith("linux"):
+            try:
+                _VM = subprocess.run(["systemd-detect-virt", "--vm", "-q"], timeout=5).returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                try:
+                    product = open("/sys/class/dmi/id/product_name", encoding="utf-8").read().lower()
+                    _VM = any(k in product for k in ("virtualbox", "vmware", "kvm", "qemu"))
+                except OSError:
+                    pass
+    return _VM
+
+
+def uxplay_args(name: str, pin: str, port: int | None, window_title: bool = True,
+                extra: list[str] | None = None) -> list[str]:
     # -p: feste Ports (TCP 7000, 7001, 7100 / UDP 6000, 6001, 7011) – so lässt sich die Firewall gezielt öffnen
-    args = ["-n", name or "AluPC", "-nh", "-p"]
+    args = ["-n", name or "AluPC", "-nh", "-p"] + list(extra or [])
     if pin:
         args += ["-pin", pin] if pin != "zufall" else ["-pin"]
     if port is not None:  # Bild an AluPC weiterleiten statt selbst anzeigen
@@ -366,6 +407,7 @@ class AirPlayServer(QObject):
     failed = Signal(str)  # UxPlay hat sich unerwartet beendet – verständliche Erklärung
     notice = Signal(str)  # Hinweis für den Nutzer (z. B. fremdes UxPlay lässt sich nicht beenden)
     connected = Signal()  # ein iPhone verbindet sich (aus UxPlays Meldungen)
+    disconnected = Signal()  # … und trennt sich wieder
     settings_changed = Signal()  # Name/Code o. Ä. geändert – alle Anzeigen neu einlesen
 
     def __init__(self, config, parent=None):
@@ -449,7 +491,8 @@ class AirPlayServer(QObject):
             self.sdp_path().write_text(sdp_text(self.port), encoding="ascii")
         pin = s.get("pin", "")
         self.pin_code = pin if pin and pin != "zufall" else ""
-        args = uxplay_args(s["airplay_name"], pin, self.port if stream else None)
+        args = uxplay_args(s["airplay_name"], pin, self.port if stream else None,
+                           extra=vm_options(uxplay_help(uxplay)) if in_virtual_machine() else None)
         if not kill_uxplay_windows():  # fremde Empfänger (z. B. uxplay-windows im Autostart) belegen sonst die Ports
             self._stuck()
         self._started_with = self._wanted()
@@ -602,6 +645,8 @@ class AirPlayServer(QObject):
             low = line.lower()
             if any(k in low for k in CONNECT_HINTS):
                 self.connected.emit()
+            elif any(k in low for k in DISCONNECT_HINTS):
+                self.disconnected.emit()
             if "pin" in low and any(ch.isdigit() for ch in line):  # „-pin“ ohne feste Zahl: Code steht im Log
                 digits = "".join(ch for ch in line.split(":")[-1] if ch.isdigit())
                 if len(digits) == 4:
