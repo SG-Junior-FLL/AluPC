@@ -839,3 +839,43 @@ def test_kwin_place_script():
     js = build_place_script("AluPC – Bild-in-Bild", 1500, 700, 400, 225)
     assert '"AluPC \\u2013 Bild-in-Bild"' in js or "AluPC – Bild-in-Bild" in js
     assert "frameGeometry = {x: 1500, y: 700, width: 400, height: 225}" in js and "keepAbove = true" in js
+
+
+def test_kde_mirror_direction(monkeypatch):
+    """KDE: Spiegeln legt ausdrücklich fest „Monitor 2 ist Kopie von Monitor 1“ (nicht umgekehrt);
+    kennt KDE das nicht, bleibt der alte Weg über die Position."""
+    import json
+
+    from alupc.platform import linux_display
+
+    calls = []
+    state = {"src": 0, "mirror_ok": True}
+
+    def fake_run(cmd, timeout=20):
+        calls.append(cmd[1:])
+        if cmd[1] == "-j":
+            return json.dumps({"outputs": [
+                {"id": 1, "name": "eDP-1", "connected": True, "enabled": True, "pos": {"x": 0, "y": 0},
+                 "currentModeId": "1", "modes": [{"id": "1", "size": {"width": 1920, "height": 1080}}],
+                 "replicationSource": 0},
+                {"id": 2, "name": "HDMI-A-1", "connected": True, "enabled": True, "pos": {"x": 1920, "y": 0},
+                 "currentModeId": "1", "modes": [{"id": "1", "size": {"width": 1920, "height": 1080}}],
+                 "replicationSource": state["src"]}]})
+        if "mirror" in cmd[1]:
+            if not state["mirror_ok"]:
+                raise RuntimeError("unbekannt")
+            state["src"] = 1 if cmd[1].endswith(".eDP-1") else 0
+        return ""
+
+    monkeypatch.setattr(linux_display, "_run", fake_run)
+    backend = linux_display.KScreenBackend()
+    backend.mirror("eDP-1", "HDMI-A-1")
+    assert calls[0] == ["output.HDMI-A-1.mirror.eDP-1"]  # Monitor 2 = Kopie von Monitor 1
+    assert not any("position" in " ".join(c) for c in calls)  # kein Positions-Trick nötig
+    # alte KDE-Version: Befehl unbekannt → Positions-Weg, und dabei wird nur Monitor 2 verschoben
+    calls.clear()
+    state.update(src=0, mirror_ok=False)
+    applied = []
+    monkeypatch.setattr(backend, "apply", lambda outs: applied.append({o.name: (o.x, o.y) for o in outs}))
+    backend.mirror("eDP-1", "HDMI-A-1")
+    assert applied and applied[-1]["eDP-1"] == (0, 0) and applied[-1]["HDMI-A-1"] == (0, 0)

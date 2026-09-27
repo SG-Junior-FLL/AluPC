@@ -8,6 +8,12 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.41.0)
+- **Linux: Spiegeln war falsch herum** (der Hauptbildschirm zeigte Monitor 2). KDE-Spiegeln legte beide Monitore
+  nur an dieselbe Stelle – welcher welchen zeigt, entschied KDE. Jetzt sagt AluPC KDE ausdrücklich „Monitor 2 ist
+  eine Kopie von Monitor 1“ (KDE Plasma ab 6.1) und prüft das Ergebnis; ältere KDE-Versionen nutzen wie bisher
+  die Position. „Erweitern“ hebt die Kopie wieder auf.
+
 ### Neu in dieser Version (0.40.0)
 **Windows: iPhone/iPad sieht „AluPC“, Verbinden lädt aber endlos → „Verbindung nicht möglich“**
 - Die Firewall-Freigabe für AirPlay galt nur für „private“ Netzwerke. Windows stuft WLANs aber oft als

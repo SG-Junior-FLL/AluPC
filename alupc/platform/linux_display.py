@@ -100,6 +100,41 @@ class KScreenBackend(DisplayBackend):
     def apply(self, outputs: list[Output]) -> None:
         _run(["kscreen-doctor", *kscreen_args(outputs, self.supports_scale)], timeout=30)
 
+    def mirror(self, main: str, second: str) -> None:
+        """Monitor 2 zeigt Monitor 1 – mit ausdrücklicher Richtung (KDE ≥ 6.1: „second ist Kopie von main“).
+        Nur beide an dieselbe Stelle zu legen überlässt KDE, welcher welchen zeigt – das ging falsch herum
+        (Hauptbildschirm zeigte Monitor 2). Ältere KDE-Versionen: wie bisher über die Position."""
+        try:
+            _run(["kscreen-doctor", f"output.{second}.mirror.{main}"], timeout=30)
+            if replication_source(_run(["kscreen-doctor", "-j"]), second) == main:
+                return
+        except Exception:  # noqa: BLE001 – kennt diese KDE-Version nicht
+            pass
+        super().mirror(main, second)
+
+    def extend(self, main: str, second: str, side: str = "right") -> None:
+        try:  # eine Spiegelung per KDE-Kopie zuerst aufheben
+            _run(["kscreen-doctor", f"output.{second}.mirror.none"], timeout=30)
+        except Exception:  # noqa: BLE001
+            pass
+        super().extend(main, second, side)
+
+
+def replication_source(json_text: str, name: str) -> str | None:
+    """Wessen Kopie ist der Monitor `name`? (Name des Quell-Monitors, None = keine/unbekannt)"""
+    start = json_text.find("{")
+    try:
+        data = json.loads(json_text[start:] if start >= 0 else json_text)
+    except ValueError:
+        return None
+    outputs = data.get("outputs", [])
+    ids = {o.get("id"): o.get("name") for o in outputs}
+    for o in outputs:
+        if o.get("name") == name:
+            src = o.get("replicationSource")
+            return ids.get(src) if src else None
+    return None
+
 
 # --------------------------------------------------------------------------- xrandr
 _OUTPUT_RE = re.compile(r"^(\S+) (connected|disconnected)( primary)?(?: (\d+)x(\d+)\+(-?\d+)\+(-?\d+))?(?: (left|right|inverted|normal))?")
