@@ -228,7 +228,8 @@ class HandyPage(QWidget):
             if errors:
                 self.setup_text.setText("Nicht alles hat geklappt: " + " · ".join(errors))
             else:
-                self.config["handy"] = {**self.config["handy"], "firewall_done": True}
+                self.config["handy"] = {**self.config["handy"], "firewall_done": True,
+                                        "firewall_version": handy.FIREWALL_VERSION}
                 self.refresh()
                 self.controller.message.emit("Handy-Empfang eingerichtet.")
 

@@ -2,7 +2,7 @@
 ; Wird von GitHub Actions gebaut (siehe .github/workflows/build.yml).
 
 #ifndef AppVersion
-  #define AppVersion "0.39.0"
+  #define AppVersion "0.40.0"
 #endif
 
 [Setup]
@@ -43,8 +43,8 @@ Filename: "{cmd}"; Parameters: "/C winget install --id Apple.Bonjour -e --silent
 Filename: "{cmd}"; Parameters: "/C winget install --id leapbtw.uxplay -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "AirPlay-Empfänger (uxplay-windows) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: handy
 ; Firewall: Handy-Steuerung (8765…8774) und AirPlay – nur private Netzwerke (braucht Adminrechte, sonst übersprungen)
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AluPC Handy"" dir=in action=allow protocol=TCP localport=8765-8774 profile=private,domain"; StatusMsg: "Firewall wird eingerichtet …"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AluPC AirPlay"" dir=in action=allow protocol=TCP localport=7000,7001,7100 profile=private,domain"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AluPC AirPlay"" dir=in action=allow protocol=UDP localport=5353,6000,6001,7011 profile=private,domain"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AluPC AirPlay"" dir=in action=allow protocol=TCP localport=7000,7001,7100 profile=any"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AluPC AirPlay"" dir=in action=allow protocol=UDP localport=5353,6000,6001,7011 profile=any"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
 Filename: "{app}\AluPC.exe"; Description: "AluPC jetzt starten"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]

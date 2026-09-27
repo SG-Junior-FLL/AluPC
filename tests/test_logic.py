@@ -665,7 +665,7 @@ def test_handy_setup_plan(monkeypatch, tmp_path):
     # Alles da und eingerichtet → nichts zu tun
     monkeypatch.setattr(handy, "missing_packages", lambda pkgs: [])
     monkeypatch.setattr(handy, "avahi_running", lambda: True)
-    cfg["handy"] = {**cfg["handy"], "firewall_done": True}
+    cfg["handy"] = {**cfg["handy"], "firewall_done": True, "firewall_version": handy.FIREWALL_VERSION}
     assert handy.setup_plan(cfg) == []
     monkeypatch.setattr(handy, "can_install", lambda: False)
     monkeypatch.setattr(handy, "can_winget", lambda: True)
@@ -771,7 +771,12 @@ def test_cast_address_choice(monkeypatch):
     cmd = handy.windows_firewall_command(r"C:\AluPC\AluPC.exe", 8765)
     assert cmd[0] == "powershell" and "-Verb RunAs" in cmd[-1]
     assert "localport=8765-8774" in cmd[-1] and "localport=7000,7001,7100" in cmd[-1]
-    assert "profile=private,domain" in cmd[-1]
+    # Handy-Steuerung nur privat; AirPlay für alle Netzwerktypen (Windows nennt WLANs oft „öffentlich“)
+    assert "localport=8765-8774 profile=private,domain" in cmd[-1] and "7100 profile=any" in cmd[-1]
+    monkeypatch.setattr(handy, "uxplay_programs", lambda: [r"C:\Program Files\uxplay-windows\uxplay-windows.exe"])
+    cmd = handy.windows_firewall_command(r"C:\AluPC\AluPC.exe", 8765)
+    assert 'delete rule name=all program="C:\\Program Files\\uxplay-windows\\uxplay-windows.exe"' in cmd[-1]
+    assert 'name="AluPC AirPlay (UxPlay)" dir=in action=allow program=' in cmd[-1]
 
 
 def test_iphone_window_not_browser():

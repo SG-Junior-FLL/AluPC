@@ -455,11 +455,38 @@ class Controller(QObject):
             self.message.emit("UxPlay startet selbst mit Windows (für alle Benutzer) – nur mit Adminrechten "
                               "abschaltbar: " + ", ".join(failed))
         self.airplay.set_background(True)
+        self._airplay_firewall_once()
         if self._airplay_bg_timer is None:
             # Windows: Fensterliste ist billig; Linux: wmctrl-Aufruf → seltener (UxPlay meldet Verbindungen ohnehin)
             self._airplay_bg_timer = QTimer(self, interval=2000 if __import__("sys").platform.startswith("win") else 5000)
             self._airplay_bg_timer.timeout.connect(self._airplay_bg_poll)
         self._airplay_bg_timer.start()
+
+    def _airplay_firewall_once(self) -> None:
+        """Windows: Firewall-Freigabe für AirPlay einmal nachholen (neue Regeln, z. B. auch für „öffentliche“
+        WLANs) – sonst sieht das iPhone „AluPC“, kann sich aber nicht verbinden. Eine Windows-Abfrage (UAC)."""
+        import sys as _sys
+
+        from . import handy
+
+        s = self.config["handy"]
+        if not _sys.platform.startswith("win") or int(s.get("firewall_version", 0)) >= handy.FIREWALL_VERSION \
+                or int(s.get("firewall_asked", 0)) >= handy.FIREWALL_VERSION:
+            return
+        self.config["handy"] = {**s, "firewall_asked": handy.FIREWALL_VERSION}  # nur einmal fragen
+        from .ui.util import run_async
+
+        cmd = handy.windows_firewall_command(_sys.executable, int(self.config["cast"].get("port", 8765)))
+        self.message.emit("AirPlay: Windows fragt einmal nach Admin-Rechten (Firewall-Freigabe fürs iPhone)")
+
+        def done(errors):
+            if not errors:
+                self.config["handy"] = {**self.config["handy"], "firewall_done": True,
+                                        "firewall_version": handy.FIREWALL_VERSION}
+                self.message.emit("AirPlay: Firewall freigegeben – iPhone kann sich jetzt verbinden")
+
+        run_async(lambda: handy.run_plan([("Firewall", cmd)]), done,
+                  lambda t: self.message.emit(f"Firewall-Freigabe nicht möglich: {t}"))
 
     def _airplay_shown(self) -> bool:
         from .sources import AirPlaySource

@@ -8,6 +8,16 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.40.0)
+**Windows: iPhone/iPad sieht „AluPC“, Verbinden lädt aber endlos → „Verbindung nicht möglich“**
+- Die Firewall-Freigabe für AirPlay galt nur für „private“ Netzwerke. Windows stuft WLANs aber oft als
+  „öffentlich“ ein – dann ist der Name sichtbar (Bonjour hat eine eigene Freigabe), die Verbindung zu UxPlay
+  wird aber blockiert. Jetzt gilt die AirPlay-Freigabe für alle Netzwerktypen.
+- Hat man beim ersten Start von uxplay-windows die Windows-Nachfrage weggeklickt, legt Windows Sperr-Regeln
+  für das Programm an – die gewinnen immer. AluPC ersetzt sie jetzt durch eine Freigabe.
+- Nach dem Update fragt Windows beim Start **einmal** nach Admin-Rechten (Firewall-Freigabe fürs iPhone).
+- Die CI prüft auf einem echten Windows: Freigabe für alle Profile, keine Sperr-Regel für UxPlay übrig.
+
 ### Neu in dieser Version (0.39.0)
 **Linux installieren: „Sperrung nicht möglich“**
 - Die Meldung kommt von der Paketverwaltung: Ein anderes Programm (Discover, automatische Updates) installiert

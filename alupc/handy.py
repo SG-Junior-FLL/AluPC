@@ -742,10 +742,32 @@ def setup_plan(config) -> list[tuple[str, list[str]]]:
             plan.append(("Bonjour (damit das iPhone den PC findet) installieren", _winget(WINGET_IDS["bonjour"])))
         if not (find_uxplay_windows() or find_program("uxplay", "", WINDOWS_UXPLAY)):
             plan.append(("AirPlay-Empfänger (UxPlay für Windows) installieren", _winget(WINGET_IDS["uxplay"])))
-    if IS_WINDOWS and not config["handy"].get("firewall_done") and not windows_firewall_ok():
+    if IS_WINDOWS and int(config["handy"].get("firewall_version", 0)) < FIREWALL_VERSION:
         plan.append(("Firewall für Handy und AirPlay freigeben (eine Windows-Abfrage)",
                      windows_firewall_command(sys.executable, int(config["cast"].get("port", 8765)))))
     return plan
+
+
+# 2: AirPlay für alle Netzwerktypen (Windows stuft WLANs oft als „Öffentlich“ ein → iPhone sieht „AluPC“, kann
+#    sich aber nicht verbinden) + von Windows angelegte Sperr-Regeln für UxPlay entfernen
+FIREWALL_VERSION = 2
+
+
+def uxplay_programs() -> list[str]:
+    """Alle UxPlay-Programmdateien, für die Windows eigene (evtl. sperrende) Firewall-Regeln anlegt."""
+    found = []
+    for candidate in uxplay_windows_candidates():
+        folder = Path(candidate).parent
+        for exe in (folder / UXPLAY_WINDOWS_EXE, folder / "bin" / "uxplay.exe", folder / "uxplay.exe"):
+            if exe.is_file():
+                found.append(str(exe))
+    bundled = bundled_uxplay_dir()
+    if bundled:
+        found.append(str(bundled / "bin" / "uxplay.exe"))
+    for path in WINDOWS_UXPLAY:
+        if os.path.isfile(path):
+            found.append(path)
+    return list(dict.fromkeys(found))
 
 
 def windows_firewall_ok() -> bool:
@@ -766,11 +788,19 @@ def windows_firewall_command(alupc_exe: str, cast_port: int) -> list[str]:
         f'netsh advfirewall firewall add rule name="AluPC Handy" dir=in action=allow protocol=TCP '
         f'localport={int(cast_port)}-{int(cast_port) + 9} profile=private,domain',
         'netsh advfirewall firewall delete rule name="AluPC AirPlay"',
+        # alle Netzwerktypen: sonst blockiert Windows bei „öffentlichem“ WLAN die Verbindung (Name sichtbar,
+        # Verbinden lädt endlos). Die Ports gehören nur UxPlay, das AluPC selbst startet.
         'netsh advfirewall firewall add rule name="AluPC AirPlay" dir=in action=allow protocol=TCP '
-        'localport=7000,7001,7100 profile=private,domain',
+        'localport=7000,7001,7100 profile=any',
         'netsh advfirewall firewall add rule name="AluPC AirPlay" dir=in action=allow protocol=UDP '
-        'localport=5353,6000,6001,7011 profile=private,domain',
+        'localport=5353,6000,6001,7011 profile=any',
     ]
+    for exe in uxplay_programs():
+        # Hat man Windows' Nachfrage beim ersten Start weggeklickt, gibt es Sperr-Regeln für das Programm –
+        # die gewinnen immer gegen Freigaben → alle Regeln dieses Programms ersetzen durch eine Freigabe
+        rules += [f'netsh advfirewall firewall delete rule name=all program="{exe}"',
+                  f'netsh advfirewall firewall add rule name="AluPC AirPlay (UxPlay)" dir=in action=allow '
+                  f'program="{exe}" enable=yes profile=any']
     script = " & ".join(rules)
     ps = ("Start-Process -FilePath cmd.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList "
           f"'/c {script.replace(chr(39), chr(39) * 2)}'")

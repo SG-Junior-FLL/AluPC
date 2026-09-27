@@ -211,6 +211,10 @@ jobs:
           $p = Start-Process -FilePath (Join-Path (Split-Path (Get-Command python).Source) "pythonw.exe") -ArgumentList ".github/scripts/airplay_probe.py" -RedirectStandardOutput $out -RedirectStandardError "$out.err" -Wait -PassThru -NoNewWindow
           Get-Content $out -ErrorAction SilentlyContinue
           Write-Output "::notice title=AirPlay-Probe-Ende::Exit $($p.ExitCode) · $((Get-Content "$out.err" -ErrorAction SilentlyContinue | Select-Object -Last 6) -join ' | ')"
+      - name: Firewall-Freigabe für AirPlay (alle Netzwerktypen, Sperr-Regeln für UxPlay ersetzen)
+        shell: pwsh
+        continue-on-error: true
+        run: python .github/scripts/firewall_probe.py
       - name: Fenster-Probe – iPhone-Fenster randlos im Vordergrund platzieren (echter Desktop)
         shell: pwsh
         continue-on-error: true

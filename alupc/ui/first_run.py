@@ -236,7 +236,8 @@ class FirstRunDialog(QDialog):
             if errors:
                 self._next("warn", "Nicht alles hat geklappt: " + " · ".join(errors))
             else:
-                self.config["handy"] = {**self.config["handy"], "firewall_done": True, "setup_done": True}
+                self.config["handy"] = {**self.config["handy"], "firewall_done": True, "setup_done": True,
+                                        "firewall_version": handy.FIREWALL_VERSION}
                 self._next("ok", " · ".join(label for label, _ in plan))
 
         run_async(lambda status: handy.run_plan(plan, status), done, lambda t: done([t]), on_progress=progress)
