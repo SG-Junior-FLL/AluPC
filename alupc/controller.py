@@ -46,6 +46,7 @@ class Controller(QObject):
         from .laser import LaserWindow
 
         self.cursor_guard = CursorGuard(self)
+        self.cursor_guard.display = self.display
         self.laser = LaserWindow(self)
         self.output.after_raise.append(self.laser.raise_above)
         self.laser.changed_cb = self.save_drawings

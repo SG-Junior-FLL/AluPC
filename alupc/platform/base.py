@@ -117,6 +117,21 @@ class DisplayBackend:
         place(outputs, main, second, side, self.logical_positions)
         self.apply(outputs)
 
+    def separate(self, main: str, second: str, gap: int) -> None:
+        """Monitor 2 mit Abstand neben Monitor 1 (gleiche Seite wie bisher). KWin/Wayland lässt die Maus
+        nicht über eine Lücke zwischen Monitoren springen – so bleibt sie auf Monitor 1."""
+        outputs = self.list_outputs()
+        by_name = {o.name: o for o in outputs}
+        if main not in by_name or second not in by_name:
+            raise RuntimeError("Monitor nicht gefunden")
+        side = side_of(outputs, main, second)
+        place(outputs, main, second, "right" if side == "mirror" else side, self.logical_positions, gap)
+        self.apply(outputs)
+
+    def join(self, main: str, second: str) -> None:
+        """Lücke von `separate` wieder schließen (Monitor 2 direkt daneben, gleiche Seite)."""
+        self.separate(main, second, 0)
+
 
 def logical_size(o: Output, logical: bool) -> tuple[int, int]:
     w, h = o.size()
@@ -125,20 +140,20 @@ def logical_size(o: Output, logical: bool) -> tuple[int, int]:
     return (w, h)
 
 
-def place(outputs: list[Output], main: str, second: str, side: str, logical: bool) -> None:
-    """Zweiten Monitor neben den Hauptmonitor setzen; danach Koordinaten normalisieren."""
+def place(outputs: list[Output], main: str, second: str, side: str, logical: bool, gap: int = 0) -> None:
+    """Zweiten Monitor neben den Hauptmonitor setzen (mit `gap` Pixeln Abstand); danach Koordinaten normalisieren."""
     by_name = {o.name: o for o in outputs}
     m, s = by_name[main], by_name[second]
     mw, mh = logical_size(m, logical)
     sw, sh = logical_size(s, logical)
     if side == "left":
-        s.x, s.y = m.x - sw, m.y
+        s.x, s.y = m.x - sw - gap, m.y
     elif side == "above":
-        s.x, s.y = m.x, m.y - sh
+        s.x, s.y = m.x, m.y - sh - gap
     elif side == "below":
-        s.x, s.y = m.x, m.y + mh
+        s.x, s.y = m.x, m.y + mh + gap
     else:
-        s.x, s.y = m.x + mw, m.y
+        s.x, s.y = m.x + mw + gap, m.y
     enabled = [o for o in outputs if o.enabled]
     min_x = min(o.x for o in enabled)
     min_y = min(o.y for o in enabled)

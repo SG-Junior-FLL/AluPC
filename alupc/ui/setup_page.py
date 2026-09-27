@@ -1075,8 +1075,6 @@ class SetupPage(QWidget):
 
     # ================================================================ Monitor 2
     def _output_group(self):
-        from ..cursor import CursorGuard
-
         box = QGroupBox("Monitor 2")
         lay = QVBoxLayout(box)
         cfg = self.config["output"]
@@ -1089,7 +1087,11 @@ class SetupPage(QWidget):
         cursor.setChecked(bool(cfg.get("mirror_cursor", True)))
         confine = QCheckBox("Maus bleibt auf Monitor 1 (außer „Erweitern“)")
         confine.setChecked(bool(cfg.get("confine_cursor", True)))
-        if not CursorGuard().supported:
+        guard = self.controller.cursor_guard
+        if guard.wayland_gap:
+            confine.setToolTip("KDE/Wayland: AluPC rückt Monitor 2 dafür mit Abstand weg – über die Lücke kommt "
+                               "die Maus nicht. Bei „Erweitern“ und beim Beenden geht die Lücke wieder zu.")
+        elif not guard.supported:
             confine.setEnabled(False)
             confine.setToolTip("KDE erlaubt unter Wayland keinem Programm, die Maus festzuhalten. Beim Anmelden "
                                "die Sitzung „Plasma (X11)“ wählen – dort hält AluPC sie auf Monitor 1.")

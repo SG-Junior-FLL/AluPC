@@ -150,9 +150,23 @@ def map_to_image(pos: QPoint, screen_rect: QRect, image_rect: QRectF) -> QPointF
 
 
 # =========================================================================== Festhalten
+GAP = 2000  # KDE/Wayland: Abstand zwischen Monitor 1 und 2 (logische Pixel)
+MIN_GAP = 100
+
+
+def gap_between(a: QRect, b: QRect) -> int:
+    """Abstand zweier Monitore in Pixeln (0: sie berühren oder überlappen sich)."""
+    return max(0, b.left() - a.right() - 1, a.left() - b.right() - 1,
+               b.top() - a.bottom() - 1, a.top() - b.bottom() - 1)
+
+
 class CursorGuard(QObject):
     """Hält die Maus auf Monitor 1 (Windows: ClipCursor, X11: unsichtbare Wände + Nachkorrektur).
-    Unter Wayland dürfen Programme das nicht – dort bleibt die Maus frei (`supported` = False)."""
+
+    KDE/Wayland: Programme dürfen die Maus nicht festhalten oder versetzen. KWin lässt sie aber nicht über eine
+    Lücke zwischen zwei Monitoren springen – AluPC rückt Monitor 2 darum mit Abstand (`GAP`) weg, sobald die Maus
+    auf Monitor 1 ist, und schließt die Lücke bei „Erweitern“ und beim Beenden wieder. Steht die Maus doch auf
+    Monitor 2 (z. B. Grafiktablett), geht die Lücke zu, damit sie zurück kann."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -170,11 +184,27 @@ class CursorGuard(QObject):
         self._hook = None
         self._ticks = 0
         self.out_name = ""
+        self.display = None  # Monitor-Steuerung (vom Controller) – für die Lücke unter KDE/Wayland
+        self._tracking = False
+        self._gap_busy = False
+
+    @property
+    def wayland_gap(self) -> bool:
+        return wayland_kde() and self.display is not None and self.display.available()
+
+    def has_gap(self) -> bool:
+        return self.main_rect is not None and self.out_rect is not None and \
+            gap_between(self.main_rect, self.out_rect) >= MIN_GAP
 
     def set_active(self, on: bool, main_screen=None, out_screen=None) -> None:
-        on = bool(on and self.supported and main_screen is not None and out_screen is not None
-                  and main_screen is not out_screen
+        both = main_screen is not None and out_screen is not None and main_screen is not out_screen
+        on = bool(on and (self.supported or self.wayland_gap) and both
                   and not main_screen.geometry().intersects(out_screen.geometry()))  # System-Spiegeln
+        if both and self.wayland_gap:
+            self.main_rect, self.out_rect = main_screen.geometry(), out_screen.geometry()
+            self.main_name, self.out_name = main_screen.name(), out_screen.name()
+            self._wayland(on)
+            return
         if on:
             self.main_rect = main_screen.geometry()
             self.out_rect = out_screen.geometry()
@@ -191,6 +221,45 @@ class CursorGuard(QObject):
         else:
             self._timer.stop()
             self._release()
+
+    # ---- KDE/Wayland: Lücke zwischen den Monitoren
+    def _wayland(self, on: bool) -> None:
+        self.active = on
+        if on and not self._tracking:
+            t = tracker()
+            t.acquire()
+            t.moved.connect(self._wayland_pos)
+            self._tracking = True
+        elif not on and self._tracking:
+            t = tracker()
+            t.moved.disconnect(self._wayland_pos)
+            t.release()
+            self._tracking = False
+        if not on and self.has_gap():
+            self._set_gap(False)  # „Erweitern“: Maus darf wieder auf Monitor 2
+        elif on and tracker().pos is not None:
+            self._wayland_pos(tracker().pos)
+
+    def _wayland_pos(self, pos: QPoint) -> None:
+        if not self.active or self.main_rect is None or self.out_rect is None:
+            return
+        if self.main_rect.contains(pos) and not self.has_gap():
+            self._set_gap(True)
+        elif self.out_rect.contains(pos) and self.has_gap():
+            self._set_gap(False)  # sonst säße sie auf Monitor 2 fest
+
+    def _set_gap(self, on: bool) -> None:
+        if self._gap_busy:
+            return
+        from .ui.util import run_async
+
+        self._gap_busy = True
+        main, out, display = self.main_name, self.out_name, self.display
+
+        def done(*_):
+            self._gap_busy = False
+
+        run_async(lambda: display.separate(main, out, GAP) if on else display.join(main, out), done, done)
 
     def _move_home(self):
         """Steht die Maus gerade auf Monitor 2, zurück in die Mitte von Monitor 1."""
@@ -265,6 +334,15 @@ class CursorGuard(QObject):
 
     def shutdown(self):
         self._timer.stop()
+        if self.wayland_gap and self.has_gap():
+            try:  # beim Beenden keine Lücke hinterlassen – sonst käme die Maus nie mehr auf Monitor 2
+                self.display.join(self.main_name, self.out_name)
+            except Exception:  # noqa: BLE001
+                pass
+        if self._tracking:
+            tracker().moved.disconnect(self._wayland_pos)
+            tracker().release()
+            self._tracking = False
         if self.active:
             self.active = False
             self._release()

@@ -912,3 +912,58 @@ def test_dual_boot_media_paths(tmp_path):
     assert sp.resolve(r"C:\Fehlt\x.mp4", roots) == r"C:\Fehlt\x.mp4"  # nicht da → unverändert
     assert sp.resolve("/home/noah/x.mp4", roots) == "/home/noah/x.mp4"  # Linux-Laufwerk: nicht erreichbar
     assert sp.resolve(str(video), []) == str(video)
+
+
+def test_wayland_gap_keeps_mouse_home(monkeypatch):
+    """KDE/Wayland: Maus auf Monitor 1 → Monitor 2 mit Lücke wegrücken; „Erweitern“ oder Maus auf Monitor 2
+    → Lücke zu. Beim Anordnen bleibt Monitor 2 auf seiner Seite."""
+    from PySide6.QtCore import QPoint, QRect
+
+    from alupc import cursor
+    from alupc.platform.base import DisplayBackend, DisplayMode, Output
+
+    assert cursor.gap_between(QRect(0, 0, 1920, 1080), QRect(1920, 0, 1920, 1080)) == 0
+    assert cursor.gap_between(QRect(0, 0, 1920, 1080), QRect(3920, 0, 1920, 1080)) == 2000
+
+    class Fake(DisplayBackend):
+        def __init__(self):
+            mode = [DisplayMode("1", 1920, 1080, 60)]
+            self.outs = [Output("A", x=1920, mode_id="1", modes=mode), Output("B", x=0, mode_id="1", modes=mode)]
+
+        def available(self):
+            return True
+
+        def list_outputs(self):
+            return [Output(o.name, x=o.x, y=o.y, mode_id="1", modes=o.modes) for o in self.outs]
+
+        def apply(self, outputs):
+            self.outs = outputs
+
+    fake = Fake()
+    fake.separate("A", "B", 2000)  # B lag links von A → bleibt links, mit Lücke
+    pos = {o.name: o.x for o in fake.outs}
+    assert pos["A"] - (pos["B"] + 1920) == 2000
+    fake.join("A", "B")
+    pos = {o.name: o.x for o in fake.outs}
+    assert pos["A"] - (pos["B"] + 1920) == 0
+
+    calls = []
+    monkeypatch.setattr(cursor, "wayland_kde", lambda: True)
+    import alupc.ui.util as util
+
+    monkeypatch.setattr(util, "run_async", lambda fn, done=None, err=None: (calls.append(fn), fn(), done and done()))
+    guard = cursor.CursorGuard()
+    guard.display = fake
+    guard.active = True
+    guard.main_name, guard.out_name = "A", "B"
+    guard.main_rect, guard.out_rect = QRect(1920, 0, 1920, 1080), QRect(0, 0, 1920, 1080)
+    guard._wayland_pos(QPoint(2500, 500))  # Maus auf Monitor 1 → Lücke auf
+    assert len(calls) == 1 and gap_ok(fake)
+    guard.main_rect, guard.out_rect = QRect(3920, 0, 1920, 1080), QRect(0, 0, 1920, 1080)
+    guard._wayland_pos(QPoint(100, 100))  # doch auf Monitor 2 (Tablett) → Lücke zu, damit sie zurück kann
+    assert len(calls) == 2 and not gap_ok(fake)
+
+
+def gap_ok(fake):
+    pos = {o.name: o.x for o in fake.outs}
+    return pos["A"] - (pos["B"] + 1920) >= 100
