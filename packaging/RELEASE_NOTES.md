@@ -13,7 +13,7 @@
   KWin lässt sie aber nicht über eine Lücke zwischen zwei Monitoren springen. AluPC rückt Monitor 2 darum mit
   Abstand weg, sobald die Maus auf Monitor 1 ist, und schließt die Lücke bei „Erweitern“ und beim Beenden wieder.
   Landet die Maus doch auf Monitor 2 (z. B. Grafiktablett), geht die Lücke zu, damit sie zurück kann.
-  In einer virtuellen Maschine mit Mausintegration hilft das nicht (dort setzt der Gast-Rechner die Maus direkt).
+  In einer virtuellen Maschine mit Mausintegration hilft das nicht (dort setzt der echte PC die Maus direkt).
 
 ### Neu in dieser Version (0.42.0)
 - **Linux: Spiegeln immer noch falsch herum** – eigentliche Ursache: Unter KDE/Wayland hielt AluPC den
