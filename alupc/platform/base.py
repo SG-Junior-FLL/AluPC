@@ -83,6 +83,10 @@ class DisplayBackend:
     def available(self) -> bool:
         return False
 
+    def main_name(self) -> str | None:
+        """Name des Hauptmonitors laut System (None: Qt weiß es richtig)."""
+        return None
+
     def list_outputs(self) -> list[Output]:
         return []
 

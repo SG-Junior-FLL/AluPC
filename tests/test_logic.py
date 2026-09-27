@@ -879,3 +879,36 @@ def test_kde_mirror_direction(monkeypatch):
     monkeypatch.setattr(backend, "apply", lambda outs: applied.append({o.name: (o.x, o.y) for o in outs}))
     backend.mirror("eDP-1", "HDMI-A-1")
     assert applied and applied[-1]["eDP-1"] == (0, 0) and applied[-1]["HDMI-A-1"] == (0, 0)
+
+
+def test_kde_main_monitor_from_priority():
+    """KDE/Wayland: Monitor 1 = Priorität 1 in KDE – auch wenn Qt den anderen Monitor zuerst meldet."""
+    import json
+
+    from alupc.platform.linux_display import main_output_name
+
+    def out(i, name, prio):
+        return {"id": i, "name": name, "connected": True, "enabled": True, "priority": prio, "pos": {"x": 0, "y": 0}}
+
+    assert main_output_name(json.dumps({"outputs": [out(1, "Virtual-2", 2), out(2, "Virtual-1", 1)]})) == "Virtual-1"
+    assert main_output_name(json.dumps({"outputs": [out(1, "A", 0), out(2, "B", 0)]})) is None
+
+
+def test_dual_boot_media_paths(tmp_path):
+    """Szene unter Windows angelegt (C:\\…\\Video.MP4) → unter Linux auf dem eingehängten Windows-Laufwerk finden,
+    auch bei anderer Groß-/Kleinschreibung; umgekehrt Linux-Pfad auf einem Windows-Laufwerk."""
+    from alupc.platform import shared_paths as sp
+
+    win = tmp_path / "Windows"
+    video = win / "Users" / "Noah" / "Videos" / "Film.mp4"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"x")
+    other = tmp_path / "Daten"
+    other.mkdir()
+    roots = [str(other), str(win)]
+    assert sp.resolve(r"C:\Users\Noah\Videos\Film.mp4", roots) == str(video)
+    assert sp.resolve(r"C:\users\noah\videos\FILM.MP4", roots) == str(video)
+    assert sp.resolve("/media/noah/OS/Users/Noah/Videos/Film.mp4", roots) == str(video)
+    assert sp.resolve(r"C:\Fehlt\x.mp4", roots) == r"C:\Fehlt\x.mp4"  # nicht da → unverändert
+    assert sp.resolve("/home/noah/x.mp4", roots) == "/home/noah/x.mp4"  # Linux-Laufwerk: nicht erreichbar
+    assert sp.resolve(str(video), []) == str(video)

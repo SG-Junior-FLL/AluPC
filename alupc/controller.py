@@ -30,6 +30,7 @@ class Controller(QObject):
         self.fingerprint = create_fingerprint_backend()
         self._scene_volume: dict | None = None
         self._mirror_hint_shown = False
+        self._system_main: str | None = None
         self.output = OutputWindow()
         self.grabber = ScreenGrabber(self)
         self.grabber.done.connect(self._frozen_grab_done)
@@ -113,6 +114,7 @@ class Controller(QObject):
         app = QGuiApplication.instance()
         app.screenAdded.connect(self._screen_added)
         app.screenRemoved.connect(lambda _s: self.update_screens())
+        app.primaryScreenChanged.connect(lambda _s: self.update_screens())
         for screen in QGuiApplication.screens():
             self._watch(screen)
         self.update_screens()
@@ -126,6 +128,11 @@ class Controller(QObject):
         self.update_screens()
 
     # ------------------------------------------------------------ Monitore
+    def _primary(self):
+        """Hauptmonitor (Monitor 1). KDE/Wayland: wie in den Systemeinstellungen, nicht Qts Reihenfolge."""
+        screen = screen_by_name(self._system_main) if self._system_main else None
+        return screen or QGuiApplication.primaryScreen()
+
     def output_screen(self):
         screens = QGuiApplication.screens()
         wanted = self.config["output_screen"]
@@ -133,7 +140,7 @@ class Controller(QObject):
             screen = screen_by_name(wanted)
             if screen is not None:
                 return screen
-        primary = QGuiApplication.primaryScreen()
+        primary = self._primary()
         for s in screens:
             if s is not primary:
                 return s
@@ -141,7 +148,7 @@ class Controller(QObject):
 
     def main_screen(self):
         out = self.output_screen()
-        primary = QGuiApplication.primaryScreen()
+        primary = self._primary()
         if primary is not None and primary is not out:
             return primary
         for s in QGuiApplication.screens():
@@ -150,6 +157,7 @@ class Controller(QObject):
         return primary
 
     def update_screens(self) -> None:
+        self._system_main = self.display.main_name()
         self.output.place_on(self.output_screen())
         if self.laser.needed():
             self.laser.place()

@@ -35,7 +35,11 @@ def clean(cfg: dict, title: str | None = None) -> dict:
 
 def exists(cfg: dict) -> bool:
     target = cfg.get("folder") if cfg.get("type") == "slideshow" else cfg.get("path")
-    return bool(target) and Path(target).exists()
+    if not target:
+        return False
+    from .platform.shared_paths import resolve
+
+    return Path(resolve(target, mount=False)).exists()
 
 
 def _lists(config) -> dict:

@@ -75,7 +75,9 @@ def report(controller, probe: bool = True) -> str:
         lines.append(f"  {s.name()}: {g.width()}×{g.height()} bei {g.x()},{g.y()} · Skalierung {s.devicePixelRatio()}"
                      + (" · HAUPTMONITOR" if s == QGuiApplication.primaryScreen() else ""))
     out, main = controller.output_screen(), controller.main_screen()
-    lines.append(f"  AluPC: Monitor 1 = {main.name() if main else '–'}, Monitor 2 = {out.name() if out else '–'}")
+    lines.append(f"  AluPC: Monitor 1 = {main.name() if main else '–'}, Monitor 2 = {out.name() if out else '–'}"
+                 f" · Hauptmonitor laut System: {controller.display.main_name() or '–'}"
+                 f" · Monitor 2 fest gewählt: {controller.config['output_screen'] or 'nein'}")
     lines.append(f"  Monitor-Steuerung: {controller.display.name} · verfügbar: "
                  f"{'ja' if controller.display.available() else 'nein'}")
     lines.append(f"  Gerade: {controller.describe()}")

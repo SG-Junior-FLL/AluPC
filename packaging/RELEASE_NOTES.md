@@ -8,6 +8,15 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.42.0)
+- **Linux: Spiegeln immer noch falsch herum** – eigentliche Ursache: Unter KDE/Wayland hielt AluPC den
+  falschen Monitor für den Hauptmonitor (Qt meldet einfach den zuerst gefundenen). Jetzt gilt, was KDE in den
+  Anzeige-Einstellungen als Hauptmonitor (Priorität 1) führt. „Diagnose kopieren“ zeigt beides an.
+- **Dual-Boot: Videos/Bilder aus Windows-Szenen gehen unter Linux.** Ein Pfad wie `C:\Users\…\Film.mp4` wird
+  unter Linux automatisch auf dem eingehängten Windows-Laufwerk gesucht (auch bei anderer Groß-/Kleinschreibung),
+  umgekehrt genauso. Statt „Could not open file“ steht da „Video nicht gefunden“ mit Hinweis, falls das
+  Windows-Laufwerk nicht eingehängt ist.
+
 ### Neu in dieser Version (0.41.0)
 - **Linux: Spiegeln war falsch herum** (der Hauptbildschirm zeigte Monitor 2). KDE-Spiegeln legte beide Monitore
   nur an dieselbe Stelle – welcher welchen zeigt, entschied KDE. Jetzt sagt AluPC KDE ausdrücklich „Monitor 2 ist

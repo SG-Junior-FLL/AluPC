@@ -100,6 +100,15 @@ class KScreenBackend(DisplayBackend):
     def apply(self, outputs: list[Output]) -> None:
         _run(["kscreen-doctor", *kscreen_args(outputs, self.supports_scale)], timeout=30)
 
+    def main_name(self) -> str | None:
+        # Unter Wayland ist Qts „primaryScreen“ nur der zuerst gemeldete Monitor – KDE kennt den echten
+        if not self.available():
+            return None
+        try:
+            return main_output_name(_run(["kscreen-doctor", "-j"], timeout=5))
+        except Exception:  # noqa: BLE001
+            return None
+
     def mirror(self, main: str, second: str) -> None:
         """Monitor 2 zeigt Monitor 1 – mit ausdrücklicher Richtung (KDE ≥ 6.1: „second ist Kopie von main“).
         Nur beide an dieselbe Stelle zu legen überlässt KDE, welcher welchen zeigt – das ging falsch herum
@@ -118,6 +127,15 @@ class KScreenBackend(DisplayBackend):
         except Exception:  # noqa: BLE001
             pass
         super().extend(main, second, side)
+
+
+def main_output_name(json_text: str) -> str | None:
+    """Hauptmonitor in KDE (Priorität 1 bzw. „primary“)."""
+    outputs = [o for o in parse_kscreen_json(json_text) if o.enabled]
+    for o in outputs:
+        if o.primary:
+            return o.name
+    return None
 
 
 def replication_source(json_text: str, name: str) -> str | None:

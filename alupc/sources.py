@@ -7,6 +7,7 @@ Bilder selbst (über QVideoSink); so funktionieren Standbild und Bild-in-Bild
 
 from __future__ import annotations
 
+import re
 import sys
 import time
 from pathlib import Path
@@ -1089,7 +1090,12 @@ class VideoSource(SinkView):
         self.set_volume(int(cfg.get("volume", 100)), bool(cfg.get("muted", False)))
         self.player.setAudioOutput(self.audio)
         self.player.setVideoSink(self.sink)
-        self.player.errorOccurred.connect(lambda _e, text: self.set_message(f"Video-Fehler: {text}"))
+        path = cfg.get("path", "")
+        if path and not Path(path).exists():
+            self.set_message(f"Video nicht gefunden: {path}" + (
+                " · Windows-Laufwerk einhängen: Setup → Sichern & Sync" if re.match(r"^[A-Za-z]:[\\/]", path) else ""))
+        else:
+            self.player.errorOccurred.connect(lambda _e, text: self.set_message(f"Video-Fehler: {text}"))
         if cfg.get("loop", True):
             self.player.setLoops(QMediaPlayer.Infinite)
         self.title = Path(cfg.get("path", "")).stem or "Video"
@@ -1456,6 +1462,10 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             from .screens import DesignSource
 
             return DesignSource(cfg, parent)
+        if t in ("image", "video", "slideshow"):  # Dual-Boot: Pfad vom anderen System hier finden
+            from .platform.shared_paths import resolve_cfg
+
+            cfg = resolve_cfg(cfg)
         factory = {
             "camera": CameraSource,
             "screen": ScreenSource,
