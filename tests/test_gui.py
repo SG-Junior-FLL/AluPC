@@ -2967,3 +2967,15 @@ def test_kwin_window_mirror_keeps_window(env, monkeypatch):
     controller.show_source({"type": "clock"})
     pump()
     assert feeds[-1].stopped
+
+
+def test_website_plays_sound_without_click():
+    """Auf Monitor 2 klickt niemand – Websites (YouTube) müssen trotzdem mit Ton abspielen dürfen."""
+    from PySide6.QtWebEngineCore import QWebEngineSettings
+    from PySide6.QtWebEngineWidgets import QWebEngineView
+
+    from alupc.sources import allow_autoplay
+
+    view = QWebEngineView()
+    allow_autoplay(view)
+    assert not view.settings().testAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture)

@@ -50,6 +50,29 @@ def capture_probe(controller, seconds: float = 3.0) -> str:
     return result
 
 
+def audio_check() -> str:
+    """Linux: Kann UxPlay Ton ausgeben? (AAC-Decoder + Ausgabe für GStreamer, laufender Ton-Server)"""
+    if not shutil.which("gst-inspect-1.0"):
+        parts = ["gst-inspect-1.0 fehlt (Paket gstreamer1.0-tools) – Ton-Teile nicht prüfbar"]
+    else:
+        def has(element: str) -> bool:
+            try:
+                return subprocess.run(["gst-inspect-1.0", "--exists", element], timeout=10).returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                return False
+
+        sinks = [e for e in ("pulsesink", "pipewiresink", "alsasink") if has(e)]
+        parts = [f"AAC-Decoder: {'ja' if has('avdec_aac') else 'FEHLT (gstreamer1.0-libav)'}",
+                 f"Ausgabe: {', '.join(sinks) if sinks else 'KEINE (gstreamer1.0-plugins-good)'}"]
+    info = _run(["pactl", "info"]) if shutil.which("pactl") else ""
+    if info.startswith("(") or "Connection" in info or "Verbindung" in info:
+        info = ""
+    sink = next((x.split(":", 1)[1].strip() for x in info.splitlines() if x.startswith(("Default Sink", "Standard-Ziel"))),
+                "")
+    parts.append(f"Ton-Server: {'Ausgang ' + sink if sink else ('läuft' if info else 'nicht gefunden')}")
+    return " · ".join(parts)
+
+
 def report(controller, probe: bool = True) -> str:
     from PySide6 import __version__ as pyside_version
     from PySide6.QtGui import QGuiApplication
@@ -109,8 +132,13 @@ def report(controller, probe: bool = True) -> str:
         lines.append(f"  avahi-daemon läuft: {'ja' if handy.avahi_running() else 'NEIN (iPhone findet den PC nicht)'}")
     lines.append(f"  Name: {controller.airplay.settings()['airplay_name']} · läuft: "
                  f"{'ja' if controller.airplay.running() else 'nein'}")
+    if sys.platform.startswith("linux"):
+        lines.append("  Ton: " + audio_check())
     if controller.airplay.log:
         lines.append("  Letzte Meldungen: " + " | ".join(controller.airplay.log[-5:]))
+        audio = [x for x in controller.airplay.log if "audio" in x.lower() or "aac" in x.lower()]
+        if audio:
+            lines.append("  Ton-Meldungen: " + " | ".join(audio[-4:]))
     try:  # Wird das Bild-Fenster gefunden? (AluPC legt es auf Monitor 2)
         wins = [f"„{w.title}“ ({w.app})" for w in controller.windows.list_windows()
                 if "uxplay" in (w.app or "").lower() or "uxplay" in w.title.lower()]

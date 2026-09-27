@@ -8,6 +8,14 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.44.0)
+- **Websites/YouTube auf Monitor 2 jetzt mit Ton.** Der eingebaute Browser (Chromium) spielte Ton erst nach einem
+  Klick auf die Seite – auf Monitor 2 klickt aber niemand, also blieb es stumm („NotAllowedError“). Jetzt dürfen
+  Websites auf Monitor 2 sofort mit Ton abspielen. Geprüft mit echtem Ton-Server: vorher blockiert, jetzt läuft ein
+  Ton-Stream.
+- **Diagnose: Ton für AirPlay (Linux).** „Diagnose kopieren“ zeigt jetzt, ob UxPlay Ton ausgeben kann
+  (AAC-Decoder, GStreamer-Ausgabe, Ton-Server mit Standard-Ausgang) und UxPlays Meldungen zum Ton.
+
 ### Neu in dieser Version (0.43.0)
 - **Linux (KDE, Wayland): Maus bleibt auf Monitor 1.** Wayland erlaubt keinem Programm, die Maus festzuhalten –
   KWin lässt sie aber nicht über eine Lücke zwischen zwei Monitoren springen. AluPC rückt Monitor 2 darum mit

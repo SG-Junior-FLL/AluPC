@@ -987,6 +987,14 @@ class CastSource(QWidget):
 
 
 # --------------------------------------------------------------------------- Website
+def allow_autoplay(view) -> None:
+    """Ton ohne Klick erlauben. Chromium spielt Videos/Musik sonst erst nach einem Klick auf die Seite mit Ton ab
+    (YouTube bleibt stumm oder startet nicht) – auf Monitor 2 klickt aber niemand."""
+    from PySide6.QtWebEngineCore import QWebEngineSettings
+
+    view.settings().setAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False)
+
+
 class WebsiteSource(QWidget):
     def __init__(self, cfg, parent=None):
         super().__init__(parent)
@@ -997,6 +1005,7 @@ class WebsiteSource(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.view = QWebEngineView(self)
         layout.addWidget(self.view)
+        allow_autoplay(self.view)
         url = normalize_url(cfg.get("url", ""))
         self.view.setZoomFactor(float(cfg.get("zoom", 1.0) or 1.0))
         self.volume = int(cfg.get("volume", 100))

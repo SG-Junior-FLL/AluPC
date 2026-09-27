@@ -969,3 +969,4 @@ def test_wayland_gap_keeps_mouse_home(monkeypatch):
 def gap_ok(fake):
     pos = {o.name: o.x for o in fake.outs}
     return pos["A"] - (pos["B"] + 1920) >= 100
+
