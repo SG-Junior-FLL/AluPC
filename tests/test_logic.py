@@ -897,6 +897,8 @@ def test_kde_main_monitor_from_priority():
 def test_dual_boot_media_paths(tmp_path):
     """Szene unter Windows angelegt (C:\\…\\Video.MP4) → unter Linux auf dem eingehängten Windows-Laufwerk finden,
     auch bei anderer Groß-/Kleinschreibung; umgekehrt Linux-Pfad auf einem Windows-Laufwerk."""
+    import os
+
     from alupc.platform import shared_paths as sp
 
     win = tmp_path / "Windows"
@@ -906,9 +908,9 @@ def test_dual_boot_media_paths(tmp_path):
     other = tmp_path / "Daten"
     other.mkdir()
     roots = [str(other), str(win)]
-    assert sp.resolve(r"C:\Users\Noah\Videos\Film.mp4", roots) == str(video)
-    assert sp.resolve(r"C:\users\noah\videos\FILM.MP4", roots) == str(video)
-    assert sp.resolve("/media/noah/OS/Users/Noah/Videos/Film.mp4", roots) == str(video)
+    assert os.path.samefile(sp.resolve(r"C:\Users\Noah\Videos\Film.mp4", roots), video)
+    assert os.path.samefile(sp.resolve(r"C:\users\noah\videos\FILM.MP4", roots), video)
+    assert os.path.samefile(sp.resolve("/media/noah/OS/Users/Noah/Videos/Film.mp4", roots), video)
     assert sp.resolve(r"C:\Fehlt\x.mp4", roots) == r"C:\Fehlt\x.mp4"  # nicht da → unverändert
     assert sp.resolve("/home/noah/x.mp4", roots) == "/home/noah/x.mp4"  # Linux-Laufwerk: nicht erreichbar
     assert sp.resolve(str(video), []) == str(video)
