@@ -45,6 +45,7 @@ SOURCE_TYPES = [
     ("design", "Gestaltete Seite (Willkommen, Ablauf, Pause …)"),
     ("text", "Text"),
     ("clock", "Uhr"),
+    ("nowplaying", "Läuft gerade (Musik am PC)"),
     ("countdown", "Countdown"),
     ("color", "Farbfläche"),
     ("scene", "Andere Szene"),
@@ -415,6 +416,17 @@ class SourcePicker(QDialog):
         form.addRow("", secs)
         style = self._text_style(form, init, 25)
         return page, lambda: {"show_date": date.isChecked(), "show_seconds": secs.isChecked(), **style()}
+
+    def _page_nowplaying(self, init):
+        page, form = self._form()
+        progress = QCheckBox("Fortschritt (Zeitleiste) zeigen")
+        progress.setChecked(bool(init.get("progress", True)))
+        form.addRow("", progress)
+        hint = QLabel("Zeigt, was der PC gerade abspielt – Spotify, YouTube im Browser, VLC … – mit Cover.\n"
+                      "Steuern: Pfeil an der Kachel „Läuft gerade“ oder Handy-Steuerung.")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        return page, lambda: {"progress": progress.isChecked()}
 
     def _page_countdown(self, init):
         page, form = self._form()

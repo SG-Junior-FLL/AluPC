@@ -298,7 +298,7 @@ def test_new_builtin_tiles_appear_after_update():
     old_saved = {"tiles": ["timer", "mirror"], "custom": []}  # Einstellungen von vor dem Update
     import sys
 
-    expected = ["timer", "mirror", "text", "airplay", "handy_remote"]  # „text“ neu seit 0.30
+    expected = ["timer", "mirror", "text", "nowplaying", "airplay", "handy_remote"]  # „text“ 0.30, „nowplaying“ 0.46
     assert ordered_keys(old_saved) == expected, sys.platform
     from alupc.startpage import DEFAULT_ORDER
 
@@ -986,3 +986,29 @@ def test_uxplay_vm_options_and_disconnect():
     assert args[:4] == ["-n", "AluPC", "-nh", "-p"] and "-avdec" in args and args[args.index("-vsync") + 1] == "no"
     assert any("open connections: 0" in h for h in handy.DISCONNECT_HINTS)
     assert "activeWindow = w" in build_follow_script(["AluPC"], "HDMI-A-1", (1920, 0, 1920, 1080))
+
+
+def test_now_playing_parsing():
+    """„Läuft gerade“: Player-Namen, MPRIS-Daten (wie Spotify/Firefox sie liefern), Zeit weiterzählen."""
+    import time
+
+    from alupc import now_playing as np
+
+    assert np.player_name("org.mpris.MediaPlayer2.spotify") == "Spotify"
+    assert np.player_name("org.mpris.MediaPlayer2.firefox.instance_1_84") == "Firefox"
+    assert np.player_name("Spotify.exe") == "Spotify"
+    assert np.player_name("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify") == "Spotify"
+    assert np.player_name("MSEdge") == "Edge"
+    assert np.fmt_time(65) == "1:05" and np.fmt_time(3725) == "1:02:05"
+    props = {"PlaybackStatus": ("s", "Paused"), "Position": ("x", 5_000_000),
+             "Metadata": ("a{sv}", {"xesam:title": ("s", "Song"), "xesam:artist": ("as", ["A", "B"]),
+                                    "mpris:length": ("t", 90_000_000)})}
+    t = np.track_from_mpris("org.mpris.MediaPlayer2.vlc", props)
+    assert (t.title, t.artist, t.player, t.playing, t.length) == ("Song", "A, B", "VLC", False, 90)
+    assert t.position_now() == 5  # pausiert → bleibt stehen
+    # Titel fehlt, aber Datei-URL da (z. B. Video im Player) → Dateiname
+    t2 = np.track_from_mpris("x", {"Metadata": {"xesam:url": ("s", "file:///m/Mein%20Film.mp4")}})
+    assert t2.title == "Mein Film.mp4"
+    assert np.track_from_mpris("x", {"Metadata": {}}) is None
+    playing = np.Track(title="x", playing=True, position=10, length=12, stamp=time.monotonic() - 5)
+    assert playing.position_now() == 12  # nie über das Ende hinaus

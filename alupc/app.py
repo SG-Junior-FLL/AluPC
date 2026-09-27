@@ -286,6 +286,23 @@ def self_test(log_path: str) -> int:
         lines.append(f"Einstellungen: {len(exported['data'])} Gruppen exportierbar, Laufwerke für Dual-Boot: "
                      f"{len(settings_sync.drives())}; Sensoren: {sum(len(c.temps) for c in chips)} Temperaturen, "
                      f"{sum(len(c.pwms) for c in chips)} Lüfter-Regler")
+        # „Läuft gerade“: Baustein da (Windows: WinRT mitgeliefert?) und echte Abfrage beim System
+        from . import now_playing
+
+        ok, why = now_playing.available()
+        if not ok:
+            raise RuntimeError(f"Läuft gerade: {why}")
+        try:
+            reader = now_playing.reader()
+            track = reader.read()
+            reader.close()
+            result = f"{track.player}: {track.title}" if track else "nichts läuft"
+        except Exception as exc:  # noqa: BLE001 - ohne Player/Session ist das kein Fehler von AluPC
+            result = f"Abfrage nicht möglich: {type(exc).__name__}: {exc}"
+        lines.append(f"Läuft gerade: {result}")
+        lines.append(f"DIAG Läuft gerade: {result}")
+        controller.show_source({"type": "nowplaying"})
+        app.processEvents()
         from . import diagnose
 
         # Echte Probe-Aufnahme (Spiegeln) + Gesamtbild – steht dann im Protokoll (CI zeigt es an)

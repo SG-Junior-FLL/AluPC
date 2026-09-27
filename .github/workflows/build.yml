@@ -185,6 +185,7 @@ jobs:
           --collect-submodules alupc
           --collect-submodules serial
           --collect-submodules segno
+          --collect-all winrt
           --collect-data alupc
           packaging/pyinstaller_entry.py
       - name: Fertige AluPC.exe starten (Selbsttest)

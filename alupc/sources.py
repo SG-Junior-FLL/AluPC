@@ -1459,6 +1459,12 @@ def media_sources(widget) -> list:
     return [widget] if hasattr(widget, "set_volume") else []
 
 
+def _now_playing_source(cfg, parent=None):
+    from .now_playing_view import NowPlayingSource
+
+    return NowPlayingSource(cfg, parent)
+
+
 # --------------------------------------------------------------------------- Fabrik
 def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidget:
     t = (cfg or {}).get("type")
@@ -1489,6 +1495,7 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             "clock": ClockSource,
             "countdown": CountdownSource,
             "color": ColorSource,
+            "nowplaying": _now_playing_source,
         }.get(t)
         if factory is None:
             return TextSource({"text": f"Unbekannte Quelle: {t}", "size": 8}, parent)

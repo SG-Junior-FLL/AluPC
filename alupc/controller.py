@@ -1143,6 +1143,10 @@ class Controller(QObject):
             "rgb_farbe": lambda: self.rgb.set_mode("farbe"),
             "rgb_monitor2": lambda: self.rgb.set_mode("monitor2"),
             "rgb_aus": lambda: self.rgb.set_mode("aus"),
+            "musik_zeigen": self.show_now_playing,
+            "musik_pause": lambda: self.media_control("play_pause"),
+            "musik_weiter": lambda: self.media_control("next"),
+            "musik_zurueck": lambda: self.media_control("previous"),
         }
         action = actions.get(command)
         if action:
@@ -1230,6 +1234,16 @@ class Controller(QObject):
         else:
             index = 0 if direction > 0 else len(names) - 1
         self.show_source({"type": "scene", "scene": names[index]})
+
+    # ------------------------------------------------------------ „Läuft gerade“ (Musik am PC)
+    def show_now_playing(self) -> None:
+        self.show_source({"type": "nowplaying"})
+
+    def media_control(self, action: str) -> None:
+        """Abspielen/Pause, Weiter, Zurück beim Player des PCs (Spotify, Browser …) – im Hintergrund."""
+        from .now_playing_view import feed
+
+        feed().control(action)
 
     def run_tile(self, tile_id: str) -> None:
         """Eigene Kachel der Startseite ausführen (auch per Tastenkürzel)."""

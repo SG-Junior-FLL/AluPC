@@ -222,6 +222,15 @@ def _draw(name: str, p: QPainter, color: QColor):
         path.lineTo(17.5, 20.5)
         path.lineTo(18.5, 6.5)
         p.drawPath(path)
+    elif name == "music":  # Musiknote
+        p.setBrush(fill)
+        p.drawEllipse(QRectF(4.2, 15.2, 5.6, 4.4))
+        p.drawEllipse(QRectF(13.6, 13.2, 5.6, 4.4))
+        p.setBrush(Qt.NoBrush)
+        p.drawLine(QPointF(9.8, 17.2), QPointF(9.8, 6.8))
+        p.drawLine(QPointF(19.2, 15.2), QPointF(19.2, 4.6))
+        p.drawLine(QPointF(9.8, 6.8), QPointF(19.2, 4.6))
+        p.drawLine(QPointF(9.8, 9.6), QPointF(19.2, 7.4))
     elif name == "play":
         path = QPainterPath(QPointF(7, 4.5))
         path.lineTo(19, 12)
@@ -549,6 +558,7 @@ SOURCE_ICONS = {
     "camera": "camera", "window": "window", "screen": "monitor", "website": "globe", "image": "image",
     "video": "video", "slideshow": "slides", "text": "text", "clock": "clock", "countdown": "timer",
     "color": "palette", "scene": "scenes", "airplay": "phone", "cast": "qr", "design": "star",
+    "nowplaying": "music",
 }
 
 

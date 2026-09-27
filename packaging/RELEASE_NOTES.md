@@ -8,6 +8,18 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.46.0)
+**„Läuft gerade“ – was der PC abspielt, groß auf Monitor 2**
+- Neue Kachel **Läuft gerade**: Cover, Titel, Künstler, Album und Zeitleiste – von jedem Player, nicht nur
+  Spotify: YouTube im Browser, VLC, Musik-Apps … Der Hintergrund ist das weichgezeichnete Cover; bei Pause
+  erscheint ein Pause-Zeichen. Läuft nichts, steht dort „Gerade läuft nichts“.
+- Steuern: Pfeil an der Kachel (Abspielen/Pause, nächster/vorheriger Titel), Handy-Steuerung (neue Karte
+  „Musik am PC“), eigene Kacheln und Tastenkürzel (Befehle `musik_pause`, `musik_weiter`, `musik_zurueck`,
+  `musik_zeigen`).
+- Auch als Quelle in Szenen („Läuft gerade (Musik am PC)“), z. B. neben Uhr oder Kamera.
+- Linux: über MPRIS (wie das Medien-Widget von KDE). Windows: über die Windows-Mediensteuerung (wie das
+  Medien-Popup bei den Lautstärketasten). Fragt nur ab, solange es angezeigt wird (etwa 1× pro Sekunde).
+
 ### Neu in dieser Version (0.45.0)
 **Linux: iPad/iPhone verbunden (Ton kommt), aber kein Bild auf Monitor 2**
 - In einer virtuellen Maschine startet AluPC UxPlay jetzt mit Software-Decoder und ohne Zeitstempel-Abgleich

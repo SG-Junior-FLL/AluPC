@@ -129,6 +129,8 @@ def describe_source(cfg: dict | None) -> str:
         return f"Text: {text[:40]}"
     if t == "clock":
         return "Uhr"
+    if t == "nowplaying":
+        return "Läuft gerade (Musik)"
     if t == "countdown":
         return f"Countdown: {cfg.get('minutes')} min"
     if t == "color":

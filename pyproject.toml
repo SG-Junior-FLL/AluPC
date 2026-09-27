@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alupc"
-version = "0.45.0"
+version = "0.46.0"
 description = "AluPC – zweiten Monitor steuern: Spiegeln, Erweitern, Kamera, Programme, Websites, eigene Szenen, Standbild, Bild-in-Bild, Fingerabdruck"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,6 +13,11 @@ dependencies = [
     "jeepney>=0.8; sys_platform == 'linux'",
     "pyserial>=3.5",
     "segno>=1.5",
+    # Windows: „Läuft gerade“ (globale Mediensteuerung – was Spotify, Browser … abspielen)
+    "winrt-runtime>=2; sys_platform == 'win32'",
+    "winrt-Windows.Foundation>=2; sys_platform == 'win32'",
+    "winrt-Windows.Media.Control>=2; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams>=2; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

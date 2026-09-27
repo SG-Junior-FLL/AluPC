@@ -259,6 +259,15 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
       <button onclick="cmd('video_vor')">10 s<svg class="i"><use href="#i-fwd10"/></svg></button>
     </div>
   </div>
+  <div class="card" id="c-music">
+    <h2>Musik am PC</h2>
+    <div class="row">
+      <button onclick="cmd('musik_zurueck')"><svg class="i"><use href="#i-prev"/></svg></button>
+      <button class="primary" onclick="cmd('musik_pause')"><svg class="i"><use href="#i-pause"/></svg>Play/Pause</button>
+      <button onclick="cmd('musik_weiter')"><svg class="i"><use href="#i-next"/></svg></button>
+    </div>
+    <div class="row"><button onclick="cmd('musik_zeigen')">Läuft gerade zeigen</button></div>
+  </div>
   <div class="card" id="c-vol">
     <h2>Lautstärke <span id="vol-val"></span></h2>
     <input type="range" id="vol" min="0" max="100" step="5" oninput="$('vol-val').textContent = this.value + ' %'"

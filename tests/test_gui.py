@@ -3003,3 +3003,26 @@ def test_handy_window_mode_kde_hides_waiting_screen(env, tmp_path, monkeypatch):
     assert not controller.output.suspended and controller.output.isVisible()
     controller.extend()
     assert _until(lambda: not controller.airplay.running(), 5)
+
+
+def test_now_playing_tile_and_commands(env, monkeypatch):
+    """Kachel „Läuft gerade“ zeigt es auf Monitor 2; Befehle (Kachel-Pfeil, Handy, Tastenkürzel) gehen an den
+    Player des PCs."""
+    controller, window, _ = env
+    from alupc import now_playing_view
+    from alupc.now_playing_view import NowPlayingSource
+
+    sent = []
+    monkeypatch.setattr(now_playing_view.feed(), "control", sent.append)
+    window.t_music.activated.emit()
+    pump()
+    assert isinstance(controller.output.content, NowPlayingSource)
+    assert window.t_music.active
+    for cmd in ("musik_pause", "musik_weiter", "musik_zurueck"):
+        controller.run_command(cmd)
+    assert sent == ["play_pause", "next", "previous"]
+    from alupc.cast_server import ALLOWED_COMMANDS
+
+    assert {"musik_pause", "musik_weiter", "musik_zurueck", "musik_zeigen"} <= ALLOWED_COMMANDS
+    controller.extend()
+    pump()

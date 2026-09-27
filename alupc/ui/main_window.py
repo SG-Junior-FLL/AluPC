@@ -470,6 +470,17 @@ class MainWindow(QMainWindow):
         self.text_menu = QMenu(self)
         self.text_menu.aboutToShow.connect(lambda: self._fill_text_menu(self.text_menu))
         self.t_text.set_menu(self.text_menu, split=True)
+        # Läuft gerade: Klick zeigt es auf Monitor 2, Pfeil steuert den Player (Spotify, Browser …)
+        self.t_music = self.tiles["nowplaying"]
+        self.t_music.activated.connect(c.show_now_playing)
+        music_menu = QMenu(self)
+        for icon_name, text, action in [("music", "Auf Monitor 2 zeigen", None),
+                                        ("play", "Abspielen / Pause", "play_pause"),
+                                        ("fastforward", "Nächster Titel", "next"),
+                                        ("rewind", "Vorheriger Titel", "previous")]:
+            slot = c.show_now_playing if action is None else (lambda _=False, a=action: c.media_control(a))
+            music_menu.addAction(icons.icon(icon_name, theme.current().text, 18), text, slot)
+        self.t_music.set_menu(music_menu, split=True)
         self.t_freeze, self.t_black, self.t_pip = self.tiles["freeze"], self.tiles["black"], self.tiles["pip"]
         self.t_saver = self.tiles["screensaver"]
         self.t_draw = self.tiles["draw"]
@@ -1386,6 +1397,7 @@ class MainWindow(QMainWindow):
             (self.t_program, typ == "window" or (c.mode == "desktop" and c.desktop_note.startswith("Programm"))),
             (self.t_web, typ == "website"),
             (self.t_text, typ == "text"),
+            (self.t_music, typ == "nowplaying"),
             (self.t_media, typ in ("image", "video", "slideshow")),
             (self.t_scenes, typ == "scene"),
             (self.t_airplay, typ == "airplay" or (c.mode == "desktop" and c.desktop_note.startswith("iPhone"))),

@@ -53,6 +53,7 @@ SOURCE_COLORS = {
     "airplay": "#0ea5e9",
     "cast": "#8b5cf6",
     "design": "#6366f1",
+    "nowplaying": "#1db954",
 }
 
 _current: Theme | None = None

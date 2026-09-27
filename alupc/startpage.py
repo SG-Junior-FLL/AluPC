@@ -13,6 +13,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "website": ("globe", "Website", "Seite öffnen", "#06b6d4", "anzeigen"),
     "media": ("image", "Bild / Video", "Mediathek", "#10b981", "anzeigen"),
     "text": ("text", "Text", "Schnell zeigen", "#14b8a6", "anzeigen"),
+    "nowplaying": ("music", "Läuft gerade", "Musik am PC", "#1db954", "anzeigen"),
     "scenes": ("scenes", "Meine Szenen", "Eigene Szenen", "#ec4899", "anzeigen"),
     # Handy → Monitor 2: jeder Weg mit eigener Kachel
     "airplay": ("phone", "AirPlay", "iPhone & iPad", "#0ea5e9", "handy"),
@@ -73,6 +74,10 @@ COMMANDS = {
     "rgb_farbe": "RGB: gewählte Farbe",
     "rgb_monitor2": "RGB: Farbe folgt Monitor 2",
     "rgb_aus": "RGB aus",
+    "musik_zeigen": "Läuft gerade (Musik) zeigen",
+    "musik_pause": "Musik: Abspielen/Pause",
+    "musik_weiter": "Musik: nächster Titel",
+    "musik_zurueck": "Musik: vorheriger Titel",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann
@@ -82,6 +87,7 @@ TILE_ICONS = {
     "timer": "Countdown", "palette": "Farbe", "play": "Abspielen", "snowflake": "Standbild",
     "eye_off": "Sichtschutz", "moon": "Bildschirmschoner", "mirror": "Spiegeln", "extend": "Erweitern",
     "pip": "Bild-in-Bild", "home": "Haus", "lock": "Schloss", "power": "Ein/Aus", "sun": "Sonne",
+    "music": "Musik",
 }
 
 TILE_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#64748b"]
