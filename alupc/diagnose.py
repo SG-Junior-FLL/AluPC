@@ -125,7 +125,9 @@ def report(controller, probe: bool = True) -> str:
         lines.append(f"  UxPlay: {ux or 'NICHT installiert'}"
                      + (f" · {version.splitlines()[0]}" if version else ""))
     if ux:
-        lines.append(f"  Bild direkt in AluPC (ab 1.73): {'ja' if handy.supports_vrtp(ux) else 'nein, eigenes Fenster'}")
+        way = "ja (-vrtp)" if handy.supports_vrtp(ux) else \
+            "ja (über -vd/-vc/-vs, RTP)" if handy.supports_rtp_pipeline(ux) else "nein, eigenes Fenster"
+        lines.append(f"  Bild direkt in AluPC: {way} · jetzt: {controller.airplay.mode or '–'}")
     if sys.platform.startswith("win"):
         lines.append(f"  Bonjour: {'installiert' if handy.bonjour_installed() else 'FEHLT'}")
     else:

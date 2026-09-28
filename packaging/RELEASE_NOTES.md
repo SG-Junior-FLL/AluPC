@@ -8,6 +8,17 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.49.0)
+**Linux: AirPlay-Bild jetzt direkt in AluPC (auch mit UxPlay 1.68 aus Kubuntu)**
+- Bisher zeigte UxPlay 1.68 das iPhone-Bild in einem eigenen Fenster, das AluPC auf Monitor 2 schieben musste –
+  unter Wayland und in VMs kam es oft nicht an (verbunden, Ton ja, Bild nein). Jetzt baut AluPC UxPlays
+  Bildweg selbst: `-vd identity -vc identity -vs "rtph264pay … ! udpsink …"` – UxPlay reicht das H.264 vom
+  iPhone unverändert an AluPC weiter (wie `-vrtp` ab UxPlay 1.73), AluPC zeigt es als normale Quelle.
+- Dadurch auf Monitor 2 ohne Fensterschieben, mit Übergängen, Standbild, Bild-in-Bild und Overlays darüber.
+- Geprüft: echtes UxPlay 1.68 nimmt den Bildweg an („Initialized GStreamer video renderer“, auch in der CI);
+  genau diese Pipeline liefert Bilder an AluPCs Player. Ein echtes iPhone konnte nicht getestet werden.
+- „Diagnose kopieren“ zeigt, welcher Weg genutzt wird.
+
 ### Neu in dieser Version (0.48.0)
 - **Overlays als eigene Kacheln auf der Startseite** – wie die Bildschirmschoner-Kacheln: Startseite anpassen →
   „Overlay“ → Vorlage wählen. Beliebig viele, jede mit eigenem Overlay (Stelle, Größe, Stil, Text …

@@ -382,13 +382,41 @@ def in_virtual_machine() -> bool:
     return _VM
 
 
+RTP_SINK = "rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port={port}"
+
+
+def supports_rtp_pipeline(uxplay: str) -> bool:
+    """Linux, UxPlay ohne -vrtp (z. B. 1.68 aus Kubuntu): Bild trotzdem an AluPC weiterleiten – über die
+    frei wählbaren Pipeline-Teile -vd/-vc/-vs. UxPlay baut daraus
+    „appsrc ! queue ! h264parse ! identity ! identity ! rtph264pay … ! udpsink … name=video_sink sync=…“:
+    das H.264 vom iPhone geht unverändert per RTP an AluPC (wie -vrtp ab 1.73). Kein eigenes UxPlay-Fenster,
+    das auf Monitor 2 geschoben werden müsste (unter Wayland/in VMs unzuverlässig)."""
+    if not sys.platform.startswith("linux"):
+        return False
+    text = uxplay_help(uxplay)
+    if not all(re.search(rf"^\s*{opt}\b", text, re.M) for opt in ("-vd", "-vc", "-vs")):
+        return False
+    if shutil.which("gst-inspect-1.0"):  # RTP-Bausteine da? (gstreamer1.0-plugins-good/-base)
+        try:
+            for element in ("rtph264pay", "udpsink"):
+                if subprocess.run(["gst-inspect-1.0", "--exists", element], timeout=10).returncode != 0:
+                    return False
+        except (OSError, subprocess.SubprocessError):
+            return False
+    return True
+
+
 def uxplay_args(name: str, pin: str, port: int | None, window_title: bool = True,
-                extra: list[str] | None = None) -> list[str]:
+                extra: list[str] | None = None, rtp_pipeline: bool = False) -> list[str]:
     # -p: feste Ports (TCP 7000, 7001, 7100 / UDP 6000, 6001, 7011) – so lässt sich die Firewall gezielt öffnen
-    args = ["-n", name or "AluPC", "-nh", "-p"] + list(extra or [])
+    args = ["-n", name or "AluPC", "-nh", "-p"]
+    # Bild geht an AluPC: UxPlay dekodiert nichts → Software-Decoder-Zusatz (-avdec) ist dann sinnlos
+    args += [a for a in (extra or []) if not (port is not None and a == "-avdec")]
     if pin:
         args += ["-pin", pin] if pin != "zufall" else ["-pin"]
-    if port is not None:  # Bild an AluPC weiterleiten statt selbst anzeigen
+    if port is not None and rtp_pipeline:  # UxPlay 1.6x: H.264 unverändert per RTP an AluPC
+        args += ["-vd", "identity", "-vc", "identity", "-vs", RTP_SINK.format(port=port)]
+    elif port is not None:  # Bild an AluPC weiterleiten statt selbst anzeigen (ab 1.73)
         args += ["-vrtp", f"config-interval=1 ! udpsink host=127.0.0.1 port={port}"]
     elif not IS_WINDOWS:  # eigenes Fenster im Vollbild (AluPC schiebt es auf Monitor 2)
         args += ["-fs"]
@@ -484,7 +512,10 @@ class AirPlayServer(QObject):
         s = self.settings()
         if is_uxplay_windows(uxplay):
             return self._start_uxplay_windows(uxplay, s)
-        stream = want_stream and supports_vrtp(uxplay)
+        vrtp = supports_vrtp(uxplay)
+        rtp_pipeline = not vrtp and want_stream and self.settings().get("airplay_stream", True) \
+            and supports_rtp_pipeline(uxplay)
+        stream = want_stream and (vrtp or rtp_pipeline)
         self.port = free_udp_port() if stream else 0
         if stream:
             self.sdp_path().parent.mkdir(parents=True, exist_ok=True)
@@ -492,7 +523,8 @@ class AirPlayServer(QObject):
         pin = s.get("pin", "")
         self.pin_code = pin if pin and pin != "zufall" else ""
         args = uxplay_args(s["airplay_name"], pin, self.port if stream else None,
-                           extra=vm_options(uxplay_help(uxplay)) if in_virtual_machine() else None)
+                           extra=vm_options(uxplay_help(uxplay)) if in_virtual_machine() else None,
+                           rtp_pipeline=rtp_pipeline)
         if not kill_uxplay_windows():  # fremde Empfänger (z. B. uxplay-windows im Autostart) belegen sonst die Ports
             self._stuck()
         self._started_with = self._wanted()

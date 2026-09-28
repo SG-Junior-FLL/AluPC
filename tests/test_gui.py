@@ -1572,13 +1572,15 @@ import sys, time
 args = sys.argv[1:]
 if args == ["-h"]:
     print("UxPlay 1.73 usage: ... %(vrtp)s")
+    print(%(pipeline_help)r)
     sys.exit(0)
 open(%(log)r, "a").write(" ".join(args) + "\\n")
 print("Initialized server socket(s)", flush=True)
 if "-pin" in args:
     print("Pin code: 4711", flush=True)
-if "-vrtp" in args:
-    port = int(args[args.index("-vrtp") + 1].rsplit("port=", 1)[1])
+sink = args[args.index("-vs") + 1] if "-vs" in args else ""
+if "-vrtp" in args or "udpsink" in sink:  # 1.73: -vrtp · 1.68: -vs "rtph264pay … ! udpsink … port=N"
+    port = int((args[args.index("-vrtp") + 1] if "-vrtp" in args else sink).rsplit("port=", 1)[1])
     time.sleep(1.0)
     sys.path.insert(0, %(tests)r)
     import rtp_sender
@@ -1587,13 +1589,16 @@ time.sleep(30)
 '''
 
 
-def _fake_uxplay(tmp_path, vrtp: bool) -> tuple[str, Path]:
+def _fake_uxplay(tmp_path, vrtp: bool, pipeline_opts: bool = False) -> tuple[str, Path]:
+    """vrtp: wie UxPlay ≥ 1.73 · pipeline_opts: wie 1.68 aus Kubuntu (-vd/-vc/-vs, kein -vrtp)."""
     import sys
 
     log = tmp_path / "uxplay_args.txt"
-    script = tmp_path / ("uxplay_neu" if vrtp else "uxplay_alt")
+    script = tmp_path / ("uxplay_neu" if vrtp else "uxplay_168" if pipeline_opts else "uxplay_alt")
+    help_text = ("-vd ...   Choose the GStreamer h264 decoder\n-vc ...   Choose the GStreamer videoconverter\n"
+                 "-vs ...   Choose the GStreamer videosink") if pipeline_opts else ""
     script.write_text(FAKE_UXPLAY % {"python": sys.executable, "vrtp": "-vrtp pipeline" if vrtp else "",
-                                     "log": str(log), "tests": str(HERE)})
+                                     "log": str(log), "tests": str(HERE), "pipeline_help": help_text})
     script.chmod(0o755)
     return str(script), log
 
@@ -1644,6 +1649,33 @@ def test_airplay_source_shows_stream(env, tmp_path):
     pump()
     assert window.t_airplay.active and not window.t_extend.active
     controller.extend()  # etwas anderes → UxPlay wird (verzögert) beendet
+    assert _until(lambda: not controller.airplay.running(), 5)
+
+
+def test_airplay_stream_with_uxplay_168(env, tmp_path):
+    """Linux mit UxPlay 1.68 (Kubuntu): kein -vrtp, aber das Bild geht trotzdem direkt in AluPC – über
+    -vd identity -vc identity -vs "rtph264pay … ! udpsink …" (kein UxPlay-Fenster, das verschwinden kann)."""
+    import sys
+
+    if not sys.platform.startswith("linux"):
+        pytest.skip("Nur Linux (Pipeline-Weg)")
+    pytest.importorskip("av")
+    controller, window, _ = env
+    uxplay, log = _fake_uxplay(tmp_path, False, pipeline_opts=True)
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": uxplay, "pin": ""}
+    controller.start_airplay()
+    pump()
+    view = controller.output.content
+    assert view.mode == "stream"
+    assert _until(log.exists, 5)
+    started = log.read_text()
+    assert "-vd identity -vc identity -vs rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=" \
+        in started and "-vrtp" not in started and "-fs" not in started and "-avdec" not in started
+    assert _until(lambda: view._had_frames, 20), "Kein Bild über den 1.68-Weg"
+    assert _until(lambda: view._image is not None and not view._image.isNull(), 5)
+    c = view._image.pixelColor(view._image.width() - 5, view._image.height() // 2)
+    assert c.red() > 150 and c.green() < 90, c.name()
+    controller.extend()
     assert _until(lambda: not controller.airplay.running(), 5)
 
 

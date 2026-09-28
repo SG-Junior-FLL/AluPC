@@ -92,6 +92,14 @@ jobs:
             elif ! echo "$line" | grep -qi "uxplay version\|uxplay 1\."; then
               echo "::error title=UxPlay startet nicht aus AluPC::$line"; exit 1
             fi
+            # Bild direkt an AluPC (Kubuntu-UxPlay ohne -vrtp): baut UxPlay die Pipeline mit AluPCs Teilen?
+            timeout 6 uxplay -d -n AluPC-CI -nh -p -vd identity -vc identity \
+              -vs "rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=5600" > "$RUNNER_TEMP/ux.txt" 2>&1 || true
+            if grep -q "Initialized GStreamer video renderer" "$RUNNER_TEMP/ux.txt"; then
+              echo "::notice title=AirPlay-Bild an AluPC (RTP)::$(grep -A1 'video pipeline will be' "$RUNNER_TEMP/ux.txt" | tail -1)"
+            else
+              echo "::error title=AirPlay-Bildweg::UxPlay nimmt die RTP-Pipeline nicht an"; cat "$RUNNER_TEMP/ux.txt"; exit 1
+            fi
           fi
       - name: Installationsskript – wartet, wenn die Paketverwaltung gesperrt ist („Sperrung nicht möglich“)
         run: |
