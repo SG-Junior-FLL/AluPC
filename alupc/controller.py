@@ -52,6 +52,7 @@ class Controller(QObject):
         self.laser.changed_cb = self.save_drawings
         from .overlays import OverlayWindow
 
+        self.tile_overlays: dict[str, dict] = {}  # Kachel-ID → gerade eingeblendetes Overlay dieser Kachel
         self.overlay_window = OverlayWindow(self)
         # Reihenfolge: Ausgabe → Overlays → Zeichnungen/Laser ganz oben
         self.output.after_raise.insert(0, self.overlay_window.raise_above)
@@ -1257,13 +1258,40 @@ class Controller(QObject):
         self.changed.emit()
 
     def set_overlays(self, on: bool | None = None) -> None:
-        """Alle Overlays an/aus (None = umschalten)."""
+        """Alle Overlays an/aus (None = umschalten). Aus blendet auch die Overlays von Kacheln aus."""
         cfg = dict(self.config["overlays"])
         cfg["on"] = (not cfg.get("on")) if on is None else bool(on)
         self.config["overlays"] = cfg
+        if not cfg["on"]:
+            self.tile_overlays.clear()
         if cfg["on"] and not any(it.get("on", True) for it in cfg.get("items", [])):
             self.message.emit("Overlays: noch keins angelegt · Pfeil an der Kachel → Bearbeiten")
         self.overlays_changed()
+
+    def toggle_tile_overlay(self, tile_id: str, item: dict) -> None:
+        """Eigene Kachel mit Overlay: Klick = einblenden, nochmal = ausblenden (wie Bildschirmschoner-Kacheln)."""
+        if tile_id in self.tile_overlays:
+            del self.tile_overlays[tile_id]
+        elif self.output_screen() is None:
+            self.message.emit("Kein zweiter Monitor gefunden.")
+            return
+        else:
+            self.tile_overlays[tile_id] = {**item, "id": f"kachel-{tile_id}", "on": True}
+        self.overlay_window.reload()
+        self._overlays_shown = self.overlay_window.needed()
+        self.changed.emit()
+
+    def refresh_tile_overlays(self) -> None:
+        """Startseite gespeichert: eingeblendete Kachel-Overlays auf den neuen Stand bringen (gelöscht → weg)."""
+        tiles = {t.get("id"): t for t in self.config["start_page"].get("custom", [])}
+        for tile_id in list(self.tile_overlays):
+            action = (tiles.get(tile_id) or {}).get("action") or {}
+            if action.get("kind") == "overlay" and action.get("overlay"):
+                self.tile_overlays[tile_id] = {**action["overlay"], "id": f"kachel-{tile_id}", "on": True}
+            else:
+                del self.tile_overlays[tile_id]
+        self.overlay_window.reload()
+        self.changed.emit()
 
     def toggle_overlay_item(self, item_id: str) -> None:
         cfg = dict(self.config["overlays"])
@@ -1319,6 +1347,8 @@ class Controller(QObject):
                 self.screensaver.stop()
                 self.screensaver.start(manual=True, override={**(action.get("screensaver") or {}),
                                                               "_id": tile_id})
+        elif kind == "overlay" and action.get("overlay"):
+            self.toggle_tile_overlay(tile_id, action["overlay"])
         elif kind == "timer":
             from .timer import clock
 

@@ -185,6 +185,10 @@ def describe_action(action: dict | None) -> str:
         return describe_source(action.get("source"))
     if action.get("kind") == "screensaver":
         return "Eigener Bildschirmschoner"
+    if action.get("kind") == "overlay":
+        from .overlays import TYPES
+
+        return "Overlay: " + TYPES.get((action.get("overlay") or {}).get("type", ""), "Overlay")
     if action.get("kind") == "timer":
         t = action.get("timer") or {}
         return f"Timer {int(t.get('minutes', 0))}:{int(t.get('seconds', 0)):02d}"

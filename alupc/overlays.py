@@ -499,12 +499,14 @@ class OverlayWindow(QWidget):
         return self.controller.config["overlays"]
 
     def items(self) -> list[dict]:
-        return [it for it in self.cfg().get("items", []) if it.get("on", True)]
+        """Alle sichtbaren Overlays: die aus dem Editor (wenn Overlays an) + die von Kacheln der Startseite."""
+        own = [it for it in self.cfg().get("items", []) if it.get("on", True)] if self.cfg().get("on") else []
+        return own + list(getattr(self.controller, "tile_overlays", {}).values())
 
     def needed(self) -> bool:
         c = self.controller
         saver = getattr(c, "screensaver", None)
-        return bool(self.cfg().get("on") and self.items() and c.output_screen() is not None and not c.privacy
+        return bool(self.items() and c.output_screen() is not None and not c.privacy
                     and not (saver is not None and saver.active))
 
     def reload(self) -> None:

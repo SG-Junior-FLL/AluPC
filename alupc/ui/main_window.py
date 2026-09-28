@@ -703,6 +703,7 @@ class MainWindow(QMainWindow):
     def customize_start(self):
         dlg = StartPageDialog(self.config, self, self.controller)
         if dlg.exec() == QDialog.Accepted:
+            self.controller.refresh_tile_overlays()  # geänderte/gelöschte Overlay-Kacheln sofort übernehmen
             self.rebuild_start()
             self.show_message("Startseite gespeichert.", "ok")
             self._apply_hotkeys()
@@ -1445,7 +1446,7 @@ class MainWindow(QMainWindow):
         self.t_remote.set_state(remote_on or typ == "cast", badge="LÄUFT" if remote_on else "")
         saver_on = c.screensaver.active
         self.t_saver.set_state(saver_on, badge="AN" if saver_on else "")
-        overlays_on = c.overlay_window.needed()
+        overlays_on = c.overlay_window.needed() and bool(c.config["overlays"].get("on"))
         self.t_overlays.set_state(overlays_on, badge="AN" if overlays_on else "")
         drawing = bool(getattr(self, "presenter", None) and self.presenter.isVisible())
         self.t_draw.set_state(drawing, badge="OFFEN" if drawing else "")
@@ -1455,6 +1456,10 @@ class MainWindow(QMainWindow):
             on = (action.get("kind") == "source" and c.mode == "content" and c.content == action.get("source")) \
                 or (action.get("kind") == "screensaver" and c.screensaver.active
                     and c.screensaver.override_id == tcfg.get("id"))
+            if action.get("kind") == "overlay":
+                on = tcfg.get("id") in c.tile_overlays
+                tile.set_state(on, badge="AN" if on else "")
+                continue
             tile.set_state(on, badge="AKTIV" if on else "")
         self.t_freeze.set_state(c.frozen, badge="AN" if c.frozen else "")
         self.t_black.set_state(c.privacy, badge="AN" if c.privacy else "")

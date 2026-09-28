@@ -8,6 +8,13 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.48.0)
+- **Overlays als eigene Kacheln auf der Startseite** – wie die Bildschirmschoner-Kacheln: Startseite anpassen →
+  „Overlay“ → Vorlage wählen. Beliebig viele, jede mit eigenem Overlay (Stelle, Größe, Stil, Text …
+  unter „Bearbeiten …“ → „Einstellen …“). Klick blendet das Overlay ein, nochmal klicken aus; die Kachel zeigt
+  dann „AN“. Unabhängig von den Overlays aus dem Editor – „Overlays aus“ blendet aber alle aus.
+- Auch als Aktion jeder eigenen Kachel wählbar („Overlay einblenden“), mit Tastenkürzel.
+
 ### Neu in dieser Version (0.47.0)
 **Overlays – Einblendungen über allem, was Monitor 2 zeigt**
 - Neue Kachel **Overlays** (Bereich Werkzeuge): Klick = an/aus, Pfeil = einzelne Overlays an/aus und

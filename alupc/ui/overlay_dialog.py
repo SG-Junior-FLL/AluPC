@@ -257,32 +257,46 @@ class OverlayCanvas(QWidget):
 
 
 class OverlayDialog(QDialog):
-    def __init__(self, controller, parent=None):
+    """Alle Overlays bearbeiten – oder mit `single` nur das eine Overlay einer Startseiten-Kachel
+    (dann wird nichts gespeichert, das Ergebnis steht in `result_item`)."""
+
+    def __init__(self, controller, parent=None, single: dict | None = None):
         super().__init__(parent)
         self.controller = controller
-        self.setWindowTitle("Overlays")
+        self.single = single is not None
+        self.setWindowTitle("Overlay der Kachel" if self.single else "Overlays")
         self.resize(1180, 720)
         cfg = controller.config["overlays"]
-        self.items: list[dict] = copy.deepcopy(cfg.get("items", []))
+        self.items: list[dict] = [copy.deepcopy(single)] if self.single else copy.deepcopy(cfg.get("items", []))
+        if self.single:
+            self.items[0].setdefault("id", "kachel")
+            self.items[0]["on"] = True
+        self.result_item = self.items[0] if self.single else None
         self._apply_timer = QTimer(self, singleShot=True, interval=150)  # beim Tippen nicht jede Taste speichern
         self._apply_timer.timeout.connect(self._apply)
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 18, 22, 16)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Overlays", "Über allem, was Monitor 2 zeigt · ziehen = verschieben, "
-                                              "Mausrad = Größe", "layers"))
+        lay.addWidget(page_header("Overlay der Kachel" if self.single else "Overlays",
+                                  ("Klick auf die Kachel blendet es ein, nochmal klicken aus · " if self.single else
+                                   "Über allem, was Monitor 2 zeigt · ") + "ziehen = verschieben, Mausrad = Größe",
+                                  "layers"))
         top = QHBoxLayout()
         self.enabled = QCheckBox("Overlays auf Monitor 2 zeigen")
         self.enabled.setChecked(bool(cfg.get("on")))
         self.enabled.toggled.connect(lambda _on: self._schedule())
+        self.enabled.setVisible(not self.single)
         top.addWidget(self.enabled)
         top.addStretch(1)
         lay.addLayout(top)
 
         body = QHBoxLayout()
         body.setSpacing(14)
-        left = QVBoxLayout()
+        left_box = QWidget()
+        left_box.setVisible(not self.single)  # Kachel: genau ein Overlay, keine Liste
+        left = QVBoxLayout(left_box)
+        left.setContentsMargins(0, 0, 0, 0)
         self.list = QListWidget()
         self.list.setMinimumWidth(220)
         self.list.setMaximumWidth(260)
@@ -300,7 +314,7 @@ class OverlayDialog(QDialog):
         row.addWidget(dup)
         row.addWidget(rm)
         left.addLayout(row)
-        body.addLayout(left)
+        body.addWidget(left_box)
 
         self.canvas = OverlayCanvas(self)
         self.canvas.selected.connect(self._select_id)
@@ -345,6 +359,8 @@ class OverlayDialog(QDialog):
         self._apply_timer.start()
 
     def _apply(self):
+        if self.single:
+            return  # Kachel: speichert der Kachel-Dialog
         self.controller.config["overlays"] = {"on": self.enabled.isChecked(), "items": copy.deepcopy(self.items)}
         self.controller.overlays_changed()
 

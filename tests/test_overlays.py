@@ -113,6 +113,52 @@ def test_overlay_music_uses_now_playing(env, monkeypatch):
     assert started == ["an", "aus"]
 
 
+def test_overlay_tiles_on_start_page(env):
+    """Wie Bildschirmschoner-Kacheln: beliebig viele Overlay-Kacheln auf der Startseite, jede mit eigenem
+    Overlay. Klick = einblenden, nochmal = aus – unabhängig von den Overlays aus dem Editor."""
+    controller, window, _ = env
+    from alupc.startpage import custom_key
+    from alupc.ui.start_page_dialog import CustomTileDialog, StartPageDialog
+
+    dlg = StartPageDialog(controller.config, window, controller)
+    music = next(i for i, t in enumerate(ov.TEMPLATES) if t[1] == "Musik – kompakt")
+    live = next(i for i, t in enumerate(ov.TEMPLATES) if t[1] == "LIVE")
+    dlg.add_overlay(music)
+    dlg.add_overlay(live)
+    tiles = [t for t in dlg.cfg["custom"] if (t.get("action") or {}).get("kind") == "overlay"]
+    assert [t["title"] for t in tiles] == ["Musik – kompakt", "LIVE"]
+    assert all(custom_key(t) in dlg.cfg["tiles"] for t in tiles)
+    # Kachel-Dialog: Aktion „Overlay“ bearbeitbar und wird gespeichert
+    edit = CustomTileDialog(controller.config, tiles[1], "", dlg, controller)
+    assert edit.kind.currentData() == "overlay"
+    edit.overlay_data = dict(edit.overlay_data, text="AUF SENDUNG", x=0.5, y=0.0)
+    edit._save()
+    assert edit.tile["action"]["overlay"]["text"] == "AUF SENDUNG"
+    tiles[1].update(edit.tile)
+    dlg.accept()
+    pump()
+    controller.config["start_page"] = dlg.cfg
+    controller.config["overlays"] = {"on": False, "items": []}
+    controller.overlays_changed()
+    win = controller.overlay_window
+    live_id = tiles[1]["id"]
+    controller.run_tile(live_id)
+    pump()
+    assert live_id in controller.tile_overlays and win.isVisible()
+    assert [it["text"] for it in win.items()] == ["AUF SENDUNG"]
+    controller.run_tile(tiles[0]["id"])  # zweite Kachel dazu
+    assert len(win.items()) == 2
+    controller.run_tile(live_id)  # nochmal klicken = aus
+    assert live_id not in controller.tile_overlays and len(win.items()) == 1
+    # Startseite gespeichert, Kachel gelöscht → ihr Overlay verschwindet
+    controller.config["start_page"] = {**controller.config["start_page"],
+                                       "custom": [t for t in controller.config["start_page"]["custom"]
+                                                  if t["id"] != tiles[0]["id"]]}
+    controller.refresh_tile_overlays()
+    pump()
+    assert not controller.tile_overlays and not win.isVisible()
+
+
 def _mouse(widget, kind, pos: QPointF, buttons=Qt.LeftButton):
     ev = QMouseEvent(kind, pos, QPointF(widget.mapToGlobal(pos.toPoint())), Qt.LeftButton, buttons, Qt.NoModifier)
     {QMouseEvent.MouseButtonPress: widget.mousePressEvent, QMouseEvent.MouseMove: widget.mouseMoveEvent,

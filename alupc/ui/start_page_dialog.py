@@ -55,6 +55,7 @@ from .widgets import button, page_header
 ACTION_KINDS = {
     "source": "Etwas auf Monitor 2 anzeigen",
     "screensaver": "Eigenen Bildschirmschoner zeigen (nochmal klicken = beenden)",
+    "overlay": "Overlay einblenden (nochmal klicken = aus)",
     "timer": "Timer mit eigener Dauer starten",
     "command": "Befehl ausführen",
 }
@@ -103,7 +104,7 @@ class CustomTileDialog(QDialog):
         kind = action.get("kind") or "source"
         self.kind = QComboBox()
         for key, label in ACTION_KINDS.items():
-            if key == "screensaver" and controller is None:
+            if key in ("screensaver", "overlay") and controller is None:
                 continue
             self.kind.addItem(label, key)
         self.pages = QStackedWidget()
@@ -132,6 +133,27 @@ class CustomTileDialog(QDialog):
                                              on_change=lambda d: self.saver_data.update(d))
             self._page_index["screensaver"] = self.pages.count()
             self.pages.addWidget(self.saver)
+
+        # --- Overlay (eigenes Overlay nur für diese Kachel)
+        from ..overlays import TEMPLATES, from_template
+
+        self.overlay_data = copy.deepcopy(action.get("overlay") or from_template(TEMPLATES[0][3], TEMPLATES[0][1]))
+        if controller is not None:
+            page = QWidget()
+            ol = QHBoxLayout(page)
+            ol.setContentsMargins(0, 0, 0, 0)
+            self.overlay_label = QLabel()
+            self.overlay_label.setObjectName("Muted")
+            self._overlay_changed()
+            pick_tpl = button("Vorlage …", "layers")
+            pick_tpl.clicked.connect(self._pick_overlay_template)
+            edit_ov = button("Einstellen …", "edit")
+            edit_ov.clicked.connect(self._edit_overlay)
+            ol.addWidget(self.overlay_label, 1)
+            ol.addWidget(pick_tpl)
+            ol.addWidget(edit_ov)
+            self._page_index["overlay"] = self.pages.count()
+            self.pages.addWidget(page)
 
         # --- Timer
         t = action.get("timer") or {}
@@ -220,6 +242,31 @@ class CustomTileDialog(QDialog):
             self.source = cfg
             self.source_label.setText(describe_action({"kind": "source", "source": cfg}))
 
+    def _overlay_changed(self):
+        from ..overlays import TYPES, position_name
+
+        d = self.overlay_data
+        self.overlay_label.setText(f"{TYPES.get(d.get('type'), 'Overlay')} · "
+                                   f"{position_name(float(d.get('x', 1)), float(d.get('y', 1)))}")
+
+    def _pick_overlay_template(self):
+        from .overlay_dialog import TemplatePicker
+
+        picker = TemplatePicker(self)
+        if picker.exec() and picker.chosen:
+            self.overlay_data = picker.chosen
+            self._overlay_changed()
+            if not self.title.text().strip():
+                self.title.setText(picker.chosen.get("name", ""))
+
+    def _edit_overlay(self):
+        from .overlay_dialog import OverlayDialog
+
+        dlg = OverlayDialog(self.controller, self, single=self.overlay_data)
+        dlg.exec()
+        self.overlay_data = dlg.result_item
+        self._overlay_changed()
+
     def hotkey_text(self) -> str:
         return self.hotkey.sequence()
 
@@ -235,6 +282,8 @@ class CustomTileDialog(QDialog):
             action = {"kind": "source", "source": self.source}
         elif kind == "screensaver":
             action = {"kind": "screensaver", "screensaver": dict(self.saver_data)}
+        elif kind == "overlay":
+            action = {"kind": "overlay", "overlay": copy.deepcopy(self.overlay_data)}
         elif kind == "timer":
             if self.t_mode.currentData() == "countdown" and self.t_min.value() * 60 + self.t_sec.value() <= 0:
                 QMessageBox.warning(self, "Kachel", "Bitte eine Dauer größer als 0 wählen.")
@@ -290,6 +339,7 @@ class StartPageDialog(QDialog):
             ("Nach unten", "down", lambda: self._move(1), {}),
             ("Eigene Kachel …", "plus", self._add, {"primary": True}),
             ("Bildschirmschoner", "moon", self._add_saver_menu, {}),
+            ("Overlay", "layers", self._add_overlay_menu, {}),
             ("Bearbeiten …", "edit", self._edit, {}),
             ("Löschen", "trash", self._delete, {"danger": True}),
             ("Standard", "refresh", self._reset, {}),
@@ -581,6 +631,37 @@ class StartPageDialog(QDialog):
                 return
             tile = dlg.tile
             self._set_hotkey(tile["id"], dlg.hotkey_text())
+        self.cfg.setdefault("custom", []).append(tile)
+        self.cfg["tiles"] = self.cfg["tiles"] + [custom_key(tile)]
+        self._fill(custom_key(tile))
+
+    def _add_overlay_menu(self):
+        """Menü: Overlay als eigene Kachel – beliebig viele, jede mit eigenem Overlay (Vorlage, danach anpassbar)."""
+        from PySide6.QtGui import QCursor
+        from PySide6.QtWidgets import QMenu
+
+        from ..overlays import TEMPLATES
+
+        menu = QMenu(self)
+        last = None
+        for i, (cat, name, desc, _tpl) in enumerate(TEMPLATES):
+            if cat != last:
+                last = cat
+                menu.addSection(cat)
+            act = menu.addAction(name, lambda i=i: self.add_overlay(i))
+            act.setToolTip(desc)
+        menu.exec(QCursor.pos())
+
+    def add_overlay(self, index: int) -> None:
+        from ..overlays import TEMPLATES, from_template
+
+        _cat, name, _desc, tpl = TEMPLATES[index]
+        self._sync()
+        tile = new_custom_tile()
+        n = len(self.cfg.get("custom", []))
+        tile.update({"title": name, "subtitle": "Overlay", "icon": "layers",
+                     "color": TILE_COLORS[n % len(TILE_COLORS)],
+                     "action": {"kind": "overlay", "overlay": from_template(tpl, name)}})
         self.cfg.setdefault("custom", []).append(tile)
         self.cfg["tiles"] = self.cfg["tiles"] + [custom_key(tile)]
         self._fill(custom_key(tile))
