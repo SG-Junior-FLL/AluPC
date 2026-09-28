@@ -8,6 +8,21 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.47.0)
+**Overlays – Einblendungen über allem, was Monitor 2 zeigt**
+- Neue Kachel **Overlays** (Bereich Werkzeuge): Klick = an/aus, Pfeil = einzelne Overlays an/aus und
+  „Bearbeiten …“. Overlays liegen in einem eigenen durchsichtigen Fenster über Monitor 2 – also auch über dem
+  iPhone-Bild (AirPlay), einem Programm, Video, Website oder der Kamera.
+- **15 Vorlagen:** Musik (kompakt, Leiste, großes Cover, schlicht – zeigt, was der PC abspielt), Uhr, Uhr mit
+  Datum, Timer, Bauchbinde, Überschrift, Laufschrift, Hinweis, Logo/Bild, QR-Code, LIVE, REC.
+- **Verschieben:** in der Vorschau ziehen – rastet in den Ecken, an den Kanten-Mitten und in der Mitte ein,
+  jede Stelle dazwischen geht auch (Alt gedrückt = ohne Einrasten). Oder per 3×3-Knöpfen. Mausrad = Größe.
+- Je Overlay: Größe, Stil (Glas, Hell, Farbe, ohne Hintergrund), Farbe, Text, Bild, Link …
+- Bei „Schwarz“ und beim Bildschirmschoner verschwinden Overlays. Bild-in-Bild, Live-Vorschau und Handy zeigen
+  sie mit. Befehle für Tastenkürzel/eigene Kacheln/Handy: `overlays`, `overlays_an`, `overlays_aus`.
+- Sparsam: gezeichnet wird nur der Bereich eines Overlays, die Uhr einmal pro Sekunde; bewegt sind nur
+  Laufschrift und LIVE-Punkt.
+
 ### Neu in dieser Version (0.46.0)
 **„Läuft gerade“ – was der PC abspielt, groß auf Monitor 2**
 - Neue Kachel **Läuft gerade**: Cover, Titel, Künstler, Album und Zeitleiste – von jedem Player, nicht nur

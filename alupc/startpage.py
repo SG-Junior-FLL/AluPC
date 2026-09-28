@@ -24,6 +24,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "screensaver": ("moon", "Bildschirmschoner", "An / aus", "#6366f1", "schnell"),
     "timer": ("timer", "Timer", "Start / Pause", "#f43f5e", "schnell"),
     "draw": ("edit", "Zeigen & Zeichnen", "Laser, Stift, Marker", "#f97316", "schnell"),
+    "overlays": ("layers", "Overlays", "Über Monitor 2", "#d946ef", "schnell"),
 }
 # Schwarz, Standbild, Bild-in-Bild sind jetzt Schalter oben beim Live-Bild – als Kachel nur noch auf Wunsch
 HIDDEN_BY_DEFAULT = {"freeze", "black", "pip", "draw"}
@@ -78,6 +79,9 @@ COMMANDS = {
     "musik_pause": "Musik: Abspielen/Pause",
     "musik_weiter": "Musik: nächster Titel",
     "musik_zurueck": "Musik: vorheriger Titel",
+    "overlays": "Overlays an/aus",
+    "overlays_an": "Overlays an",
+    "overlays_aus": "Overlays aus",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann
@@ -87,7 +91,7 @@ TILE_ICONS = {
     "timer": "Countdown", "palette": "Farbe", "play": "Abspielen", "snowflake": "Standbild",
     "eye_off": "Sichtschutz", "moon": "Bildschirmschoner", "mirror": "Spiegeln", "extend": "Erweitern",
     "pip": "Bild-in-Bild", "home": "Haus", "lock": "Schloss", "power": "Ein/Aus", "sun": "Sonne",
-    "music": "Musik",
+    "music": "Musik", "layers": "Ebenen",
 }
 
 TILE_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#64748b"]

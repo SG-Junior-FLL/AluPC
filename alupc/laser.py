@@ -348,6 +348,9 @@ def draw_overlay(controller, image) -> None:
     laser = getattr(controller, "laser", None)
     if laser is None or image is None or image.isNull() or controller.privacy:
         return
+    from .overlays import draw_into
+
+    draw_into(controller, image)  # Overlays liegen ebenfalls in einem eigenen Fenster (unter den Zeichnungen)
     if not laser.strokes and laser.point is None:
         return
     p = QPainter(image)

@@ -481,6 +481,12 @@ class MainWindow(QMainWindow):
             slot = c.show_now_playing if action is None else (lambda _=False, a=action: c.media_control(a))
             music_menu.addAction(icons.icon(icon_name, theme.current().text, 18), text, slot)
         self.t_music.set_menu(music_menu, split=True)
+        # Overlays: Klick = an/aus (beim ersten Mal gleich der Editor), Pfeil = einzelne Overlays + Bearbeiten
+        self.t_overlays = self.tiles["overlays"]
+        self.t_overlays.activated.connect(self._overlays_clicked)
+        self.overlay_menu = QMenu(self)
+        self.overlay_menu.aboutToShow.connect(self._fill_overlay_menu)
+        self.t_overlays.set_menu(self.overlay_menu, split=True)
         self.t_freeze, self.t_black, self.t_pip = self.tiles["freeze"], self.tiles["black"], self.tiles["pip"]
         self.t_saver = self.tiles["screensaver"]
         self.t_draw = self.tiles["draw"]
@@ -807,6 +813,38 @@ class MainWindow(QMainWindow):
         name, ok = QInputDialog.getText(self, "Website speichern", "Name für die Website:", text=title)
         if ok:
             self.controller.save_website(name.strip() or title, view.url().toString())
+
+    # ------------------------------------------------------------ Overlays
+    def _overlays_clicked(self):
+        c = self.controller
+        if not c.config["overlays"].get("items"):
+            self.open_overlays()
+        else:
+            c.set_overlays(None)
+
+    def open_overlays(self):
+        from .overlay_dialog import OverlayDialog
+
+        OverlayDialog(self.controller, self).exec()
+
+    def _fill_overlay_menu(self):
+        c = self.controller
+        col = theme.current().text
+        menu = self.overlay_menu
+        menu.clear()
+        cfg = c.config["overlays"]
+        on = bool(cfg.get("on"))
+        menu.addAction(icons.icon("layers", col, 18), "Overlays ausblenden" if on else "Overlays zeigen",
+                       lambda: c.set_overlays(not on))
+        menu.addAction(icons.icon("edit", col, 18), "Bearbeiten …", self.open_overlays)
+        items = cfg.get("items", [])
+        if items:
+            menu.addSeparator()
+        for it in items:
+            act = menu.addAction(it.get("name") or "Overlay")
+            act.setCheckable(True)
+            act.setChecked(bool(it.get("on", True)))
+            act.triggered.connect(lambda _=False, i=it.get("id"): c.toggle_overlay_item(i))
 
     def _fill_handy_menu(self, menu, key: str):
         """Pfeil-Menü einer Handy-Kachel."""
@@ -1407,6 +1445,8 @@ class MainWindow(QMainWindow):
         self.t_remote.set_state(remote_on or typ == "cast", badge="LÄUFT" if remote_on else "")
         saver_on = c.screensaver.active
         self.t_saver.set_state(saver_on, badge="AN" if saver_on else "")
+        overlays_on = c.overlay_window.needed()
+        self.t_overlays.set_state(overlays_on, badge="AN" if overlays_on else "")
         drawing = bool(getattr(self, "presenter", None) and self.presenter.isVisible())
         self.t_draw.set_state(drawing, badge="OFFEN" if drawing else "")
         for key, tile in self.custom_tiles.items():

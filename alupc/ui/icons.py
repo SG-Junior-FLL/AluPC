@@ -222,6 +222,17 @@ def _draw(name: str, p: QPainter, color: QColor):
         path.lineTo(17.5, 20.5)
         path.lineTo(18.5, 6.5)
         p.drawPath(path)
+    elif name == "layers":  # drei übereinanderliegende Ebenen
+        for dy, filled in ((6.0, False), (3.0, False), (0.0, True)):
+            path = QPainterPath(QPointF(12, 3.5 + dy))
+            path.lineTo(20.5, 8 + dy)
+            path.lineTo(12, 12.5 + dy)
+            path.lineTo(3.5, 8 + dy)
+            path.closeSubpath()
+            if filled:
+                p.setBrush(fill)
+            p.drawPath(path)
+            p.setBrush(Qt.NoBrush)
     elif name == "music":  # Musiknote
         p.setBrush(fill)
         p.drawEllipse(QRectF(4.2, 15.2, 5.6, 4.4))

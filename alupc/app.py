@@ -303,6 +303,21 @@ def self_test(log_path: str) -> int:
         lines.append(f"DIAG Läuft gerade: {result}")
         controller.show_source({"type": "nowplaying"})
         app.processEvents()
+        # Overlays: alle Vorlagen einmal im eigenen Fenster über Monitor 2 zeichnen
+        from . import overlays
+
+        saved_overlays = controller.config["overlays"]
+        controller.config["overlays"] = {"on": True, "items": [overlays.from_template(t, n)
+                                                               for _c, n, _d, t in overlays.TEMPLATES]}
+        controller.overlays_changed()
+        app.processEvents()
+        ow = controller.overlay_window
+        if ow.needed():
+            ow.repaint()
+        lines.append(f"Overlays: {len(ow.items())} Vorlagen, Fenster "
+                     f"{'sichtbar' if ow.isVisible() else 'aus (kein Monitor 2)'}")
+        controller.config["overlays"] = saved_overlays
+        controller.overlays_changed()
         from . import diagnose
 
         # Echte Probe-Aufnahme (Spiegeln) + Gesamtbild – steht dann im Protokoll (CI zeigt es an)

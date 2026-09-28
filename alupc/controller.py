@@ -50,6 +50,11 @@ class Controller(QObject):
         self.laser = LaserWindow(self)
         self.output.after_raise.append(self.laser.raise_above)
         self.laser.changed_cb = self.save_drawings
+        from .overlays import OverlayWindow
+
+        self.overlay_window = OverlayWindow(self)
+        # Reihenfolge: Ausgabe → Overlays → Zeichnungen/Laser ganz oben
+        self.output.after_raise.insert(0, self.overlay_window.raise_above)
         from .handy import airplay_server
 
         self.airplay = airplay_server(config)
@@ -83,6 +88,9 @@ class Controller(QObject):
         self._cast_timer.start()
         self.changed.connect(self.update_cursor_guard)
         self.changed.connect(self._cast_snapshot)
+        self.changed.connect(self._overlays_visibility)
+        self._overlays_shown = None
+        self.overlay_window.reload()
         if self.cast.settings().get("autostart"):
             self.cast.start()
         from .rgb_manager import RgbManager
@@ -163,6 +171,8 @@ class Controller(QObject):
         self.output.place_on(self.output_screen())
         if self.laser.needed():
             self.laser.place()
+        if hasattr(self, "overlay_window"):
+            self.overlay_window.place()
         self.changed.emit()
 
     # ------------------------------------------------------------ Maus
@@ -1147,6 +1157,9 @@ class Controller(QObject):
             "musik_pause": lambda: self.media_control("play_pause"),
             "musik_weiter": lambda: self.media_control("next"),
             "musik_zurueck": lambda: self.media_control("previous"),
+            "overlays": lambda: self.set_overlays(None),
+            "overlays_an": lambda: self.set_overlays(True),
+            "overlays_aus": lambda: self.set_overlays(False),
         }
         action = actions.get(command)
         if action:
@@ -1235,6 +1248,42 @@ class Controller(QObject):
             index = 0 if direction > 0 else len(names) - 1
         self.show_source({"type": "scene", "scene": names[index]})
 
+    # ------------------------------------------------------------ Overlays über Monitor 2
+    def overlays_changed(self) -> None:
+        """Nach dem Bearbeiten (Editor, Kachel, Handy): Overlay-Fenster neu aufbauen."""
+        self.config["overlays"] = dict(self.config["overlays"])  # speichern
+        self.overlay_window.reload()
+        self._overlays_shown = self.overlay_window.needed()
+        self.changed.emit()
+
+    def set_overlays(self, on: bool | None = None) -> None:
+        """Alle Overlays an/aus (None = umschalten)."""
+        cfg = dict(self.config["overlays"])
+        cfg["on"] = (not cfg.get("on")) if on is None else bool(on)
+        self.config["overlays"] = cfg
+        if cfg["on"] and not any(it.get("on", True) for it in cfg.get("items", [])):
+            self.message.emit("Overlays: noch keins angelegt · Pfeil an der Kachel → Bearbeiten")
+        self.overlays_changed()
+
+    def toggle_overlay_item(self, item_id: str) -> None:
+        cfg = dict(self.config["overlays"])
+        items = [dict(it) for it in cfg.get("items", [])]
+        for it in items:
+            if it.get("id") == item_id:
+                it["on"] = not it.get("on", True)
+                if it["on"]:
+                    cfg["on"] = True  # einzelnes Overlay eingeschaltet → Overlays auch
+        cfg["items"] = items
+        self.config["overlays"] = cfg
+        self.overlays_changed()
+
+    def _overlays_visibility(self) -> None:
+        """Bei „Schwarz“, Bildschirmschoner, Monitorwechsel: Overlays aus- bzw. wieder einblenden."""
+        shown = self.overlay_window.needed()
+        if shown != self._overlays_shown:
+            self._overlays_shown = shown
+            self.overlay_window.reload()
+
     # ------------------------------------------------------------ „Läuft gerade“ (Musik am PC)
     def show_now_playing(self) -> None:
         self.show_source({"type": "nowplaying"})
@@ -1293,6 +1342,7 @@ class Controller(QObject):
         self._timer_watch.stop()
         self._stop_handy_window()
         self.laser.close()
+        self.overlay_window.shutdown()
         self.cursor_guard.shutdown()
         from .cursor import tracker
 

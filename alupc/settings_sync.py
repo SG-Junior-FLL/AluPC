@@ -49,6 +49,7 @@ SECTIONS: dict[str, tuple[str, list[str]]] = {
                  ["output", "privacy", "pip", "laser", "draw", "program", "camera"]),
     "handy": ("Handy (Name, Code)", ["handy", "cast"]),
     "rgb": ("RGB-Beleuchtung", ["rgb"]),
+    "overlays": ("Overlays", ["overlays"]),
 }
 
 
