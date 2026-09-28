@@ -566,20 +566,73 @@ class StatusCard(QWidget):
         lay.addLayout(text, 1)
         lay.addLayout(self.actions)
         self._lay = lay
+        self._narrow = False  # vom Hauptfenster: sehr schmales Fenster
+        self._mode = ""
 
     def set_compact(self, on: bool) -> None:
-        """Schmales Fenster: Vorschau oben, Text darunter; Schnellschalter dürfen umbrechen."""
-        self._lay.setDirection(QBoxLayout.TopToBottom if on else QBoxLayout.LeftToRight)
-        self._lay.setAlignment(self.preview, Qt.AlignHCenter if on else Qt.Alignment())
-        self.preview.setFixedSize(QSize(240, 135) if on else QSize(272, 153))
-        self.title.setFont(font(14 if on else 17, QFont.Bold))
-        for i in range(self.chips.count()):  # Schnellschalter: schmal nur Symbol (Name als Tooltip)
+        """Sehr schmales Fenster: Vorschau oben, Text darunter. Sonst wählt die Karte ihre Form selbst."""
+        self._narrow = on
+        self._auto()
+
+    def minimumSizeHint(self):
+        # Nie breiter verlangen als die schmale Form – sonst ragt die Startseite rechts über den Rand,
+        # bevor die Karte auf „nur Symbole“ umschalten kann
+        hint = super().minimumSizeHint()
+        return QSize(min(hint.width(), 300), hint.height())
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._auto()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._recheck()
+        QTimer.singleShot(0, self._recheck)  # nach dem ersten Layout (Stylesheet angewendet) nochmal
+
+    def _recheck(self):
+        self._mode = ""
+        self._auto()
+
+    def _chips(self):
+        for i in range(self.chips.count()):
             chip = self.chips.itemAt(i).widget()
-            if chip is None:
-                continue
-            if chip.property("full_text") is None:
-                chip.setProperty("full_text", chip.text())
-            chip.setText("" if on else chip.property("full_text"))
+            if chip is not None:
+                if chip.property("full_text") is None:
+                    chip.setProperty("full_text", chip.text())
+                if chip.text():  # echte Breite mit Namen merken (nach dem Stylesheet ist sie größer)
+                    old = int(chip.property("full_w") or 0)
+                    if chip.sizeHint().width() > old:
+                        chip.setProperty("full_w", chip.sizeHint().width())
+                        if old:  # breiter als gedacht → gleich nochmal entscheiden
+                            QTimer.singleShot(0, self._recheck)
+                yield chip
+
+    def _full_width(self) -> int:
+        """So breit wäre die Karte nebeneinander mit beschrifteten Schnellschaltern."""
+        chips = list(self._chips())
+        chip_w = sum(int(c.property("full_w") or 0) or
+                     QFontMetrics(c.font()).horizontalAdvance(c.property("full_text") or "") + 64 for c in chips)
+        chip_w += self.chips.spacing() * max(0, len(chips) - 1)
+        actions = max((self.actions.itemAt(i).widget().sizeHint().width() for i in range(self.actions.count())
+                       if self.actions.itemAt(i).widget() is not None
+                       and not self.actions.itemAt(i).widget().isHidden()), default=0)
+        m = self._lay.contentsMargins()
+        return m.left() + m.right() + 272 + self._lay.spacing() * 2 + chip_w + actions + 24  # etwas Luft
+
+    def _auto(self) -> None:
+        """Breit: nebeneinander, Schalter mit Namen · mittel: nebeneinander, Schalter nur Symbol ·
+        schmal: Vorschau oben, Text darunter."""
+        mode = "schmal" if self._narrow else ("voll" if self.width() >= self._full_width() else "mittel")
+        if mode == self._mode:
+            return
+        self._mode = mode
+        narrow = mode == "schmal"
+        self._lay.setDirection(QBoxLayout.TopToBottom if narrow else QBoxLayout.LeftToRight)
+        self._lay.setAlignment(self.preview, Qt.AlignHCenter if narrow else Qt.Alignment())
+        self.preview.setFixedSize(QSize(240, 135) if narrow else QSize(272, 153))
+        self.title.setFont(font(14 if narrow else 17, QFont.Bold))
+        for chip in self._chips():  # Schnellschalter: knapp nur Symbol (Name als Tooltip)
+            chip.setText(chip.property("full_text") if mode == "voll" else "")
             chip.setToolTip(chip.property("full_text"))
 
     def set(self, icon_name: str, caption: str, title: str, pills: list[tuple[str, str]]):

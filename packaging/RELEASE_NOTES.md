@@ -8,6 +8,21 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.50.0)
+Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschritts nicht veröffentlicht).
+
+**Design-Update und Rundum-Prüfung**
+- **Startseite ragte rechts über den Rand**, sobald etwas auf Monitor 2 lief (die Statuskarte verlangte ~925 px).
+  Die Karte wählt ihre Form jetzt selbst: breit mit beschrifteten Schnellschaltern, mittel nur mit Symbolen
+  (Name als Tooltip), schmal untereinander. Nichts wird mehr abgeschnitten („Bild-in-Bil…“).
+- **Overlay-Editor:** Schnellwahl unter der Vorschau (Musik, Uhr, Bauchbinde, Laufschrift, LIVE) – ein Klick
+  legt das Overlay an; freundlicherer Hinweis, solange noch keins da ist.
+- Selbsttest und „Diagnose kopieren“ zeigen den AirPlay-Bildweg (-vrtp, RTP über -vd/-vc/-vs oder Fenster).
+- Geprüft: alle Seiten in Hell/Dunkel bei 820, 1180 und 1400 px Breite, Mini-Menü, Dialoge, Monitor-2-Anzeigen;
+  162 automatische Tests; Selbsttest der App.
+- CI: Die Prüfung des neuen AirPlay-Bildwegs läuft nur, wenn die UxPlay-Version ihn kennt (UxPlay 1.46 aus
+  Ubuntu 22.04 nicht – dort nimmt AluPC wie bisher UxPlays Fenster).
+
 ### Neu in dieser Version (0.49.0)
 **Linux: AirPlay-Bild jetzt direkt in AluPC (auch mit UxPlay 1.68 aus Kubuntu)**
 - Bisher zeigte UxPlay 1.68 das iPhone-Bild in einem eigenen Fenster, das AluPC auf Monitor 2 schieben musste –

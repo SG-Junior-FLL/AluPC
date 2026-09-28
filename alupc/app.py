@@ -251,7 +251,9 @@ def self_test(log_path: str) -> int:
 
         ux = controller.airplay.binary()
         lines.append(f"AirPlay: UxPlay {ux or 'nicht installiert'}"
-                     + (f" (Bild an AluPC: {'ja' if handy.supports_vrtp(ux) else 'nein, eigenes Fenster'})" if ux else ""))
+                     + (" (Bild an AluPC: " + ("ja, -vrtp" if handy.supports_vrtp(ux) else "ja, RTP über -vd/-vc/-vs"
+                                               if handy.supports_rtp_pipeline(ux) else "nein, eigenes Fenster") + ")"
+                        if ux else ""))
         lines.append("Handy-Einrichtung: " + (", ".join(label for label, _ in handy.setup_plan(config))
                                                  or "nichts zu installieren"))
         from .ui.first_run import FirstRunDialog

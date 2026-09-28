@@ -426,7 +426,8 @@ class Controller(QObject):
     # ------------------------------------------------------------ Handy → Monitor 2
     def start_airplay(self) -> None:
         """iPhone/iPad auf Monitor 2. Monitor 2 zeigt sofort einen Warte-Bildschirm (Name, Code) – kein
-        „Erweitert“. Kann UxPlay das Bild an AluPC weitergeben (ab 1.73), erscheint es direkt darin; sonst legt
+        „Erweitert“. Kann UxPlay das Bild an AluPC weitergeben (-vrtp ab 1.73, unter Linux auch 1.6x über
+        -vd/-vc/-vs), erscheint es direkt darin; sonst legt
         AluPC UxPlays eigenes Fenster randlos und im Vordergrund darüber, sobald sich das iPhone verbindet."""
         if not self.airplay.binary():
             self.message.emit("AirPlay: Empfänger fehlt · Handy → Einrichten")

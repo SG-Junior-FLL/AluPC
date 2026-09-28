@@ -159,6 +159,48 @@ def test_overlay_tiles_on_start_page(env):
     assert not controller.tile_overlays and not win.isVisible()
 
 
+def test_overlay_quick_add(env):
+    """Schnellwahl unter der Vorschau: ein Klick legt die Vorlage an, schaltet Overlays ein und wählt sie aus."""
+    controller, window, _ = env
+    from alupc.ui.overlay_dialog import OverlayDialog
+
+    dlg = OverlayDialog(controller, window)
+    dlg.show()
+    pump()
+    buttons = [b for b in dlg.quick_row.findChildren(type(dlg.findChild(type(dlg.quick_row.children()[1]))))]
+    assert [b.text() for b in buttons] == ["Musik", "Uhr", "Bauchbinde", "Laufschrift", "LIVE"]
+    buttons[1].click()
+    assert [it["type"] for it in dlg.items] == ["clock"] and dlg.enabled.isChecked()
+    assert dlg.list.currentRow() == 0
+    dlg.accept()
+    pump()
+    assert controller.config["overlays"]["items"][0]["type"] == "clock" and controller.overlay_window.isVisible()
+
+
+def test_start_page_fits_window(env):
+    """Startseite ragt nie rechts über den Rand: die Statuskarte zeigt je nach Platz Schalter mit Namen, nur
+    Symbole oder alles untereinander."""
+    controller, window, _ = env
+    from PySide6.QtWidgets import QScrollArea
+
+    controller.show_source({"type": "clock"})
+    card = window.status_card
+    for width, mode in ((1500, "voll"), (950, "mittel")):
+        window.resize(width, 820)
+        pump(30)
+        card._recheck()
+        pump(5)
+        area = window.pages[0] if isinstance(window.pages[0], QScrollArea) else window.pages[0].findChild(QScrollArea)
+        assert area.widget().width() <= area.viewport().width(), width  # nichts ragt rechts heraus
+        assert card._mode == mode, (width, card._mode, card.width(), card._full_width())
+        chips = list(card._chips())
+        if mode == "voll":  # Namen ganz lesbar, kein Schalter gequetscht
+            assert all(c.text() and c.width() >= c.sizeHint().width() - 1 for c in chips)
+        else:
+            assert not any(c.text() for c in chips) and all(c.toolTip() for c in chips)
+    controller.extend()
+
+
 def _mouse(widget, kind, pos: QPointF, buttons=Qt.LeftButton):
     ev = QMouseEvent(kind, pos, QPointF(widget.mapToGlobal(pos.toPoint())), Qt.LeftButton, buttons, Qt.NoModifier)
     {QMouseEvent.MouseButtonPress: widget.mousePressEvent, QMouseEvent.MouseMove: widget.mouseMoveEvent,

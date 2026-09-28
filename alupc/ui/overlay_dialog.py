@@ -320,7 +320,26 @@ class OverlayDialog(QDialog):
         self.canvas.selected.connect(self._select_id)
         self.canvas.moved.connect(self._moved)
         self.canvas.resized.connect(lambda i, s: self._set(i, size=s, refresh_form=True))
-        body.addWidget(self.canvas, 1)
+        middle = QVBoxLayout()
+        middle.setSpacing(10)
+        middle.addWidget(self.canvas, 1)
+        # Schnellwahl: die beliebtesten Vorlagen mit einem Klick (ohne den Vorlagen-Dialog)
+        quick = QHBoxLayout()
+        quick.setSpacing(6)
+        quick.addStretch(1)
+        for label, icon_name, tpl_name in (("Musik", "music", "Musik – kompakt"), ("Uhr", "clock", "Uhr"),
+                                           ("Bauchbinde", "text", "Bauchbinde"), ("Laufschrift", "text", "Laufschrift"),
+                                           ("LIVE", "cast", "LIVE")):
+            b = button(label, icon_name)
+            b.setToolTip(f"„{tpl_name}“ hinzufügen")
+            b.clicked.connect(lambda _=False, n=tpl_name: self._add_named(n))
+            quick.addWidget(b)
+        quick.addStretch(1)
+        self.quick_row = QWidget()
+        self.quick_row.setLayout(quick)
+        self.quick_row.setVisible(not self.single)
+        middle.addWidget(self.quick_row)
+        body.addLayout(middle, 1)
 
         self.form_host = QScrollArea()
         self.form_host.setWidgetResizable(True)
@@ -417,11 +436,19 @@ class OverlayDialog(QDialog):
     def _add(self):
         picker = TemplatePicker(self)
         if picker.exec() and picker.chosen:
-            self.items.append(picker.chosen)
-            self.enabled.setChecked(True)  # neues Overlay soll man auch sehen
-            self._fill_list()
-            self.list.setCurrentRow(len(self.items) - 1)
-            self._schedule()
+            self._append(picker.chosen)
+
+    def _add_named(self, name: str):
+        tpl = next((t for _c, n, _d, t in ov.TEMPLATES if n == name), None)
+        if tpl is not None:
+            self._append(ov.from_template(tpl, name))
+
+    def _append(self, item: dict):
+        self.items.append(item)
+        self.enabled.setChecked(True)  # neues Overlay soll man auch sehen
+        self._fill_list()
+        self.list.setCurrentRow(len(self.items) - 1)
+        self._schedule()
 
     def _duplicate(self):
         it = self.current()
@@ -460,9 +487,13 @@ class OverlayDialog(QDialog):
         it = self.current()
         self.pos_label = None
         if it is None:
-            hint = QLabel("Noch kein Overlay. „Vorlage hinzufügen“ – z. B. Musik unten links oder eine Uhr.")
+            head = QLabel("Noch kein Overlay")
+            head.setObjectName("SectionTitle")
+            hint = QLabel("Unten eine Schnellwahl antippen (z. B. Musik oder Uhr) oder links „Vorlage hinzufügen“ "
+                          "für alle 15 Vorlagen. Danach in der Vorschau an die gewünschte Stelle ziehen.")
             hint.setWordWrap(True)
             hint.setObjectName("Muted")
+            form.addRow(head)
             form.addRow(hint)
             self.form_host.setWidget(page)
             return
