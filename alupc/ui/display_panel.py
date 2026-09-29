@@ -1,4 +1,4 @@
-"""Fenster „Displays“: Helligkeit je Monitor, einzelne oder alle Monitore ausschalten."""
+"""Fenster „Helligkeit“: Helligkeit je Monitor."""
 
 from __future__ import annotations
 
@@ -21,12 +21,12 @@ class DisplayPanel(QDialog):
         super().__init__(parent)
         self.controller = controller
         self.displays = controller.displays
-        self.setWindowTitle("Displays")
+        self.setWindowTitle("Helligkeit")
         self.setMinimumWidth(520)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Displays", "Helligkeit · Ausschalten", "sun"))
+        lay.addWidget(page_header("Helligkeit", "Je Monitor einstellen", "sun"))
         grid = QGridLayout()
         grid.setHorizontalSpacing(12)
         grid.setVerticalSpacing(10)
@@ -43,13 +43,9 @@ class DisplayPanel(QDialog):
             value = QLabel("…")
             value.setMinimumWidth(96)
             value.setObjectName("Muted")
-            off = button("Aus", "power")
-            off.setToolTip("Nur diesen Monitor ausschalten – Taste oder Maus schaltet ihn wieder ein")
-            off.clicked.connect(lambda _=False, n=name: self._off(n))
             grid.addWidget(label, row, 0)
             grid.addWidget(slider, row, 1)
             grid.addWidget(value, row, 2)
-            grid.addWidget(off, row, 3)
             grid.setColumnStretch(1, 1)
             timer = QTimer(self, singleShot=True, interval=250)  # beim Ziehen nicht jeden Schritt senden
             self.rows[name] = {"slider": slider, "value": value, "timer": timer, "method": None}
@@ -57,16 +53,9 @@ class DisplayPanel(QDialog):
             slider.valueChanged.connect(lambda v, n=name: self._moved(n, v))
             self._load(name)
         lay.addLayout(grid)
-        hint = QLabel("Ausgeschaltet? Eine Taste drücken oder die Maus bewegen – dann geht alles wieder an.")
-        hint.setObjectName("Muted")
-        hint.setWordWrap(True)
-        lay.addWidget(hint)
         row = QHBoxLayout()
-        all_off = button("Alle Displays aus", "power", primary=True)
-        all_off.clicked.connect(self._all_off)
         close = button("Schließen", "check")
         close.clicked.connect(self.accept)
-        row.addWidget(all_off)
         row.addStretch(1)
         row.addWidget(close)
         lay.addLayout(row)
@@ -115,10 +104,3 @@ class DisplayPanel(QDialog):
 
         # echte Helligkeit im Hintergrund (DDC/CI braucht ~1 s), Abdunkel-Ebene danach im GUI-Thread
         run_async(lambda: self.displays.set_hardware(name, value, method), done, lambda _e: done(False))
-
-    def _off(self, name: str) -> None:
-        self.displays.off(name)
-
-    def _all_off(self) -> None:
-        self.accept()
-        self.controller.displays_off()

@@ -95,6 +95,20 @@ class PipWindow(QWidget):
         self.refresh()
         if target is not None:
             self._place_wayland(*target)
+        self._stay_on_top()
+
+    def _stay_on_top(self) -> None:
+        """Immer vor anderen Fenstern. Qt bittet nur darum – KDE (Wayland) ignoriert das, Windows lässt andere
+        „immer oben“-Fenster darüber. Deshalb: KDE per KWin-Skript, Windows regelmäßig nach vorne."""
+        from ..platform.window_tools import keep_on_top
+
+        keep_on_top(self)
+        if sys.platform.startswith("linux"):
+            from ..platform.window_tools import kde_keep_above
+            from .util import run_async
+
+            QTimer.singleShot(400, lambda: run_async(lambda: kde_keep_above(self.windowTitle(), True, False),
+                                                     lambda _r: None, lambda _e: None))
 
     def _place_wayland(self, x: int, y: int) -> None:
         """Wayland: Programme dürfen ihr Fenster nicht selbst hinlegen → KDE (KWin) bitten, es unten rechts auf
@@ -127,6 +141,15 @@ class PipWindow(QWidget):
     def refresh(self):
         if not self.isVisible():
             return
+        if sys.platform.startswith("win"):  # Windows: andere „immer oben“-Fenster nicht darüber lassen
+            import time
+
+            now = time.monotonic()
+            if now - getattr(self, "_top_at", 0.0) > 2:
+                self._top_at = now
+                from ..platform.window_tools import keep_on_top
+
+                keep_on_top(self)
         out = self.controller.output
         if out.isVisible():
             # AluPC zeigt selbst etwas → einfach das Ausgabefenster abfotografieren

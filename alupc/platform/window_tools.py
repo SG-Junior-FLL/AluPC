@@ -109,9 +109,9 @@ KWIN_KEEP_ABOVE = r"""
 """
 
 
-def kde_keep_above(caption: str, above: bool = True) -> None:
-    """KDE (vor allem Wayland): Fenster über Leisten/Panels legen – Qt kann das dort nicht selbst.
-    above=False: „immer oben“ wieder abgeben."""
+def kde_keep_above(caption: str, above: bool = True, fullscreen: bool = True) -> None:
+    """KDE (vor allem Wayland): Fenster über alle anderen legen – Qt kann das dort nicht selbst.
+    above=False: „immer oben“ wieder abgeben. fullscreen=False: Größe lassen (z. B. Bild-in-Bild)."""
     if IS_WINDOWS or "KDE" not in os.environ.get("XDG_CURRENT_DESKTOP", "").upper():
         return
     import json
@@ -119,7 +119,7 @@ def kde_keep_above(caption: str, above: bool = True) -> None:
     from .linux_windows import run_kwin_script
 
     flag = "true" if above else "false"
-    run_kwin_script(KWIN_KEEP_ABOVE % (json.dumps(caption), flag, flag))
+    run_kwin_script(KWIN_KEEP_ABOVE % (json.dumps(caption), flag, "true" if (above and fullscreen) else "false"))
 
 
 # --------------------------------------------------------------------------- Computer sperren

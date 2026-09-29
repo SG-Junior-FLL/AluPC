@@ -8,7 +8,14 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.61.0)
+### Neu in dieser Version (0.62.0)
+- **Behoben: Bild-in-Bild wurde von anderen Fenstern verdeckt.** KDE (Wayland) ignoriert „immer im
+  Vordergrund“ von Qt – AluPC setzt es jetzt über KDE selbst (wie beim Monitor-2-Fenster). Unter Windows holt
+  AluPC das Fenster regelmäßig wieder ganz nach vorne.
+- **Entfernt: Displays ausschalten** (funktionierte nicht zuverlässig). Die Kachel heißt jetzt „Helligkeit“ und
+  regelt nur noch die Helligkeit je Monitor.
+
+### Neu in Version 0.61.0
 **Neu: Whiteboard**
 - Kachel „Whiteboard“: Monitor 2 wird zur Tafel, „Zeigen & Zeichnen“ öffnet sich gleich mit dem Stift.
   Hintergründe (Pfeil an der Kachel): Weiß, Kariert, Liniert, Punkteraster, Millimeterpapier,

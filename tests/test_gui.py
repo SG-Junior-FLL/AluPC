@@ -3319,11 +3319,13 @@ def test_whiteboard_backgrounds_and_pen(env, monkeypatch):
     assert "Kariert" in labels and "Tafel (grün)" in labels
 
 
-def test_display_control_software_dim_and_wake(env, monkeypatch):
-    """Displays: ohne steuerbaren Monitor dunkelt AluPC selbst ab (Klicks gehen durch); einzeln ausschalten
-    deckt schwarz ab – eine Eingabe (Leerlaufzeit springt zurück) schaltet wieder ein."""
+def test_display_control_software_dim(env, monkeypatch):
+    """Helligkeit: ohne steuerbaren Monitor dunkelt AluPC selbst ab (Klicks gehen durch). Ausschalten gibt es
+    nicht mehr (funktionierte nicht zuverlässig)."""
+    from PySide6.QtCore import Qt
 
     from alupc import display_control as dc
+    from alupc.startpage import COMMANDS
 
     controller, window, _ = env
     d = controller.displays
@@ -3331,38 +3333,42 @@ def test_display_control_software_dim_and_wake(env, monkeypatch):
     name = d.screens()[0].name()
     assert d.set_brightness(name, 40) == "abdunkeln"
     shade = d.shades[name]
-    assert abs(shade.alpha - 0.54) < 0.01 and not shade.blackout
-    from PySide6.QtCore import Qt
-
+    assert abs(shade.alpha - 0.54) < 0.01
     assert shade.windowFlags() & Qt.WindowTransparentForInput  # Klicks gehen durch
+    window.refresh()
+    assert window.t_display.badge == "GEDIMMT"
     d.set_brightness(name, 100)
     assert name not in d.shades
-    # ausschalten → aufwecken durch Eingabe (Leerlaufzeit wird kleiner)
-    idle = [50.0]
-    monkeypatch.setattr(d, "_raw_idle", lambda: idle[0])
-    monkeypatch.setattr(d, "_power", lambda n, on: False)
-    assert d.off(name) == "abdecken" and d.is_off(name)
-    window.refresh()
-    assert window.t_display.badge == "AUS"
-    d._check_wake()  # direkt danach: zählt noch nicht (auslösender Klick)
-    assert d.is_off(name)
-    d._armed_at -= 2
-    idle[0] = 52.0
-    d._check_wake()
-    assert d.is_off(name)  # weiter nichts getan
-    idle[0] = 0.3  # Taste gedrückt
-    d._check_wake()
-    assert not d.is_off(name) and not d.blackouts
+    d.step_all(-20)
+    assert all(v == 80 for v in d.software.values())
+    d.shutdown()
+    assert not d.shades
+    assert "displays_aus" not in COMMANDS and "monitor2_aus" not in COMMANDS
+    assert not hasattr(d, "off") and not hasattr(controller, "displays_off")
     # Parser
     assert dc.parse_ddcutil_brightness("VCP 10 C 30 100") == 30
     assert dc.parse_brightnessctl("intel_backlight,backlight,5000,50%,10000") == 50
     text = "Display 1\n   I2C bus:  /dev/i2c-4\n   DRM connector:  card1-HDMI-A-1\nDisplay 2\n   DRM_connector: card1-DP-2\n"
     assert dc.ddcutil_displays(text) == {"hdmi1": 1, "dp2": 2}
     assert dc._norm("HDMI-1") == dc._norm("HDMI-A-1") and dc.is_internal("eDP-1")
-    # Befehle
-    msgs, offs = [], []
-    controller.message.connect(msgs.append)
-    monkeypatch.setattr(d, "all_off", lambda: offs.append(1) or "system")
-    controller.run_command("displays_aus")
-    assert any("Taste" in m for m in msgs)
-    assert _until(lambda: offs, 3)  # kurz verzögert (Meldung lesen, Finger weg)
+
+
+def test_pip_stays_on_top_on_kde(env, monkeypatch):
+    """Bild-in-Bild: andere Fenster dürfen es nicht verdecken. KDE (Wayland) ignoriert Qts „immer oben“ – AluPC
+    setzt es per KWin-Skript (ohne Vollbild, Größe bleibt)."""
+    import sys
+
+    if not sys.platform.startswith("linux"):
+        pytest.skip("KDE-Weg nur unter Linux")
+    from alupc.platform import linux_windows
+
+    controller, _window, _ = env
+    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "KDE")
+    scripts = []
+    monkeypatch.setattr(linux_windows, "run_kwin_script", lambda s: scripts.append(s) or "")
+    pip = controller.pip
+    pip.show_on_main()
+    assert _until(lambda: any("Bild-in-Bild" in s for s in scripts), 3)
+    script = next(s for s in scripts if "Bild-in-Bild" in s)
+    assert "keepAbove = true" in script and "if (false) { list[i].fullScreen" in script
+    pip.hide()

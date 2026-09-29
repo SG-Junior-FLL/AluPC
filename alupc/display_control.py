@@ -1,17 +1,12 @@
-"""Displays steuern: Helligkeit je Monitor und Ausschalten (alle oder einzeln) – eine Taste oder die Maus schaltet
-wieder ein.
+"""Displays steuern: Helligkeit je Monitor.
 
-Helligkeit, je Monitor der erste Weg, der geht:
+Je Monitor der erste Weg, der geht:
 * Windows: echte Monitor-Helligkeit über das Monitorkabel (DDC/CI, dxva2) bzw. Laptop-Bildschirm (WMI)
 * Linux: DDC/CI über `ddcutil` (externe Monitore), Laptop-Bildschirm über `brightnessctl`
 * sonst (z. B. in einer VM): AluPC dunkelt selbst ab – eine durchsichtige, dunkle Ebene über dem Monitor, durch
   die man weiter klicken kann
 
-Ausschalten:
-* alle: Energiesparen des Systems (Windows: SC_MONITORPOWER, KDE: `kscreen-doctor --dpms off`, X11: `xset dpms`) –
-  das System schaltet bei Taste/Maus selbst wieder ein
-* einzeln (oder wenn das System es nicht kann): Monitor per DDC/CI aus, wo möglich, und in jedem Fall schwarz
-  abdecken. AluPC achtet auf jede Eingabe (auch in anderen Programmen) und schaltet dann wieder ein.
+(Ausschalten gab es in 0.61 – es funktionierte nicht zuverlässig und wurde wieder entfernt.)
 """
 
 from __future__ import annotations
@@ -20,10 +15,9 @@ import re
 import shutil
 import subprocess
 import sys
-import time
 
-from PySide6.QtCore import QObject, QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QCursor, QGuiApplication, QPainter
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QGuiApplication, QPainter
 from PySide6.QtWidgets import QWidget
 
 IS_WINDOWS = sys.platform.startswith("win")
@@ -132,13 +126,6 @@ class _WindowsDDC:
 
         return self._with(screen_name, write)
 
-    def power(self, screen_name: str, on: bool) -> bool:
-        def write(hs):
-            return any(self.dxva2.SetVCPFeature(h, 0xD6, 1 if on else 5) for h in hs)
-
-        return self._with(screen_name, write)
-
-
 def _windows_wmi_get() -> int | None:
     out = _run(["powershell", "-NoProfile", "-Command",
                 "(Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightness -ErrorAction Stop)"
@@ -196,28 +183,19 @@ def is_internal(name: str) -> bool:
     return _norm(name).startswith(("edp", "lvds", "dsi"))
 
 
-# --------------------------------------------------------------------------- Abdunkeln / Abdecken (überall)
+# --------------------------------------------------------------------------- Abdunkeln (überall)
 class ShadeWindow(QWidget):
-    """Dunkle Ebene über einem Monitor: halbdurchsichtig zum Abdunkeln (Klicks gehen durch) oder schwarz
-    (Monitor „aus“ – dann weckt jede Taste/Maus)."""
+    """Halbdurchsichtige dunkle Ebene über einem Monitor – Klicks gehen durch."""
 
-    woke = Signal()
-
-    def __init__(self, screen, blackout: bool, alpha: float = 0.0):
-        flags = Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
-        if not blackout:
-            flags |= Qt.WindowTransparentForInput | Qt.WindowDoesNotAcceptFocus
-        super().__init__(None, flags)
-        self.blackout, self.alpha = blackout, alpha
-        self.setAttribute(Qt.WA_TranslucentBackground, not blackout)
-        self.setAttribute(Qt.WA_ShowWithoutActivating, not blackout)
+    def __init__(self, screen, alpha: float = 0.0):
+        super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
+                         | Qt.WindowTransparentForInput | Qt.WindowDoesNotAcceptFocus)
+        self.alpha = alpha
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WA_DeleteOnClose)
-        if blackout:
-            self.setCursor(Qt.BlankCursor)
-            self.setMouseTracking(True)
         self.setGeometry(screen.geometry())
-        self._shown_at = time.monotonic()
-        if IS_WINDOWS and not blackout:
+        if IS_WINDOWS:
             QTimer.singleShot(0, self._exclude_from_capture)
 
     def _exclude_from_capture(self):
@@ -236,48 +214,24 @@ class ShadeWindow(QWidget):
     def paintEvent(self, _e):
         p = QPainter(self)
         c = QColor(0, 0, 0)
-        c.setAlphaF(1.0 if self.blackout else max(0.0, min(0.9, self.alpha)))
+        c.setAlphaF(max(0.0, min(0.9, self.alpha)))
         p.setCompositionMode(QPainter.CompositionMode_Source)
         p.fillRect(self.rect(), c)
         p.end()
 
-    def _wake(self):
-        if self.blackout and time.monotonic() - self._shown_at > 0.8:  # das auslösende Klicken nicht mitzählen
-            self.woke.emit()
-
-    def keyPressEvent(self, _e):
-        self._wake()
-
-    def mousePressEvent(self, _e):
-        self._wake()
-
-    def mouseMoveEvent(self, _e):
-        self._wake()
-
-    def wheelEvent(self, _e):
-        self._wake()
-
 
 # --------------------------------------------------------------------------- Steuerung
 class DisplayControl(QObject):
-    """Helligkeit und Ein/Aus aller Monitore. `idle` liefert Rohwerte der Leerlaufzeit (zum Aufwecken)."""
+    """Helligkeit aller Monitore."""
 
     changed = Signal()
 
-    def __init__(self, idle=None, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.idle = idle
         self.shades: dict[str, ShadeWindow] = {}  # abgedunkelt (Software)
-        self.blackouts: dict[str, ShadeWindow] = {}  # „aus“ (schwarz)
         self.software: dict[str, int] = {}  # Helligkeit, die AluPC selbst simuliert
-        self.powered_off: set[str] = set()  # per DDC ausgeschaltet
         self._ddc_win = None
         self._ddcutil: dict[str, int] | None = None
-        self._watch = QTimer(self, interval=250)
-        self._watch.timeout.connect(self._check_wake)
-        self._last_raw = None
-        self._last_cursor: QPoint | None = None
-        self._armed_at = 0.0
 
     # ---- Monitore
     @staticmethod
@@ -362,7 +316,7 @@ class DisplayControl(QObject):
             return
         alpha = (100 - percent) / 100 * 0.9
         if shade is None:
-            shade = ShadeWindow(screen, blackout=False, alpha=alpha)
+            shade = ShadeWindow(screen, alpha=alpha)
             self.shades[name] = shade
             shade.show()
         shade.set_alpha(alpha)
@@ -372,100 +326,6 @@ class DisplayControl(QObject):
     def step_all(self, delta: int) -> None:
         for s in self.screens():
             self.set_brightness(s.name(), self.get_brightness(s.name()) + delta)
-
-    # ---- Ein/Aus
-    def is_off(self, name: str) -> bool:
-        return name in self.blackouts or name in self.powered_off
-
-    def all_off(self) -> str:
-        """Alle Monitore aus – über das Energiesparen des System (weckt selbst), sonst abdecken."""
-        if IS_WINDOWS:
-            try:
-                import ctypes
-
-                ctypes.windll.user32.PostMessageW(0xFFFF, 0x0112, 0xF170, 2)  # HWND_BROADCAST, SC_MONITORPOWER, aus
-                return "system"
-            except Exception:  # noqa: BLE001
-                pass
-        else:
-            from .platform.linux_display import is_wayland
-
-            cmd = (["kscreen-doctor", "--dpms", "off"] if is_wayland() else ["xset", "dpms", "force", "off"])
-            if shutil.which(cmd[0]) and _ok(cmd):
-                return "system"
-        for s in self.screens():
-            self.off(s.name())
-        return "abdecken"
-
-    def off(self, name: str) -> str:
-        """Einen Monitor aus: per DDC/CI (falls möglich) und schwarz abdecken. Taste/Maus → wieder an."""
-        screen = self.screen(name)
-        if screen is None or self.is_off(name):
-            return ""
-        way = "abdecken"
-        if self._power(name, False):
-            self.powered_off.add(name)
-            way = "ddc"
-        cover = ShadeWindow(screen, blackout=True)
-        cover.woke.connect(self.wake_all)
-        self.blackouts[name] = cover
-        cover.show()
-        cover.setGeometry(screen.geometry())
-        cover.raise_()
-        cover.activateWindow()
-        cover.setFocus()
-        self._arm()
-        self.changed.emit()
-        return way
-
-    def wake_all(self) -> None:
-        for name in list(self.powered_off):
-            self._power(name, True)
-        self.powered_off.clear()
-        for cover in self.blackouts.values():
-            cover.close()
-        self.blackouts.clear()
-        self._watch.stop()
-        self.changed.emit()
-
-    def _power(self, name: str, on: bool) -> bool:
-        try:
-            if IS_WINDOWS:
-                ddc = self._win_ddc()
-                return bool(ddc and ddc.power(name, on))
-            num = self._ddcutil_map().get(_norm(name))
-            return num is not None and _ok(["ddcutil", "--display", str(num), "setvcp", "D6", "01" if on else "05"])
-        except (OSError, AttributeError):
-            return False
-
-    # ---- Aufwecken: jede Eingabe (auch in anderen Programmen)
-    def _arm(self) -> None:
-        self._armed_at = time.monotonic()
-        self._last_raw = self._raw_idle()
-        self._last_cursor = QCursor.pos()
-        self._watch.start()
-
-    def _raw_idle(self):
-        if self.idle is None:
-            return None
-        try:
-            return self.idle.raw()
-        except Exception:  # noqa: BLE001
-            return None
-
-    def _check_wake(self) -> None:
-        if not self.blackouts and not self.powered_off:
-            self._watch.stop()
-            return
-        if time.monotonic() - self._armed_at < 0.8:  # Klick/Taste, mit der man ausgeschaltet hat, nicht zählen
-            self._last_raw, self._last_cursor = self._raw_idle(), QCursor.pos()
-            return
-        raw, pos = self._raw_idle(), QCursor.pos()
-        moved = self._last_cursor is not None and pos != self._last_cursor
-        typed = raw is not None and self._last_raw is not None and raw < self._last_raw  # Leerlaufzeit neu begonnen
-        self._last_raw, self._last_cursor = raw, pos
-        if moved or typed:
-            self.wake_all()
 
     # ---- Helfer
     def _win_ddc(self):
@@ -488,7 +348,6 @@ class DisplayControl(QObject):
         return p.name() if p else ""
 
     def shutdown(self) -> None:
-        self.wake_all()
         for shade in self.shades.values():
             shade.close()
         self.shades.clear()

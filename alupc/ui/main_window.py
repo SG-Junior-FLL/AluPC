@@ -506,7 +506,7 @@ class MainWindow(QMainWindow):
         board_menu = QMenu(self)
         board_menu.aboutToShow.connect(lambda: self._fill_board_menu(board_menu))
         self.t_board.set_menu(board_menu, split=True)
-        # Displays: Helligkeit und Ausschalten (Taste/Maus schaltet wieder ein)
+        # Helligkeit der Displays
         self.t_display = self.tiles["display"]
         self.t_display.activated.connect(self.open_display_panel)
         display_menu = QMenu(self)
@@ -869,10 +869,6 @@ class MainWindow(QMainWindow):
         menu.addAction(icons.icon("sun", col, 18), "Helligkeit einstellen …", self.open_display_panel)
         menu.addAction(icons.icon("sun", col, 18), "Heller", lambda: c.displays.step_all(10))
         menu.addAction(icons.icon("moon", col, 18), "Dunkler", lambda: c.displays.step_all(-10))
-        menu.addSeparator()
-        menu.addAction(icons.icon("power", col, 18), "Alle Displays aus", c.displays_off)
-        if c.output_screen() is not None:
-            menu.addAction(icons.icon("power", col, 18), "Nur Monitor 2 aus", c.monitor2_off)
         if c.displays.shades:
             menu.addAction(icons.icon("refresh", col, 18), "Abdunkeln zurücksetzen",
                            lambda: [c.displays.set_brightness(n, 100, "abdunkeln") for n in list(c.displays.shades)])
@@ -1511,9 +1507,8 @@ class MainWindow(QMainWindow):
         self.t_saver.set_state(saver_on, badge="AN" if saver_on else "")
         overlays_on = c.overlay_window.needed() and bool(c.config["overlays"].get("on"))
         self.t_overlays.set_state(overlays_on, badge="AN" if overlays_on else "")
-        dimmed = bool(c.displays.shades or c.displays.blackouts or c.displays.powered_off)
-        self.t_display.set_state(dimmed, badge="AUS" if (c.displays.blackouts or c.displays.powered_off)
-                                 else "GEDIMMT" if dimmed else "")
+        dimmed = bool(c.displays.shades)
+        self.t_display.set_state(dimmed, badge="GEDIMMT" if dimmed else "")
         drawing = bool(getattr(self, "presenter", None) and self.presenter.isVisible())
         self.t_draw.set_state(drawing, badge="OFFEN" if drawing else "")
         for key, tile in self.custom_tiles.items():
