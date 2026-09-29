@@ -144,6 +144,18 @@ class IdleClock:
                 self.scale = 1.0
         return None if self.scale is None else raw * self.scale
 
+    def raw(self) -> float | None:
+        """Leerlaufwert ohne Umrechnung. Zum Aufwecken zählt nur: wird er kleiner, gab es eine Eingabe."""
+        fn = {"windows": self._windows, "freedesktop": self._freedesktop, "gnome": self._gnome,
+              "xprintidle": self._xprintidle}.get(self.method)
+        if fn is None:
+            return None
+        try:
+            return float(fn())
+        except Exception:  # noqa: BLE001
+            self._close()
+            return None
+
     def seconds(self) -> float | None:
         fn = {"windows": self._windows, "freedesktop": self._freedesktop, "gnome": self._gnome,
               "xprintidle": self._xprintidle}.get(self.method)

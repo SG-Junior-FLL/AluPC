@@ -13,7 +13,7 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
     QBoxLayout,
@@ -127,6 +127,14 @@ class HoverMixin:
 
 
 # --------------------------------------------------------------------------- Kachel
+def _partner(color: QColor) -> QColor:
+    """Nachbarfarbe für zweifarbige Verläufe (Farbton ~28° weiter, etwas dunkler)."""
+    h, s, v, a = color.getHsv()
+    if h < 0:  # Grau
+        return color.darker(115)
+    return QColor.fromHsv((h + 28) % 360, min(255, s + 10), max(0, int(v * 0.9)), a)
+
+
 class Tile(HoverMixin, QAbstractButton):
     """Große Kachel: Symbol im farbigen Kreis, Titel, Untertitel, Zustand (aktiv/Warnung).
 
@@ -198,7 +206,10 @@ class Tile(HoverMixin, QAbstractButton):
             p.fillPath(rounded(r.adjusted(-i * 0.5, 1.5 + i * 1.2, i * 0.5, 1.5 + i * 1.6), 16 + i), shade)
         base = QColor(t.surface)
         hover_bg = t.mix(t.surface, t.surface2, 0.9)
-        bg = t.mix(base.name(), hover_bg.name(), self._hover)
+        flat = t.mix(base.name(), hover_bg.name(), self._hover)
+        bg = QLinearGradient(r.topLeft(), r.bottomLeft())  # Glas: oben einen Hauch heller
+        bg.setColorAt(0, t.mix(flat.name(), "#ffffff", 0.04 if t.dark else 0.0))
+        bg.setColorAt(1, flat)
         if self.active or self.alert:
             soft = QColor(accent)
             soft.setAlphaF(0.14 if t.dark else 0.10)
@@ -213,10 +224,24 @@ class Tile(HoverMixin, QAbstractButton):
                 p.setPen(QPen(glow, 2 + i * 2))
                 p.setBrush(Qt.NoBrush)
                 p.drawPath(rounded(r.adjusted(-i, -i, i, i), 16 + i))
-        border = QColor(accent) if (self.active or self.alert) else t.mix(t.border, t.muted, 0.35 * self._hover)
-        p.setPen(QPen(border, 1.6 if (self.active or self.alert) else 1))
+        if self.active or self.alert:
+            p.setPen(QPen(QColor(accent), 1.6))
+        elif self._hover > 0.01:  # Rand leuchtet im Verlauf der Kachelfarbe
+            edge = QLinearGradient(r.topLeft(), r.bottomRight())
+            c1, c2 = QColor(accent), _partner(accent)
+            c1.setAlphaF(0.25 + 0.55 * self._hover)
+            c2.setAlphaF(0.15 + 0.45 * self._hover)
+            edge.setColorAt(0, c1)
+            edge.setColorAt(1, c2)
+            p.setPen(QPen(QBrush(edge), 1.3))
+        else:
+            p.setPen(QPen(QColor(t.border), 1))
         p.setBrush(Qt.NoBrush)
         p.drawPath(rounded(r, 16))
+        # feine helle Kante oben (Glas)
+        top_edge = QColor(255, 255, 255, 18 if t.dark else 0)
+        p.setPen(QPen(top_edge, 1))
+        p.drawLine(QPointF(r.left() + 14, r.top() + 1), QPointF(r.right() - 14, r.top() + 1))
         if self.isDown():
             p.fillPath(rounded(r, 16), QColor(0, 0, 0, 30))
 
@@ -225,7 +250,12 @@ class Tile(HoverMixin, QAbstractButton):
         chip = QRectF(r.left() + pad, r.center().y() - 22, 44, 44)
         p.setPen(Qt.NoPen)
         grad = QLinearGradient(chip.topLeft(), chip.bottomRight())
-        top, bottom = QColor(accent.lighter(125)), QColor(accent.darker(112))
+        top, bottom = QColor(accent.lighter(118)), _partner(accent)  # zweifarbig: Farbe → Nachbarfarbe
+        if self._hover > 0.01 and not (self.active or self.alert):  # Leuchten hinter dem Symbol
+            halo = QColor(accent)
+            halo.setAlphaF(0.22 * self._hover)
+            p.setBrush(halo)
+            p.drawRoundedRect(chip.adjusted(-4, -3, 4, 5), 16, 16)
         if not (self.active or self.alert):
             strength = 0.82 + 0.18 * self._hover
             top.setAlphaF(strength)
@@ -309,14 +339,14 @@ class NavButton(HoverMixin, QAbstractButton):
         if self.compact:  # nur Symbol, mittig
             r = QRectF(self.rect().center().x() - 22, 2, 44, self.height() - 4)
         if self.isChecked():
-            accent = QColor(t.accent)
-            grad = QLinearGradient(r.topLeft(), r.bottomRight())
-            grad.setColorAt(0, accent.lighter(112))
-            grad.setColorAt(1, accent.darker(108))
-            glow = QColor(accent)
-            glow.setAlphaF(0.25)
-            p.fillPath(rounded(r.adjusted(0, 2, 0, 3), 12), glow)
-            p.fillPath(rounded(r, 12), grad)
+            # Verlauf Akzent → Partnerfarbe mit weichem Leuchten darunter
+            for i, a in enumerate((0.20, 0.10, 0.05)):
+                glow = QColor(t.accent2)
+                glow.setAlphaF(a)
+                p.fillPath(rounded(r.adjusted(-i, 2 + i, i, 3 + i * 2), 13 + i), glow)
+            p.fillPath(rounded(r, 13), t.gradient(r, diagonal=False))
+            shine = QColor(255, 255, 255, 34)  # Glanzkante oben
+            p.fillPath(rounded(QRectF(r.left() + 2, r.top() + 1, r.width() - 4, r.height() * 0.45), 11), shine)
         elif self._hover > 0:
             h = QColor(t.text)
             h.setAlphaF(0.07 * self._hover)
@@ -388,9 +418,13 @@ class MonitorCard(QWidget):
             p.drawEllipse(QPointF(thumb.right() - 5, thumb.top() + 5), 3.5, 3.5)
             p.end()
             return
-        p.fillPath(rounded(r, 14), QColor(t.surface2))
-        p.setPen(QPen(QColor(t.border), 1))
-        p.drawPath(rounded(r, 14))
+        # Glas-Karte mit Verlaufsrand (Akzent → Partnerfarbe)
+        bg = QLinearGradient(r.topLeft(), r.bottomLeft())
+        bg.setColorAt(0, t.mix(t.surface2, "#ffffff", 0.04 if t.dark else 0.0))
+        bg.setColorAt(1, QColor(t.surface))
+        p.fillPath(rounded(r, 16), bg)
+        p.setPen(QPen(QBrush(t.gradient(r, alpha=0.55)), 1.2))
+        p.drawPath(rounded(r, 16))
         thumb = QRectF(r.left() + 8, r.top() + 8, r.width() - 16, (r.width() - 16) * 9 / 16)
         path = rounded(thumb, 9)
         p.fillPath(path, QColor("#000000" if self.image is not None else t.bg))
@@ -599,12 +633,12 @@ class StatusCard(QWidget):
             if chip is not None:
                 if chip.property("full_text") is None:
                     chip.setProperty("full_text", chip.text())
-                if chip.text():  # echte Breite mit Namen merken (nach dem Stylesheet ist sie größer)
-                    old = int(chip.property("full_w") or 0)
-                    if chip.sizeHint().width() > old:
-                        chip.setProperty("full_w", chip.sizeHint().width())
-                        if old:  # breiter als gedacht → gleich nochmal entscheiden
-                            QTimer.singleShot(0, self._recheck)
+                full = _chip_width(chip)
+                old = int(chip.property("full_w") or 0)
+                if full > old:
+                    chip.setProperty("full_w", full)
+                    if old:  # breiter als gedacht → gleich nochmal entscheiden
+                        QTimer.singleShot(0, self._recheck)
                 yield chip
 
     def _full_width(self) -> int:
@@ -622,7 +656,8 @@ class StatusCard(QWidget):
     def _auto(self) -> None:
         """Breit: nebeneinander, Schalter mit Namen · mittel: nebeneinander, Schalter nur Symbol ·
         schmal: Vorschau oben, Text darunter."""
-        mode = "schmal" if self._narrow else ("voll" if self.width() >= self._full_width() else "mittel")
+        need = max(self._full_width(), getattr(self, "_full_min", 0))
+        mode = "schmal" if self._narrow else ("voll" if self.width() >= need else "mittel")
         if mode == self._mode:
             return
         self._mode = mode
@@ -634,6 +669,23 @@ class StatusCard(QWidget):
         for chip in self._chips():  # Schnellschalter: knapp nur Symbol (Name als Tooltip)
             chip.setText(chip.property("full_text") if mode == "voll" else "")
             chip.setToolTip(chip.property("full_text"))
+            # selbst gerechnete Mindestbreite: Qt vergisst mit Stylesheet den Abstand Symbol–Text
+            chip.setMinimumWidth(int(chip.property("full_w")) if mode == "voll" else 0)
+        if mode == "voll":
+            QTimer.singleShot(0, self._verify_fit)
+
+    def _verify_fit(self) -> None:
+        """Nachmessen: Passen die Schalter mit Namen wirklich? Sonst wurden sie abgeschnitten („Bild-in-Bil…“) –
+        dann nur Symbole, bis die Karte breiter ist als jetzt."""
+        if self._mode != "voll" or not self.isVisible():
+            return
+        chips = [c for c in self._chips() if c.isVisible()]
+        squeezed = any(c.width() < int(c.property("full_w") or 0) - 1 for c in chips)
+        touching = any(a.geometry().right() + 4 > b.geometry().left() for a, b in zip(chips, chips[1:]))
+        if squeezed or touching:
+            self._full_min = self.width() + 1
+            self._mode = ""
+            self._auto()
 
     def set(self, icon_name: str, caption: str, title: str, pills: list[tuple[str, str]]):
         self.preview.icon_name = icon_name
@@ -655,6 +707,14 @@ class StatusCard(QWidget):
     def pill_texts(self) -> list[str]:
         pills = (self.pills.itemAt(i).widget() for i in range(self.pills.count()))
         return [p.text_ for p in pills if not p.isHidden()]
+
+
+def _chip_width(chip) -> int:
+    """Breite eines Schnellschalters mit Namen: Text (halbfett) + Symbol + Abstand + Innenrand + Rand."""
+    f = QFont(chip.font())
+    f.setWeight(QFont.DemiBold)
+    text = QFontMetrics(f).horizontalAdvance(chip.property("full_text") or chip.text())
+    return text + chip.iconSize().width() + 8 + 2 * 14 + 2 + 6  # +6 Luft (Schriftglättung je System)
 
 
 def _chip_pixmap(icon_name: str, color: str, size: int):
@@ -1017,11 +1077,12 @@ class SectionHeader(QWidget):
         pill_w = QFontMetrics(cf).horizontalAdvance(label) + 14
         pill = QRectF(x, h / 2 - 9, pill_w, 18)
         p.setPen(Qt.NoPen)
-        soft = QColor(t.accent)
-        soft.setAlphaF(0.18)
-        p.setBrush(soft if not self.collapsed else QColor(t.surface2))
+        if self.collapsed:
+            p.setBrush(QColor(t.surface2))
+        else:  # Verlauf wie Knöpfe und Navigation
+            p.setBrush(t.gradient(pill, diagonal=False))
         p.drawRoundedRect(pill, 9, 9)
-        p.setPen(QColor(t.accent if not self.collapsed else t.muted))
+        p.setPen(QColor("#ffffff" if not self.collapsed else t.muted))
         p.drawText(pill, Qt.AlignCenter, label)
         x = pill.right() + 12
         # eingeklappt: die Kacheln als kleine farbige Symbole (bis 10)
@@ -1039,8 +1100,16 @@ class SectionHeader(QWidget):
                             1.8)
                 x += size + 5
             x += 7
-        # Linie bis zum Rand
-        p.setPen(QPen(QColor(t.border), 1))
+        # Linie bis zum Rand – beginnt in der Akzentfarbe und läuft aus
+        line = QLinearGradient(QPointF(x, 0), QPointF(self.width() - 4, 0))
+        start = QColor(t.accent2 if self._hover else t.accent)
+        start.setAlphaF(0.55 if not self.collapsed else 0.25)
+        line.setColorAt(0, start)
+        line.setColorAt(0.5, QColor(t.border))
+        end = QColor(t.border)
+        end.setAlphaF(0.0)
+        line.setColorAt(1, end)
+        p.setPen(QPen(QBrush(line), 1.2))
         p.drawLine(QPointF(x, h / 2), QPointF(self.width() - 4, h / 2))
         p.end()
 

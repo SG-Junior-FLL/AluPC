@@ -100,6 +100,8 @@ DEFAULTS: dict = {
     "laser": {"size": 100, "trail": True},
     # Overlays über Monitor 2 (Musik, Uhr, Bauchbinde …) – siehe overlays.py
     "overlays": {"on": False, "items": []},
+    # Whiteboard auf Monitor 2: zuletzt gewählter Hintergrund (whiteboard.BACKGROUNDS)
+    "whiteboard": {"background": "weiss"},
     # Fenster „Zeigen & Zeichnen“: Werkzeug, Farbe, Stärke; Zeichnungen automatisch löschen
     "draw": {"tool": "laser", "color": "#ef4444", "width": 4, "fps": 30,
              # gespeicherte Zeichnungen und zu welchem Inhalt sie gehören (bleiben über Neustarts)

@@ -113,6 +113,11 @@ class Controller(QObject):
 
         self.screensaver = ScreensaverManager(self)
         self.screensaver.changed.connect(self.changed.emit)
+        from .display_control import DisplayControl
+
+        # Helligkeit und Ein/Aus der Monitore (Taste/Maus weckt – nutzt die Leerlaufzeit des Systems)
+        self.displays = DisplayControl(self.screensaver.idle, self)
+        self.displays.changed.connect(self.changed.emit)
 
         # Timer beobachten: Ton bei „noch 1 Minute“ und bei Ablauf
         from PySide6.QtCore import QTimer
@@ -1166,6 +1171,11 @@ class Controller(QObject):
             "overlays": lambda: self.set_overlays(None),
             "overlays_an": lambda: self.set_overlays(True),
             "overlays_aus": lambda: self.set_overlays(False),
+            "whiteboard": self.show_whiteboard,
+            "displays_aus": self.displays_off,
+            "monitor2_aus": self.monitor2_off,
+            "heller": lambda: self.displays.step_all(10),
+            "dunkler": lambda: self.displays.step_all(-10),
         }
         action = actions.get(command)
         if action:
@@ -1321,6 +1331,37 @@ class Controller(QObject):
     def show_now_playing(self) -> None:
         self.show_source({"type": "nowplaying"})
 
+    def displays_off(self) -> None:
+        """Alle Monitore aus – jede Taste oder Mausbewegung schaltet sie wieder ein."""
+        self.message.emit("Displays aus · Taste oder Maus → wieder an")
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(600, self.displays.all_off)  # kurz warten: Meldung sehen, Finger von der Maus
+
+    def monitor2_off(self) -> None:
+        screen = self.output_screen()
+        if screen is None:
+            self.message.emit("Kein zweiter Monitor gefunden.")
+            return
+        self.displays.off(screen.name())
+
+    def show_whiteboard(self, background: str | None = None, draw: bool = True) -> None:
+        """Whiteboard auf Monitor 2 (Hintergrund wählbar) und gleich „Zeigen & Zeichnen“ zum Draufzeichnen.
+        Die Stiftfarbe passt sich an (weiß auf Tafeln, dunkel auf Papier)."""
+        from . import whiteboard
+
+        bg = background or self.config["whiteboard"].get("background", whiteboard.DEFAULT)
+        if bg not in whiteboard.BACKGROUNDS:
+            bg = whiteboard.DEFAULT
+        self.config["whiteboard"] = {**self.config["whiteboard"], "background": bg}
+        draw_cfg = self.config["draw"]
+        color = whiteboard.pen_color_for(bg, draw_cfg.get("color", "#ef4444"))
+        tool = draw_cfg.get("tool", "laser")
+        self.config["draw"] = {**draw_cfg, "color": color, "tool": "pen" if tool == "laser" else tool}
+        self.show_source({"type": "whiteboard", "background": bg})
+        if draw:
+            self.presenter_requested.emit()
+
     def media_control(self, action: str) -> None:
         """Abspielen/Pause, Weiter, Zurück beim Player des PCs (Spotify, Browser …) – im Hintergrund."""
         from .now_playing_view import feed
@@ -1384,6 +1425,7 @@ class Controller(QObject):
         tracker().shutdown()
         self.screensaver.timer.stop()
         self.screensaver.keep_awake.set(False)  # System darf wieder abdunkeln
+        self.displays.shutdown()  # abgedunkelte/ausgeschaltete Monitore wieder normal
         self.output.set_screensaver(None)
         self.output.set_content(None)
         self.airplay.shutdown()

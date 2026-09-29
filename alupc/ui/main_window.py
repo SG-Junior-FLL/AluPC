@@ -6,7 +6,7 @@ import copy
 import sys
 
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QFont
 from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtWidgets import (
     QApplication,
@@ -436,6 +436,9 @@ class MainWindow(QMainWindow):
         ]:
             chip = QPushButton(text)
             chip.setObjectName("Chip")
+            chip_font = chip.font()  # halbfett schon beim Messen – sonst wird der Name abgeschnitten („Bild-in-Bil“)
+            chip_font.setWeight(QFont.DemiBold)
+            chip.setFont(chip_font)
             chip.setCheckable(True)
             chip.setCursor(Qt.PointingHandCursor)
             chip.setToolTip(tip)
@@ -497,6 +500,18 @@ class MainWindow(QMainWindow):
         draw_menu.addAction(icons.icon("trash", theme.current().text, 18), "Zeichnungen auf Monitor 2 löschen",
                             c.laser.clear_strokes)
         self.t_draw.set_menu(draw_menu, split=True)
+        # Whiteboard: Klick = zuletzt gewählter Hintergrund + Zeichnen, Pfeil = Hintergrund wählen
+        self.t_board = self.tiles["whiteboard"]
+        self.t_board.activated.connect(lambda: c.show_whiteboard())
+        board_menu = QMenu(self)
+        board_menu.aboutToShow.connect(lambda: self._fill_board_menu(board_menu))
+        self.t_board.set_menu(board_menu, split=True)
+        # Displays: Helligkeit und Ausschalten (Taste/Maus schaltet wieder ein)
+        self.t_display = self.tiles["display"]
+        self.t_display.activated.connect(self.open_display_panel)
+        display_menu = QMenu(self)
+        display_menu.aboutToShow.connect(lambda: self._fill_display_menu(display_menu))
+        self.t_display.set_menu(display_menu, split=True)
         # Handy: eigene Kachel je Weg – Klick startet, Pfeil zeigt Optionen und die Handy-Seite
         self.t_airplay, self.t_remote = self.tiles["airplay"], self.tiles["handy_remote"]
         self.handy_menus = {}
@@ -814,6 +829,53 @@ class MainWindow(QMainWindow):
         name, ok = QInputDialog.getText(self, "Website speichern", "Name für die Website:", text=title)
         if ok:
             self.controller.save_website(name.strip() or title, view.url().toString())
+
+    # ------------------------------------------------------------ Whiteboard
+    def _fill_board_menu(self, menu):
+        """Hintergründe mit kleiner Vorschau; der aktuelle ist abgehakt."""
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QIcon, QPainter, QPixmap
+
+        from .. import whiteboard
+
+        menu.clear()
+        c = self.controller
+        current = c.config["whiteboard"].get("background", whiteboard.DEFAULT)
+        showing = (c.content or {}).get("type") == "whiteboard"
+        for key, (label, _dark) in whiteboard.BACKGROUNDS.items():
+            px = QPixmap(48, 30)
+            p = QPainter(px)
+            p.setRenderHint(QPainter.Antialiasing)
+            whiteboard.paint_background(p, QRectF(0, 0, 48, 30), key)
+            p.end()
+            act = menu.addAction(QIcon(px), label, lambda k=key: c.show_whiteboard(k))
+            act.setCheckable(True)
+            act.setChecked(showing and key == current)
+        menu.addSeparator()
+        col = theme.current().text
+        menu.addAction(icons.icon("edit", col, 18), "Zeichnen öffnen …", self.open_presenter)
+        menu.addAction(icons.icon("trash", col, 18), "Tafel wischen (Zeichnungen löschen)", c.laser.clear_strokes)
+
+    # ------------------------------------------------------------ Displays
+    def open_display_panel(self):
+        from .display_panel import DisplayPanel
+
+        DisplayPanel(self.controller, self).exec()
+
+    def _fill_display_menu(self, menu):
+        menu.clear()
+        c = self.controller
+        col = theme.current().text
+        menu.addAction(icons.icon("sun", col, 18), "Helligkeit einstellen …", self.open_display_panel)
+        menu.addAction(icons.icon("sun", col, 18), "Heller", lambda: c.displays.step_all(10))
+        menu.addAction(icons.icon("moon", col, 18), "Dunkler", lambda: c.displays.step_all(-10))
+        menu.addSeparator()
+        menu.addAction(icons.icon("power", col, 18), "Alle Displays aus", c.displays_off)
+        if c.output_screen() is not None:
+            menu.addAction(icons.icon("power", col, 18), "Nur Monitor 2 aus", c.monitor2_off)
+        if c.displays.shades:
+            menu.addAction(icons.icon("refresh", col, 18), "Abdunkeln zurücksetzen",
+                           lambda: [c.displays.set_brightness(n, 100, "abdunkeln") for n in list(c.displays.shades)])
 
     # ------------------------------------------------------------ Overlays
     def _overlays_clicked(self):
@@ -1437,6 +1499,7 @@ class MainWindow(QMainWindow):
             (self.t_web, typ == "website"),
             (self.t_text, typ == "text"),
             (self.t_music, typ == "nowplaying"),
+            (self.t_board, typ == "whiteboard"),
             (self.t_media, typ in ("image", "video", "slideshow")),
             (self.t_scenes, typ == "scene"),
             (self.t_airplay, typ == "airplay" or (c.mode == "desktop" and c.desktop_note.startswith("iPhone"))),
@@ -1448,6 +1511,9 @@ class MainWindow(QMainWindow):
         self.t_saver.set_state(saver_on, badge="AN" if saver_on else "")
         overlays_on = c.overlay_window.needed() and bool(c.config["overlays"].get("on"))
         self.t_overlays.set_state(overlays_on, badge="AN" if overlays_on else "")
+        dimmed = bool(c.displays.shades or c.displays.blackouts or c.displays.powered_off)
+        self.t_display.set_state(dimmed, badge="AUS" if (c.displays.blackouts or c.displays.powered_off)
+                                 else "GEDIMMT" if dimmed else "")
         drawing = bool(getattr(self, "presenter", None) and self.presenter.isVisible())
         self.t_draw.set_state(drawing, badge="OFFEN" if drawing else "")
         for key, tile in self.custom_tiles.items():

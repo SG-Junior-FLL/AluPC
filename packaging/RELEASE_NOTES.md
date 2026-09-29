@@ -8,7 +8,32 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.60.0)
+### Neu in dieser Version (0.61.0)
+**Neu: Whiteboard**
+- Kachel „Whiteboard“: Monitor 2 wird zur Tafel, „Zeigen & Zeichnen“ öffnet sich gleich mit dem Stift.
+  Hintergründe (Pfeil an der Kachel): Weiß, Kariert, Liniert, Punkteraster, Millimeterpapier,
+  Koordinatensystem, Notenlinien, grüne Tafel, schwarze Tafel, Blaupause. Die Stiftfarbe passt sich an
+  (hell auf Tafeln, dunkel auf Papier). „Tafel wischen“ löscht alles Gezeichnete.
+
+**Neu: Displays – Helligkeit und Ausschalten**
+- Kachel „Displays“: Helligkeit je Monitor, einzelne Monitore oder alle ausschalten. **Eine Taste oder die Maus
+  schaltet wieder ein.**
+- Helligkeit, je Monitor der erste Weg, der geht: echte Monitor-Helligkeit über das Kabel (DDC/CI – unter Linux mit
+  dem Programm `ddcutil`), Laptop-Bildschirm, sonst dunkelt AluPC das Bild selbst ab (z. B. in einer VM; man
+  kann weiter durchklicken). Das Fenster zeigt, welcher Weg gilt.
+- „Alle aus“ nutzt das Energiesparen des Systems (Windows, KDE, X11). Einzelne Monitore schaltet AluPC per
+  DDC/CI aus (wenn der Monitor das kann) und deckt sie schwarz ab.
+- Auch als eigene Kachel-Befehle: Alle Displays aus, Monitor 2 aus, Heller, Dunkler.
+
+**Design-Update**
+- Farbverläufe statt Einzelfarben: Jede Akzentfarbe hat eine Partnerfarbe (z. B. Blau → Violett) – Hauptknöpfe,
+  aktive Navigation, Seitensymbole, Häkchen, Regler, Menüs, Bereichs-Zähler.
+- Tieferer Hintergrund mit Polarlicht-Leuchten, Glas-Karten mit Lichtkante, leuchtende Monitor-2-Karte.
+- Kacheln mit zweifarbigen Symbolen, leuchtendem Rand und Glanz beim Drüberfahren.
+- **Behoben:** Die Schalter „Bild-in-Bild“ und „Zeichnen“ im Monitor-2-Kasten wurden abgeschnitten
+  („Bild-in-Bil“). Die Breite wird jetzt selbst berechnet und nach dem Aufbau nachgeprüft.
+
+### Neu in Version 0.60.0
 **Bildschirmschoner zuverlässig – und das System dunkelt nicht mehr ab**
 - Linux und Windows dimmen bzw. schalten die Monitore nicht mehr selbst ab, solange der Bildschirmschoner
   eingeschaltet ist oder Monitor 2 etwas zeigt (wie bei einem Videoplayer). Einstellung: Setup →

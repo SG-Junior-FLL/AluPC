@@ -25,6 +25,8 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "timer": ("timer", "Timer", "Start / Pause", "#f43f5e", "schnell"),
     "draw": ("edit", "Zeigen & Zeichnen", "Laser, Stift, Marker", "#f97316", "schnell"),
     "overlays": ("layers", "Overlays", "Über Monitor 2", "#d946ef", "schnell"),
+    "whiteboard": ("board", "Whiteboard", "Tafel zum Zeichnen", "#0d9488", "schnell"),
+    "display": ("sun", "Displays", "Helligkeit · Aus", "#f59e0b", "schnell"),
 }
 # Schwarz, Standbild, Bild-in-Bild sind jetzt Schalter oben beim Live-Bild – als Kachel nur noch auf Wunsch
 HIDDEN_BY_DEFAULT = {"freeze", "black", "pip", "draw"}
@@ -82,6 +84,11 @@ COMMANDS = {
     "overlays": "Overlays an/aus",
     "overlays_an": "Overlays an",
     "overlays_aus": "Overlays aus",
+    "whiteboard": "Whiteboard zeigen",
+    "displays_aus": "Alle Displays aus (Taste weckt)",
+    "monitor2_aus": "Monitor 2 aus (Taste weckt)",
+    "heller": "Displays heller",
+    "dunkler": "Displays dunkler",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann
@@ -91,7 +98,7 @@ TILE_ICONS = {
     "timer": "Countdown", "palette": "Farbe", "play": "Abspielen", "snowflake": "Standbild",
     "eye_off": "Sichtschutz", "moon": "Bildschirmschoner", "mirror": "Spiegeln", "extend": "Erweitern",
     "pip": "Bild-in-Bild", "home": "Haus", "lock": "Schloss", "power": "Ein/Aus", "sun": "Sonne",
-    "music": "Musik", "layers": "Ebenen",
+    "music": "Musik", "layers": "Ebenen", "board": "Whiteboard",
 }
 
 TILE_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#64748b"]

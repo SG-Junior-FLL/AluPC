@@ -303,6 +303,14 @@ def _draw(name: str, p: QPainter, color: QColor):
     elif name == "power":
         p.drawArc(QRectF(4, 5, 16, 16), 125 * 16, 290 * 16)
         p.drawLine(QPointF(12, 3), QPointF(12, 11))
+    elif name == "board":  # Tafel auf Ständer mit Gekritzel
+        p.drawRoundedRect(QRectF(3, 3.5, 18, 12.5), 1.6, 1.6)
+        p.drawLine(QPointF(8.5, 20.5), QPointF(10.5, 16))
+        p.drawLine(QPointF(15.5, 20.5), QPointF(13.5, 16))
+        path = QPainterPath(QPointF(6.5, 12))
+        path.cubicTo(QPointF(8.5, 7), QPointF(10, 13.5), QPointF(12, 9.5))
+        path.cubicTo(QPointF(13.5, 6.5), QPointF(15, 12.5), QPointF(17.5, 7.5))
+        p.drawPath(path)
     elif name == "sun":
         p.drawEllipse(QPointF(12, 12), 4, 4)
         for i in range(8):

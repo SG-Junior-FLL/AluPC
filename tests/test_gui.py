@@ -3281,3 +3281,88 @@ def test_screensaver_keeps_system_awake(env, monkeypatch):
     QCursor.setPos(QCursor.pos() + QPoint(7, 3))
     if QCursor.pos() != mgr._cursor:  # Offscreen kann den Mauszeiger nicht immer bewegen
         assert mgr.idle_seconds() < 5
+
+
+def test_whiteboard_backgrounds_and_pen(env, monkeypatch):
+    """Whiteboard: jeder Hintergrund zeichnet sich; Kachel/Befehl zeigt es auf Monitor 2 und öffnet „Zeichnen“;
+    auf Tafeln wird der Stift hell, auf Papier dunkel."""
+    from PySide6.QtCore import QRectF
+    from PySide6.QtGui import QImage, QPainter
+
+    from alupc import whiteboard
+
+    controller, window, _ = env
+    for key in whiteboard.BACKGROUNDS:
+        img = QImage(320, 180, QImage.Format_RGB32)
+        p = QPainter(img)
+        whiteboard.paint_background(p, QRectF(0, 0, 320, 180), key)
+        p.end()
+        mid = img.pixelColor(3, 3)
+        assert (mid.lightness() < 128) == whiteboard.is_dark(key), key
+    opened = []
+    controller.presenter_requested.connect(lambda: opened.append(1))
+    monkeypatch.setattr(window, "open_presenter", lambda *a: None)
+    controller.config["draw"] = {**controller.config["draw"], "color": "#000000", "tool": "laser"}
+    controller.run_command("whiteboard")
+    assert controller.content == {"type": "whiteboard", "background": "weiss"} and opened
+    controller.show_whiteboard("tafel")
+    assert controller.content["background"] == "tafel"
+    assert controller.config["draw"]["color"] == "#ffffff" and controller.config["draw"]["tool"] == "pen"
+    assert type(controller.output.content).__name__ == "WhiteboardSource"
+    controller.show_whiteboard("kariert")
+    assert controller.config["draw"]["color"] == "#111827"  # weiß auf Papier wäre unsichtbar
+    window.refresh()
+    assert window.t_board.active
+    menu = window.t_board.menu
+    window._fill_board_menu(menu)
+    labels = [a.text() for a in menu.actions()]
+    assert "Kariert" in labels and "Tafel (grün)" in labels
+
+
+def test_display_control_software_dim_and_wake(env, monkeypatch):
+    """Displays: ohne steuerbaren Monitor dunkelt AluPC selbst ab (Klicks gehen durch); einzeln ausschalten
+    deckt schwarz ab – eine Eingabe (Leerlaufzeit springt zurück) schaltet wieder ein."""
+
+    from alupc import display_control as dc
+
+    controller, window, _ = env
+    d = controller.displays
+    monkeypatch.setattr(d, "method", lambda name: "abdunkeln")
+    name = d.screens()[0].name()
+    assert d.set_brightness(name, 40) == "abdunkeln"
+    shade = d.shades[name]
+    assert abs(shade.alpha - 0.54) < 0.01 and not shade.blackout
+    from PySide6.QtCore import Qt
+
+    assert shade.windowFlags() & Qt.WindowTransparentForInput  # Klicks gehen durch
+    d.set_brightness(name, 100)
+    assert name not in d.shades
+    # ausschalten → aufwecken durch Eingabe (Leerlaufzeit wird kleiner)
+    idle = [50.0]
+    monkeypatch.setattr(d, "_raw_idle", lambda: idle[0])
+    monkeypatch.setattr(d, "_power", lambda n, on: False)
+    assert d.off(name) == "abdecken" and d.is_off(name)
+    window.refresh()
+    assert window.t_display.badge == "AUS"
+    d._check_wake()  # direkt danach: zählt noch nicht (auslösender Klick)
+    assert d.is_off(name)
+    d._armed_at -= 2
+    idle[0] = 52.0
+    d._check_wake()
+    assert d.is_off(name)  # weiter nichts getan
+    idle[0] = 0.3  # Taste gedrückt
+    d._check_wake()
+    assert not d.is_off(name) and not d.blackouts
+    # Parser
+    assert dc.parse_ddcutil_brightness("VCP 10 C 30 100") == 30
+    assert dc.parse_brightnessctl("intel_backlight,backlight,5000,50%,10000") == 50
+    text = "Display 1\n   I2C bus:  /dev/i2c-4\n   DRM connector:  card1-HDMI-A-1\nDisplay 2\n   DRM_connector: card1-DP-2\n"
+    assert dc.ddcutil_displays(text) == {"hdmi1": 1, "dp2": 2}
+    assert dc._norm("HDMI-1") == dc._norm("HDMI-A-1") and dc.is_internal("eDP-1")
+    # Befehle
+    msgs, offs = [], []
+    controller.message.connect(msgs.append)
+    monkeypatch.setattr(d, "all_off", lambda: offs.append(1) or "system")
+    controller.run_command("displays_aus")
+    assert any("Taste" in m for m in msgs)
+    assert _until(lambda: offs, 3)  # kurz verzögert (Meldung lesen, Finger weg)
