@@ -1649,7 +1649,7 @@ def _fake_uxplay(tmp_path, vrtp: bool, pipeline_opts: bool = False) -> tuple[str
     log = tmp_path / "uxplay_args.txt"
     script = tmp_path / ("uxplay_neu" if vrtp else "uxplay_168" if pipeline_opts else "uxplay_alt")
     help_text = ("-vd ...   Choose the GStreamer h264 decoder\n-vc ...   Choose the GStreamer videoconverter\n"
-                 "-vs ...   Choose the GStreamer videosink") if pipeline_opts else ""
+                 "-vs ...   Choose the GStreamer videosink\n-s wxh   Set display resolution") if pipeline_opts else ""
     script.write_text(FAKE_UXPLAY % {"python": sys.executable, "vrtp": "-vrtp pipeline" if vrtp else "",
                                      "log": str(log), "tests": str(HERE), "pipeline_help": help_text})
     script.chmod(0o755)
@@ -1724,6 +1724,10 @@ def test_airplay_stream_with_uxplay_168(env, tmp_path):
     started = log.read_text()
     assert "-vd identity -vc identity -vs rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=" \
         in started and "-vrtp" not in started and "-fs" not in started and "-avdec" not in started
+    # iPhone bekommt die Größe von Monitor 2 → schickt nicht mehr Pixel als nötig (flüssiger)
+    out = controller.output_screen()
+    size = f"{int(out.geometry().width() * out.devicePixelRatio())}x{int(out.geometry().height() * out.devicePixelRatio())}"
+    assert f"-s {size}" in started, started
     assert _until(lambda: view._had_frames, 20), "Kein Bild über den 1.68-Weg"
     assert _until(lambda: view._image is not None and not view._image.isNull(), 5)
     c = view._image.pixelColor(view._image.width() - 5, view._image.height() // 2)

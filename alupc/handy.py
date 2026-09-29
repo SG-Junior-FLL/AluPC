@@ -383,6 +383,15 @@ def in_virtual_machine() -> bool:
 
 
 RTP_SINK = "rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port={port}"
+def screen_size_option(help_text: str, size: tuple[int, int] | None) -> list[str]:
+    """UxPlay „-s BxH“: dem iPhone die Größe von Monitor 2 melden – es schickt dann nicht mehr Pixel als nötig
+    (weniger Rechenarbeit, flüssiger – vor allem in einer VM). Höchstens 1920×1080 (UxPlay-Standard)."""
+    if not size or not re.search(r"^\s*-s\s", help_text, re.M):
+        return []
+    w, h = size
+    scale = min(1.0, 1920 / max(1, w), 1080 / max(1, h))
+    w, h = int(w * scale) // 2 * 2, int(h * scale) // 2 * 2
+    return ["-s", f"{w}x{h}"] if w >= 320 and h >= 240 else []
 
 
 def supports_rtp_pipeline(uxplay: str) -> bool:
@@ -449,6 +458,7 @@ class AirPlayServer(QObject):
         self.pin_code = ""
         self._background = False  # „Immer bereit“: hält UxPlay dauerhaft am Laufen
         self.relay = None  # rtp_relay.RtpRelay im Modus „stream“
+        self.output_screen = None  # Funktion → QScreen von Monitor 2 (setzt der Controller)
         self.is_connected = False  # laut UxPlays Meldungen ist gerade ein iPhone verbunden
         self._stop_timer = QTimer(self, singleShot=True, interval=1500)
         self._stop_timer.timeout.connect(self._really_stop)
@@ -529,8 +539,10 @@ class AirPlayServer(QObject):
             self.relay = RtpRelay(self.port)
         pin = s.get("pin", "")
         self.pin_code = pin if pin and pin != "zufall" else ""
-        args = uxplay_args(s["airplay_name"], pin, self.relay.in_port if stream else None,
-                           extra=vm_options(uxplay_help(uxplay)) if in_virtual_machine() else None,
+        help_text = uxplay_help(uxplay)
+        extra = (vm_options(help_text) if in_virtual_machine() else []) + \
+            screen_size_option(help_text, self._output_size())  # auch im Fenster-Modus: UxPlay dekodiert weniger
+        args = uxplay_args(s["airplay_name"], pin, self.relay.in_port if stream else None, extra=extra or None,
                            rtp_pipeline=rtp_pipeline)
         if not kill_uxplay_windows():  # fremde Empfänger (z. B. uxplay-windows im Autostart) belegen sonst die Ports
             self._stuck()
@@ -551,6 +563,17 @@ class AirPlayServer(QObject):
         self.mode = "stream" if stream else "fenster"
         self.status.emit("läuft")
         return self.mode
+
+    def _output_size(self) -> tuple[int, int] | None:
+        """Pixelgröße von Monitor 2 (dort wird das iPhone-Bild gezeigt)."""
+        try:
+            screen = self.output_screen() if self.output_screen else None  # vom Controller gesetzt
+        except Exception:  # noqa: BLE001
+            screen = None
+        if screen is None:
+            return None
+        g, dpr = screen.geometry(), screen.devicePixelRatio()
+        return int(g.width() * dpr), int(g.height() * dpr)
 
     def _wanted(self) -> tuple:
         s = self.settings()

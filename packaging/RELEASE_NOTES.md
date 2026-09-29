@@ -8,7 +8,13 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.63.0)
+### Neu in dieser Version (0.64.0)
+- **AirPlay flüssiger (vor allem Linux/VM):** AluPC meldet dem iPhone/iPad jetzt die Größe von Monitor 2
+  (höchstens 1920×1080). Das Gerät schickt dann nicht mehr Pixel als nötig. Gemessen bei 1280×720 statt iPad-
+  Auflösung: ~3,7 statt ~10 ms Rechenzeit je Bild in AluPC – dazu weniger Arbeit beim Dekodieren. Gilt auch
+  für ältere UxPlay-Versionen mit eigenem Fenster.
+
+### Neu in Version 0.63.0
 - **Behoben (Linux): AluPC öffnete sich auf Monitor 2** – man musste es jedes Mal zurückziehen. Wayland lässt
   Programme ihr Fenster nicht selbst platzieren; AluPC bittet jetzt KDE, es mittig auf Monitor 1 zu legen (auch
   wenn es beim Wiederholen aus der Taskleiste auf Monitor 2 landet).

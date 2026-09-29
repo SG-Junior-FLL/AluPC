@@ -1173,3 +1173,15 @@ def test_keep_awake_linux_inhibits_and_releases(monkeypatch):
     assert not ka.set(False)
     assert ("org.freedesktop.ScreenSaver", "UnInhibit", (41,)) in calls and ("close",) in calls
     assert "abdunkeln" in ka.describe()
+
+
+def test_uxplay_gets_monitor_2_size():
+    """Das iPhone bekommt die Größe von Monitor 2 (weniger Pixel = flüssiger), höchstens 1920×1080."""
+    from alupc.handy import screen_size_option
+
+    helptext = "-s wxh[@r]  Set display resolution"
+    assert screen_size_option(helptext, (1280, 720)) == ["-s", "1280x720"]
+    assert screen_size_option(helptext, (3840, 2160)) == ["-s", "1920x1080"]
+    assert screen_size_option(helptext, (2560, 1600)) == ["-s", "1728x1080"]
+    assert screen_size_option("", (1280, 720)) == []  # Version ohne -s
+    assert screen_size_option(helptext, None) == []

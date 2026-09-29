@@ -59,6 +59,7 @@ class Controller(QObject):
         from .handy import airplay_server
 
         self.airplay = airplay_server(config)
+        self.airplay.output_screen = self.output_screen  # iPhone-Bild in der Größe von Monitor 2
         self.airplay.failed.connect(self._airplay_failed)
         self.airplay.notice.connect(self._airplay_notice)
         self.airplay.settings_changed.connect(self._airplay_settings_changed)
