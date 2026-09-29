@@ -8,6 +8,24 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.51.0)
+**Fingerabdruckmodul (HLK-ZW101 u. a.): jetzt auch unter Windows anmelden und entsperren**
+- Windows Hello nimmt solche Module nicht an – AluPC bringt deshalb einen eigenen **Anmeldebaustein**
+  („Credential Provider“, wie ihn auch Hersteller von Karten- und Fingerabdrucklesern nutzen) mit: Auf dem
+  Anmelde- und Sperrbildschirm erscheint die Kachel **„Fingerabdruck (AluPC)“**. Finger auflegen → erkennt das
+  Modul einen angelernten Finger, meldet die Kachel den zugehörigen Benutzer an.
+- Einschalten: Fingerabdruck → „Anmelden mit Fingerabdruck“ → Windows-Passwort eingeben (nicht die PIN).
+  AluPC prüft es bei Windows und speichert es verschlüsselt (DPAPI); die Datei dürfen nur Windows selbst und
+  Administratoren lesen. Windows fragt einmal nach Administratorrechten. Das Passwort funktioniert weiter.
+- Passwort geändert → in AluPC neu einschalten (die Kachel sagt es dann auch). Ausschalten bzw. AluPC
+  deinstallieren entfernt Baustein und gespeichertes Passwort.
+- Linux: wie bisher über PAM (Anmeldebildschirm, Sperrbildschirm, sudo).
+- **Treiber:** Steckt ein USB-Seriell-Adapter (CH340, CP210x, FTDI, PL2303) ohne Treiber, sagt AluPC unter
+  Windows jetzt, welcher Chip es ist und wo es den Treiber gibt (Linux hat ihn eingebaut).
+- Geprüft: Baustein auf Windows (CI) gebaut und gegen ein nachgebautes Modul getestet – Finger erkannt,
+  Anmeldedaten für Windows korrekt gebaut, Passwort aus DPAPI korrekt; Einrichten/Abmelden in der
+  Registry. Nicht geprüft: echter Anmeldebildschirm mit echtem ZW101 (keine Hardware).
+
 ### Neu in dieser Version (0.50.0)
 Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschritts nicht veröffentlicht).
 

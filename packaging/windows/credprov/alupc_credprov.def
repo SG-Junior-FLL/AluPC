@@ -1,0 +1,4 @@
+LIBRARY AluPCFingerprint
+EXPORTS
+    DllCanUnloadNow PRIVATE
+    DllGetClassObject PRIVATE

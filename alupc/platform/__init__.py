@@ -129,10 +129,15 @@ class AutoFingerprintBackend(FingerprintBackend):
     def login_enabled(self):
         return self.active.login_enabled()
 
-    def set_login_enabled(self, enabled, allow_multi: bool = False):
+    def set_login_enabled(self, enabled, allow_multi: bool = False, password: str | None = None):
         if self.is_serial:
-            return self.serial.set_login_enabled(enabled, allow_multi)
+            return self.serial.set_login_enabled(enabled, allow_multi, password=password)
         return self.active.set_login_enabled(enabled)
+
+    @property
+    def login_needs_password(self) -> bool:
+        """Windows mit Modul am Adapter: zum Einschalten das Windows-Passwort abfragen."""
+        return self.is_serial and sys.platform.startswith("win")
 
     def multi_user_warning(self) -> str:
         """Leer, außer: Modul am Adapter + Linux + mehrere Benutzerkonten → Warntext zum Bestätigen."""

@@ -217,9 +217,11 @@ class FingerprintPage(QWidget):
         self.delete_all_btn.setVisible(b.can_delete)
         self.hello_note.setVisible(IS_WINDOWS and not serial)
         self.login_box.setVisible(bool(b.login_toggle))
-        self.win_box.setVisible(IS_WINDOWS)
+        # Windows + Modul: eigener Anmeldebaustein (Kasten oben) – der Hello-Hinweis passt dann nicht
+        self.win_box.setVisible(IS_WINDOWS and not (serial and b.login_toggle))
         if IS_WINDOWS and serial:
-            self.win_text.setText("Serielles Modul: nur Anlernen/Prüfen · Windows-Anmeldung braucht Hello-Treiber")
+            self.win_text.setText("Windows-Anmeldung mit dem Modul: nur in der installierten AluPC-Version "
+                                  "(Anmeldebaustein fehlt hier)")
             self.win_btn.hide()
         else:
             self.win_text.setText("An, sobald ein Finger in Windows Hello angelernt ist")
@@ -296,12 +298,46 @@ class FingerprintPage(QWidget):
             self.login_label.setText("Status unbekannt.")
             self.login_btn.setText("Einschalten")
         elif state:
-            self.login_label.setText("An: Anmelden · Sperrbildschirm · sudo (Passwort geht weiter)")
+            self.login_label.setText(
+                "An: Anmelde- und Sperrbildschirm – Kachel „Fingerabdruck (AluPC)“ (Passwort geht weiter)"
+                if IS_WINDOWS else "An: Anmelden · Sperrbildschirm · sudo (Passwort geht weiter)")
             self.login_btn.setText("Ausschalten")
         else:
             self.login_label.setText("Ausgeschaltet: Anmelden nur mit Passwort.")
             self.login_btn.setText("Einschalten")
         self._login_state = state
+
+    def _toggle_windows_login(self, enable: bool):
+        """Windows + Modul: Passwort abfragen (wird geprüft und verschlüsselt gespeichert), dann einmal
+        Administratorrechte (Windows fragt) – die macht AluPC im Hintergrund."""
+        from PySide6.QtWidgets import QInputDialog, QLineEdit
+
+        password = None
+        if enable:
+            text = ("Anmelden und Entsperren mit dem Fingerabdruckmodul einschalten?\n\n"
+                    "Auf dem Anmelde- und Sperrbildschirm erscheint die Kachel „Fingerabdruck (AluPC)“. "
+                    "Erkennt das Modul deinen Finger, meldet sie dich mit deinem Windows-Passwort an.\n\n"
+                    "Dafür speichert AluPC das Passwort verschlüsselt (nur Windows selbst und Administratoren "
+                    "können es lesen). Ändert sich dein Passwort, hier neu einschalten. "
+                    "Das Passwort funktioniert weiterhin.\n\nDein Windows-Passwort (nicht die PIN):")
+            password, ok = QInputDialog.getText(self, "Windows-Anmeldung mit Fingerabdruck", text,
+                                                QLineEdit.Password)
+            if not ok or not password:
+                return
+        elif QMessageBox.question(self, "Anmeldung", "Anmelden mit Fingerabdruck ausschalten?") != QMessageBox.Yes:
+            return
+        self.login_btn.setEnabled(False)
+        self.login_label.setText("Windows fragt gleich nach Administratorrechten …")
+
+        def finished(*_):
+            self.login_btn.setEnabled(True)
+            self.reload_login()
+
+        def failed(e):
+            finished()
+            error_box(self, f"Konnte nicht geändert werden: {e}")
+
+        run_async(lambda: self.backend.set_login_enabled(enable, password=password), finished, failed)
 
     # ------------------------------------------------------------ Aktionen
     def auto_setup(self):
@@ -378,6 +414,9 @@ class FingerprintPage(QWidget):
 
     def toggle_login(self):
         enable = not bool(getattr(self, "_login_state", False))
+        if getattr(self.backend, "login_needs_password", False):
+            self._toggle_windows_login(enable)
+            return
         if enable:
             text = ("Anmeldung mit Fingerabdruck einschalten?\n\nDas ändert die PAM-Einstellungen "
                     "des Systems (über pam-auth-update). Du wirst nach deinem Passwort gefragt. "

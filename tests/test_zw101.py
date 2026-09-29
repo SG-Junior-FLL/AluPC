@@ -227,3 +227,63 @@ def test_foreign_fingers_are_protected(fake, monkeypatch):
     backend.delete(fake.port, "*")  # „Alle löschen“ = alle eigenen
     assert fake.library == {0: "anna-daumen"}
     assert "anderen Benutzers" in backend.finger_label("platz:0")
+
+
+def test_windows_login_config(tmp_path, monkeypatch):
+    """Windows-Anmeldung mit dem Modul: Einstellung für den Anmeldebaustein (C++ liest genau dieses Format),
+    Einschalten/Finger aktualisieren/Ausschalten – mehrere Benutzer bleiben getrennt."""
+    from alupc.platform import windows_serial_login as w
+
+    calls = []
+    monkeypatch.setattr(w, "register", lambda dll: calls.append(("register", str(dll))))
+    monkeypatch.setattr(w, "unregister", lambda: calls.append(("unregister",)))
+    monkeypatch.setattr(w, "secure_file", lambda p: calls.append(("acl", p.name)))
+    cfg = tmp_path / "AluPC" / "fingerprint-windows.cfg"
+    dll = tmp_path / "AluPCFingerprint.dll"
+    w.apply_request({"action": "an", "user": "noah", "domain": ".", "slots": [2, 1], "port": "COM4",
+                     "baud": 57600, "capacity": 300, "secret": "aa11"}, path=cfg, dll=dll)
+    text = cfg.read_text(encoding="utf-8")
+    assert "port=COM4\nbaud=57600\ncapacity=300\n" in text and "user=noah\t.\t2,1\taa11\n" in text
+    assert ("acl", cfg.name) in calls and ("register", str(dll)) in calls
+    w.apply_request({"action": "an", "user": "lena", "domain": "SCHULE", "slots": [5], "secret": "bb22"},
+                    path=cfg, dll=dll)
+    w.apply_request({"action": "plaetze", "user": "noah", "slots": [1, 3]}, path=cfg, dll=dll)
+    parsed = w.read_config(cfg)
+    assert parsed["users"]["noah"] == {"domain": ".", "slots": [1, 3], "secret": "aa11"}  # Passwort bleibt
+    assert parsed["users"]["lena"]["domain"] == "SCHULE" and parsed["port"] == "COM4"
+    w.apply_request({"action": "aus", "user": "noah", "slots": []}, path=cfg, dll=dll)
+    assert list(w.read_config(cfg)["users"]) == ["lena"] and ("unregister",) not in calls
+    w.apply_request({"action": "aus", "user": "lena", "slots": []}, path=cfg, dll=dll)
+    assert not cfg.exists() and ("unregister",) in calls  # keiner mehr → Baustein abgemeldet
+    # Fehlerweg des Admin-Aufrufs: Fehlertext landet neben dem Auftrag
+    req = tmp_path / "auftrag.json"
+    req.write_text("kein json", encoding="utf-8")
+    assert w.run_request_file(str(req)) == 1 and (tmp_path / "auftrag.json.fehler").exists()
+
+
+def test_windows_login_needs_password(monkeypatch):
+    """Windows: Einschalten ohne Passwort geht nicht; mit Passwort wird es geprüft, verschlüsselt und per
+    Admin-Auftrag eingetragen – mit den eigenen Fingern."""
+    from alupc.platform import windows_serial_login as w
+    from alupc.platform import zw_fingerprint as zw
+
+    monkeypatch.setattr(zw.sys, "platform", "win32")
+    backend = zw.SerialFingerprintBackend()
+    backend._found = {"COM5": (115200, {"capacity": 200})}
+    monkeypatch.setattr(zw, "load_slots", lambda: {"1": {"user": "noah"}, "4": {"user": "noah"},
+                                                   "9": {"user": "lena"}})
+    monkeypatch.setattr(zw, "current_user", lambda: "noah")
+    monkeypatch.setattr(w, "current_account", lambda: ("noah", "."))
+    monkeypatch.setattr(w, "verify_password", lambda u, d, p: p == "richtig")
+    monkeypatch.setattr(w, "protect", lambda p: "verschluesselt")
+    sent = []
+    monkeypatch.setattr(w, "request_elevated", sent.append)
+    with pytest.raises(zw.SensorError, match="Passwort"):
+        backend.set_login_enabled(True)
+    with pytest.raises(zw.SensorError, match="stimmt nicht"):
+        backend.set_login_enabled(True, password="falsch")
+    backend.set_login_enabled(True, password="richtig")
+    assert sent[-1] == {"action": "an", "user": "noah", "domain": ".", "slots": [1, 4], "port": "COM5",
+                        "baud": 115200, "capacity": 200, "secret": "verschluesselt"}
+    backend.set_login_enabled(False)
+    assert sent[-1]["action"] == "aus"

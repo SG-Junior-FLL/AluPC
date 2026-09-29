@@ -276,6 +276,33 @@ def probe(port: str) -> tuple[int, dict] | None:
     return None
 
 
+CHIP_NAMES = {0x1A86: "CH340", 0x10C4: "CP210x", 0x0403: "FTDI", 0x067B: "PL2303"}
+DRIVER_PAGES = {"CH340": "wch-ic.com/downloads/CH341SER_EXE.html",
+                "CP210x": "silabs.com/developers/usb-to-uart-bridge-vcp-drivers",
+                "FTDI": "ftdichip.com/drivers/vcp-drivers", "PL2303": "prolific.com.tw"}
+
+
+def windows_adapter_without_driver() -> str:
+    """Windows: steckt ein USB-Seriell-Adapter (CH340 …), für den kein Treiber läuft (kein COM-Anschluss)?
+    → Chipname, sonst leer."""
+    if not sys.platform.startswith("win"):
+        return ""
+    import subprocess
+
+    script = ("Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -match 'VID_(1A86|10C4|0403|067B)' "
+              "-and $_.Status -ne 'OK' } | ForEach-Object { $_.InstanceId }")
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", script], capture_output=True, text=True,
+                             timeout=15, creationflags=0x08000000).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    for line in out.splitlines():
+        for vid, name in CHIP_NAMES.items():
+            if f"VID_{vid:04X}" in line.upper():
+                return f"{name} (USB {vid:04X})"
+    return ""
+
+
 def usb_serial_present() -> bool:
     """Steckt ein USB-Seriell-Adapter (auch wenn kein Zugriff besteht)?"""
     if not HAVE_SERIAL:
@@ -315,7 +342,16 @@ class SerialFingerprintBackend(FingerprintBackend):
     can_enroll = True
     can_delete = True
     can_list_enrolled = True
-    login_toggle = sys.platform.startswith("linux")  # Windows-Anmeldung geht nur mit Windows Hello
+    login_password = False  # Windows: zum Einschalten wird das Windows-Passwort gebraucht
+
+    @property
+    def login_toggle(self) -> bool:
+        """Linux: PAM · Windows: mitgelieferter Anmeldebaustein (nur in der fertigen Version)."""
+        if sys.platform.startswith("linux"):
+            return True
+        from .windows_serial_login import available
+
+        return available()
 
     def __init__(self):
         self._cancel = threading.Event()
@@ -495,7 +531,19 @@ class SerialFingerprintBackend(FingerprintBackend):
         self._sync_login(sensor_id)
 
     def _sync_login(self, port: str) -> None:
-        """Ist die Anmeldung an, muss die Zuordnung Finger → Benutzer in /etc nachgezogen werden."""
+        """Ist die Anmeldung an, muss die Zuordnung Finger → Benutzer nachgezogen werden (Linux: /etc,
+        Windows: ProgramData – dort fragt Windows einmal nach Administratorrechten)."""
+        if sys.platform.startswith("win"):
+            if self.login_enabled():
+                from .windows_serial_login import update_slots
+
+                baud, params = self._found.get(port, (57600, {}))
+                try:
+                    update_slots(self._my_slots(), port, baud, int(params.get("capacity", 300)))
+                except Exception as exc:  # noqa: BLE001
+                    raise SensorError(f"Im Modul erledigt – aber die Windows-Anmeldung wurde nicht aktualisiert "
+                                      f"({exc}).") from exc
+            return
         if self.login_enabled():
             from .linux_serial_login import update_login
 
@@ -510,20 +558,48 @@ class SerialFingerprintBackend(FingerprintBackend):
 
     def install_hint(self):
         if sys.platform.startswith("win"):
+            missing = windows_adapter_without_driver()
+            if missing:
+                return (f"USB-Seriell-Adapter gefunden ({missing}), aber ohne Treiber. Windows Update → "
+                        "„Optionale Updates“ → Treiberupdates, oder den Treiber vom Chip-Hersteller installieren "
+                        f"({DRIVER_PAGES.get(missing.split()[0], DRIVER_PAGES['CH340'])}). Danach neu einstecken.")
             return ("Modul am USB-Seriell-Adapter einstecken. Fehlt der Treiber (CH340), installiert ihn "
                     "Windows Update meist selbst.")
         return "Modul am USB-Seriell-Adapter einstecken."
 
-    # ---- Anmeldung (Linux, über PAM)
+    def _my_slots(self) -> list[int]:
+        user = current_user()
+        return sorted(int(slot) for slot, info in load_slots().items() if info.get("user") == user)
+
+    # ---- Anmeldung (Linux: PAM · Windows: Anmeldebaustein)
     def login_enabled(self):
         if not self.login_toggle:
             return None
+        if sys.platform.startswith("win"):
+            from .windows_serial_login import login_enabled
+
+            return login_enabled()
         try:
             return "--fingerabdruck-pam" in Path("/etc/pam.d/common-auth").read_text(encoding="utf-8")
         except OSError:
             return None
 
-    def set_login_enabled(self, enabled, allow_multi: bool = False):
+    def set_login_enabled(self, enabled, allow_multi: bool = False, password: str | None = None):
+        if sys.platform.startswith("win"):
+            from . import windows_serial_login as wl
+
+            if not enabled:
+                wl.disable()
+                return
+            if not password:
+                raise SensorError("Für die Windows-Anmeldung wird dein Windows-Passwort gebraucht")
+            port = next(iter(self._found), "") or _last_port()
+            baud, params = self._found.get(port, (57600, {}))
+            try:
+                wl.enable(password, self._my_slots(), port, baud, int(params.get("capacity", 300)))
+            except wl.LoginError as exc:
+                raise SensorError(str(exc)) from exc
+            return
         from .linux_serial_login import disable_login, enable_login
 
         if enabled:

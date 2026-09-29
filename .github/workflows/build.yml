@@ -201,6 +201,36 @@ jobs:
           --collect-all winrt
           --collect-data alupc
           packaging/pyinstaller_entry.py
+      - name: Anmeldebaustein für das Fingerabdruckmodul bauen (C++, MSVC)
+        shell: pwsh
+        run: |
+          cmake -S packaging/windows/credprov -B build/credprov -A x64
+          cmake --build build/credprov --config Release
+          New-Item -ItemType Directory -Force dist\AluPC\credprov | Out-Null
+          Copy-Item build\credprov\Release\AluPCFingerprint.dll dist\AluPC\credprov\
+          Get-Item dist\AluPC\credprov\AluPCFingerprint.dll | ForEach-Object { Write-Output "::notice title=Anmeldebaustein::$($_.Name) $([math]::Round($_.Length/1KB)) KB" }
+      - name: Anmeldebaustein testen (LogonUI nachgespielt, Modul nachgebaut, Passwort per DPAPI)
+        shell: pwsh
+        run: |
+          [Console]::OutputEncoding = [Text.Encoding]::UTF8
+          $pipe = "\\.\pipe\alupc-fp-ci"
+          $cfg = Join-Path $env:RUNNER_TEMP "fp.cfg"
+          # Einstellung genau so schreiben, wie AluPC es tut (Python, DPAPI Maschine)
+          python -c "import sys; sys.path.insert(0,'.'); from alupc.platform import windows_serial_login as w; open(sys.argv[1],'w',encoding='utf-8').write(w.format_config({'port': sys.argv[2], 'baud': 57600, 'capacity': 50, 'users': {'ci-tester': {'domain': '.', 'slots': [7], 'secret': w.protect('Tüt-Geheim 42!')}}}))" $cfg $pipe
+          $fake = Start-Process python -ArgumentList "tests\fake_zw101_pipe.py", $pipe, "7" -PassThru -NoNewWindow -RedirectStandardOutput "$env:RUNNER_TEMP\fake.txt"
+          Start-Sleep -Seconds 2
+          $out = & build\credprov\Release\cptest.exe $cfg 20
+          $out | ForEach-Object { Write-Output $_ }
+          $fake | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+          Get-Content "$env:RUNNER_TEMP\fake.txt" -ErrorAction SilentlyContinue
+          $text = $out -join "`n"
+          if ($text -notmatch "CPTEST-OK" -or $text -notmatch "USER=ci-tester" -or $text -notmatch "PASS=Tüt-Geheim 42!") {
+            Write-Output "::error title=Anmeldebaustein::$($text -replace "`n", ' | ')"; exit 1
+          }
+          Write-Output "::notice title=Anmeldebaustein::Finger erkannt → Anmeldung für ci-tester gebaut, Passwort aus DPAPI korrekt"
+          # Einrichten wie AluPC (Admin): Datei schützen, bei Windows anmelden, wieder abmelden
+          python -c "import sys; sys.path.insert(0,'.'); from pathlib import Path; from alupc.platform import windows_serial_login as w; p=Path(sys.argv[1]); w.apply_request({'action':'an','user':'ci-tester','domain':'.','slots':[7],'port':'COM9','baud':57600,'capacity':50,'secret':w.protect('x')}, path=p, dll=Path(sys.argv[2])); assert w.registered(), 'nicht registriert'; print('ACL', __import__('subprocess').run(['icacls', str(p)], capture_output=True, text=True).stdout.replace(chr(10),' ')); w.apply_request({'action':'aus','user':'ci-tester','slots':[]}, path=p); assert not w.registered() and not p.exists(), 'nicht abgemeldet'; print('REG-OK')" "$env:RUNNER_TEMP\fp-reg.cfg" "$PWD\dist\AluPC\credprov\AluPCFingerprint.dll"
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error title=Anmeldebaustein::Registrieren/Abmelden fehlgeschlagen"; exit 1 }
       - name: Fertige AluPC.exe starten (Selbsttest)
         shell: pwsh
         run: |

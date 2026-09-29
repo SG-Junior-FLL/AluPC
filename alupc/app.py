@@ -22,6 +22,8 @@ def parse_args(argv):
     parser.add_argument("--selbsttest", metavar="LOGDATEI", help=argparse.SUPPRESS)
     # Anmelde-Prüfung für PAM (Fingerabdruckmodul am seriellen Anschluss) – ohne Oberfläche
     parser.add_argument("--fingerabdruck-pam", action="store_true", help=argparse.SUPPRESS)
+    # Windows: Anmeldung mit Modul einrichten (mit Administratorrechten gestartet, siehe windows_serial_login)
+    parser.add_argument("--fingerabdruck-windows", metavar="AUFTRAG", help=argparse.SUPPRESS)
     # Lüfter setzen (läuft per pkexec als Administrator, ohne Oberfläche)
     parser.add_argument("--luefter", metavar="REGLER=WERT,…", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
@@ -62,6 +64,10 @@ def main(argv=None) -> int:
         from .platform.zw_fingerprint import pam_check
 
         return pam_check()
+    if args.fingerabdruck_windows:
+        from .platform.windows_serial_login import run_request_file
+
+        return run_request_file(args.fingerabdruck_windows)
     if args.luefter:
         from .platform.fans import apply_request
 
