@@ -720,6 +720,7 @@ class AirPlaySource(SinkView):
         self._replay_timer = QTimer(self, interval=700)
         self._replay_timer.timeout.connect(self._replay_if_needed)
         self._player_frames = 0
+        self._generation = getattr(getattr(self.server, "relay", None), "generation", 0)
         if self.mode == "fehlt":
             self.set_message("AirPlay-Empfang: Das Programm UxPlay fehlt.\n\nSeite „Handy“ → „Automatisch "
                              "einrichten“ installiert es.")
@@ -807,6 +808,12 @@ class AirPlaySource(SinkView):
 
     def _check(self):
         now = time.monotonic()
+        relay = getattr(self.server, "relay", None)
+        generation = getattr(relay, "generation", 0)
+        if generation != self._generation:  # neue Bildgröße (iPad gedreht …) → Player neu, sonst friert das Bild ein
+            self._generation = generation
+            self._start_player()
+            return
         # Ein ruhiger iPad-Bildschirm schickt keine neuen Bilder – das ist kein Trennen. Zurück zu „AirPlay bereit“
         # nur, wenn UxPlay das Trennen meldet (oder sehr lange gar nichts mehr kommt).
         gone = not self.server.is_connected or now - self._last_frame > 120
@@ -830,7 +837,10 @@ class AirPlaySource(SinkView):
             except (RuntimeError, TypeError):
                 pass
         if self.player is not None:
+            # Vom Strom trennen, nicht nur anhalten: Sonst wartet Qt beim Aufräumen auf den Lese-Thread des Players,
+            # der auf Netzwerkdaten hängt – AluPC fror ein und wurde „abgestürzt“ beendet (Fehler bis 0.64).
             self.player.stop()
+            self.player.setSource(QUrl())
         if self.mode in ("stream", "fenster"):
             self.server.release()
 

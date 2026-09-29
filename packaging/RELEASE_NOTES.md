@@ -8,7 +8,15 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.64.0)
+### Neu in dieser Version (0.65.0)
+- **Behoben: AluPC „stürzte ab“, wenn man AirPlay verlassen hat.** Genauer: Es fror ein – Qts Videoplayer wartete
+  beim Aufräumen auf seinen Lese-Thread, der auf Netzwerkdaten hing (das Lebenszeichen des Relais hielt ihn am
+  Leben). KDE beendete AluPC dann als „reagiert nicht“. Jetzt wird der Player vom Strom getrennt, bevor er
+  aufgeräumt wird – Rausgehen dauert Sekundenbruchteile.
+- **Behoben: Bild fror nach dem Drehen des iPads ein.** Ändert sich das Bildformat (Drehen, neue Verbindung),
+  blieb der Player beim alten stehen. AluPC erkennt das jetzt und startet ihn mit dem neuen Bild neu.
+
+### Neu in Version 0.64.0
 - **AirPlay flüssiger (vor allem Linux/VM):** AluPC meldet dem iPhone/iPad jetzt die Größe von Monitor 2
   (höchstens 1920×1080). Das Gerät schickt dann nicht mehr Pixel als nötig. Gemessen bei 1280×720 statt iPad-
   Auflösung: ~3,7 statt ~10 ms Rechenzeit je Bild in AluPC – dazu weniger Arbeit beim Dekodieren. Gilt auch

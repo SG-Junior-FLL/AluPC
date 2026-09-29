@@ -3401,3 +3401,70 @@ def test_main_window_opens_on_monitor_1(env, monkeypatch):
     assert main.availableGeometry().contains(window.geometry().center())
     if sys.platform.startswith("linux"):
         assert _until(lambda: placed, 3) and placed[-1][0] == window.windowTitle()
+
+
+def _h264_file(path, w, h, frames=60):
+    import av
+
+    out = av.open(str(path), "w")
+    st = out.add_stream("libx264", rate=30)
+    st.width, st.height, st.pix_fmt = w, h, "yuv420p"
+    st.options = {"preset": "ultrafast", "tune": "zerolatency", "g": "600"}
+    for i in range(frames):
+        f = av.VideoFrame(w, h, "rgb24")
+        f.planes[0].update(b"".join(bytes([(i * 4) % 255, 90, 160]) * w + bytes(f.planes[0].line_size - w * 3)
+                                    for _ in range(h)))
+        for pk in st.encode(f):
+            out.mux(pk)
+    for pk in st.encode():
+        out.mux(pk)
+    out.close()
+
+
+def test_leaving_airplay_does_not_freeze(env, tmp_path):
+    """Aus AirPlay rausgehen: AluPC darf nicht einfrieren. Bis 0.64 wartete Qt beim Aufräumen auf den Lese-Thread des
+    Players, der auf Netzwerkdaten hing → Oberfläche eingefroren, KDE beendete AluPC („Absturz“). Nachgestellt wie
+    beim iPad: Bildformat wechselt (Drehen), Strom endet, dann rausgehen."""
+    import shutil
+    import subprocess
+    import sys
+    import time
+
+    if not sys.platform.startswith("linux") or not shutil.which("gst-launch-1.0"):
+        pytest.skip("braucht GStreamer (Linux)")
+    pytest.importorskip("av")
+    from PySide6.QtCore import QTimer
+
+    controller, _window, _ = env
+    ux = tmp_path / "ux"
+    ux.write_text("#!/bin/sh\n[ \"$1\" = -h ] && { printf -- '-vd x\\n-vc x\\n-vs x\\n'; exit 0; }\n"
+                  "echo 'Initialized server socket(s)'\nexec sleep 60\n")
+    ux.chmod(0o755)
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": str(ux), "pin": ""}
+    controller.start_airplay()
+    pump()
+    view = controller.output.content
+    assert view.mode == "stream"
+    controller.airplay.is_connected = True
+    sizes = []
+    view.sink.videoFrameChanged.connect(lambda f: f.isValid() and (not sizes or sizes[-1] != (f.width(), f.height()))
+                                        and sizes.append((f.width(), f.height())))
+    for name, w, h in (("quer.mp4", 320, 176), ("hoch.mp4", 176, 320)):  # iPad gedreht
+        _h264_file(tmp_path / name, w, h)
+        proc = subprocess.Popen(["gst-launch-1.0", "-q", "filesrc", f"location={tmp_path / name}", "!", "qtdemux", "!",
+                                 "h264parse", "!", "rtph264pay", "config-interval=1", "pt=96", "!", "udpsink",
+                                 "host=127.0.0.1", f"port={controller.airplay.relay.in_port}"])
+        assert _until(lambda: proc.poll() is not None, 15)
+        _until(lambda: False, 2.5)
+    assert (320, 176) in sizes and (176, 320) in sizes, sizes  # neues Format wird gezeigt (friert nicht ein)
+    ticks = []
+    timer = QTimer(interval=100)
+    timer.timeout.connect(lambda: ticks.append(time.monotonic()))
+    timer.start()
+    start = time.monotonic()
+    controller.extend()  # „rausgehen“
+    _until(lambda: False, 4)
+    timer.stop()
+    gaps = [b - a for a, b in zip([start] + ticks, ticks)]
+    assert ticks and max(gaps) < 1.5, f"Oberfläche hing {max(gaps or [99]):.1f} s"
+    assert _until(lambda: not controller.airplay.running(), 5)

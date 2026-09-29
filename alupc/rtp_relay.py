@@ -36,6 +36,25 @@ def rtp_payload(packet: bytes) -> bytes:
     return packet[offset:end]
 
 
+def sps_of(payload: bytes) -> bytes | None:
+    """Die Bildparameter (SPS, NAL-Typ 7) aus einem Paket – einzeln oder im STAP-A."""
+    if not payload:
+        return None
+    kind = payload[0] & 0x1F
+    if kind == 7:
+        return payload
+    if kind == 24:
+        i = 1
+        while i + 2 < len(payload):
+            size = int.from_bytes(payload[i:i + 2], "big")
+            if size == 0 or i + 2 + size > len(payload):
+                break
+            if payload[i + 2] & 0x1F == 7:
+                return payload[i + 2:i + 2 + size]
+            i += 2 + size
+    return None
+
+
 def nal_types(payload: bytes) -> list[int]:
     """H.264-NAL-Typen in einem RTP-Paket (Einzel-NAL, STAP-A, Anfang eines FU-A)."""
     if not payload:
@@ -104,11 +123,21 @@ class RtpRelay:
 
     # ---- im eigenen Thread
     _in_idr = False  # gerade mitten in einem Schlüsselbild (es kann aus mehreren Teilen/Slices bestehen)
+    # Zähler: neue Bildparameter (SPS). AluPCs Player bleibt sonst beim alten Format stehen (Bild friert ein, z. B.
+    # nach dem Drehen des iPads) – AluPC startet ihn dann neu, das Relais spielt das neue Schlüsselbild vor.
+    generation = 0
+    _sps: bytes | None = None
 
     def _remember(self, packet: bytes) -> None:
-        types = nal_types(rtp_payload(packet))
+        payload = rtp_payload(packet)
+        types = nal_types(payload)
         if 7 in types:
             self.params[7] = packet  # SPS (einzeln oder zusammen mit PPS in einem STAP-A)
+            sps = sps_of(payload)
+            if sps and sps != self._sps:
+                if self._sps is not None:  # neue Bildgröße/-art (iPad gedreht, neue Verbindung)
+                    self.generation += 1
+                self._sps = sps
         elif types == [8]:
             self.params[8] = packet
         if 5 in types and not self._in_idr:
