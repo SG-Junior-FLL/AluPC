@@ -481,3 +481,37 @@ def test_dual_boot_sync_of_names(tmp_path, monkeypatch):
     assert out["user"] == "noah" and out["slots"]["1"]["person"] == "Lena"
     assert ss.apply_payload(Cfg(), {"fingerprint_slots": remote}, ["fingerprint_slots"]) == []  # schon gleich
     assert "fingerabdruck" in ss.SECTIONS
+
+
+def test_windows_login_state_without_admin_rights(fake, tmp_path, monkeypatch):
+    """Fehler bis 0.54: AluPC (ohne Adminrechte) darf die geschützte fingerprint-windows.cfg nicht lesen, hielt die
+    Anmeldung deshalb für aus und trug neue Finger nie bei Windows ein – nur der erste Finger ging.
+    Jetzt zählt die eigene Plätze-Datei, und AluPC repariert eine veraltete Liste von selbst."""
+    from alupc.platform import windows_serial_login as w
+
+    cfg = tmp_path / "fingerprint-windows.cfg"
+    cfg.mkdir()  # wie „Zugriff verweigert“: lesen wirft OSError
+    monkeypatch.setattr(w, "config_path", lambda: cfg)
+    monkeypatch.setattr(w, "registered", lambda: True)
+    monkeypatch.setattr(w, "current_account", lambda: ("noah", "."))
+    monkeypatch.setattr(zw, "current_user", lambda: "noah")
+    assert w.login_enabled() is None  # mit alter Version eingeschaltet → „Neu einrichten“
+    sp = w.slots_path("noah")
+    sp.write_text("0\n", encoding="utf-8")  # beim Einschalten gab es nur den ersten Finger
+    assert w.login_enabled() is True
+
+    backend = zw.SerialFingerprintBackend()
+    backend.list_sensors()
+    monkeypatch.setattr(zw.sys, "platform", "win32")
+    monkeypatch.setattr(type(backend), "login_toggle", property(lambda self: True))
+    fake.auto_lift = True
+    for person, finger in (("Noah", "a"), ("Lena", "b")):
+        zw.set_person(person)
+        fake.finger = finger
+        backend.enroll(fake.port, "right-index", lambda *_: None)
+    assert sp.read_text(encoding="utf-8") == "0,1\n0=Noah\n1=Lena\n"  # beide Personen bei Windows
+    sp.write_text("0\n", encoding="utf-8")  # veraltet (z. B. aus 0.53/0.54)
+    backend.list_enrolled(fake.port)
+    assert backend.login_check == "repariert" and sp.read_text(encoding="utf-8").startswith("0,1\n")
+    backend.list_enrolled(fake.port)
+    assert backend.login_check == "ok"

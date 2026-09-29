@@ -177,6 +177,7 @@ class Config:
         self.path = path or (config_dir() / "config.json")
         self.data = copy.deepcopy(DEFAULTS)
         self.listeners: list = []  # werden nach jedem Speichern aufgerufen (z. B. Dual-Boot-Abgleich)
+        self.frozen = False  # nach „Alle Daten löschen“: bis zum Neustart nichts mehr schreiben
         self.load()
 
     def load(self) -> None:
@@ -194,6 +195,8 @@ class Config:
                 pass
 
     def save(self) -> None:
+        if self.frozen:
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(self.data, indent=2, ensure_ascii=False), encoding="utf-8")

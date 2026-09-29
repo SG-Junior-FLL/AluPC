@@ -8,7 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.54.0)
+### Neu in dieser Version (0.55.0)
+**Behoben (Windows): Nur der erste Finger konnte entsperren**
+- AluPC läuft ohne Administratorrechte und darf die geschützte Anmelde-Datei nicht lesen. Es hielt die Anmeldung
+  deshalb für ausgeschaltet und hat neu angelernte Finger/Personen nie bei Windows eingetragen.
+- Jetzt prüft AluPC bei jedem Öffnen der Fingerabdruck-Seite, ob Windows alle Finger kennt, und trägt fehlende
+  von selbst nach („✓ Windows kennt alle angelernten Finger“).
+- Mit 0.51–0.54 eingeschaltet? Die Seite zeigt dann **„Neu einrichten“** – einmal klicken, Windows-Passwort
+  eingeben, fertig. Danach gehen alle Finger aller Personen.
+
+**Neu: Alle Daten löschen**
+- Setup → Allgemein → **„Alle Daten löschen …“**: setzt AluPC zurück wie frisch installiert – Einstellungen,
+  Szenen, Startseite, Overlays, vom Handy empfangene Dateien, Namen der Fingerabdrücke, Browser-Daten, Autostart.
+  Wahlweise auch die Fingerabdrücke im Modul und die Fingerabdruck-Anmeldung. Zweimal nachfragen, dann startet
+  AluPC neu mit der Ersteinrichtung. Das Programm selbst bleibt installiert.
+
+### Neu in Version 0.54.0
 **Fingerabdruck unter Windows**
 - **Behoben: komische Zeichen** auf dem Sperrbildschirm („Finger auf den Sensor legen â€¦“). Der Anmeldebaustein
   wurde nicht als UTF-8 übersetzt – jetzt schon, und der Bau bricht ab, falls das je wieder passiert.

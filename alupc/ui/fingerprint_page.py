@@ -332,6 +332,7 @@ class FingerprintPage(QWidget):
                 item.setData(Qt.UserRole, f)
                 self.enrolled.addItem(item)
             self.hands.set_enrolled(finger_keys_from(self.backend, fingers))
+            self.reload_login()  # Prüfung der Windows-Anmeldung ist jetzt aktuell
 
         def failed(text):
             self.enrolled.clear()
@@ -346,13 +347,25 @@ class FingerprintPage(QWidget):
         if not self.backend.login_toggle:
             return
         state = self.backend.login_enabled()
-        if state is None:
+        check = getattr(self.backend, "login_check", "")
+        if state is None and IS_WINDOWS:
+            # mit AluPC bis 0.54 eingeschaltet: dort kamen neue Finger nie bei Windows an
+            self.login_label.setText("⚠ Mit älterer Version eingeschaltet – Windows kennt evtl. nur den ersten "
+                                     "Finger. Einmal neu einrichten (Windows-Passwort).")
+            self.login_btn.setText("Neu einrichten")
+        elif state is None:
             self.login_label.setText("Status unbekannt.")
             self.login_btn.setText("Einschalten")
         elif state:
-            self.login_label.setText(
-                "An: Anmelde- und Sperrbildschirm – Kachel „Fingerabdruck (AluPC)“ (Passwort geht weiter)"
-                if IS_WINDOWS else "An: Anmelden · Sperrbildschirm · sudo (Passwort geht weiter)")
+            text = ("An: Sperrbildschirm – Finger auflegen (Passwort geht weiter)"
+                    if IS_WINDOWS else "An: Anmelden · Sperrbildschirm · sudo (Passwort geht weiter)")
+            if IS_WINDOWS and check == "ok":
+                text += "\n✓ Windows kennt alle angelernten Finger"
+            elif IS_WINDOWS and check == "repariert":
+                text += "\n✓ Fehlende Finger bei Windows nachgetragen"
+            elif IS_WINDOWS and check == "fehler":
+                text += "\n⚠ Finger konnten nicht nachgetragen werden – bitte aus- und wieder einschalten"
+            self.login_label.setText(text)
             self.login_btn.setText("Ausschalten")
         else:
             self.login_label.setText("Ausgeschaltet: Anmelden nur mit Passwort.")
@@ -367,8 +380,8 @@ class FingerprintPage(QWidget):
         password = None
         if enable:
             text = ("Anmelden und Entsperren mit dem Fingerabdruckmodul einschalten?\n\n"
-                    "Auf dem Anmelde- und Sperrbildschirm erscheint die Kachel „Fingerabdruck (AluPC)“. "
-                    "Erkennt das Modul deinen Finger, meldet sie dich mit deinem Windows-Passwort an.\n\n"
+                    "Auf dem Sperrbildschirm genügt dann: Finger auflegen. Alle angelernten Personen melden "
+                    "sich mit diesem Konto an.\n\n"
                     "Dafür speichert AluPC das Passwort verschlüsselt (nur Windows selbst und Administratoren "
                     "können es lesen). Ändert sich dein Passwort, hier neu einschalten. "
                     "Das Passwort funktioniert weiterhin.\n\nDein Windows-Passwort (nicht die PIN):")

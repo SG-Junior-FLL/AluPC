@@ -3106,3 +3106,31 @@ def test_now_playing_tile_and_commands(env, monkeypatch):
     assert {"musik_pause", "musik_weiter", "musik_zurueck", "musik_zeigen"} <= ALLOWED_COMMANDS
     controller.extend()
     pump()
+
+
+def test_reset_all_data_button(env, monkeypatch):
+    """Setup → Allgemein → „Alle Daten löschen …“: zweimal bestätigen, dann beenden + löschen + Neustart."""
+    from PySide6.QtWidgets import QDialog, QMessageBox
+
+    from alupc import reset
+    from alupc.ui import reset_page
+    from alupc.ui.setup_page import SetupPage
+
+    controller, window, _tmp = env
+    window._go(2)  # Setup wird erst beim Öffnen gebaut
+    setup = window.findChild(SetupPage)
+    boxes = [b for b in setup.findChildren(__import__("PySide6.QtWidgets", fromlist=["x"]).QGroupBox)
+             if b.title() == "Zurücksetzen"]
+    assert boxes, "Bereich „Zurücksetzen“ fehlt"
+    requested = []
+    monkeypatch.setattr(reset, "request", lambda config: requested.append(config))
+    monkeypatch.setattr(reset_page.ResetDialog, "exec", lambda self: QDialog.Rejected)
+    reset_page.reset_all(setup)
+    assert not requested  # abgebrochen
+    monkeypatch.setattr(reset_page.ResetDialog, "exec", lambda self: QDialog.Accepted)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: QMessageBox.No)
+    reset_page.reset_all(setup)
+    assert not requested  # zweite Frage verneint
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: QMessageBox.Yes)
+    reset_page.reset_all(setup)
+    assert requested == [controller.config]

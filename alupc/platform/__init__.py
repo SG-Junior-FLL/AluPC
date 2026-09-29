@@ -78,6 +78,11 @@ class AutoFingerprintBackend(FingerprintBackend):
         return getattr(self.active, "usage", None) if self.is_serial else None
 
     @property
+    def login_check(self) -> str:
+        """Windows + Modul: kennt die Anmeldung alle Finger? ("ok", "repariert", "alt", "fehler", "")"""
+        return getattr(self.active, "login_check", "") if self.is_serial else ""
+
+    @property
     def is_serial(self) -> bool:
         return self.active is self.serial and self.serial is not None
 

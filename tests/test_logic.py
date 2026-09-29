@@ -1013,3 +1013,38 @@ def test_now_playing_parsing():
     assert np.track_from_mpris("x", {"Metadata": {}}) is None
     playing = np.Track(title="x", playing=True, position=10, length=12, stamp=time.monotonic() - 5)
     assert playing.position_now() == 12  # nie über das Ende hinaus
+
+
+def test_reset_wipes_only_alupc_data(tmp_path, monkeypatch):
+    """„Alle Daten löschen“: nur Ordner von AluPC, Autostart aus, Einstellungen werden danach nicht neu geschrieben."""
+    from alupc import reset
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "cfg"))
+    data = tmp_path / "cfg" / "AluPC"
+    (data / "Vom Handy").mkdir(parents=True)
+    (data / "config.json").write_text("{}")
+    (data / "Vom Handy" / "foto.jpg").write_bytes(b"x")
+    fremd = tmp_path / "fremd"
+    fremd.mkdir()
+    (fremd / "wichtig.txt").write_text("bleibt")
+    autostart_calls = []
+    monkeypatch.setattr("alupc.platform.autostart.set_enabled", lambda on: autostart_calls.append(on))
+    assert all(reset.is_alupc_dir(d) for d in reset.data_dirs())
+    problems = reset.wipe([data, fremd])
+    assert not data.exists() and (fremd / "wichtig.txt").exists()
+    assert autostart_calls == [False] and problems == [f"{fremd}: übersprungen"]
+
+    config = Config(tmp_path / "cfg" / "AluPC" / "config.json")
+    config.frozen = True  # nach dem Zurücksetzen bis zum Neustart nichts mehr schreiben
+    config["start_minimized"] = True
+    config.save()
+    assert not (tmp_path / "cfg" / "AluPC" / "config.json").exists()
+
+    # Nach dem Beenden: löschen, Reste melden, neu starten
+    started = []
+    monkeypatch.setattr(reset, "wipe", lambda: ["gesperrt.log: benutzt"])
+    monkeypatch.setattr("subprocess.Popen",
+                        lambda cmd, **kw: started.append(cmd))
+    reset.finish_and_restart()
+    assert started and (data / reset.LEFTOVER_FILE).read_text(encoding="utf-8") == "gesperrt.log: benutzt"

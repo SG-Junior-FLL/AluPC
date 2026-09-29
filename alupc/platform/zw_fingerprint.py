@@ -461,6 +461,7 @@ class SerialFingerprintBackend(FingerprintBackend):
 
     def __init__(self):
         self.usage: tuple[int, int] | None = None  # (belegt, Plätze), nach list_enrolled
+        self.login_check = ""  # Windows: kennt die Anmeldung alle Finger? (siehe _check_windows_login)
         self._cancel = threading.Event()
         self._found: dict[str, tuple[int, dict]] = {}
 
@@ -529,6 +530,8 @@ class SerialFingerprintBackend(FingerprintBackend):
         if cleaned != slots:
             save_slots(cleaned)
         self.usage = (len(used), cap)  # Belegung (für „12 von 50 Plätzen“)
+        if sys.platform.startswith("win"):
+            self._check_windows_login()
         # nach Person sortiert (dann Platz), damit die Liste gruppiert erscheint
 
         def order(slot):
@@ -707,6 +710,29 @@ class SerialFingerprintBackend(FingerprintBackend):
         return sorted(int(slot) for slot, info in load_slots().items() if info.get("user") == user)
 
     # ---- Anmeldung (Linux: PAM · Windows: Anmeldebaustein)
+    def _check_windows_login(self) -> None:
+        """Prüfen, ob die Windows-Anmeldung genau die angelernten Finger kennt – und ohne Nachfrage reparieren.
+        Ergebnis in `login_check`: "ok", "repariert", "alt" (mit älterer Version eingeschaltet → neu
+        einschalten), "fehler" oder "" (Anmeldung aus)."""
+        from . import windows_serial_login as wl
+
+        self.login_check = ""
+        if not self.login_toggle:
+            return
+        state = wl.login_enabled()
+        if state is None:
+            self.login_check = "alt"
+            return
+        if not state:
+            return
+        mine, names = self._my_slots(), my_names()
+        if wl.own_slots_file_state(mine, names) == "ok":
+            self.login_check = "ok"
+        elif wl.write_own_slots(mine, names=names):
+            self.login_check = "repariert"
+        else:
+            self.login_check = "fehler"
+
     def login_enabled(self):
         if not self.login_toggle:
             return None

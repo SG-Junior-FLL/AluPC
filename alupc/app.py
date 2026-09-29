@@ -164,7 +164,15 @@ def main(argv=None) -> int:
         from PySide6.QtCore import QTimer
 
         QTimer.singleShot(700, lambda: (window.show(), window.open_first_run()))
-    return app.exec()
+    from . import reset
+
+    QTimer.singleShot(900, lambda: reset.report_leftovers(window))  # nach „Alle Daten löschen“
+    code = app.exec()
+    if reset.pending():
+        # erst jetzt löschen: AirPlay, Protokolle usw. sind beendet und halten keine Dateien mehr offen
+        instance.server.close()
+        reset.finish_and_restart()
+    return code
 
 
 

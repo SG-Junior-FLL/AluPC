@@ -223,9 +223,33 @@ def registered() -> bool:
         return False
 
 
-def login_enabled(user: str | None = None) -> bool:
+def login_enabled(user: str | None = None) -> bool | None:
+    """Ist die Anmeldung für diesen Benutzer an? AluPC läuft ohne Administratorrechte und darf die geschützte
+    fingerprint-windows.cfg NICHT lesen (Fehler bis 0.54: AluPC hielt die Anmeldung deshalb für aus und trug
+    neue Finger nie nach – nur der erste Finger ging). Maßgeblich ist die eigene Plätze-Datei.
+    None = eingeschaltet mit älterer Version, Zustand nicht lesbar (→ einmal aus- und wieder einschalten)."""
     user = user or current_account()[0]
-    return registered() and user in read_config().get("users", {})
+    if not registered():
+        return False
+    if slots_path(user).is_file():
+        return True
+    try:
+        text = config_path().read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return False
+    except OSError:  # geschützt → nicht lesbar
+        return None
+    return user in parse_config(text).get("users", {})
+
+
+def own_slots_file_state(slots: list[int], names: dict | None = None, user: str | None = None) -> str:
+    """Kennt die Windows-Anmeldung genau die angelernten Finger? „ok“, „veraltet“ oder „fehlt“."""
+    path = slots_path(user or current_account()[0])
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return "fehlt"
+    return "ok" if text == format_slots(slots, names) else "veraltet"
 
 
 # --------------------------------------------------------------------------- mit Administratorrechten

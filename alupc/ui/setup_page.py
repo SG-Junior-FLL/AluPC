@@ -35,6 +35,7 @@ from ..platform.base import ROTATIONS, clone_outputs, place, side_of
 from . import icons, theme
 from .util import error_box, run_async
 from .hotkey_edit import HotkeyButton
+from .reset_page import reset_group
 from .sync_page import backup_group, sync_group
 from .widgets import button, font, rounded
 
@@ -233,7 +234,7 @@ class SetupPage(QWidget):
             "Sichern & Sync": [lambda: sync_group(self), lambda: backup_group(self)],
             "RGB & Lüfter": [self._hardware_group],
             "Handy & Kamera": [self._phone_group, self._camera_group],  # AirPlay: ohne Einstellungen
-            "Allgemein": [self._app_group],
+            "Allgemein": [self._app_group, lambda: reset_group(self)],
         }
         self.nav = QListWidget()
         self.nav.setObjectName("SetupNav")
