@@ -8,6 +8,15 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.52.0)
+- **Behoben (Windows): „Kein Zugriff auf COM…“ beim Anlernen** mit dem Fingerabdruckmodul. AluPC öffnete den
+  Anschluss beim Anlernen, Anzeigen, Prüfen und Löschen versehentlich zweimal – Linux erlaubt das, Windows
+  nicht (nur das Suchen klappte deshalb). Neuer Test stellt Windows' „nur einmal öffnen“ nach.
+- AluPC greift jetzt nacheinander auf das Modul zu (Fingerabdruck-Seite und Assistent kommen sich nicht mehr in
+  die Quere) und wartet kurz, falls der Anschluss gerade belegt ist.
+- Ist der Anschluss wirklich von einem anderen Programm belegt, sagt AluPC das unter Windows jetzt so
+  (z. B. Arduino-IDE, serieller Monitor) statt des Linux-Hinweises „Automatisch einrichten“.
+
 ### Neu in dieser Version (0.51.0)
 **Fingerabdruckmodul (HLK-ZW101 u. a.): jetzt auch unter Windows anmelden und entsperren**
 - Windows Hello nimmt solche Module nicht an – AluPC bringt deshalb einen eigenen **Anmeldebaustein**

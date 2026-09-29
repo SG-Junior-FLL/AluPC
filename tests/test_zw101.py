@@ -287,3 +287,44 @@ def test_windows_login_needs_password(monkeypatch):
                         "baud": 115200, "capacity": 200, "secret": "verschluesselt"}
     backend.set_login_enabled(False)
     assert sent[-1]["action"] == "aus"
+
+
+def test_windows_exclusive_port(fake, monkeypatch):
+    """Windows: ein COM-Anschluss lässt sich nur einmal gleichzeitig öffnen. Anlernen, Liste, Prüfen und Löschen
+    dürfen ihn deshalb nie doppelt öffnen (Fehler aus 0.51: „Kein Zugriff auf COM16“ beim Anlernen)."""
+    real_serial = zw.serial.Serial
+    open_ports = set()
+
+    class ExclusiveSerial:
+        def __init__(self, port, *a, **kw):
+            if port in open_ports:
+                raise zw.serial.SerialException(
+                    f"could not open port '{port}': PermissionError(13, 'Zugriff verweigert', None, 5)")
+            self._inner = real_serial(port, *a, **kw)
+            self._port = port
+            open_ports.add(port)
+
+        def close(self):
+            open_ports.discard(self._port)
+            self._inner.close()
+
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+    monkeypatch.setattr(zw.serial, "Serial", ExclusiveSerial)
+    backend = zw.SerialFingerprintBackend()
+    assert backend.list_sensors()
+    fake.finger = "zeige"
+    fake.auto_lift = True
+    backend.enroll(fake.port, "right-index", lambda *_: None)
+    assert backend.list_enrolled(fake.port) == ["platz:0"]
+    assert backend.verify(fake.port, lambda *_: None)[0]
+    backend.delete(fake.port, "platz:0")
+    assert not open_ports  # alles wieder geschlossen
+
+    # Belegt von einem anderen Programm (Windows): verständliche Meldung statt Linux-Hinweis
+    monkeypatch.setattr(zw.sys, "platform", "win32")
+    open_ports.add(fake.port)
+    with pytest.raises(zw.SensorError, match="anderen Programm belegt"):
+        zw.ZWSensor(fake.port).open(busy_wait=0.3)
+    open_ports.discard(fake.port)

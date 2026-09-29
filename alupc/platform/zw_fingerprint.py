@@ -74,6 +74,15 @@ class SensorError(RuntimeError):
     pass
 
 
+_PORT_LOCKS: dict[str, threading.RLock] = {}
+_PORT_LOCKS_GUARD = threading.Lock()
+
+
+def _port_lock(port: str) -> threading.RLock:
+    with _PORT_LOCKS_GUARD:
+        return _PORT_LOCKS.setdefault(port, threading.RLock())
+
+
 def checksum(data: bytes) -> int:
     return sum(data) & 0xFFFF
 
@@ -105,23 +114,46 @@ class ZWSensor:
         self.ser = None
 
     def __enter__(self):
-        self.open()
+        if self.ser is None:  # schon offen (z. B. von _open) → nicht ein zweites Mal öffnen: Windows verbietet das
+            self.open()
         return self
 
     def __exit__(self, *_):
         self.close()
 
-    def open(self):
+    def open(self, busy_wait: float = 4.0):
         if not HAVE_SERIAL:
             raise SensorError("Python-Paket „pyserial“ fehlt")
+        # Innerhalb von AluPC nacheinander: unter Windows darf nur einer einen COM-Anschluss offen haben
+        # (z. B. liest die Fingerabdruck-Seite die Finger, während der Assistent anlernen will)
+        lock = _port_lock(self.port)
+        if not lock.acquire(timeout=15):
+            raise SensorError(f"{self.port} ist in AluPC noch beschäftigt – gleich nochmal versuchen")
+        deadline = time.monotonic() + busy_wait
         try:
-            self.ser = serial.Serial(self.port, self.baud, timeout=self.timeout, write_timeout=self.timeout)
-        except serial.SerialException as exc:
-            text = str(exc)
-            if "ermission" in text or "Zugriff" in text or "Access" in text:
-                raise SensorError(f"Kein Zugriff auf {self.port} – siehe „Automatisch einrichten“") from exc
-            raise SensorError(f"{self.port} lässt sich nicht öffnen: {text}") from exc
-        self.ser.reset_input_buffer()
+            while True:
+                try:
+                    self.ser = serial.Serial(self.port, self.baud, timeout=self.timeout, write_timeout=self.timeout)
+                    break
+                except serial.SerialException as exc:
+                    text = str(exc)
+                    denied = "ermission" in text or "Zugriff" in text or "Access" in text or "verweigert" in text
+                    if denied and sys.platform.startswith("win") and time.monotonic() < deadline:
+                        time.sleep(0.3)  # gerade belegt (z. B. kurz von der Anmeldekachel) → kurz warten
+                        continue
+                    if denied and sys.platform.startswith("win"):
+                        raise SensorError(f"{self.port} ist von einem anderen Programm belegt (z. B. Arduino-IDE, "
+                                          "serieller Monitor, Cura, ein zweites AluPC) – das schließen und "
+                                          "nochmal versuchen") from exc
+                    if denied:
+                        raise SensorError(f"Kein Zugriff auf {self.port} – siehe „Automatisch einrichten“") from exc
+                    raise SensorError(f"{self.port} lässt sich nicht öffnen: {text}") from exc
+            self.ser.reset_input_buffer()
+        except BaseException:
+            self.ser = None
+            lock.release()
+            raise
+        self._locked = lock
 
     def close(self):
         if self.ser is not None:
@@ -129,6 +161,10 @@ class ZWSensor:
                 self.ser.close()
             finally:
                 self.ser = None
+        lock = getattr(self, "_locked", None)
+        if lock is not None:
+            self._locked = None
+            lock.release()
 
     def _read_exact(self, n: int) -> bytes:
         data = b""
@@ -269,7 +305,7 @@ def probe(port: str) -> tuple[int, dict] | None:
                 if s.handshake():
                     return baud, s.sys_params()
         except SensorError as exc:
-            if "Kein Zugriff" in str(exc):
+            if "Kein Zugriff" in str(exc) or "belegt" in str(exc):
                 raise
         except Exception:  # noqa: BLE001
             continue
