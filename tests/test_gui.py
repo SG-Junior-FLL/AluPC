@@ -214,7 +214,12 @@ def test_dialogs_build(env):
     editor._save()
     assert controller.config.get_scene(editor.scene["name"]) is not None
 
-    ProgramDialog(controller, window)
+    dialog = ProgramDialog(controller, window)
+    from PySide6.QtWidgets import QPushButton, QTabWidget
+
+    # „Verschieben“ gibt es im Programm-Dialog nicht mehr – nur noch Anzeigen (Kopie auf Monitor 2)
+    assert not dialog.findChildren(QTabWidget) and not hasattr(dialog, "move_list")
+    assert not [b for b in dialog.findChildren(QPushButton) if "Verschieben" in b.text() or "Anklicken" in b.text()]
     for i in range(window.stack.count()):
         window._go(i)
         pump()

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt, QTimer
@@ -14,14 +13,12 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from ..sources import capturable_windows
 from . import icons, theme
-from .util import error_box, run_async
 from .widgets import button, page_header
 
 
@@ -142,7 +139,7 @@ class ProgramList(QWidget):
 
 
 class ProgramDialog(QDialog):
-    """Zwei Wege: Programm aufnehmen (AluPC zeigt es) oder Fenster wirklich verschieben."""
+    """Programm auf Monitor 2: AluPC zeigt eine Kopie des Fensters (das Programm bleibt, wo es ist)."""
 
     def __init__(self, controller, parent=None):
         super().__init__(parent)
@@ -150,17 +147,11 @@ class ProgramDialog(QDialog):
         self.backend = controller.windows
         self.setWindowTitle("Programm auf Monitor 2")
         self.resize(680, 580)
-        self.tabs = QTabWidget()
-        self.tabs.setDocumentMode(True)
-        self.tabs.addTab(self._capture_tab(), "Spiegeln (Kopie)")
-        self.tabs.addTab(self._move_tab(), "Verschieben (weg von Monitor 1)")
-        if not self.capture_list._keys:  # Aufnahme hier nicht möglich → gleich „Verschieben“ zeigen
-            self.tabs.setCurrentIndex(1)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Programm auf Monitor 2", "Spiegeln · Verschieben"))
-        lay.addWidget(self.tabs)
+        lay.addWidget(page_header("Programm auf Monitor 2", "Programm wählen · Anzeigen"))
+        lay.addWidget(self._capture_tab(), 1)
 
     # ------------------------------------------------------------ Aufnahme
     def _capture_tab(self):
@@ -170,7 +161,7 @@ class ProgramDialog(QDialog):
         info.setWordWrap(True)
         self.capture_list = ProgramList(
             lambda: capture_programs(self.backend),
-            "Aufnahme hier nicht möglich · „Fenster verschieben“ nutzen")
+            "Keine Programmfenster gefunden · Programm öffnen, dann erscheint es hier")
         self.capture_list.list.itemDoubleClicked.connect(lambda _i: self._do_capture())
         settings = self.controller.config["program"]
         self.restore_box = QCheckBox("Minimierte Fenster zurückholen")
@@ -206,113 +197,3 @@ class ProgramDialog(QDialog):
                 pass
         self.controller.show_source({"type": "window", "title": program.title})
         self.accept()
-
-    # ------------------------------------------------------------ Verschieben
-    def _move_tab(self):
-        page = QWidget()
-        lay = QVBoxLayout(page)
-        wb = self.backend
-        info = QLabel("Fenster wandert auf Monitor 2 (maximiert, bedienbar)")
-        info.setWordWrap(True)
-        lay.addWidget(info)
-        self.fullscreen = QCheckBox("Vollbild statt maximiert (nur Linux)")
-        self.fullscreen.setVisible(not sys.platform.startswith("win"))
-        lay.addWidget(self.fullscreen)
-
-        self.move_list = None
-        if wb.can_list:
-            self.move_list = ProgramList(self._move_programs, "Keine Programmfenster gefunden.")
-            self.move_list.list.itemDoubleClicked.connect(lambda _i: self._do_move())
-            lay.addWidget(self.move_list, 1)
-            row = QHBoxLayout()
-            row.addStretch(1)
-            move_btn = button("Verschieben", "extend", primary=True)
-            move_btn.clicked.connect(self._do_move)
-            row.addWidget(move_btn)
-            lay.addLayout(row)
-
-        if wb.can_move_active:
-            box = QLabel("<b>Oder:</b> „Anklicken“ – dann 4 s Zeit fürs Programm")
-            box.setWordWrap(True)
-            lay.addWidget(box)
-            self.countdown_btn = button("Anklicken (4 Sekunden)", "timer")
-            self.countdown_btn.clicked.connect(self._start_countdown)
-            lay.addWidget(self.countdown_btn)
-        if not wb.can_list and not wb.can_move_active:
-            lay.addWidget(QLabel("Fenster verschieben ist auf diesem System nicht möglich."))
-        if not wb.can_list:
-            lay.addStretch(1)
-        return page
-
-    def _move_programs(self) -> list[Program]:
-        return [Program(w.title, w.app, w.minimized, w.id) for w in self.backend.list_windows()]
-
-    def _target(self):
-        screen = self.controller.output_screen()
-        if screen is None:
-            error_box(self, "Kein zweiter Monitor gefunden.")
-            return None
-        g = screen.geometry()
-        return screen.name(), (g.x(), g.y(), g.width(), g.height())
-
-    def _do_move(self):
-        program = self.move_list.selected() if self.move_list else None
-        if program is None:
-            return
-        target = self._target()
-        if target is None:
-            return
-        self.controller.ensure_extended()
-        name, rect = target
-        try:
-            self.backend.move_window(program.window_id, name, rect, self.fullscreen.isChecked())
-        except Exception as exc:  # noqa: BLE001
-            error_box(self, f"Verschieben fehlgeschlagen: {exc}")
-            return
-        self.controller.program_moved(program.title)
-        self.accept()
-
-    def _start_countdown(self):
-        target = self._target()
-        if target is None:
-            return
-        self.controller.ensure_extended()
-        self._remaining = 4
-        self.countdown_btn.setEnabled(False)
-        # AluPC-Fenster aus dem Weg räumen, damit man das Programm anklicken kann. Der Dialog wird nur
-        # durchsichtig (nicht versteckt) – sonst würde er sich schließen, bevor der Countdown fertig ist.
-        main = self.parent().window() if self.parent() else None
-        self.setWindowOpacity(0.0)
-        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        if main is not None:
-            main.showMinimized()
-        self.lower()
-        self._timer = QTimer(self, interval=1000)
-        self._timer.timeout.connect(lambda: self._tick(target, main))
-        self._timer.start()
-
-    def _tick(self, target, main):
-        self._remaining -= 1
-        if self._remaining > 0:
-            return
-        self._timer.stop()
-        name, rect = target
-        fullscreen = self.fullscreen.isChecked()
-
-        def restore():
-            if main is not None:
-                main.showNormal()
-            self.setWindowOpacity(1.0)
-            self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
-
-        def done(_r):
-            restore()
-            self.controller.program_moved("per Anklicken gewählt")
-            self.accept()
-
-        def failed(text):
-            restore()
-            self.countdown_btn.setEnabled(True)
-            error_box(self, f"Verschieben fehlgeschlagen: {text}")
-
-        run_async(lambda: self.backend.move_active_window(name, rect, fullscreen), done, failed)

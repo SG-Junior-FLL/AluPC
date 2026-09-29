@@ -8,7 +8,11 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.57.0)
+### Neu in dieser Version (0.58.0)
+- **Programme: „Verschieben“ entfernt.** „Programm auf Monitor 2“ zeigt jetzt nur noch die Liste der Programme –
+  auswählen, „Anzeigen“, fertig (AluPC zeigt eine Kopie des Fensters; das Programm bleibt, wo es ist).
+
+### Neu in Version 0.57.0
 - **Browser steuern läuft flüssig:** Die Vorschau zeigt beim Klicken, Scrollen und Tippen jetzt ~20 Bilder/s
   (vorher 5). Bewegte man die Maus ständig, kam bisher gar kein neues Bild, bis man still hielt – das war das
   Ruckeln. Ohne Eingabe bleibt es sparsam (4 Bilder/s). Das Vorschaubild wird zudem nur noch einmal verkleinert

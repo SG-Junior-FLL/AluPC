@@ -238,7 +238,7 @@ class SourcePicker(QDialog):
         refresh.clicked.connect(reload)
         form.addRow("Programmfenster:", combo)
         form.addRow("", refresh)
-        hint = QLabel("Programm muss offen sein · Wayland: „Fenster verschieben“ nutzen")
+        hint = QLabel("Programm muss offen sein")
         hint.setWordWrap(True)
         form.addRow(hint)
         fit = _fit_combo(init.get("fit", "contain"))
