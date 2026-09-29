@@ -145,10 +145,13 @@ def finger_keys_from(backend, keys) -> set[str]:
             result.add(k)
         elif str(k).startswith("platz:"):
             try:
-                from ..platform.zw_fingerprint import current_user, load_slots
+                from ..platform.zw_fingerprint import current_user, get_person, load_slots
 
                 info = load_slots().get(str(k).split(":", 1)[1], {})
-                if info.get("finger") and info.get("user") in (None, current_user()):
+                me = current_user()
+                # nur die Finger der gewählten Person (mehrere Personen können anlernen)
+                if info.get("finger") and info.get("user") in (None, me) \
+                        and (info.get("person") or me) == get_person():
                     result.add(info["finger"])
             except Exception:  # noqa: BLE001
                 pass

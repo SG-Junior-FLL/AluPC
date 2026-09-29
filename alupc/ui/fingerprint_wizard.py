@@ -375,12 +375,43 @@ class FingerprintWizard(QDialog):
                 self._finish()
                 return
             allow_multi = True
+        if getattr(self.backend, "login_needs_password", False):
+            self._windows_login(step)
+            return
         step.set("läuft", "Passwort bestätigen …")
         self.say("Das System fragt nach deinem Passwort, um die Anmeldung umzustellen.")
         run_async((lambda: self.backend.set_login_enabled(True, allow_multi=True)) if allow_multi
                   else (lambda: self.backend.set_login_enabled(True)),
                   lambda _r: (step.set("ok", "Eingeschaltet – das Passwort geht weiterhin."), self._finish()),
                   lambda e: self._fail("anmeldung", str(e)))
+
+    def _windows_login(self, step, hint: str = ""):
+        """Windows + Modul: Windows-Passwort abfragen (wird geprüft und verschlüsselt gespeichert), dann fragt
+        Windows einmal nach Administratorrechten. Falsches Passwort → nochmal fragen."""
+        from PySide6.QtWidgets import QInputDialog, QLineEdit
+
+        text = (hint + "\n\n" if hint else "") + (
+            "Damit du dich am Anmelde- und Sperrbildschirm mit dem Finger anmelden kannst, braucht AluPC einmal "
+            "dein Windows-Passwort (nicht die PIN). Es wird geprüft und verschlüsselt gespeichert – nur Windows "
+            "selbst und Administratoren können es lesen. Das Passwort funktioniert weiterhin.\n\nWindows-Passwort:")
+        password, ok = QInputDialog.getText(self, "Windows-Anmeldung mit Fingerabdruck", text, QLineEdit.Password)
+        if not ok or not password:
+            step.set("übersprungen", "Nicht eingeschaltet – geht später unter Fingerabdruck → „Einschalten“.")
+            self._finish()
+            return
+        step.set("läuft", "Windows fragt gleich nach Administratorrechten …")
+        self.say("Bitte die Windows-Abfrage (Administratorrechte) bestätigen.")
+
+        def failed(e):
+            if "stimmt nicht" in str(e):
+                self._windows_login(step, "Das Passwort stimmt nicht – bitte nochmal.")
+            else:
+                self._fail("anmeldung", str(e))
+
+        run_async(lambda: self.backend.set_login_enabled(True, password=password),
+                  lambda _r: (step.set("ok", "Eingeschaltet – Kachel „Fingerabdruck (AluPC)“ am Sperrbildschirm."),
+                              self._finish()),
+                  failed)
 
     def _finish(self):
         self.running = False
@@ -392,6 +423,9 @@ class FingerprintWizard(QDialog):
         if self.linux and "anmeldung" in self.steps and self.steps["anmeldung"].state == "ok":
             text += (" Am Sperrbildschirm einfach den Finger auflegen. Beim Anmeldebildschirm musst du je "
                      "nach Version erst Enter drücken (leeres Passwort) und dann den Finger auflegen.")
+        if sys.platform.startswith("win") and "anmeldung" in self.steps and self.steps["anmeldung"].state == "ok":
+            text += (" Zum Ausprobieren: Win+L drücken, die Kachel „Fingerabdruck (AluPC)“ wählen und den Finger "
+                     "auflegen.")
         self.say(text)
         self.start_btn.hide()
         self.close_btn.setText("Fertig")

@@ -1036,6 +1036,36 @@ def test_fingerprint_wizard_windows_flow(env):
     wiz.deleteLater()
 
 
+def test_fingerprint_wizard_windows_module_login(env, monkeypatch):
+    """Windows + Modul (ZW101): der Assistent fragt vor dem Einschalten nach dem Windows-Passwort (0.52 rief es
+    ohne auf → „Für die Windows-Anmeldung wird dein Windows-Passwort gebraucht“); falsches Passwort → nochmal."""
+    from PySide6.QtWidgets import QInputDialog
+
+    from alupc.ui.fingerprint_wizard import FingerprintWizard
+
+    class ModuleBackend(FakeFingerprint):
+        name, login_needs_password = "Modul am seriellen Anschluss", True
+
+        def set_login_enabled(self, on, allow_multi=False, password=None):
+            if on and password != "richtig":
+                raise RuntimeError("Das Windows-Passwort stimmt nicht")
+            self.login = on
+            self.log.append(("login", on, password))
+
+    answers = [("falsch", True), ("richtig", True)]
+    asked = []
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: (asked.append(a[2]), answers.pop(0))[1])
+    backend = ModuleBackend(missing=())
+    wiz = FingerprintWizard(backend)
+    wiz.login_box.setChecked(True)
+    wiz.start()
+    assert _wait(lambda: not wiz.running, 10)
+    assert wiz.steps["anmeldung"].state == "ok", {k: s.detail.text() for k, s in wiz.steps.items()}
+    assert ("login", True, "richtig") in backend.log and len(asked) == 2
+    assert "stimmt nicht" in asked[1]  # zweite Frage erklärt, warum nochmal
+    wiz.deleteLater()
+
+
 def test_screen_source_uses_kwin_without_asking(env, monkeypatch):
     from PySide6.QtCore import QObject, Signal
 
@@ -1378,7 +1408,24 @@ def test_serial_module_page_and_wizard(env, monkeypatch):
             {k: s.detail.text() for k, s in wiz.steps.items()}
         assert list(fake.library.values()) == ["zeigefinger"]
         wiz.deleteLater()
+
+        # Mehrere Personen: Name eintippen → Finger gehören dieser Person, Liste + Belegung zeigen es
+        assert not page.person_row.isHidden()
+        page.person_combo.setEditText("Lena")
+        assert zw.get_person() == "Lena"
+        fake.finger = "lena"
+        backend.enroll(page.sensor_id(), "right-index-finger", lambda *_: None)
+        page.reload_enrolled()
+        end = time.time() + 5
+        while page.enrolled.count() < 2 and time.time() < end:
+            pump()
+        assert page.usage_label.text() == "2 von 50 Plätzen"
+        names = [page.person_combo.itemText(i) for i in range(page.person_combo.count())]
+        assert names[0] == "Lena" and len(names) == 2
+        assert any("Lena · " in page.enrolled.item(i).text() for i in range(page.enrolled.count()))
+        assert page.hands.enrolled == {"right-index-finger"}
     finally:
+        zw.set_person("")
         fake.close()
 
 

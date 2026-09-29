@@ -73,6 +73,11 @@ class AutoFingerprintBackend(FingerprintBackend):
     can_auto_install = property(lambda self: self.system.can_auto_install)
 
     @property
+    def usage(self):
+        """(belegt, Plätze) beim Modul am Adapter – sonst None."""
+        return getattr(self.active, "usage", None) if self.is_serial else None
+
+    @property
     def is_serial(self) -> bool:
         return self.active is self.serial and self.serial is not None
 

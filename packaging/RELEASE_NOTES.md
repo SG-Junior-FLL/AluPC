@@ -8,6 +8,25 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
+### Neu in dieser Version (0.53.0)
+**Fingerabdruckmodul: mehrere Personen**
+- Bei „Fingerabdruck“ gibt es jetzt **Person:** – Namen wählen oder neu eintippen, dann Finger anlernen.
+  So passen z. B. 5 Personen × 10 Finger auf ein Modul mit 50 Plätzen. Daneben steht die Belegung
+  („12 von 50 Plätzen“), die Liste zeigt „Lena · Rechter Zeigefinger“. Die Hand zeigt die Finger der gewählten Person.
+- Alle Personen entsperren **das Konto, unter dem AluPC läuft** (kein eigenes Konto pro Person nötig).
+- Neue Finger/Personen gelten **ohne neue Passwort-/Administratorabfrage**: Linux liest beim Anmelden die
+  Plätze-Datei des Kontos direkt (nur bei mehreren Linux-Konten fragt es weiter), Windows eine Datei, die
+  beim Einschalten für das Konto angelegt wird.
+  Wer die Windows-Anmeldung mit 0.51/0.52 eingeschaltet hat: einmal aus- und wieder einschalten, sonst fragt
+  Windows weiter bei jeder Änderung nach Administratorrechten.
+- **Dual-Boot:** Namen und Zuordnung gehen mit dem Abgleich Windows ↔ Linux mit (neuer Bereich
+  „Fingerabdruck“). Die Fingerabdrücke selbst liegen im Modul, beide Systeme sehen also dieselben. Der
+  Windows-Benutzer wird dabei auf den Linux-Benutzer umgeschrieben. Anmelden mit Fingerabdruck muss auf
+  jedem System einmal eingeschaltet werden.
+
+**Behoben:** Der Assistent „Automatisch einrichten“ fragt unter Windows jetzt nach dem Windows-Passwort,
+statt mit „…wird dein Windows-Passwort gebraucht“ abzubrechen.
+
 ### Neu in dieser Version (0.52.0)
 - **Behoben (Windows): „Kein Zugriff auf COM…“ beim Anlernen** mit dem Fingerabdruckmodul. AluPC öffnete den
   Anschluss beim Anlernen, Anzeigen, Prüfen und Löschen versehentlich zweimal – Linux erlaubt das, Windows

@@ -13,6 +13,10 @@
 //   capacity=300
 //   user=<Benutzer>\t<Domäne oder .>\t<Plätze, z. B. 1,2>\t<DPAPI-Passwort als Hex>
 //
+// Daneben je Benutzer fingerprint-<Benutzer>.slots („1,2,7“): die aktuelle Platzliste, die AluPC ohne
+// Administratorrechte schreiben darf (neue Finger/Personen). Sie gilt nur, wenn ihr Besitzer Administratoren
+// oder SYSTEM ist (so legt AluPC sie mit Administratorrechten an) – sonst die Liste aus der Einstellung.
+//
 // Mit ALUPC_CP_TEST gebaut (nur Test-Programm): Pfad der Einstellung aus der Umgebung, Anschluss darf eine
 // Named Pipe sein (nachgebautes Modul in der CI).
 
@@ -22,6 +26,7 @@
 #define WIN32_NO_STATUS
 #include <windows.h>
 #undef WIN32_NO_STATUS
+#include <aclapi.h>
 #include <ntstatus.h>
 #define SECURITY_WIN32
 #include <credentialprovider.h>
@@ -90,6 +95,67 @@ static std::wstring ConfigPath() {
     return path;
 }
 
+static std::vector<int> ParseSlots(const std::string& text) {
+    std::vector<int> slots;
+    size_t s = 0;
+    while (s < text.size()) {
+        size_t c = text.find(',', s);
+        std::string num = text.substr(s, c == std::string::npos ? std::string::npos : c - s);
+        while (!num.empty() && (num.back() == '\n' || num.back() == '\r' || num.back() == ' ')) num.pop_back();
+        if (!num.empty() && num.find_first_not_of("0123456789") == std::string::npos) slots.push_back(atoi(num.c_str()));
+        s = c == std::string::npos ? text.size() : c + 1;
+    }
+    return slots;
+}
+
+static bool ReadSmallFile(const std::wstring& path, std::string& text) {
+    HANDLE f = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return false;
+    char chunk[4096];
+    DWORD got = 0;
+    while (text.size() < 1000000 && ReadFile(f, chunk, sizeof(chunk), &got, nullptr) && got > 0) text.append(chunk, got);
+    CloseHandle(f);
+    return true;
+}
+
+// Besitzer der Datei: Administratoren oder SYSTEM (im Test-Programm auch der eigene Benutzer)
+static bool OwnedByAdmins(const std::wstring& path) {
+    PSID owner = nullptr;
+    PSECURITY_DESCRIPTOR sd = nullptr;
+    if (GetNamedSecurityInfoW(path.c_str(), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION, &owner, nullptr, nullptr,
+                              nullptr, &sd) != ERROR_SUCCESS) return false;
+    bool ok = false;
+    BYTE buf[SECURITY_MAX_SID_SIZE];
+    DWORD size = sizeof(buf);
+    if (CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, buf, &size) && EqualSid(owner, buf)) ok = true;
+    size = sizeof(buf);
+    if (!ok && CreateWellKnownSid(WinLocalSystemSid, nullptr, buf, &size) && EqualSid(owner, buf)) ok = true;
+#ifdef ALUPC_CP_TEST
+    HANDLE token = nullptr;
+    if (!ok && OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+        BYTE info[256];
+        DWORD len = 0;
+        if (GetTokenInformation(token, TokenUser, info, sizeof(info), &len)) ok = EqualSid(owner, ((TOKEN_USER*)info)->User.Sid) != FALSE;
+        CloseHandle(token);
+    }
+#endif
+    LocalFree(sd);
+    return ok;
+}
+
+static std::wstring SlotsPath(const std::wstring& user) {
+    std::wstring dir = ConfigPath();
+    size_t cut = dir.find_last_of(L"\\/");
+    dir = cut == std::wstring::npos ? L"." : dir.substr(0, cut);
+    std::wstring safe;  // wie slots_path() in windows_serial_login.py: nur ASCII-Buchstaben/Ziffern und ._-
+    for (wchar_t c : user) {
+        bool keep = (c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z') || (c >= L'0' && c <= L'9') ||
+                    c == L'.' || c == L'_' || c == L'-' || c == L' ';
+        safe += keep ? c : L'_';
+    }
+    return dir + L"\\fingerprint-" + (safe.empty() ? L"x" : safe) + L".slots";
+}
+
 static bool LoadConfig(Config& cfg) {
     HANDLE f = CreateFileW(ConfigPath().c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
     if (f == INVALID_HANDLE_VALUE) return false;
@@ -123,13 +189,10 @@ static bool LoadConfig(Config& cfg) {
             UserEntry u;
             u.name = Utf8ToWide(parts[0]);
             u.domain = Utf8ToWide(parts[1]);
-            size_t s = 0;
-            while (s < parts[2].size()) {
-                size_t c = parts[2].find(',', s);
-                std::string num = parts[2].substr(s, c == std::string::npos ? std::string::npos : c - s);
-                if (!num.empty()) u.slots.push_back(atoi(num.c_str()));
-                s = c == std::string::npos ? parts[2].size() : c + 1;
-            }
+            u.slots = ParseSlots(parts[2]);
+            std::wstring own = SlotsPath(u.name);
+            std::string ownText;
+            if (OwnedByAdmins(own) && ReadSmallFile(own, ownText)) u.slots = ParseSlots(ownText);  // aktuelle Liste
             u.secret = FromHex(parts[3]);
             if (!u.name.empty() && !u.slots.empty() && !u.secret.empty()) cfg.users.push_back(u);
         }

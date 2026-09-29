@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -50,6 +51,46 @@ def available() -> bool:
 
 def config_path() -> Path:
     return Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "AluPC" / "fingerprint-windows.cfg"
+
+
+def slots_path(user: str, base: Path | None = None) -> Path:
+    """Plätze eines Benutzers, die er selbst (ohne Administratorrechte) schreiben darf – neue Finger/Personen
+    wirken so sofort. Die Datei wird beim Einschalten mit Besitzer „Administratoren“ angelegt; der
+    Anmeldebaustein liest sie nur dann (sonst gilt die Liste aus fingerprint-windows.cfg)."""
+    safe = "".join(c if (c.isascii() and c.isalnum()) or c in "._- " else "_" for c in user) or "x"
+    return (base or config_path().parent) / f"fingerprint-{safe}.slots"
+
+
+def format_slots(slots: list[int]) -> str:
+    return ",".join(str(int(s)) for s in sorted(set(slots))) + "\n"
+
+
+def write_own_slots(slots: list[int], user: str | None = None) -> bool:
+    """Ohne Administratorrechte: eigene Plätze-Datei überschreiben (Rechte/Besitzer bleiben). False = geht nicht."""
+    path = slots_path(user or current_account()[0])
+    if not path.is_file():
+        return False
+    try:
+        with open(path, "r+", encoding="utf-8") as f:  # vorhandene Datei, nicht neu anlegen
+            f.seek(0)
+            f.write(format_slots(slots))
+            f.truncate()
+        return True
+    except OSError:
+        return False
+
+
+def current_sid() -> str:
+    """SID des angemeldeten Benutzers (für die Rechte an seiner Plätze-Datei)."""
+    if not IS_WINDOWS:
+        return ""
+    try:
+        out = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True, text=True,
+                             creationflags=0x08000000).stdout
+    except OSError:
+        return ""
+    sid = out.strip().rsplit(",", 1)[-1].strip().strip('"')
+    return sid if re.fullmatch(r"S-1-5-21(-\d+)+", sid) else ""
 
 
 def format_config(cfg: dict) -> str:
@@ -211,6 +252,26 @@ def secure_file(path: Path) -> None:
         raise LoginError(f"Zugriffsrechte nicht setzbar: {(result.stdout + result.stderr).strip()}")
 
 
+def make_slots_file(user: str, slots: list[int], sid: str, folder: Path) -> None:
+    """(mit Administratorrechten) Plätze-Datei neu anlegen: Besitzer Administratoren, der Benutzer darf ändern."""
+    path = slots_path(user, folder)
+    if not re.fullmatch(r"S-1-5-21(-\d+)+", sid or ""):
+        return  # ohne gültige SID: keine Datei → AluPC nimmt wie bisher den Weg über Administratorrechte
+    try:
+        path.unlink()  # evtl. vorher von jemand anderem angelegt → weg damit
+    except OSError:
+        pass
+    folder.mkdir(parents=True, exist_ok=True)
+    path.write_text(format_slots(slots), encoding="utf-8")
+    flags = 0x08000000
+    for args in (["/setowner", "*S-1-5-32-544"],
+                 ["/inheritance:r", "/grant:r", "*S-1-5-18:F", "*S-1-5-32-544:F", f"*{sid}:M"]):
+        result = subprocess.run(["icacls", str(path), *args], capture_output=True, text=True, creationflags=flags)
+        if result.returncode != 0:
+            path.unlink(missing_ok=True)
+            raise LoginError(f"Zugriffsrechte nicht setzbar: {(result.stdout + result.stderr).strip()}")
+
+
 def apply_request(request: dict, path: Path | None = None, dll: Path | None = None) -> None:
     """Auftrag ausführen (läuft mit Administratorrechten): „an“ (Benutzer eintragen), „plaetze“ (nur die
     Finger aktualisieren) oder „aus“ (Benutzer entfernen; ist keiner mehr übrig, Baustein abmelden)."""
@@ -224,10 +285,15 @@ def apply_request(request: dict, path: Path | None = None, dll: Path | None = No
             cfg[key] = request[key]
     if action == "an":
         users[user] = {"domain": request.get("domain", "."), "slots": request["slots"], "secret": request["secret"]}
+        make_slots_file(user, request["slots"], request.get("sid", ""), path.parent)
     elif action == "plaetze" and user in users:
         users[user]["slots"] = request["slots"]
     elif action == "aus":
         users.pop(user, None)
+        try:
+            slots_path(user, path.parent).unlink()
+        except OSError:
+            pass
     users = {k: v for k, v in users.items() if v.get("slots")}
     cfg["users"] = users
     if not users:
@@ -313,7 +379,7 @@ def enable(password: str, slots: list[int], port: str, baud: int, capacity: int)
         raise LoginError("Das Windows-Passwort stimmt nicht (bei Microsoft-Konten: das Passwort des Kontos, "
                          "nicht die PIN)")
     request_elevated({"action": "an", "user": user, "domain": domain, "slots": sorted(slots), "port": port,
-                      "baud": baud, "capacity": capacity, "secret": protect(password)})
+                      "baud": baud, "capacity": capacity, "secret": protect(password), "sid": current_sid()})
 
 
 def update_slots(slots: list[int], port: str, baud: int, capacity: int) -> None:

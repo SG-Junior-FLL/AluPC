@@ -571,6 +571,10 @@ class Controller(QObject):
         if not self._syncing and self.config.data["sync"].get("enabled"):
             self._sync_timer.start()
 
+    def request_sync(self) -> None:
+        """Etwas außerhalb der Einstellungen hat sich geändert (z. B. Fingerabdruck-Namen) → bald abgleichen."""
+        self._config_saved()
+
     def run_sync(self) -> str:
         from .settings_sync import sync_once
 

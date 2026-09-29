@@ -88,7 +88,9 @@ class ScanDialog(QDialog):
 class FingerprintPage(QWidget):
     def __init__(self, controller, parent=None):
         super().__init__(parent)
+        self.controller = controller
         self.backend = controller.fingerprint
+        self._fingers: list = []
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(6)
@@ -121,6 +123,22 @@ class FingerprintPage(QWidget):
 
         finger_box = QGroupBox("Finger")
         fl = QVBoxLayout(finger_box)
+        # Modul am Adapter: mehrere Personen (alle entsperren dieses Konto)
+        self.person_row = QWidget()
+        pr = QHBoxLayout(self.person_row)
+        pr.setContentsMargins(0, 0, 0, 0)
+        pr.addWidget(QLabel("Person:"))
+        self.person_combo = QComboBox()
+        self.person_combo.setEditable(True)
+        self.person_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.person_combo.lineEdit().setPlaceholderText("Name")
+        self.person_combo.setToolTip("Wer lernt an? Neuen Namen einfach eintippen.")
+        self.person_combo.currentTextChanged.connect(self._person_changed)
+        pr.addWidget(self.person_combo, 1)
+        self.usage_label = QLabel()
+        self.usage_label.setObjectName("Muted")
+        pr.addWidget(self.usage_label)
+        fl.addWidget(self.person_row)
         hint = QLabel("Finger wählen · grün = angelernt")
         hint.setObjectName("Muted")
         fl.addWidget(hint)
@@ -128,7 +146,7 @@ class FingerprintPage(QWidget):
         self.hands.fingerClicked.connect(self._finger_clicked)
         fl.addWidget(self.hands)
         self.enrolled = QListWidget()
-        self.enrolled.setMaximumHeight(96)
+        self.enrolled.setMaximumHeight(140)
         caption = QLabel("Angelernte Finger")
         caption.setObjectName("Muted")
         fl.addWidget(caption)
@@ -197,6 +215,25 @@ class FingerprintPage(QWidget):
                 self.enrolled.setCurrentItem(item)
                 break
 
+    def _person_changed(self, name: str):
+        from ..platform import zw_fingerprint as zw
+
+        zw.set_person(name)
+        self.hands.set_enrolled(finger_keys_from(self.backend, self._fingers))
+
+    def _fill_persons(self):
+        from ..platform import zw_fingerprint as zw
+
+        current = zw.get_person()
+        names = zw.persons()
+        if current not in names:
+            names.insert(0, current)
+        self.person_combo.blockSignals(True)
+        self.person_combo.clear()
+        self.person_combo.addItems(names)
+        self.person_combo.setCurrentText(current)
+        self.person_combo.blockSignals(False)
+
     def _combo_changed(self, _i):
         finger = self.finger_combo.currentData()
         self.hands.set_selected(finger)
@@ -211,6 +248,9 @@ class FingerprintPage(QWidget):
         serial = bool(getattr(b, "is_serial", False))
         self.finger_combo.setVisible(b.can_enroll)
         self.hands.setVisible(b.can_enroll)
+        self.person_row.setVisible(serial and b.can_enroll)
+        if serial:
+            self._fill_persons()
         self.enroll_btn.setText(f"{self.finger_combo.currentText()} anlernen …" if b.can_enroll
                                 else "Finger anlernen (Windows Hello öffnen) …")
         self.delete_btn.setVisible(b.can_delete)
@@ -272,6 +312,11 @@ class FingerprintPage(QWidget):
 
         def done(fingers):
             self.enrolled.clear()
+            self._fingers = list(fingers)
+            usage = getattr(self.backend, "usage", None)
+            self.usage_label.setText(f"{usage[0]} von {usage[1]} Plätzen" if usage else "")
+            if getattr(self.backend, "is_serial", False):
+                self._fill_persons()
             if not fingers:
                 item = QListWidgetItem("(noch keine)")
                 item.setFlags(Qt.NoItemFlags)
@@ -384,9 +429,23 @@ class FingerprintPage(QWidget):
         sid, finger = self.sensor_id(), self.finger_combo.currentData()
         if sid is None:
             return
-        self._scan(f"{self.finger_combo.currentText()} anlernen",
+        who = ""
+        if self.person_row.isVisible():
+            from ..platform import zw_fingerprint as zw
+
+            name = self.person_combo.currentText().strip()
+            if not name:
+                QMessageBox.information(self, "Anlernen", "Bitte zuerst einen Namen eintragen.")
+                return
+            zw.set_person(name)
+            who = f" ({name})"
+        self._scan(f"{self.finger_combo.currentText()} anlernen{who}",
                    lambda status: self.backend.enroll(sid, finger, status),
-                   "Finger erfolgreich angelernt.", self.reload_enrolled)
+                   "Finger erfolgreich angelernt.", self._changed)
+
+    def _changed(self, *_):
+        self.reload_enrolled()
+        self.controller.request_sync()  # Namen zum anderen System (Dual-Boot)
 
     def verify(self):
         sid = self.sensor_id()
@@ -403,13 +462,14 @@ class FingerprintPage(QWidget):
         self._delete(finger, f"{item.text()} wirklich löschen?")
 
     def delete_all(self):
-        self._delete("*", "Wirklich ALLE angelernten Finger auf diesem Sensor löschen?")
+        many = self.person_row.isVisible() and self.person_combo.count() > 1
+        self._delete("*", "Wirklich ALLE angelernten Finger löschen" + (" – von allen Personen?" if many else "?"))
 
     def _delete(self, finger, question):
         if QMessageBox.question(self, "Löschen", question) != QMessageBox.Yes:
             return
         sid = self.sensor_id()
-        run_async(lambda: self.backend.delete(sid, finger), lambda _r: self.reload_enrolled(),
+        run_async(lambda: self.backend.delete(sid, finger), self._changed,
                   lambda e: error_box(self, f"Löschen fehlgeschlagen: {e}"))
 
     def toggle_login(self):

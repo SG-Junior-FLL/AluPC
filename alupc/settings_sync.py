@@ -11,7 +11,7 @@ AluPC eine höhere Nummer vom anderen System. Haben beide Seiten geändert (z. B
 eingehängt war), gewinnt die eigene Änderung – die andere Fassung wird als Sicherung daneben gelegt.
 
 Nicht abgeglichen wird, was je System anders ist: Monitor-Namen, Kamera-IDs, Programmpfade,
-Fingerabdruck, zuletzt gezeigter Inhalt.
+Anmelde-Einstellungen, zuletzt gezeigter Inhalt. Beim Fingerabdruckmodul nur die Namen (Personen/Finger).
 """
 
 from __future__ import annotations
@@ -50,7 +50,10 @@ SECTIONS: dict[str, tuple[str, list[str]]] = {
     "handy": ("Handy (Name, Code)", ["handy", "cast"]),
     "rgb": ("RGB-Beleuchtung", ["rgb"]),
     "overlays": ("Overlays", ["overlays"]),
+    "fingerabdruck": ("Fingerabdruck (Personen und Finger)", ["fingerprint_slots"]),
 }
+# Nicht in der Einstellungsdatei, sondern eigene Dateien (siehe zw_fingerprint.sync_export/sync_import)
+EXTERNAL_KEYS = {"fingerprint_slots"}
 
 
 def all_keys() -> list[str]:
@@ -76,8 +79,24 @@ def _portable(key: str, value):
     return value
 
 
+def _external(key: str):
+    if key == "fingerprint_slots":
+        from .platform.zw_fingerprint import sync_export
+
+        return sync_export()
+    return None
+
+
 def payload(config, keys: list[str] | None = None) -> dict:
-    return {k: _portable(k, config.data[k]) for k in (keys or all_keys()) if k in config.data}
+    data = {}
+    for k in keys or all_keys():
+        if k in EXTERNAL_KEYS:
+            value = _external(k)
+            if value:
+                data[k] = value
+        elif k in config.data:
+            data[k] = _portable(k, config.data[k])
+    return data
 
 
 def payload_hash(data: dict) -> str:
@@ -88,6 +107,12 @@ def apply_payload(config, data: dict, keys: list[str] | None = None) -> list[str
     """Übernimmt Einstellungen (geprüft, mit Standardwerten ergänzt). Rückgabe: geänderte Schlüssel."""
     changed = []
     for key in keys or all_keys():
+        if key == "fingerprint_slots" and key in data:
+            from .platform.zw_fingerprint import sync_import
+
+            if sync_import(data[key]):
+                changed.append(key)
+            continue
         if key not in data or key not in DEFAULTS:
             continue
         value = data[key]
@@ -108,7 +133,7 @@ def apply_payload(config, data: dict, keys: list[str] | None = None) -> list[str
         if config.data.get(key) != value:
             config.data[key] = value
             changed.append(key)
-    if changed:
+    if any(k not in EXTERNAL_KEYS for k in changed):
         config.save()
     return changed
 

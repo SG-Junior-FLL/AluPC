@@ -372,6 +372,69 @@ def current_user() -> str:
     return getpass.getuser()
 
 
+# --------------------------------------------------------------------------- Personen
+# Mehrere Personen können Finger anlernen (z. B. 5 Personen × 10 Finger = 50 Plätze). Alle angelernten Personen
+# dürfen das Konto entsperren, unter dem AluPC läuft. Die Person steht nur in der Plätze-Datei (Namen/Zuordnung).
+_person = ""
+
+
+def set_person(name: str) -> None:
+    global _person
+    _person = (name or "").strip()
+
+
+def get_person() -> str:
+    return _person or current_user()
+
+
+def persons(slots: dict | None = None) -> list[str]:
+    """Personen mit Fingern im eigenen Konto (Reihenfolge: zuerst die aktuelle, dann alphabetisch)."""
+    user = current_user()
+    names = {info.get("person") or user for info in (slots if slots is not None else load_slots()).values()
+             if info.get("user") == user}
+    return sorted(names, key=lambda n: (n != get_person(), n.lower()))
+
+
+# --------------------------------------------------------------------------- Dual-Boot-Abgleich
+# Die Fingerabdrücke selbst liegen im Modul – Windows und Linux sehen also dieselben Plätze. Abgeglichen werden
+# nur die Namen (Person, Finger) und die Zuordnung zum Konto. Der Benutzername des anderen Systems wird auf den
+# eigenen umgeschrieben (Windows „Noah“ → Linux „noah“).
+def sync_export() -> dict:
+    slots = load_slots()
+    return {"user": current_user(), "slots": slots} if slots else {}
+
+
+def merge_synced(local: dict, remote: dict, me: str) -> dict:
+    other = remote.get("user", "")
+    merged = dict(local)
+    for slot, info in (remote.get("slots") or {}).items():
+        if not (str(slot).isdigit() and isinstance(info, dict) and isinstance(info.get("finger"), str)):
+            continue
+        info = {k: v for k, v in info.items() if k in ("finger", "user", "person") and isinstance(v, str)}
+        if info.get("user") == other or not info.get("user"):
+            info["person"] = info.get("person") or other or me
+            info["user"] = me
+        merged[str(int(slot))] = info
+    return merged
+
+
+def sync_import(remote: dict) -> bool:
+    """Namen vom anderen System übernehmen. True = etwas geändert."""
+    if not isinstance(remote, dict) or not remote.get("slots"):
+        return False
+    local = load_slots()
+    merged = merge_synced(local, remote, current_user())
+    if merged == local:
+        return False
+    save_slots(merged)
+    if sys.platform.startswith("win"):  # Windows-Anmeldung: eigene Plätze-Datei nachziehen (falls eingerichtet)
+        from .windows_serial_login import write_own_slots
+
+        user = current_user()
+        write_own_slots(sorted(int(k) for k, v in merged.items() if v.get("user") == user))
+    return True
+
+
 # --------------------------------------------------------------------------- Backend
 class SerialFingerprintBackend(FingerprintBackend):
     name = "Modul am seriellen Anschluss"
@@ -390,6 +453,7 @@ class SerialFingerprintBackend(FingerprintBackend):
         return available()
 
     def __init__(self):
+        self.usage: tuple[int, int] | None = None  # (belegt, Plätze), nach list_enrolled
         self._cancel = threading.Event()
         self._found: dict[str, tuple[int, dict]] = {}
 
@@ -444,7 +508,9 @@ class SerialFingerprintBackend(FingerprintBackend):
         who = info.get("user")
         if not info and slot.isdigit() and int(slot) in foreign_slots():
             return f"Finger eines anderen Benutzers (Platz {slot})"
-        return f"{name} (Platz {slot}" + (f", {who})" if who and who != current_user() else ")")
+        person = info.get("person") or ""
+        prefix = f"{person} · " if person and person != who else ""
+        return f"{prefix}{name} (Platz {slot}" + (f", Konto {who})" if who and who != current_user() else ")")
 
     def list_enrolled(self, sensor_id):
         s, cap = self._open(sensor_id)
@@ -455,12 +521,20 @@ class SerialFingerprintBackend(FingerprintBackend):
         cleaned = {k: v for k, v in slots.items() if int(k) in used}
         if cleaned != slots:
             save_slots(cleaned)
-        return [f"platz:{slot}" for slot in sorted(used)]
+        self.usage = (len(used), cap)  # Belegung (für „12 von 50 Plätzen“)
+        # nach Person sortiert (dann Platz), damit die Liste gruppiert erscheint
+
+        def order(slot):
+            info = cleaned.get(str(slot), {})
+            return ((info.get("person") or info.get("user") or "~").lower(), slot)
+
+        return [f"platz:{slot}" for slot in sorted(used, key=order)]
 
     def is_enrolled(self, sensor_id, finger) -> bool:
         used = set(self.list_enrolled(sensor_id))
-        user = current_user()
-        return any(info.get("finger") == finger and info.get("user") == user and f"platz:{slot}" in used
+        user, person = current_user(), get_person()
+        return any(info.get("finger") == finger and info.get("user") == user
+                   and (info.get("person") or user) == person and f"platz:{slot}" in used
                    for slot, info in load_slots().items())
 
     def _wait_finger(self, s: ZWSensor, status, text, stage, total, timeout=30.0):
@@ -489,7 +563,7 @@ class SerialFingerprintBackend(FingerprintBackend):
 
     def enroll(self, sensor_id, finger, status):
         self._cancel.clear()
-        user = current_user()
+        user, person = current_user(), get_person()
         s, cap = self._open(sensor_id)
         total = SCANS_PER_ENROLL + 1
         with s:
@@ -513,16 +587,17 @@ class SerialFingerprintBackend(FingerprintBackend):
             status("Speichern …", SCANS_PER_ENROLL, total)
             s.reg_model()
             s.store(1, free)
-            # derselbe Finger war für diesen Benutzer schon angelernt → alten Platz freigeben
+            # derselbe Finger derselben Person war schon angelernt → alten Platz freigeben
             slots = load_slots()
             for slot, info in list(slots.items()):
-                if info.get("finger") == finger and info.get("user") == user and int(slot) != free:
+                if info.get("finger") == finger and info.get("user") == user and int(slot) != free \
+                        and (info.get("person") or user) == person:
                     try:
                         s.delete(int(slot))
                     except SensorError:
                         pass
                     slots.pop(slot)
-            slots[str(free)] = {"finger": finger, "user": user}
+            slots[str(free)] = {"finger": finger, "user": user, "person": person}
             save_slots(slots)
             status("Fertig! Finger gespeichert.", total, total)
         self._sync_login(sensor_id)
@@ -567,12 +642,16 @@ class SerialFingerprintBackend(FingerprintBackend):
         self._sync_login(sensor_id)
 
     def _sync_login(self, port: str) -> None:
-        """Ist die Anmeldung an, muss die Zuordnung Finger → Benutzer nachgezogen werden (Linux: /etc,
-        Windows: ProgramData – dort fragt Windows einmal nach Administratorrechten)."""
+        """Ist die Anmeldung an, muss die Zuordnung Finger → Benutzer nachgezogen werden. Normalerweise ohne
+        Abfrage: Linux liest die eigene Plätze-Datei, Windows die Datei fingerprint-<Benutzer>.slots, die beim
+        Einschalten für den Benutzer beschreibbar angelegt wird. Nur als Rückfall /etc bzw. Administratorrechte
+        (Linux mit mehreren Konten: /etc, damit jeder weiß, welche Plätze anderen gehören)."""
         if sys.platform.startswith("win"):
             if self.login_enabled():
-                from .windows_serial_login import update_slots
+                from .windows_serial_login import update_slots, write_own_slots
 
+                if write_own_slots(self._my_slots()):  # eigene Plätze-Datei (ohne Administratorrechte)
+                    return
                 baud, params = self._found.get(port, (57600, {}))
                 try:
                     update_slots(self._my_slots(), port, baud, int(params.get("capacity", 300)))
@@ -581,7 +660,10 @@ class SerialFingerprintBackend(FingerprintBackend):
                                       f"({exc}).") from exc
             return
         if self.login_enabled():
-            from .linux_serial_login import update_login
+            from .linux_serial_login import read_login, update_login
+
+            if not read_login().get("multi_user"):
+                return  # nur ein Konto: die Anmelde-Prüfung liest die eigene Plätze-Datei direkt
 
             try:
                 update_login(login_config(port, self._found.get(port, (57600, {}))[0]))
@@ -663,6 +745,26 @@ def foreign_slots(user: str | None = None) -> set[int]:
     return {int(s) for name, slots in read_login().get("users", {}).items() if name != user for s in slots}
 
 
+def user_slots_from_home(user: str, home: str | None = None) -> set[int] | None:
+    """Linux: Plätze eines Benutzers aus seiner eigenen Plätze-Datei (~/.config/AluPC/fingerprint-slots.json).
+    So wirken neu angelernte Finger/Personen sofort, ohne dass /etc (Passwortabfrage) geändert werden muss.
+    Die Datei zählt nur, wenn sie dem Benutzer gehört – sie kann also nur sein eigenes Konto freigeben.
+    None = nicht lesbar (dann gilt die Liste aus /etc)."""
+    try:
+        import pwd
+
+        pw = pwd.getpwnam(user)
+        path = Path(home or pw.pw_dir) / ".config" / "AluPC" / "fingerprint-slots.json"
+        st = path.stat()
+        if st.st_uid != pw.pw_uid or st.st_size > 1_000_000:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {int(slot) for slot, info in data.items()
+                if isinstance(info, dict) and info.get("user") == user and str(slot).isdigit()}
+    except (ImportError, KeyError, OSError, ValueError, AttributeError):
+        return None
+
+
 # --------------------------------------------------------------------------- Anmelde-Prüfung (PAM)
 def pam_check(env=None, login_file: Path = LOGIN_FILE, out=None) -> int:
     """Wird von pam_exec aufgerufen (Befehl `alupc --fingerabdruck-pam`). 0 = Finger passt zum Benutzer."""
@@ -678,7 +780,12 @@ def pam_check(env=None, login_file: Path = LOGIN_FILE, out=None) -> int:
         cfg = json.loads(Path(login_file).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return 1
-    allowed = set(cfg.get("users", {}).get(user, []))
+    if user not in cfg.get("users", {}):
+        return 1
+    allowed = set(cfg["users"][user])
+    own = user_slots_from_home(user)
+    if own is not None:  # aktuelle Liste aus AluPC (neue Personen/Finger ohne erneute Passwortabfrage)
+        allowed = own
     if not allowed or not HAVE_SERIAL:
         return 1
     ports = [cfg.get("port")] if cfg.get("port") else []

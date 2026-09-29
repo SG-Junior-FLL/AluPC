@@ -11,6 +11,13 @@ pytest.importorskip("serial")
 from alupc.platform import zw_fingerprint as zw  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _no_person():
+    zw.set_person("")
+    yield
+    zw.set_person("")
+
+
 @pytest.fixture()
 def fake(tmp_path, monkeypatch):
     from fake_zw101 import FakeZW101
@@ -284,7 +291,7 @@ def test_windows_login_needs_password(monkeypatch):
         backend.set_login_enabled(True, password="falsch")
     backend.set_login_enabled(True, password="richtig")
     assert sent[-1] == {"action": "an", "user": "noah", "domain": ".", "slots": [1, 4], "port": "COM5",
-                        "baud": 115200, "capacity": 200, "secret": "verschluesselt"}
+                        "baud": 115200, "capacity": 200, "secret": "verschluesselt", "sid": ""}
     backend.set_login_enabled(False)
     assert sent[-1]["action"] == "aus"
 
@@ -328,3 +335,143 @@ def test_windows_exclusive_port(fake, monkeypatch):
     with pytest.raises(zw.SensorError, match="anderen Programm belegt"):
         zw.ZWSensor(fake.port).open(busy_wait=0.3)
     open_ports.discard(fake.port)
+
+
+def test_several_persons(fake, monkeypatch):
+    """Mehrere Personen lernen am selben Konto an (z. B. 5 Personen × 10 Finger bei 50 Plätzen): derselbe Finger
+    zweier Personen belegt zwei Plätze, Neu-Anlernen ersetzt nur den Platz derselben Person."""
+    monkeypatch.setattr(zw, "current_user", lambda: "noah")
+    backend = zw.SerialFingerprintBackend()
+    backend.list_sensors()
+    fake.auto_lift = True
+    for person, finger in (("Noah", "n"), ("Lena", "l"), ("Noah", "n2")):
+        zw.set_person(person)
+        fake.finger = finger
+        backend.enroll(fake.port, "right-index", lambda *_: None)
+    slots = zw.load_slots()
+    assert sorted((v["person"], k) for k, v in slots.items()) == [("Lena", "1"), ("Noah", "2")]
+    assert fake.library == {1: "l", 2: "n2"}
+    assert backend.usage is None or backend.usage[1] == 50
+    assert backend.list_enrolled(fake.port) == ["platz:1", "platz:2"]  # nach Person sortiert
+    assert backend.usage == (2, 50)
+    assert zw.persons() == ["Noah", "Lena"]  # gewählte Person zuerst
+    assert backend.is_enrolled(fake.port, "right-index")
+    zw.set_person("Mia")
+    assert not backend.is_enrolled(fake.port, "right-index")
+    assert "Lena · " in backend.finger_label("platz:1")
+    # alle Personen dürfen das Konto entsperren
+    assert backend._my_slots() == [1, 2]
+
+
+def test_pam_reads_own_slots_file(fake, tmp_path, monkeypatch):
+    """Linux: Neue Finger/Personen gelten sofort – die Prüfung liest die Plätze-Datei des Benutzers
+    (ohne erneute Passwortabfrage für /etc). Die Datei muss dem Benutzer gehören."""
+    import getpass
+    import os
+    import pwd
+
+    me = getpass.getuser()
+    home = tmp_path / "home"
+    f = home / ".config" / "AluPC" / "fingerprint-slots.json"
+    f.parent.mkdir(parents=True)
+    f.write_text(json.dumps({"3": {"finger": "a", "user": me, "person": "Lena"}, "5": {"finger": "b", "user": "x"}}))
+    assert zw.user_slots_from_home(me, str(home)) == {3}
+    assert zw.user_slots_from_home("gibt-es-nicht-xyz", str(home)) is None
+    real = pwd.getpwnam(me)
+    monkeypatch.setattr(pwd, "getpwnam", lambda n: type("P", (), {"pw_dir": str(home), "pw_uid": real.pw_uid})())
+    login = tmp_path / "login.json"
+    fake.library = {3: "lena", 4: "alt"}
+    # /etc kennt nur den alten Platz 4 – die eigene Datei (Platz 3) gilt
+    login.write_text(json.dumps({"users": {me: [4]}, "port": fake.port, "baud": 57600, "timeout": 2}))
+    fake.finger = "lena"
+    assert zw.pam_check({"PAM_USER": me}, login, out=open(os.devnull, "w")) == 0
+    fake.finger = "alt"
+    assert zw.pam_check({"PAM_USER": me}, login, out=open(os.devnull, "w")) == 1
+    # Datei gehört jemand anderem → nicht vertrauen, /etc gilt
+    monkeypatch.setattr(pwd, "getpwnam", lambda n: type("P", (), {"pw_dir": str(home), "pw_uid": real.pw_uid + 1})())
+    assert zw.user_slots_from_home(me) is None
+    # Konto nicht eingeschaltet → nie
+    login.write_text(json.dumps({"users": {}, "port": fake.port, "baud": 57600, "timeout": 2}))
+    fake.finger = "lena"
+    assert zw.pam_check({"PAM_USER": me}, login, out=open(os.devnull, "w")) == 1
+
+
+def test_windows_slots_file(tmp_path, monkeypatch):
+    """Windows: Beim Einschalten entsteht fingerprint-<Benutzer>.slots (Besitzer Administratoren, Benutzer darf
+    ändern). AluPC schreibt dort neue Plätze ohne Administratorrechte hinein."""
+    from alupc.platform import windows_serial_login as w
+
+    calls = []
+    monkeypatch.setattr(w.subprocess, "run", lambda args, **kw: calls.append(args) or
+                        type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    monkeypatch.setattr(w, "register", lambda dll: None)
+    monkeypatch.setattr(w, "unregister", lambda: None)
+    monkeypatch.setattr(w, "config_path", lambda: tmp_path / "fingerprint-windows.cfg")
+    cfg, dll = tmp_path / "fingerprint-windows.cfg", tmp_path / "x.dll"
+    assert w.slots_path("Jürgen Ö", tmp_path).name == "fingerprint-J_rgen _.slots"
+    w.apply_request({"action": "an", "user": "noah", "domain": ".", "slots": [1], "secret": "ab",
+                     "sid": "S-1-5-21-11-22-33-1001"}, path=cfg, dll=dll)
+    sp = w.slots_path("noah", tmp_path)
+    assert sp.read_text() == "1\n"
+    assert any("/setowner" in a for a in calls) and any("*S-1-5-21-11-22-33-1001:M" in a for a in calls)
+    assert w.write_own_slots([4, 1, 9], "noah") and sp.read_text() == "1,4,9\n"
+    assert not w.write_own_slots([1], "lena")  # keine Datei → Rückfall auf Administratorrechte
+    # ungültige SID → keine Datei
+    w.apply_request({"action": "an", "user": "lena", "domain": ".", "slots": [2], "secret": "ab", "sid": "bla"},
+                    path=cfg, dll=dll)
+    assert not w.slots_path("lena", tmp_path).exists()
+    w.apply_request({"action": "aus", "user": "noah", "slots": []}, path=cfg, dll=dll)
+    assert not sp.exists()
+
+
+def test_windows_sync_login_without_admin(fake, monkeypatch):
+    """Windows mit eingeschalteter Anmeldung: Anlernen schreibt die Plätze-Datei, kein Admin-Auftrag."""
+    from alupc.platform import windows_serial_login as w
+
+    backend = zw.SerialFingerprintBackend()
+    backend.list_sensors()
+    monkeypatch.setattr(zw.sys, "platform", "win32")
+    monkeypatch.setattr(w, "login_enabled", lambda user=None: True)
+    monkeypatch.setattr(type(backend), "login_toggle", property(lambda self: True))
+    written, elevated = [], []
+    monkeypatch.setattr(w, "write_own_slots", lambda slots, user=None: written.append(slots) or True)
+    monkeypatch.setattr(w, "update_slots", lambda *a: elevated.append(a))
+    fake.auto_lift = True
+    fake.finger = "a"
+    backend.enroll(fake.port, "left-thumb", lambda *_: None)
+    assert written == [[0]] and not elevated
+    monkeypatch.setattr(w, "write_own_slots", lambda slots, user=None: False)
+    backend._sync_login(fake.port)
+    assert elevated  # Datei fehlt (ältere Einrichtung) → wie bisher mit Administratorrechten
+
+
+def test_dual_boot_sync_of_names(tmp_path, monkeypatch):
+    """Namen/Personen gehen per Dual-Boot-Abgleich mit; der Windows-Benutzer wird zum Linux-Benutzer."""
+    from alupc import settings_sync as ss
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setattr(zw, "current_user", lambda: "noah")
+    remote = {"user": "Noah", "slots": {"1": {"finger": "right-index", "user": "Noah", "person": "Lena"},
+                                        "2": {"finger": "left-thumb", "user": "Noah"},
+                                        "7": {"finger": "left-index", "user": "Gast"},
+                                        "x": {"finger": "kaputt"}, "9": {"finger": 5}}}
+    merged = zw.merge_synced({"3": {"finger": "a", "user": "noah", "person": "Mia"}}, remote, "noah")
+    assert merged == {"3": {"finger": "a", "user": "noah", "person": "Mia"},
+                      "1": {"finger": "right-index", "user": "noah", "person": "Lena"},
+                      "2": {"finger": "left-thumb", "user": "noah", "person": "Noah"},
+                      "7": {"finger": "left-index", "user": "Gast"}}
+    zw.save_slots({})
+
+    class Cfg:
+        data = {}
+
+        def save(self):
+            pass
+
+    assert "fingerprint_slots" not in ss.payload(Cfg(), ["fingerprint_slots"])  # nichts angelernt → nichts
+    assert ss.apply_payload(Cfg(), {"fingerprint_slots": remote}, ["fingerprint_slots"]) == ["fingerprint_slots"]
+    assert zw.load_slots()["1"]["user"] == "noah"
+    out = ss.payload(Cfg(), ["fingerprint_slots"])["fingerprint_slots"]
+    assert out["user"] == "noah" and out["slots"]["1"]["person"] == "Lena"
+    assert ss.apply_payload(Cfg(), {"fingerprint_slots": remote}, ["fingerprint_slots"]) == []  # schon gleich
+    assert "fingerabdruck" in ss.SECTIONS

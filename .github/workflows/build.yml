@@ -219,7 +219,9 @@ jobs:
           $pipe = "\\.\pipe\alupc-fp-ci"
           $cfg = Join-Path $env:RUNNER_TEMP "fp.cfg"
           # Einstellung genau so schreiben, wie AluPC es tut (Python, DPAPI Maschine)
-          python -c "import sys; sys.path.insert(0,'.'); from alupc.platform import windows_serial_login as w; open(sys.argv[1],'w',encoding='utf-8').write(w.format_config({'port': sys.argv[2], 'baud': 57600, 'capacity': 50, 'users': {'ci-tester': {'domain': '.', 'slots': [7], 'secret': w.protect('Tüt-Geheim 42!')}}}))" $cfg $pipe
+          python -c "import sys; sys.path.insert(0,'.'); from alupc.platform import windows_serial_login as w; open(sys.argv[1],'w',encoding='utf-8').write(w.format_config({'port': sys.argv[2], 'baud': 57600, 'capacity': 50, 'users': {'ci-tester': {'domain': '.', 'slots': [3], 'secret': w.protect('Tüt-Geheim 42!')}}}))" $cfg $pipe
+          # Plätze-Datei (neue Finger/Personen ohne Adminrechte): Platz 7 steht nur dort → muss trotzdem gelten
+          Set-Content -Path (Join-Path $env:RUNNER_TEMP "fingerprint-ci-tester.slots") -Value "3,7" -Encoding ascii
           $fake = Start-Process python -ArgumentList "tests\fake_zw101_pipe.py", $pipe, "7" -PassThru -NoNewWindow -RedirectStandardOutput "$env:RUNNER_TEMP\fake.txt"
           Start-Sleep -Seconds 2
           $out = & build\credprov\Release\cptest.exe $cfg 20
@@ -232,7 +234,7 @@ jobs:
           }
           Write-Output "::notice title=Anmeldebaustein::Finger erkannt → Anmeldung für ci-tester gebaut, Passwort aus DPAPI korrekt"
           # Einrichten wie AluPC (Admin): Datei schützen, bei Windows anmelden, wieder abmelden
-          python -c "import sys; sys.path.insert(0,'.'); from pathlib import Path; from alupc.platform import windows_serial_login as w; p=Path(sys.argv[1]); w.apply_request({'action':'an','user':'ci-tester','domain':'.','slots':[7],'port':'COM9','baud':57600,'capacity':50,'secret':w.protect('x')}, path=p, dll=Path(sys.argv[2])); assert w.registered(), 'nicht registriert'; print('ACL', __import__('subprocess').run(['icacls', str(p)], capture_output=True, text=True).stdout.replace(chr(10),' ')); w.apply_request({'action':'aus','user':'ci-tester','slots':[]}, path=p); assert not w.registered() and not p.exists(), 'nicht abgemeldet'; print('REG-OK')" "$env:RUNNER_TEMP\fp-reg.cfg" "$PWD\dist\AluPC\credprov\AluPCFingerprint.dll"
+          python -c "import sys; sys.path.insert(0,'.'); from pathlib import Path; from alupc.platform import windows_serial_login as w; p=Path(sys.argv[1]); w.apply_request({'action':'an','user':'ci-tester','domain':'.','slots':[7],'port':'COM9','baud':57600,'capacity':50,'secret':w.protect('x'),'sid':w.current_sid()}, path=p, dll=Path(sys.argv[2])); assert w.registered(), 'nicht registriert'; sp=w.slots_path('ci-tester', p.parent); assert sp.is_file(), 'keine Plätze-Datei'; sp.write_text(w.format_slots([7, 12])); print('SLOTS', sp.read_text().strip(), __import__('subprocess').run(['icacls', str(sp)], capture_output=True, text=True).stdout.replace(chr(10),' ')); print('ACL', __import__('subprocess').run(['icacls', str(p)], capture_output=True, text=True).stdout.replace(chr(10),' ')); w.apply_request({'action':'aus','user':'ci-tester','slots':[]}, path=p); assert not w.registered() and not p.exists() and not sp.exists(), 'nicht abgemeldet'; print('REG-OK')" "$env:RUNNER_TEMP\fp-reg.cfg" "$PWD\dist\AluPC\credprov\AluPCFingerprint.dll"
           if ($LASTEXITCODE -ne 0) { Write-Output "::error title=Anmeldebaustein::Registrieren/Abmelden fehlgeschlagen"; exit 1 }
       - name: Fertige AluPC.exe starten (Selbsttest)
         shell: pwsh
