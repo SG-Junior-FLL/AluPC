@@ -184,10 +184,13 @@ jobs:
           python -X faulthandler -m pytest -v -rf tests/test_gui.py 2>&1 | Tee-Object -FilePath gui.log
           if ($LASTEXITCODE -ne 0) {
             # Fehler als Hinweis (Annotation) ausgeben – die sind auch ohne Anmeldung sichtbar
-            Select-String -Path gui.log -Pattern '^(FAILED|E   |ERROR|Fatal|Windows fatal|  File )' |
+            # Bei einem Absturz: welcher Test lief gerade? (letzte Testzeile vor „Fatal …“)
+            $last = Select-String -Path gui.log -Pattern '^tests/test_gui\.py::' | Select-Object -Last 1
+            if ($last) { Write-Output ("::error title=Zuletzt gelaufener Test::" + $last.Line.Trim()) }
+            Select-String -Path gui.log -Pattern '^(FAILED|E   |ERROR|Fatal|Windows fatal|  File "D:)' |
               Select-Object -First 40 | ForEach-Object { Write-Output ("::error::" + $_.Line.Trim()) }
-            Get-Content gui.log -Tail 25 | Where-Object { $_.Trim() } |
-              ForEach-Object { Write-Output ("::warning::" + $_.Trim()) }
+            Get-Content gui.log -Tail 60 | Where-Object { $_.Trim() -and $_ -notmatch 'site-packages' } |
+              Select-Object -Last 25 | ForEach-Object { Write-Output ("::warning::" + $_.Trim()) }
             exit 1
           }
       - name: AluPC.exe bauen (PyInstaller)
