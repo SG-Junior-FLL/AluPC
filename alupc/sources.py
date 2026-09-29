@@ -995,6 +995,16 @@ def allow_autoplay(view) -> None:
     view.settings().setAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False)
 
 
+def allow_fullscreen(view) -> None:
+    """Vollbild-Knopf der Seiten (YouTube, Vimeo, Präsentationen …) erlauben. Ohne das meldet YouTube
+    „Vollbildmodus nicht verfügbar“. Das Element füllt dann die ganze Website-Fläche auf Monitor 2
+    (Esc oder der Knopf auf der Seite beendet es wieder)."""
+    from PySide6.QtWebEngineCore import QWebEngineSettings
+
+    view.settings().setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
+    view.page().fullScreenRequested.connect(lambda request: request.accept())
+
+
 class WebsiteSource(QWidget):
     def __init__(self, cfg, parent=None):
         super().__init__(parent)
@@ -1006,6 +1016,7 @@ class WebsiteSource(QWidget):
         self.view = QWebEngineView(self)
         layout.addWidget(self.view)
         allow_autoplay(self.view)
+        allow_fullscreen(self.view)
         url = normalize_url(cfg.get("url", ""))
         self.view.setZoomFactor(float(cfg.get("zoom", 1.0) or 1.0))
         self.volume = int(cfg.get("volume", 100))

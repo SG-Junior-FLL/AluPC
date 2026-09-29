@@ -3061,6 +3061,43 @@ def test_website_plays_sound_without_click():
     assert not view.settings().testAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture)
 
 
+def test_website_fullscreen_button_works():
+    """Vollbild-Knopf auf Websites (YouTube: „Vollbildmodus nicht verfügbar“, Fehler bis 0.55): die Seite darf
+    Vollbild – echter Klick auf einen Knopf, der requestFullscreen() aufruft."""
+    from PySide6.QtCore import QPoint, QUrl
+    from PySide6.QtTest import QTest
+    from PySide6.QtWebEngineWidgets import QWebEngineView
+
+    from alupc.sources import allow_fullscreen
+
+    view = QWebEngineView()
+    allow_fullscreen(view)
+    view.resize(400, 300)
+    view.show()
+    html = ("<html><body style='margin:0'><button id=b style='width:400px;height:300px' "
+            "onclick='document.getElementById(\"v\").requestFullscreen()'>Vollbild</button>"
+            "<div id=v>Video</div></body></html>")
+    loaded = []
+    view.loadFinished.connect(loaded.append)
+    view.setHtml(html, QUrl("https://example.org/"))
+    assert _until(lambda: loaded, 15)
+
+    def js(code):
+        out = []
+        view.page().runJavaScript(code, 0, out.append)
+        assert _until(lambda: out, 5)
+        return out[0]
+
+    assert js("document.fullscreenEnabled") is True  # das prüft YouTube
+    requested = []
+    view.page().fullScreenRequested.connect(lambda r: requested.append(r.toggleOn()))
+    target = view.focusProxy() or view
+    QTest.mouseClick(target, Qt.LeftButton, Qt.NoModifier, QPoint(200, 150))
+    assert _until(lambda: requested, 5), "Seite hat kein Vollbild angefordert"
+    assert _until(lambda: js("document.fullscreenElement && document.fullscreenElement.id") == "v", 5)
+    view.close()
+
+
 def test_handy_window_mode_kde_hides_waiting_screen(env, tmp_path, monkeypatch):
     """KDE/Wayland: KWin legt UxPlays Fenster hin, AluPC sieht es nicht. Verbindet sich das iPad (UxPlay-Meldung),
     verschwindet der Warte-Bildschirm, damit er das Bild nicht verdeckt; beim Trennen kommt er wieder."""
