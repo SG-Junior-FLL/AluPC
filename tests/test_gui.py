@@ -1415,11 +1415,12 @@ def test_serial_module_page_and_wizard(env, monkeypatch):
         assert zw.get_person() == "Lena"
         fake.finger = "lena"
         backend.enroll(page.sensor_id(), "right-index-finger", lambda *_: None)
-        page.reload_enrolled()
+        page._changed()  # wie nach dem Anlernen: Belegung sofort neu, ohne auf die Liste zu warten
+        assert page.usage_label.text() == "2 belegt · 48 frei"
         end = time.time() + 5
         while page.enrolled.count() < 2 and time.time() < end:
             pump()
-        assert page.usage_label.text() == "2 von 50 Plätzen"
+        assert page.usage_label.text() == "2 belegt · 48 frei"
         names = [page.person_combo.itemText(i) for i in range(page.person_combo.count())]
         assert names[0] == "Lena" and len(names) == 2
         assert any("Lena · " in page.enrolled.item(i).text() for i in range(page.enrolled.count()))

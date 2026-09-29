@@ -431,8 +431,15 @@ def sync_import(remote: dict) -> bool:
         from .windows_serial_login import write_own_slots
 
         user = current_user()
-        write_own_slots(sorted(int(k) for k, v in merged.items() if v.get("user") == user))
+        write_own_slots(sorted(int(k) for k, v in merged.items() if v.get("user") == user), names=my_names(merged))
     return True
+
+
+def my_names(slots: dict | None = None) -> dict[int, str]:
+    """Platz → Name der Person (eigenes Konto) – für „Hallo Lena“ auf dem Windows-Sperrbildschirm."""
+    user = current_user()
+    return {int(k): v.get("person") or "" for k, v in (load_slots() if slots is None else slots).items()
+            if v.get("user") == user and str(k).isdigit()}
 
 
 # --------------------------------------------------------------------------- Backend
@@ -509,7 +516,7 @@ class SerialFingerprintBackend(FingerprintBackend):
         if not info and slot.isdigit() and int(slot) in foreign_slots():
             return f"Finger eines anderen Benutzers (Platz {slot})"
         person = info.get("person") or ""
-        prefix = f"{person} · " if person and person != who else ""
+        prefix = f"{person} · " if person else ""
         return f"{prefix}{name} (Platz {slot}" + (f", Konto {who})" if who and who != current_user() else ")")
 
     def list_enrolled(self, sensor_id):
@@ -529,6 +536,13 @@ class SerialFingerprintBackend(FingerprintBackend):
             return ((info.get("person") or info.get("user") or "~").lower(), slot)
 
         return [f"platz:{slot}" for slot in sorted(used, key=order)]
+
+    def _count(self, s: ZWSensor, cap: int) -> None:
+        """Belegung gleich nach Anlernen/Löschen neu zählen (für „x belegt · y frei“)."""
+        try:
+            self.usage = (len(s.used_slots(cap)), cap)
+        except SensorError:
+            pass
 
     def is_enrolled(self, sensor_id, finger) -> bool:
         used = set(self.list_enrolled(sensor_id))
@@ -599,6 +613,7 @@ class SerialFingerprintBackend(FingerprintBackend):
                     slots.pop(slot)
             slots[str(free)] = {"finger": finger, "user": user, "person": person}
             save_slots(slots)
+            self._count(s, cap)
             status("Fertig! Finger gespeichert.", total, total)
         self._sync_login(sensor_id)
 
@@ -630,12 +645,14 @@ class SerialFingerprintBackend(FingerprintBackend):
                     for slot in s.used_slots(cap) - others:
                         s.delete(slot)
                     save_slots({k: v for k, v in load_slots().items() if v.get("user") != current_user()})
+                self._count(s, cap)
                 self._sync_login(sensor_id)
                 return
             slot = int(finger.split(":", 1)[1])
             if slot in others:
                 raise SensorError("Dieser Finger gehört einem anderen Benutzer – den kann nur dieser löschen.")
             s.delete(slot)
+            self._count(s, cap)
         slots = load_slots()
         slots.pop(str(slot), None)
         save_slots(slots)
@@ -650,7 +667,7 @@ class SerialFingerprintBackend(FingerprintBackend):
             if self.login_enabled():
                 from .windows_serial_login import update_slots, write_own_slots
 
-                if write_own_slots(self._my_slots()):  # eigene Plätze-Datei (ohne Administratorrechte)
+                if write_own_slots(self._my_slots(), names=my_names()):  # eigene Plätze-Datei (ohne Adminrechte)
                     return
                 baud, params = self._found.get(port, (57600, {}))
                 try:
@@ -717,6 +734,7 @@ class SerialFingerprintBackend(FingerprintBackend):
                 wl.enable(password, self._my_slots(), port, baud, int(params.get("capacity", 300)))
             except wl.LoginError as exc:
                 raise SensorError(str(exc)) from exc
+            wl.write_own_slots(self._my_slots(), names=my_names())  # Namen der Personen dazu
             return
         from .linux_serial_login import disable_login, enable_login
 

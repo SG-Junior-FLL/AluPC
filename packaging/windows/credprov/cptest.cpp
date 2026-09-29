@@ -72,6 +72,27 @@ int wmain(int argc, wchar_t** argv) {
     BOOL autoLogon = TRUE;
     p->GetCredentialCount(&count, &def, &autoLogon);
     if (count != 1 || autoLogon) return Fail("Vor dem Finger: 1 Kachel ohne automatische Anmeldung erwartet");
+    if (def != 0) return Fail("Fingerabdruck soll vorausgewählt sein (ohne Anklicken)");
+    // Windows 10/11: Anmeldeoption an der Benutzerkachel (ICredentialProviderCredential2 + Symbol)
+    ICredentialProviderSetUserArray* ua = nullptr;
+    if (FAILED(p->QueryInterface(__uuidof(ICredentialProviderSetUserArray), (void**)&ua))) return Fail("SetUserArray fehlt");
+    ua->SetUserArray(nullptr);
+    ua->Release();
+    {
+        ICredentialProviderCredential* c0 = nullptr;
+        p->GetCredentialAt(0, &c0);
+        ICredentialProviderCredential2* c2 = nullptr;
+        if (FAILED(c0->QueryInterface(__uuidof(ICredentialProviderCredential2), (void**)&c2))) return Fail("V2 fehlt");
+        PWSTR sid = nullptr;
+        HRESULT sh = c2->GetUserSid(&sid);
+        printf("SID=%s (0x%08lx)\n", Narrow(sid ? sid : L"-").c_str(), (unsigned long)sh);
+        CoTaskMemFree(sid);
+        HBITMAP logo = nullptr;
+        if (FAILED(c2->GetBitmapValue(FI_LOGO, &logo)) || !logo) return Fail("Symbol fehlt");
+        DeleteObject(logo);
+        c2->Release();
+        c0->Release();
+    }
 
     Events events;
     p->Advise(&events, 42);

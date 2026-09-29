@@ -27,6 +27,7 @@
 #include <windows.h>
 #undef WIN32_NO_STATUS
 #include <aclapi.h>
+#include <sddl.h>
 #include <ntstatus.h>
 #define SECURITY_WIN32
 #include <credentialprovider.h>
@@ -39,6 +40,7 @@
 #include <wincrypt.h>
 
 #include <atomic>
+#include <cmath>
 #include <mutex>
 #include <new>
 #include <string>
@@ -51,11 +53,21 @@ static const char ENTROPY[] = "AluPC-Fingerabdruck";
 
 static LONG g_refDll = 0;
 
+// Texte enthalten Umlaute/„…“: Die Datei muss als UTF-8 übersetzt werden (MSVC: /utf-8), sonst stehen auf dem
+// Anmeldebildschirm komische Zeichen (Fehler in 0.51–0.53).
+static_assert(sizeof(L"…") / sizeof(wchar_t) == 2, "Quelltext als UTF-8 übersetzen (/utf-8)");
+
+// Feldarten für Windows' Anmeldeoptionen (Werte aus credentialprovider.h, eigene Namen wegen älterer SDKs)
+static const GUID kLogoField = {0x2d837775, 0xf6cd, 0x464e, {0xa7, 0x45, 0x48, 0x2f, 0xd0, 0xb4, 0x74, 0x93}};
+static const GUID kLabelField = {0x286bbff3, 0xbad4, 0x438f, {0xb0, 0x07, 0x79, 0xb7, 0x26, 0x7c, 0x3d, 0x48}};
+
 // --------------------------------------------------------------------------- Einstellung
 struct UserEntry {
     std::wstring name, domain;
     std::vector<int> slots;
+    std::vector<std::pair<int, std::wstring>> persons;  // Platz → Name der Person (nur zur Anzeige)
     std::vector<BYTE> secret;  // DPAPI-verschlüsselt
+    std::wstring sid;          // für die Benutzerkachel (Anmeldeoption beim Benutzer statt eigener Kachel)
 };
 
 struct Config {
@@ -156,6 +168,22 @@ static std::wstring SlotsPath(const std::wstring& user) {
     return dir + L"\\fingerprint-" + (safe.empty() ? L"x" : safe) + L".slots";
 }
 
+// SID des Kontos als Text („S-1-5-21-…“) – leer, wenn es das Konto nicht gibt
+static std::wstring LookupSid(const std::wstring& name, const std::wstring& domain) {
+    std::wstring account = (domain.empty() || domain == L".") ? name : domain + L"\\" + name;
+    BYTE sid[SECURITY_MAX_SID_SIZE];
+    DWORD cbSid = sizeof(sid);
+    wchar_t dom[256];
+    DWORD cchDom = 256;
+    SID_NAME_USE use;
+    if (!LookupAccountNameW(nullptr, account.c_str(), sid, &cbSid, dom, &cchDom, &use)) return L"";
+    LPWSTR text = nullptr;
+    if (!ConvertSidToStringSidW(sid, &text)) return L"";
+    std::wstring result = text;
+    LocalFree(text);
+    return result;
+}
+
 static bool LoadConfig(Config& cfg) {
     HANDLE f = CreateFileW(ConfigPath().c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
     if (f == INVALID_HANDLE_VALUE) return false;
@@ -192,7 +220,21 @@ static bool LoadConfig(Config& cfg) {
             u.slots = ParseSlots(parts[2]);
             std::wstring own = SlotsPath(u.name);
             std::string ownText;
-            if (OwnedByAdmins(own) && ReadSmallFile(own, ownText)) u.slots = ParseSlots(ownText);  // aktuelle Liste
+            if (OwnedByAdmins(own) && ReadSmallFile(own, ownText)) {  // aktuelle Liste (+ Namen der Personen)
+                size_t nl = ownText.find('\n');
+                u.slots = ParseSlots(ownText.substr(0, nl));
+                while (nl != std::string::npos) {
+                    size_t start = nl + 1;
+                    nl = ownText.find('\n', start);
+                    std::string row = ownText.substr(start, nl == std::string::npos ? std::string::npos : nl - start);
+                    if (!row.empty() && row.back() == '\r') row.pop_back();
+                    size_t eq = row.find('=');
+                    if (eq == std::string::npos || eq == 0) continue;
+                    std::vector<int> n = ParseSlots(row.substr(0, eq));
+                    if (n.size() == 1) u.persons.push_back({n[0], Utf8ToWide(row.substr(eq + 1, 60))});
+                }
+            }
+            u.sid = LookupSid(u.name, u.domain);
             u.secret = FromHex(parts[3]);
             if (!u.name.empty() && !u.slots.empty() && !u.secret.empty()) cfg.users.push_back(u);
         }
@@ -385,19 +427,53 @@ static std::wstring ProtectPassword(const std::wstring& plain) {
 }
 
 // --------------------------------------------------------------------------- Kachel
-enum FieldId { FI_LABEL = 0, FI_STATUS = 1, FI_COUNT = 2 };
+// FI_LOGO/FI_LABEL: Symbol und Name unter „Anmeldeoptionen“ · FI_STATUS: Text auf der Benutzerkachel
+enum FieldId { FI_LOGO = 0, FI_LABEL = 1, FI_STATUS = 2, FI_COUNT = 3 };
+
+// Symbol (Fingerabdruck) für die Anmeldeoptionen – gezeichnet, damit die DLL keine Ressourcen braucht
+static HBITMAP MakeLogo() {
+    const int size = 64;
+    BITMAPINFO bi{};
+    bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
+    bi.bmiHeader.biWidth = size;
+    bi.bmiHeader.biHeight = -size;  // von oben nach unten
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    void* bits = nullptr;
+    HBITMAP bmp = CreateDIBSection(nullptr, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
+    if (!bmp || !bits) return bmp;
+    DWORD* px = (DWORD*)bits;
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            double dx = x + 0.5 - 32, dy = y + 0.5 - 34;
+            double r = std::sqrt(dx * dx + dy * dy);
+            DWORD c = 0;  // durchsichtig
+            if (std::sqrt((x + 0.5 - 32) * (x + 0.5 - 32) + (y + 0.5 - 32) * (y + 0.5 - 32)) < 31) {
+                c = 0xFF2563EB;  // blau
+                bool ridge = r < 23 && std::fmod(r, 6.0) < 2.2 && !(dy > 6 && std::fabs(dx) < 4 && r > 8);
+                if (ridge) c = 0xFFFFFFFF;
+            }
+            px[y * size + x] = c;
+        }
+    }
+    return bmp;
+}
 
 class Provider;
 
-class Credential : public ICredentialProviderCredential {
+class Credential : public ICredentialProviderCredential2 {
 public:
-    explicit Credential(Provider* p) : provider_(p) { InterlockedIncrement(&g_refDll); }
+    Credential(Provider* p, int index, const std::wstring& sid) : provider_(p), index_(index), sid_(sid) {
+        InterlockedIncrement(&g_refDll);
+    }
     virtual ~Credential() { InterlockedDecrement(&g_refDll); }
 
     IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
         if (!ppv) return E_POINTER;
-        if (riid == IID_IUnknown || riid == IID_ICredentialProviderCredential) {
-            *ppv = static_cast<ICredentialProviderCredential*>(this);
+        if (riid == IID_IUnknown || riid == IID_ICredentialProviderCredential ||
+            riid == __uuidof(ICredentialProviderCredential2)) {
+            *ppv = static_cast<ICredentialProviderCredential2*>(this);
             AddRef();
             return S_OK;
         }
@@ -429,7 +505,9 @@ public:
     IFACEMETHODIMP GetFieldState(DWORD id, CREDENTIAL_PROVIDER_FIELD_STATE* state,
                                  CREDENTIAL_PROVIDER_FIELD_INTERACTIVE_STATE* interactive) override {
         if (id >= FI_COUNT || !state || !interactive) return E_INVALIDARG;
-        *state = id == FI_LABEL ? CPFS_DISPLAY_IN_BOTH : CPFS_DISPLAY_IN_SELECTED_TILE;
+        if (id == FI_LOGO) *state = CPFS_DISPLAY_IN_BOTH;
+        else if (id == FI_LABEL) *state = sid_.empty() ? CPFS_DISPLAY_IN_BOTH : CPFS_HIDDEN;  // eigene Kachel: Name zeigen
+        else *state = CPFS_DISPLAY_IN_SELECTED_TILE;
         *interactive = CPFIS_NONE;
         return S_OK;
     }
@@ -442,7 +520,11 @@ public:
         }
         return E_INVALIDARG;
     }
-    IFACEMETHODIMP GetBitmapValue(DWORD, HBITMAP*) override { return E_NOTIMPL; }
+    IFACEMETHODIMP GetBitmapValue(DWORD id, HBITMAP* bmp) override {
+        if (id != FI_LOGO || !bmp) return E_INVALIDARG;
+        *bmp = MakeLogo();
+        return *bmp ? S_OK : E_OUTOFMEMORY;
+    }
     IFACEMETHODIMP GetCheckboxValue(DWORD, BOOL*, PWSTR*) override { return E_NOTIMPL; }
     IFACEMETHODIMP GetSubmitButtonValue(DWORD, DWORD*) override { return E_NOTIMPL; }
     IFACEMETHODIMP GetComboBoxValueCount(DWORD, DWORD*, DWORD*) override { return E_NOTIMPL; }
@@ -464,6 +546,14 @@ public:
             *statusIcon = CPSI_ERROR;
         }
         return S_OK;
+    }
+    // Windows 10/11: Die Anmeldung per Finger hängt an der Kachel dieses Benutzers (unter „Anmeldeoptionen“)
+    // statt als eigene Kachel „Anderer Benutzer“. Ohne SID (Konto nicht gefunden): eigene Kachel.
+    IFACEMETHODIMP GetUserSid(PWSTR* sid) override {
+        if (!sid) return E_POINTER;
+        *sid = nullptr;
+        if (sid_.empty()) return S_FALSE;
+        return SHStrDupW(sid_.c_str(), sid);
     }
 
     // Nur merken: LogonUI liest den Text selbst (GetStringValue). Aus dem Hintergrund-Thread wird bewusst
@@ -492,17 +582,19 @@ public:
 private:
     LONG ref_ = 1;
     Provider* provider_;
+    int index_;
+    std::wstring sid_;
     std::mutex mutex_;
     ICredentialProviderCredentialEvents* events_ = nullptr;
     std::wstring status_ = L"Finger auf den Sensor legen …";
 };
 
-class Provider : public ICredentialProvider {
+class Provider : public ICredentialProvider, public ICredentialProviderSetUserArray {
 public:
     Provider() { InterlockedIncrement(&g_refDll); }
     virtual ~Provider() {
         StopWatching();
-        if (credential_) credential_->Release();
+        ReleaseCredentials();
         InterlockedDecrement(&g_refDll);
     }
 
@@ -510,11 +602,14 @@ public:
         if (!ppv) return E_POINTER;
         if (riid == IID_IUnknown || riid == IID_ICredentialProvider) {
             *ppv = static_cast<ICredentialProvider*>(this);
-            AddRef();
-            return S_OK;
+        } else if (riid == __uuidof(ICredentialProviderSetUserArray)) {
+            *ppv = static_cast<ICredentialProviderSetUserArray*>(this);
+        } else {
+            *ppv = nullptr;
+            return E_NOINTERFACE;
         }
-        *ppv = nullptr;
-        return E_NOINTERFACE;
+        AddRef();
+        return S_OK;
     }
     IFACEMETHODIMP_(ULONG) AddRef() override { return InterlockedIncrement(&ref_); }
     IFACEMETHODIMP_(ULONG) Release() override {
@@ -522,14 +617,21 @@ public:
         if (!r) delete this;
         return r;
     }
+    // Liste der Benutzer auf dem Anmeldebildschirm – die eigenen Benutzer stehen schon in der Einstellung
+    IFACEMETHODIMP SetUserArray(ICredentialProviderUserArray*) override { return S_OK; }
 
     IFACEMETHODIMP SetUsageScenario(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus, DWORD) override {
         if (cpus != CPUS_LOGON && cpus != CPUS_UNLOCK_WORKSTATION) return E_NOTIMPL;
         cfg_ = Config{};
-        if (!LoadConfig(cfg_)) return E_NOTIMPL;  // nicht eingerichtet → keine Kachel
+        if (!LoadConfig(cfg_)) return E_NOTIMPL;  // nicht eingerichtet → keine Anmeldeoption
         cpus_ = cpus;
-        if (!credential_) credential_ = new (std::nothrow) Credential(this);
-        return credential_ ? S_OK : E_OUTOFMEMORY;
+        ReleaseCredentials();
+        for (size_t i = 0; i < cfg_.users.size(); ++i) {  // je Benutzer eine Anmeldeoption auf seiner Kachel
+            Credential* c = new (std::nothrow) Credential(this, (int)i, cfg_.users[i].sid);
+            if (!c) return E_OUTOFMEMORY;
+            credentials_.push_back(c);
+        }
+        return S_OK;
     }
     IFACEMETHODIMP SetSerialization(const CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION*) override { return E_NOTIMPL; }
     IFACEMETHODIMP Advise(ICredentialProviderEvents* events, UINT_PTR context) override {
@@ -540,7 +642,7 @@ public:
             if (events_) events_->AddRef();
             context_ = context;
         }
-        StartWatching();
+        StartWatching();  // Modul wird sofort abgefragt – auch wenn gerade eine andere Anmeldeoption gewählt ist
         return S_OK;
     }
     IFACEMETHODIMP UnAdvise() override {
@@ -560,8 +662,19 @@ public:
         if (!d) return E_OUTOFMEMORY;
         ZeroMemory(d, sizeof(*d));
         d->dwFieldID = index;
-        d->cpft = index == FI_LABEL ? CPFT_LARGE_TEXT : CPFT_SMALL_TEXT;
-        HRESULT hr = SHStrDupW(index == FI_LABEL ? L"Fingerabdruck (AluPC)" : L"Status", &d->pszLabel);
+        const wchar_t* label = L"Status";
+        if (index == FI_LOGO) {
+            d->cpft = CPFT_TILE_IMAGE;
+            d->guidFieldType = kLogoField;
+            label = L"Symbol";
+        } else if (index == FI_LABEL) {
+            d->cpft = CPFT_SMALL_TEXT;
+            d->guidFieldType = kLabelField;
+            label = L"Fingerabdruck (AluPC)";
+        } else {
+            d->cpft = CPFT_SMALL_TEXT;
+        }
+        HRESULT hr = SHStrDupW(label, &d->pszLabel);
         if (FAILED(hr)) {
             CoTaskMemFree(d);
             return hr;
@@ -570,22 +683,25 @@ public:
         return S_OK;
     }
     IFACEMETHODIMP GetCredentialCount(DWORD* count, DWORD* defaultIndex, BOOL* autoLogon) override {
-        *count = credential_ ? 1 : 0;
-        bool ready = matched_ >= 0;
-        *defaultIndex = ready ? 0 : CREDENTIAL_PROVIDER_NO_DEFAULT;
-        *autoLogon = ready ? TRUE : FALSE;  // Finger erkannt → sofort anmelden
+        *count = (DWORD)credentials_.size();
+        int m = matched_;
+        // Vorauswahl: diese Anmeldeoption (bei einem Benutzer immer) – Finger erkannt → sofort anmelden
+        if (m >= 0) *defaultIndex = (DWORD)m;
+        else *defaultIndex = credentials_.size() == 1 ? 0 : CREDENTIAL_PROVIDER_NO_DEFAULT;
+        *autoLogon = m >= 0 ? TRUE : FALSE;
         return S_OK;
     }
     IFACEMETHODIMP GetCredentialAt(DWORD index, ICredentialProviderCredential** out) override {
-        if (index != 0 || !credential_ || !out) return E_INVALIDARG;
-        return credential_->QueryInterface(IID_ICredentialProviderCredential, (void**)out);
+        if (index >= credentials_.size() || !out) return E_INVALIDARG;
+        return credentials_[index]->QueryInterface(IID_ICredentialProviderCredential, (void**)out);
     }
 
     // Für die Kachel
-    bool Matched() const { return matched_ >= 0; }
+    bool MatchedFor(int index) const { return matched_ == index; }
 
-    HRESULT Serialize(CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION* cs) {
-        int idx = matched_.exchange(-1);  // nur einmal verwenden
+    HRESULT Serialize(int forIndex, CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION* cs) {
+        int idx = forIndex;
+        if (!matched_.compare_exchange_strong(idx, -1)) return E_UNEXPECTED;  // nur einmal verwenden
         if (idx < 0 || idx >= (int)cfg_.users.size()) return E_UNEXPECTED;
         const UserEntry& u = cfg_.users[idx];
         std::wstring password;
@@ -609,6 +725,10 @@ public:
     }
 
 private:
+    void ReleaseCredentials() {
+        for (Credential* c : credentials_) c->Release();
+        credentials_.clear();
+    }
     void StartWatching() {
         StopWatching();
         stop_ = false;
@@ -631,8 +751,14 @@ private:
         return -1;
     }
 
+    std::wstring PersonForSlot(int user, int slot) const {
+        for (const auto& p : cfg_.users[user].persons)
+            if (p.first == slot) return p.second;
+        return L"";
+    }
+
     void Status(const std::wstring& text) {
-        if (credential_) credential_->SetStatus(text);
+        for (Credential* c : credentials_) c->SetStatus(text);
     }
 
     bool Connect(Module& m) {
@@ -682,13 +808,15 @@ private:
             std::vector<BYTE> data;
             WORD cap = (WORD)cfg_.capacity;
             int s = m.Command(0x04, {1, 0, 0, (BYTE)(cap >> 8), (BYTE)cap}, &data);  // Suche
-            int idx = (s == 0 && data.size() >= 2) ? UserForSlot((data[0] << 8) | data[1]) : -1;
+            int slot = (s == 0 && data.size() >= 2) ? ((data[0] << 8) | data[1]) : -1;
+            int idx = slot >= 0 ? UserForSlot(slot) : -1;
             if (idx < 0) {
                 Status(L"Finger nicht erkannt – nochmal versuchen");
                 Sleep(800);
                 continue;
             }
-            Status(L"Erkannt: " + cfg_.users[idx].name + L" – melde an …");
+            std::wstring person = PersonForSlot(idx, slot);
+            Status(person.empty() ? L"Erkannt – melde an …" : L"Hallo " + person + L" – melde an …");
             matched_ = idx;
             ICredentialProviderEvents* ev = nullptr;
             UINT_PTR ctx = 0;
@@ -709,7 +837,7 @@ private:
     LONG ref_ = 1;
     CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus_ = CPUS_LOGON;
     Config cfg_;
-    Credential* credential_ = nullptr;
+    std::vector<Credential*> credentials_;
     std::mutex mutex_;
     ICredentialProviderEvents* events_ = nullptr;
     UINT_PTR context_ = 0;
@@ -719,7 +847,7 @@ private:
 };
 
 IFACEMETHODIMP Credential::SetSelected(BOOL* autoLogon) {
-    *autoLogon = provider_->Matched() ? TRUE : FALSE;
+    *autoLogon = provider_->MatchedFor(index_) ? TRUE : FALSE;
     return S_OK;
 }
 
@@ -729,12 +857,12 @@ IFACEMETHODIMP Credential::GetSerialization(CREDENTIAL_PROVIDER_GET_SERIALIZATIO
     *response = CPGSR_NO_CREDENTIAL_NOT_FINISHED;
     if (statusText) *statusText = nullptr;
     if (statusIcon) *statusIcon = CPSI_NONE;
-    if (!provider_->Matched()) {
+    if (!provider_->MatchedFor(index_)) {
         if (statusText) SHStrDupW(L"Bitte den angelernten Finger auf den Sensor legen.", statusText);
         return S_OK;
     }
     ZeroMemory(cs, sizeof(*cs));
-    HRESULT hr = provider_->Serialize(cs);
+    HRESULT hr = provider_->Serialize(index_, cs);
     if (FAILED(hr)) {
         ShowStatusNow(L"Gespeichertes Passwort nicht lesbar – in AluPC neu einrichten");
         return hr;

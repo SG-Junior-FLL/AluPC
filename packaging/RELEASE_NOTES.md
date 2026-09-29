@@ -8,7 +8,23 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.53.0)
+### Neu in dieser Version (0.54.0)
+**Fingerabdruck unter Windows**
+- **Behoben: komische Zeichen** auf dem Sperrbildschirm („Finger auf den Sensor legen â€¦“). Der Anmeldebaustein
+  wurde nicht als UTF-8 übersetzt – jetzt schon, und der Bau bricht ab, falls das je wieder passiert.
+- **Kein Anklicken mehr nötig:** Der Fingerabdruck hängt jetzt als Anmeldeoption an deiner **eigenen
+  Benutzerkachel** (statt als eigene Kachel) und ist vorausgewählt. Auf dem Sperrbildschirm genügt: Finger auflegen.
+  Mit Passwort/PIN geht es weiter über „Anmeldeoptionen“.
+  Wer die Anmeldung schon eingeschaltet hat: in AluPC einmal **aus- und wieder einschalten** (setzt die Vorauswahl).
+- Beim Erkennen steht der Name der Person: „Hallo Lena – melde an …“.
+
+**Personen**
+- Personen sind Menschen, keine Benutzerkonten: Es wird kein Kontoname mehr als Person vorgeschlagen, und
+  darunter steht, als welches Konto sich alle anmelden.
+- Die Belegung zeigt jetzt „12 belegt · 38 frei“ und aktualisiert sich sofort nach Anlernen und Löschen
+  (und beim Öffnen der Seite).
+
+### Neu in Version 0.53.0
 **Fingerabdruckmodul: mehrere Personen**
 - Bei „Fingerabdruck“ gibt es jetzt **Person:** – Namen wählen oder neu eintippen, dann Finger anlernen.
   So passen z. B. 5 Personen × 10 Finger auf ein Modul mit 50 Plätzen. Daneben steht die Belegung

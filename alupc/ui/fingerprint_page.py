@@ -131,7 +131,7 @@ class FingerprintPage(QWidget):
         self.person_combo = QComboBox()
         self.person_combo.setEditable(True)
         self.person_combo.setInsertPolicy(QComboBox.NoInsert)
-        self.person_combo.lineEdit().setPlaceholderText("Name")
+        self.person_combo.lineEdit().setPlaceholderText("Name der Person")
         self.person_combo.setToolTip("Wer lernt an? Neuen Namen einfach eintippen.")
         self.person_combo.currentTextChanged.connect(self._person_changed)
         pr.addWidget(self.person_combo, 1)
@@ -139,6 +139,9 @@ class FingerprintPage(QWidget):
         self.usage_label.setObjectName("Muted")
         pr.addWidget(self.usage_label)
         fl.addWidget(self.person_row)
+        self.account_hint = QLabel()  # Personen ≠ Benutzerkonten
+        self.account_hint.setObjectName("Muted")
+        fl.addWidget(self.account_hint)
         hint = QLabel("Finger wählen · grün = angelernt")
         hint.setObjectName("Muted")
         fl.addWidget(hint)
@@ -224,10 +227,13 @@ class FingerprintPage(QWidget):
     def _fill_persons(self):
         from ..platform import zw_fingerprint as zw
 
-        current = zw.get_person()
         names = zw.persons()
-        if current not in names:
+        # Personen sind Menschen, keine Konten: nie den Kontonamen vorschlagen, wenn noch niemand angelernt ist
+        current = zw._person or (names[0] if names else "")
+        zw.set_person(current)
+        if current and current not in names:
             names.insert(0, current)
+        self.account_hint.setText(f"Alle Personen melden sich als „{zw.current_user()}“ an")
         self.person_combo.blockSignals(True)
         self.person_combo.clear()
         self.person_combo.addItems(names)
@@ -249,6 +255,7 @@ class FingerprintPage(QWidget):
         self.finger_combo.setVisible(b.can_enroll)
         self.hands.setVisible(b.can_enroll)
         self.person_row.setVisible(serial and b.can_enroll)
+        self.account_hint.setVisible(serial and b.can_enroll)
         if serial:
             self._fill_persons()
         self.enroll_btn.setText(f"{self.finger_combo.currentText()} anlernen …" if b.can_enroll
@@ -313,8 +320,7 @@ class FingerprintPage(QWidget):
         def done(fingers):
             self.enrolled.clear()
             self._fingers = list(fingers)
-            usage = getattr(self.backend, "usage", None)
-            self.usage_label.setText(f"{usage[0]} von {usage[1]} Plätzen" if usage else "")
+            self._show_usage()
             if getattr(self.backend, "is_serial", False):
                 self._fill_persons()
             if not fingers:
@@ -329,6 +335,7 @@ class FingerprintPage(QWidget):
 
         def failed(text):
             self.enrolled.clear()
+            self._show_usage()
             item = QListWidgetItem(f"Liste nicht verfügbar: {text}")
             item.setFlags(Qt.NoItemFlags)
             self.enrolled.addItem(item)
@@ -443,7 +450,22 @@ class FingerprintPage(QWidget):
                    lambda status: self.backend.enroll(sid, finger, status),
                    "Finger erfolgreich angelernt.", self._changed)
 
+    def _show_usage(self):
+        usage = getattr(self.backend, "usage", None)
+        if usage:
+            used, cap = usage
+            self.usage_label.setText(f"{used} belegt · {max(0, cap - used)} frei")
+            self.usage_label.setToolTip(f"{used} von {cap} Plätzen im Modul belegt")
+        else:
+            self.usage_label.setText("")
+
+    def showEvent(self, event):  # Seite wieder geöffnet (z. B. nach dem Assistenten) → neu laden
+        super().showEvent(event)
+        if self.sensor_id() is not None:
+            self.reload_enrolled()
+
     def _changed(self, *_):
+        self._show_usage()  # sofort – die Liste lädt danach im Hintergrund
         self.reload_enrolled()
         self.controller.request_sync()  # Namen zum anderen System (Dual-Boot)
 

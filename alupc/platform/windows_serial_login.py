@@ -26,6 +26,7 @@ from pathlib import Path
 CLSID = "{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"
 CP_KEY = rf"SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\{CLSID}"
 CLSID_KEY = rf"SOFTWARE\Classes\CLSID\{CLSID}"
+POLICY_KEY = r"SOFTWARE\Policies\Microsoft\Windows\System"
 ENTROPY = b"AluPC-Fingerabdruck"
 DLL_NAME = "AluPCFingerprint.dll"
 IS_WINDOWS = sys.platform.startswith("win")
@@ -61,19 +62,27 @@ def slots_path(user: str, base: Path | None = None) -> Path:
     return (base or config_path().parent) / f"fingerprint-{safe}.slots"
 
 
-def format_slots(slots: list[int]) -> str:
-    return ",".join(str(int(s)) for s in sorted(set(slots))) + "\n"
+def format_slots(slots: list[int], names: dict | None = None) -> str:
+    """1. Zeile: Plätze („1,4,9“). Danach je Platz der Name der Person („4=Lena“) – nur für die Anzeige
+    „Hallo Lena“ auf dem Sperrbildschirm."""
+    wanted = sorted({int(s) for s in slots})
+    lines = [",".join(str(s) for s in wanted)]
+    for slot in wanted:
+        name = " ".join(str((names or {}).get(slot, "")).split())[:60].replace("=", "-")
+        if name:
+            lines.append(f"{slot}={name}")
+    return "\n".join(lines) + "\n"
 
 
-def write_own_slots(slots: list[int], user: str | None = None) -> bool:
+def write_own_slots(slots: list[int], user: str | None = None, names: dict | None = None) -> bool:
     """Ohne Administratorrechte: eigene Plätze-Datei überschreiben (Rechte/Besitzer bleiben). False = geht nicht."""
     path = slots_path(user or current_account()[0])
     if not path.is_file():
         return False
     try:
-        with open(path, "r+", encoding="utf-8") as f:  # vorhandene Datei, nicht neu anlegen
+        with open(path, "r+", encoding="utf-8", newline="\n") as f:  # vorhandene Datei, nicht neu anlegen
             f.seek(0)
-            f.write(format_slots(slots))
+            f.write(format_slots(slots, names))
             f.truncate()
         return True
     except OSError:
@@ -231,11 +240,42 @@ def register(dll: Path) -> None:
         winreg.SetValueEx(k, "ThreadingModel", 0, winreg.REG_SZ, "Apartment")
     with winreg.CreateKeyEx(winreg.HKEY_LOCAL_MACHINE, CP_KEY, 0, winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY) as k:
         winreg.SetValueEx(k, "", 0, winreg.REG_SZ, "AluPC Fingerabdruck")
+    set_default_provider(True)
+
+
+def _default_provider() -> str:
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, POLICY_KEY, 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as k:
+            return str(winreg.QueryValueEx(k, "DefaultCredentialProvider")[0])
+    except OSError:
+        return ""
+
+
+def set_default_provider(on: bool) -> None:
+    """Fingerabdruck als vorausgewählte Anmeldeoption (Windows-Richtlinie „Standard-Anmeldeinformationsanbieter“).
+    So muss man auf dem Sperrbildschirm nichts anklicken – Finger auflegen genügt. Eine fremde Vorgabe
+    (z. B. von der Schul-IT) wird nie überschrieben."""
+    import winreg
+
+    current = _default_provider()
+    if on and current.upper() in ("", CLSID.upper()):
+        with winreg.CreateKeyEx(winreg.HKEY_LOCAL_MACHINE, POLICY_KEY, 0,
+                                winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY) as k:
+            winreg.SetValueEx(k, "DefaultCredentialProvider", 0, winreg.REG_SZ, CLSID)
+    elif not on and current.upper() == CLSID.upper():
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, POLICY_KEY, 0, winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY) as k:
+            winreg.DeleteValue(k, "DefaultCredentialProvider")
 
 
 def unregister() -> None:
     import winreg
 
+    try:
+        set_default_provider(False)
+    except OSError:
+        pass
     for key in (CP_KEY, CLSID_KEY + r"\InprocServer32", CLSID_KEY):
         try:
             winreg.DeleteKeyEx(winreg.HKEY_LOCAL_MACHINE, key, winreg.KEY_WOW64_64KEY)

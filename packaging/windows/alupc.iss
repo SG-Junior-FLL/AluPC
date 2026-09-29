@@ -2,7 +2,7 @@
 ; Wird von GitHub Actions gebaut (siehe .github/workflows/build.yml).
 
 #ifndef AppVersion
-  #define AppVersion "0.53.0"
+  #define AppVersion "0.54.0"
 #endif
 
 [Setup]
@@ -50,4 +50,6 @@ Filename: "{app}\AluPC.exe"; Description: "AluPC jetzt starten"; Flags: nowait p
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/C reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v AluPC /f"; Flags: runhidden; RunOnceId: "RemoveAutostart"
 ; Anmeldung mit Fingerabdruckmodul: Anmeldebaustein bei Windows abmelden, gespeichertes (verschlüsseltes) Passwort löschen
-Filename: "{cmd}"; Parameters: "/C reg delete ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" /f & reg delete ""HKLM\SOFTWARE\Classes\CLSID\{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" /f & del /f /q ""%ProgramData%\AluPC\fingerprint-windows.cfg"""; Flags: runhidden; RunOnceId: "RemoveFingerprintLogin"; Check: IsAdminInstallMode
+Filename: "{cmd}"; Parameters: "/C reg delete ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" /f & reg delete ""HKLM\SOFTWARE\Classes\CLSID\{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" /f & del /f /q ""%ProgramData%\AluPC\fingerprint-windows.cfg"" ""%ProgramData%\AluPC\fingerprint-*.slots"""; Flags: runhidden; RunOnceId: "RemoveFingerprintLogin"; Check: IsAdminInstallMode
+; Vorauswahl „Fingerabdruck“ auf dem Sperrbildschirm zurücknehmen (nur wenn sie von AluPC stammt)
+Filename: "{cmd}"; Parameters: "/C reg query HKLM\SOFTWARE\Policies\Microsoft\Windows\System /v DefaultCredentialProvider | find /i ""{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" && reg delete HKLM\SOFTWARE\Policies\Microsoft\Windows\System /v DefaultCredentialProvider /f"; Flags: runhidden; RunOnceId: "RemoveFingerprintDefault"; Check: IsAdminInstallMode

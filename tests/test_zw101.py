@@ -415,6 +415,9 @@ def test_windows_slots_file(tmp_path, monkeypatch):
     assert sp.read_text() == "1\n"
     assert any("/setowner" in a for a in calls) and any("*S-1-5-21-11-22-33-1001:M" in a for a in calls)
     assert w.write_own_slots([4, 1, 9], "noah") and sp.read_text() == "1,4,9\n"
+    # Namen der Personen für „Hallo Lena“ auf dem Sperrbildschirm (Zeilenumbrüche/„=“ im Namen unschädlich)
+    assert w.write_own_slots([4, 1], "noah", names={4: "Lena", 1: "Max\n=x"})
+    assert sp.read_text() == "1,4\n1=Max -x\n4=Lena\n"
     assert not w.write_own_slots([1], "lena")  # keine Datei → Rückfall auf Administratorrechte
     # ungültige SID → keine Datei
     w.apply_request({"action": "an", "user": "lena", "domain": ".", "slots": [2], "secret": "ab", "sid": "bla"},
@@ -434,13 +437,16 @@ def test_windows_sync_login_without_admin(fake, monkeypatch):
     monkeypatch.setattr(w, "login_enabled", lambda user=None: True)
     monkeypatch.setattr(type(backend), "login_toggle", property(lambda self: True))
     written, elevated = [], []
-    monkeypatch.setattr(w, "write_own_slots", lambda slots, user=None: written.append(slots) or True)
+    monkeypatch.setattr(w, "write_own_slots",
+                        lambda slots, user=None, names=None: written.append((slots, names)) or True)
     monkeypatch.setattr(w, "update_slots", lambda *a: elevated.append(a))
     fake.auto_lift = True
     fake.finger = "a"
+    zw.set_person("Lena")
     backend.enroll(fake.port, "left-thumb", lambda *_: None)
-    assert written == [[0]] and not elevated
-    monkeypatch.setattr(w, "write_own_slots", lambda slots, user=None: False)
+    assert written == [([0], {0: "Lena"})] and not elevated
+    assert backend.usage == (1, 50)  # gleich nach dem Anlernen neu gezählt
+    monkeypatch.setattr(w, "write_own_slots", lambda slots, user=None, names=None: False)
     backend._sync_login(fake.port)
     assert elevated  # Datei fehlt (ältere Einrichtung) → wie bisher mit Administratorrechten
 
