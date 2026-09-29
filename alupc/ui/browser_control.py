@@ -9,8 +9,10 @@ noch das eingefrorene Bild sieht.
 
 from __future__ import annotations
 
+import time
+
 from PySide6.QtCore import QEvent, QPointF, QSize, Qt, QTimer, QUrl
-from PySide6.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
+from PySide6.QtGui import QKeyEvent, QMouseEvent, QPainter, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -26,6 +28,10 @@ from ..sources import FrameView, fit_rect, normalize_url
 from . import theme
 from .widgets import Banner, button
 
+ACTIVE_MS = 50  # Bildabstand beim Bedienen (20 Bilder/s)
+IDLE_MS = 250  # ohne Eingabe (4 Bilder/s – Videos/Animationen laufen trotzdem sichtbar mit)
+ACTIVE_SECONDS = 2.5  # so lange nach der letzten Eingabe flüssig
+
 
 class LivePreview(FrameView):
     """Vorschau der Website; Maus- und Tastatureingaben gehen an die echte Seite."""
@@ -37,6 +43,38 @@ class LivePreview(FrameView):
         self.setFocusPolicy(Qt.StrongFocus)
         self.setCursor(Qt.PointingHandCursor)
         self.setMinimumSize(480, 270)
+        self._src = None  # QPixmap (Bildschirmfoto) oder QImage – ohne Umwandlung bei jedem Bild
+        self._scaled = None  # auf die Vorschau verkleinert (einmal je Bild, nicht bei jedem Neuzeichnen)
+
+    # Flüssig: das Bild wird genau einmal passend verkleinert und dann nur noch hingemalt
+    def set_image(self, image) -> None:
+        self._src = image if image is not None and not image.isNull() else None
+        self._scaled = None
+        self._image = None
+        if self._src is not None:
+            self._message = ""
+        self.update()
+
+    def image(self):
+        """Als QImage (für Zeichnungen/Tests) – nur bei Bedarf umgewandelt."""
+        if self._image is None and self._src is not None:
+            self._image = self._src.toImage() if isinstance(self._src, QPixmap) else self._src
+        return self._image
+
+    def _src_size(self):
+        return (self._src.width(), self._src.height()) if self._src is not None else (0, 0)
+
+    def paintEvent(self, event):
+        if self._src is None:
+            return super().paintEvent(event)
+        p = QPainter(self)
+        p.fillRect(self.rect(), Qt.black)
+        r = fit_rect(*self._src_size(), self.width(), self.height(), "contain").toRect()
+        if self._scaled is None or self._scaled.size() != r.size():
+            pix = self._src if isinstance(self._src, QPixmap) else QPixmap.fromImage(self._src)
+            self._scaled = pix.scaled(r.size(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        p.drawPixmap(r.topLeft(), self._scaled)
+        p.end()
 
     def _norm(self, pos: QPointF) -> QPointF | None:
         """Punkt in der Vorschau → Stelle auf Monitor 2 (0…1), zum Zeichnen."""
@@ -75,10 +113,10 @@ class LivePreview(FrameView):
 
     def _map(self, pos: QPointF) -> QPointF | None:
         view = self.control.view
-        img = self.image()
-        if view is None or img is None:
+        w, h = self._src_size()
+        if view is None or not w:
             return None
-        r = fit_rect(img.width(), img.height(), self.width(), self.height(), "contain")
+        r = fit_rect(w, h, self.width(), self.height(), "contain")
         if not r.contains(pos):
             return None
         return QPointF((pos.x() - r.left()) * view.width() / r.width(),
@@ -245,9 +283,12 @@ class BrowserControl(QWidget):
         lay.addLayout(low)
         self.setStyleSheet(f"BrowserControl {{ background: {t.bg}; }}")
 
-        self.timer = QTimer(self, interval=200)  # 5 Bilder/s
-        self.timer.timeout.connect(self.refresh)
-        self._soon = QTimer(self, singleShot=True, interval=60)
+        # Flüssig bedienen: während man klickt/scrollt/tippt ~20 Bilder/s, sonst 4 Bilder/s (spart Rechenzeit)
+        self.timer = QTimer(self, interval=ACTIVE_MS)
+        self.timer.timeout.connect(self._tick)
+        self._active_until = 0.0
+        self._last = 0.0
+        self._soon = QTimer(self, singleShot=True, interval=15)
         self._soon.timeout.connect(self.refresh)
         controller.changed.connect(self.rebind)
         self.rebind()
@@ -316,10 +357,20 @@ class BrowserControl(QWidget):
         super().hideEvent(e)
 
     def refresh_soon(self):
-        self._soon.start()
+        """Nach einer Eingabe gleich ein neues Bild – aber nie den Zeitgeber neu starten (sonst käme beim
+        ständigen Bewegen der Maus gar kein Bild, bis man still hält: das war das Ruckeln)."""
+        self._active_until = time.monotonic() + ACTIVE_SECONDS
+        if not self._soon.isActive():
+            self._soon.start()
+
+    def _tick(self):
+        now = time.monotonic()
+        if now < self._active_until or now - self._last >= IDLE_MS / 1000:
+            self.refresh()
 
     def refresh(self):
         view = self.view
+        self._last = time.monotonic()
         if view is None:
             return
         self._sync_freeze()
@@ -337,9 +388,9 @@ class BrowserControl(QWidget):
         from ..laser import paint_strokes
 
         strokes = self.controller.laser.strokes
+        if not strokes or shot.isNull() or view.width() <= 0 or self.controller.privacy:
+            return shot  # ohne Zeichnungen: Bildschirmfoto direkt (keine teure Umwandlung)
         image = shot.toImage() if hasattr(shot, "toImage") else shot
-        if not strokes or image.isNull() or view.width() <= 0 or self.controller.privacy:
-            return image
         out = self.controller.output
         origin = view.mapTo(out, view.rect().topLeft())
         sx, sy = image.width() / view.width(), image.height() / view.height()

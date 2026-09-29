@@ -8,7 +8,13 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.56.0)
+### Neu in dieser Version (0.57.0)
+- **Browser steuern läuft flüssig:** Die Vorschau zeigt beim Klicken, Scrollen und Tippen jetzt ~20 Bilder/s
+  (vorher 5). Bewegte man die Maus ständig, kam bisher gar kein neues Bild, bis man still hielt – das war das
+  Ruckeln. Ohne Eingabe bleibt es sparsam (4 Bilder/s). Das Vorschaubild wird zudem nur noch einmal verkleinert
+  statt bei jedem Neuzeichnen umgewandelt.
+
+### Neu in Version 0.56.0
 - **Behoben: „Vollbildmodus nicht verfügbar“** bei YouTube & Co. auf Monitor 2. Der eingebaute Browser erlaubt
   jetzt Vollbild: Der Vollbild-Knopf der Seite lässt das Video die ganze Website-Fläche füllen (Esc oder der
   Knopf beendet es). Ist die Website Teil einer Szene mit mehreren Feldern, füllt das Video sein Feld.

@@ -3171,3 +3171,38 @@ def test_reset_all_data_button(env, monkeypatch):
     monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: QMessageBox.Yes)
     reset_page.reset_all(setup)
     assert requested == [controller.config]
+
+
+def test_browser_control_stays_smooth_while_moving(env):
+    """Browser steuern: Während man die Maus ständig bewegt (oder scrollt), kommen laufend neue Bilder
+    (~20/s). Bis 0.56 startete jede Bewegung den Zeitgeber neu → kein Bild, bis man still hielt (Ruckeln)."""
+    import time
+
+    controller, window, _ = env
+    controller.show_source({"type": "website", "url": "data:text/html,<body style='background:#08f'>x</body>"})
+    window.open_browser_control()
+    bc = window.browser_control
+    pump()
+    frames = []
+    real = bc.refresh
+    bc.refresh = lambda: (frames.append(time.monotonic()), real())
+    bc._soon.timeout.disconnect()
+    bc._soon.timeout.connect(bc.refresh)
+    bc.timer.timeout.disconnect()
+    bc.timer.timeout.connect(bc._tick)
+    end = time.monotonic() + 1.0
+    while time.monotonic() < end:  # „Maus bewegt sich“ alle 10 ms
+        bc.refresh_soon()
+        pump()
+        time.sleep(0.01)
+    assert len(frames) >= 10, f"nur {len(frames)} Bilder in 1 s beim Bewegen"
+    assert bc.preview.image() is not None and not bc.preview.image().isNull()
+    # ohne Eingabe: sparsam (höchstens ~4 Bilder/s)
+    bc._active_until = 0
+    frames.clear()
+    end = time.monotonic() + 1.0
+    while time.monotonic() < end:
+        pump()
+        time.sleep(0.01)
+    assert len(frames) <= 6
+    bc.close()
