@@ -8,7 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.59.0)
+### Neu in dieser Version (0.60.0)
+**Bildschirmschoner zuverlässig – und das System dunkelt nicht mehr ab**
+- Linux und Windows dimmen bzw. schalten die Monitore nicht mehr selbst ab, solange der Bildschirmschoner
+  eingeschaltet ist oder Monitor 2 etwas zeigt (wie bei einem Videoplayer). Einstellung: Setup →
+  Bildschirmschoner → „System nicht abdunkeln lassen“ (Standard an). Hinweis: Der PC sperrt sich dann auch nicht
+  von selbst. Beim Beenden von AluPC darf das System wieder abdunkeln.
+- KDE meldet die Leerlaufzeit je nach Version in Millisekunden statt Sekunden (oder unter Wayland immer 0).
+  AluPC glaubte das bisher – der Schoner startete dann bei kurzen Pausen und ging nicht mehr weg. Jetzt misst AluPC
+  die Einheit selbst und nutzt den Wert erst, wenn er stimmt.
+- Mausbewegung zählt immer als Aktivität (beendet den Schoner bzw. verhindert den Start).
+- „Diagnose kopieren“ zeigt, woher AluPC die Leerlaufzeit nimmt und ob das Abdunkeln verhindert wird.
+
+### Neu in Version 0.59.0
 **Behoben (Linux): AirPlay verbunden, Ton da – aber kein Bild**
 - Ursache: Ein iPhone/iPad schickt beim Bildschirm-Spiegeln das vollständige Bild (Schlüsselbild) nur einmal,
   direkt beim Verbinden. AluPCs Player gab ohne Daten nach ~20 s auf und wurde erst nach 30 s neu gestartet.

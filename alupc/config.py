@@ -141,6 +141,7 @@ DEFAULTS: dict = {
         "folder": "",
         "interval": 8,
         "scene": "",
+        "keep_awake": True,  # System (Linux/Windows) nicht abdunkeln/ausschalten lassen, solange AluPC es braucht
     },
     # Startseite: tiles = Reihenfolge der sichtbaren Kacheln (None = Standard), custom = eigene Kacheln
     "start_page": {

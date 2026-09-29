@@ -1108,3 +1108,67 @@ def test_rtp_relay_remembers_keyframe():
         relay.stop()
         send.close()
         out.close()
+
+
+def test_idle_clock_detects_kde_milliseconds(monkeypatch):
+    """KDE meldet die Leerlaufzeit teils in Millisekunden (statt Sekunden) oder immer 0. AluPC misst die Einheit,
+    statt ihr zu glauben – sonst startet der Schoner bei jeder kurzen Pause und geht nicht mehr weg."""
+    from alupc import screensaver as ss
+
+    clock = ss.IdleClock()
+    clock.method = "freedesktop"
+    now = [1000.0]
+    monkeypatch.setattr(ss.time, "monotonic", lambda: now[0])
+    raw = [0.0]
+    monkeypatch.setattr(clock, "_freedesktop", lambda: raw[0])
+
+    def step(seconds, per_second):
+        now[0] += seconds
+        raw[0] += seconds * per_second
+        return clock.seconds()
+
+    raw[0] = 5000.0
+    assert clock.seconds() is None  # Einheit noch unbekannt → nicht verwenden
+    assert abs(step(2, 1000) - 7.0) < 0.01 and clock.scale == 0.001  # Millisekunden erkannt
+
+    clock2 = ss.IdleClock()
+    clock2.method = "freedesktop"
+    monkeypatch.setattr(clock2, "_freedesktop", lambda: raw[0])
+    raw[0] = 30.0
+    clock = clock2
+    assert clock.seconds() is None
+    assert abs(step(2, 1) - 32.0) < 0.01 and clock.scale == 1.0  # Sekunden
+
+    clock3 = ss.IdleClock()
+    clock3.method = "freedesktop"
+    monkeypatch.setattr(clock3, "_freedesktop", lambda: 0)  # Wayland ohne Unterstützung: immer 0
+    for _ in range(5):
+        now[0] += 2
+        assert clock3.seconds() is None  # nie „0 s Leerlauf“ glauben
+
+
+def test_keep_awake_linux_inhibits_and_releases(monkeypatch):
+    from alupc.platform import dbus_util, keep_awake
+
+    monkeypatch.setattr(keep_awake.sys, "platform", "linux")
+    calls = []
+
+    class Conn:
+        def close(self):
+            calls.append(("close",))
+
+    monkeypatch.setattr(dbus_util, "connect", lambda bus="SESSION": Conn())
+
+    def call(conn, name, path, iface, method, sig="", args=(), timeout=0):
+        calls.append((name, method, args))
+        return (41,) if method == "Inhibit" else ()
+
+    monkeypatch.setattr(dbus_util, "call", call)
+    ka = keep_awake.KeepAwake()
+    assert ka.set(True) and ka.active
+    assert ("org.freedesktop.ScreenSaver", "Inhibit", ("AluPC", "AluPC zeigt etwas auf Monitor 2")) in calls
+    n = len(calls)
+    assert ka.set(True) and len(calls) == n  # zweimal einschalten: nichts Doppeltes
+    assert not ka.set(False)
+    assert ("org.freedesktop.ScreenSaver", "UnInhibit", (41,)) in calls and ("close",) in calls
+    assert "abdunkeln" in ka.describe()

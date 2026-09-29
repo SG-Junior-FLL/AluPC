@@ -1383,6 +1383,7 @@ class Controller(QObject):
 
         tracker().shutdown()
         self.screensaver.timer.stop()
+        self.screensaver.keep_awake.set(False)  # System darf wieder abdunkeln
         self.output.set_screensaver(None)
         self.output.set_content(None)
         self.airplay.shutdown()

@@ -108,6 +108,13 @@ def report(controller, probe: bool = True) -> str:
         lines.append(f"  Probe-Aufnahme (Spiegeln): {capture_probe(controller)}")
     if getattr(controller, "last_mirror_problem", ""):
         lines.append(f"  Letztes Spiegel-Problem: {controller.last_mirror_problem}")
+    saver = getattr(controller, "screensaver", None)
+    if saver is not None:
+        idle = saver.idle
+        unit = {None: "Einheit noch unbekannt", 1.0: "Sekunden", 0.001: "Millisekunden"}.get(idle.scale, "?") \
+            if idle.method == "freedesktop" else ""
+        lines.append(f"  Bildschirmschoner: Leerlauf über {idle.method}{f' ({unit})' if unit else ''} · jetzt "
+                     f"{saver.idle_seconds():.0f} s · {saver.keep_awake.describe()}")
 
     lines.append("")
     lines.append("== AirPlay (iPhone) ==")

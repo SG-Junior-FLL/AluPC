@@ -53,6 +53,11 @@ class ScreensaverSettings(QGroupBox):
         for key, label in WHEN.items():
             when.addItem(label, key)
         when.setCurrentIndex(max(0, when.findData(cfg.get("when", "desktop"))))
+        awake = QCheckBox("System nicht abdunkeln lassen")
+        awake.setToolTip("Linux/Windows dimmen und schalten die Monitore sonst selbst ab – dann sieht man den "
+                         "Bildschirmschoner nie. Gilt, solange der Schoner an ist oder Monitor 2 etwas zeigt. "
+                         "Achtung: Der PC sperrt sich dann auch nicht von selbst.")
+        awake.setChecked(bool(cfg.get("keep_awake", True)))
         style = QComboBox()
         for group, keys in STYLE_GROUPS.items():
             if style.count():
@@ -116,6 +121,7 @@ class ScreensaverSettings(QGroupBox):
             form.addRow("", enabled)
             form.addRow("Nach:", minutes)
             form.addRow("Wann:", when)
+            form.addRow("", awake)
         form.addRow("Stil:", style)
         added = set()
         for items in rows.values():
@@ -145,7 +151,7 @@ class ScreensaverSettings(QGroupBox):
             })
             if not tile_mode:
                 self.data.update({"enabled": enabled.isChecked(), "minutes": minutes.value(),
-                                  "when": when.currentData()})
+                                  "when": when.currentData(), "keep_awake": awake.isChecked()})
                 controller.config["screensaver"] = dict(self.data)
             if self.on_change:
                 self.on_change(dict(self.data))
@@ -167,6 +173,7 @@ class ScreensaverSettings(QGroupBox):
         img_btn.clicked.connect(pick_image)
         folder_btn.clicked.connect(pick_folder)
         enabled.toggled.connect(save)
+        awake.toggled.connect(save)
         color.changed.connect(save)
         for w in (minutes, interval):
             w.valueChanged.connect(save)

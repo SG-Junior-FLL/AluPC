@@ -127,16 +127,36 @@ class IdleClock:
         out = subprocess.run(["xprintidle"], capture_output=True, text=True, timeout=2).stdout
         return int(out.strip()) / 1000.0
 
+    # KDE liefert GetSessionIdleTime (laut Standard Sekunden) je nach Version in Millisekunden – oder immer 0,
+    # wenn es das unter Wayland nicht kann. Die Einheit wird deshalb gemessen: wie schnell wächst der Wert, während
+    # niemand etwas tut? ~1 pro Sekunde = Sekunden, ~1000 = Millisekunden. Bis das klar ist: Wert nicht verwenden.
+    scale: float | None = None
+    _prev: tuple[float, float] | None = None
+
+    def _calibrate(self, raw: float) -> float | None:
+        now = time.monotonic()
+        prev, self._prev = self._prev, (raw, now)
+        if self.scale is None and prev is not None and raw > prev[0] and now - prev[1] >= 0.5:
+            rate = (raw - prev[0]) / (now - prev[1])
+            if rate > 200:
+                self.scale = 0.001
+            elif 0.3 < rate < 5:
+                self.scale = 1.0
+        return None if self.scale is None else raw * self.scale
+
     def seconds(self) -> float | None:
         fn = {"windows": self._windows, "freedesktop": self._freedesktop, "gnome": self._gnome,
               "xprintidle": self._xprintidle}.get(self.method)
         if fn is None:
             return None
         try:
-            return fn()
+            value = fn()
         except Exception:  # noqa: BLE001
             self._close()
             return None
+        if self.method == "freedesktop" and value is not None:
+            return self._calibrate(float(value))
+        return value
 
     def describe(self) -> str:
         return {
@@ -399,6 +419,10 @@ class ScreensaverManager(QObject):
         self.manual = False
         self.override_id = None
         self.last_activity = time.monotonic()  # Ersatz, wenn das System keine Leerlaufzeit meldet
+        self._cursor = None
+        from .platform.keep_awake import KeepAwake
+
+        self.keep_awake = KeepAwake()
         self.timer = QTimer(self, interval=2000)
         self.timer.timeout.connect(self.check)
         self.timer.start()
@@ -411,9 +435,20 @@ class ScreensaverManager(QObject):
         self.last_activity = time.monotonic()
 
     def idle_seconds(self) -> float:
+        self._watch_cursor()
         secs = self.idle.seconds()
         own = time.monotonic() - self.last_activity
         return own if secs is None else min(secs, own)
+
+    def _watch_cursor(self) -> None:
+        """Mausbewegung zählt immer als Aktivität – auch wenn das System keine (oder eine falsche) Leerlaufzeit
+        meldet. (Unter Wayland sieht AluPC die Maus nur über eigenen Fenstern, sonst überall.)"""
+        from PySide6.QtGui import QCursor
+
+        pos = QCursor.pos()
+        if self._cursor is not None and pos != self._cursor:
+            self.last_activity = time.monotonic()
+        self._cursor = pos
 
     def allowed(self) -> bool:
         c = self.controller
@@ -423,7 +458,16 @@ class ScreensaverManager(QObject):
             return c.mode == "desktop"
         return True
 
+    def keep_awake_wanted(self) -> bool:
+        """System-Abdunkeln verhindern, solange AluPC Monitor 2 braucht: Bildschirmschoner an (sonst dunkelt das
+        System ab, bevor er kommt) oder AluPC zeigt gerade etwas auf Monitor 2."""
+        cfg, c = self.settings(), self.controller
+        if not cfg.get("keep_awake", True) or c.output_screen() is None:
+            return False
+        return bool(cfg.get("enabled") or self.active or c.mode != "desktop")
+
     def check(self):
+        self.keep_awake.set(self.keep_awake_wanted())
         cfg = self.settings()
         idle = self.idle_seconds()
         if self.active:

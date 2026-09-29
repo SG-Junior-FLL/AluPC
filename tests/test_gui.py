@@ -3247,3 +3247,37 @@ def test_airplay_picture_survives_player_restart(env, tmp_path, monkeypatch):
     controller.extend()
     assert _until(lambda: not controller.airplay.running(), 5)
     assert controller.airplay.relay is None  # Relais mit UxPlay beendet
+
+
+def test_screensaver_keeps_system_awake(env, monkeypatch):
+    """Bildschirmschoner an → System darf die Monitore nicht selbst abdunkeln (sonst sieht man ihn nie).
+    Aus + Monitor 2 frei → System darf wieder. Einstellung „System nicht abdunkeln lassen“ schaltet es ab."""
+    controller, _window, _ = env
+    mgr = controller.screensaver
+    calls = []
+    monkeypatch.setattr(mgr.keep_awake, "set", lambda on, reason="": calls.append(on) or on)
+    if controller.output_screen() is None:
+        pytest.skip("kein zweiter (Offscreen-)Monitor")
+    controller.extend()
+    controller.config["screensaver"] = {**controller.config["screensaver"], "enabled": True}
+    mgr.check()
+    assert calls[-1] is True
+    controller.config["screensaver"] = {**controller.config["screensaver"], "enabled": False}
+    mgr.check()
+    assert calls[-1] is (controller.mode != "desktop")
+    controller.show_source({"type": "text", "text": "Hallo"})  # Monitor 2 zeigt etwas → wach bleiben
+    mgr.check()
+    assert calls[-1] is True
+    controller.config["screensaver"] = {**controller.config["screensaver"], "keep_awake": False}
+    mgr.check()
+    assert calls[-1] is False
+    # Mausbewegung zählt als Aktivität, auch wenn das System keine Leerlaufzeit meldet
+    monkeypatch.setattr(mgr.idle, "seconds", lambda: None)
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QCursor
+
+    mgr.last_activity -= 500
+    mgr.idle_seconds()
+    QCursor.setPos(QCursor.pos() + QPoint(7, 3))
+    if QCursor.pos() != mgr._cursor:  # Offscreen kann den Mauszeiger nicht immer bewegen
+        assert mgr.idle_seconds() < 5
