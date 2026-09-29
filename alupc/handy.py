@@ -448,6 +448,8 @@ class AirPlayServer(QObject):
         self.log: list[str] = []
         self.pin_code = ""
         self._background = False  # „Immer bereit“: hält UxPlay dauerhaft am Laufen
+        self.relay = None  # rtp_relay.RtpRelay im Modus „stream“
+        self.is_connected = False  # laut UxPlays Meldungen ist gerade ein iPhone verbunden
         self._stop_timer = QTimer(self, singleShot=True, interval=1500)
         self._stop_timer.timeout.connect(self._really_stop)
 
@@ -517,12 +519,17 @@ class AirPlayServer(QObject):
             and supports_rtp_pipeline(uxplay)
         stream = want_stream and (vrtp or rtp_pipeline)
         self.port = free_udp_port() if stream else 0
+        self._stop_relay()
         if stream:
             self.sdp_path().parent.mkdir(parents=True, exist_ok=True)
             self.sdp_path().write_text(sdp_text(self.port), encoding="ascii")
+            from .rtp_relay import RtpRelay
+
+            # UxPlay → Relais → Player: das Relais merkt sich das Schlüsselbild für einen (neu) startenden Player
+            self.relay = RtpRelay(self.port)
         pin = s.get("pin", "")
         self.pin_code = pin if pin and pin != "zufall" else ""
-        args = uxplay_args(s["airplay_name"], pin, self.port if stream else None,
+        args = uxplay_args(s["airplay_name"], pin, self.relay.in_port if stream else None,
                            extra=vm_options(uxplay_help(uxplay)) if in_virtual_machine() else None,
                            rtp_pipeline=rtp_pipeline)
         if not kill_uxplay_windows():  # fremde Empfänger (z. B. uxplay-windows im Autostart) belegen sonst die Ports
@@ -664,7 +671,19 @@ class AirPlayServer(QObject):
             if tray_app:
                 kill_uxplay_windows()  # auch den Bluetooth-Helfer
             self.proc = None
+            self._stop_relay()
+            self.is_connected = False
             self.status.emit("gestoppt")
+
+    def _stop_relay(self) -> None:
+        if self.relay is not None:
+            self.relay.stop()
+            self.relay = None
+
+    def replay(self) -> None:
+        """AluPCs Player wurde (neu) gestartet → aktuelles iPhone-Bild noch einmal schicken (siehe rtp_relay)."""
+        if self.relay is not None:
+            self.relay.replay()
 
     def _read(self):
         text = bytes(self.proc.readAllStandardOutput()).decode(errors="replace")
@@ -676,8 +695,12 @@ class AirPlayServer(QObject):
             self.log_line.emit(line)
             low = line.lower()
             if any(k in low for k in CONNECT_HINTS):
+                self.is_connected = True
                 self.connected.emit()
             elif any(k in low for k in DISCONNECT_HINTS):
+                self.is_connected = False
+                if self.relay is not None:
+                    self.relay.reset()  # nächste Verbindung bringt ein neues Schlüsselbild
                 self.disconnected.emit()
             if "pin" in low and any(ch.isdigit() for ch in line):  # „-pin“ ohne feste Zahl: Code steht im Log
                 digits = "".join(ch for ch in line.split(":")[-1] if ch.isdigit())

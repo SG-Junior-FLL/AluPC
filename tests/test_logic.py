@@ -1048,3 +1048,63 @@ def test_reset_wipes_only_alupc_data(tmp_path, monkeypatch):
                         lambda cmd, **kw: started.append(cmd))
     reset.finish_and_restart()
     assert started and (data / reset.LEFTOVER_FILE).read_text(encoding="utf-8") == "gesperrt.log: benutzt"
+
+
+def test_rtp_relay_remembers_keyframe():
+    """AirPlay-Relais: erkennt Schlüsselbilder (auch STAP-A, FU-A, mehrere Teile) und merkt sich alles ab dort."""
+    import socket
+    import time
+
+    from alupc.rtp_relay import RtpRelay, nal_types, rtp_payload
+
+    def pkt(seq, payload):
+        return bytes([0x80, 96]) + seq.to_bytes(2, "big") + bytes(8) + payload
+
+    sps, pps = pkt(1, b"\x67abc"), pkt(2, b"\x68de")
+    idr_a = pkt(3, bytes([0x7C, 0x85]) + b"x" * 50)  # FU-A, Anfang, Typ 5
+    idr_mid = pkt(4, bytes([0x7C, 0x05]) + b"y" * 50)  # FU-A, Fortsetzung
+    idr_b = pkt(5, bytes([0x65]) + b"z")  # zweiter Teil (Slice) desselben Schlüsselbilds
+    p1 = pkt(6, bytes([0x41]) + b"p")  # normales Bild
+    stap = pkt(7, bytes([24]) + (4).to_bytes(2, "big") + b"\x67sps" + (3).to_bytes(2, "big") + b"\x68pp"
+               + (2).to_bytes(2, "big") + b"\x65i")
+    assert nal_types(rtp_payload(idr_a)) == [5] and nal_types(rtp_payload(idr_mid)) == []
+    assert nal_types(rtp_payload(stap)) == [7, 8, 5] and nal_types(rtp_payload(p1)) == [1]
+
+    out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    out.bind(("127.0.0.1", 0))
+    out.settimeout(1)
+    relay = RtpRelay(out.getsockname()[1])
+    send = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        for p in (sps, pps, idr_a, idr_mid, idr_b, p1):
+            send.sendto(p, ("127.0.0.1", relay.in_port))
+        def body(p):
+            return p[12:]
+
+        got = [out.recv(2000) for _ in range(6)]
+        assert [body(p) for p in got] == [body(p) for p in (sps, pps, idr_a, idr_mid, idr_b, p1)]  # sofort weiter
+        seqs = [int.from_bytes(p[2:4], "big") for p in got]
+        deadline = time.time() + 2
+        while relay.cache != [sps, pps, idr_a, idr_mid, idr_b, p1] and time.time() < deadline:
+            time.sleep(0.01)
+        assert relay.cache == [sps, pps, idr_a, idr_mid, idr_b, p1]  # zweiter Slice startet KEIN neues Bild
+        relay.replay()  # neuer Player → alles ab dem Schlüsselbild noch einmal
+        again = [out.recv(2000) for _ in range(6)]
+        assert [body(p) for p in again] == [body(p) for p in (sps, pps, idr_a, idr_mid, idr_b, p1)]
+        # mit NEUEN, fortlaufenden Laufnummern – sonst verwirft der Player sie als „alt“
+        assert [int.from_bytes(p[2:4], "big") for p in again] == list(range(seqs[-1] + 1, seqs[-1] + 7))
+        send.sendto(stap, ("127.0.0.1", relay.in_port))  # neues Schlüsselbild (mit SPS/PPS im STAP-A)
+        out.recv(2000)
+        deadline = time.time() + 2
+        while relay.cache != [stap] and time.time() < deadline:
+            time.sleep(0.01)
+        assert relay.cache == [stap]
+        relay.reset()
+        deadline = time.time() + 2
+        while relay.has_keyframe and time.time() < deadline:
+            time.sleep(0.01)
+        assert not relay.has_keyframe and relay.cache == []
+    finally:
+        relay.stop()
+        send.close()
+        out.close()

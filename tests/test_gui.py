@@ -3211,3 +3211,39 @@ def test_browser_control_stays_smooth_while_moving(env):
         time.sleep(0.01)
     assert len(frames) <= 6
     bc.close()
+
+
+def test_airplay_picture_survives_player_restart(env, tmp_path, monkeypatch):
+    """Ein iPad schickt das Schlüsselbild nur einmal beim Verbinden. Fällt AluPCs Player danach aus (z. B. nach
+    „Connection timed out“ ohne Daten), muss er trotzdem wieder ein Bild zeigen: sofortiger Neustart + das Relais
+    spielt das gemerkte Schlüsselbild vor. Bis 0.58: Ton ja, Bild nie."""
+    import sys
+
+    if not sys.platform.startswith("linux"):
+        pytest.skip("Nur Linux (Pipeline-Weg)")
+    pytest.importorskip("av")
+    from PySide6.QtMultimedia import QMediaPlayer
+
+    monkeypatch.setenv("RTP_GOP", "0")  # wie ein iPad: nur EIN Schlüsselbild
+    monkeypatch.setenv("RTP_SECONDS", "14")
+    controller, window, _ = env
+    uxplay, _log = _fake_uxplay(tmp_path, False, pipeline_opts=True)
+    controller.config["handy"] = {**controller.config["handy"], "uxplay_path": uxplay, "pin": ""}
+    controller.start_airplay()
+    pump()
+    view = controller.output.content
+    assert view.mode == "stream" and controller.airplay.relay is not None
+    assert _until(lambda: view._had_frames, 20), "Kein Bild beim ersten Verbinden"
+    assert _until(lambda: controller.airplay.relay.has_keyframe, 5)
+    # Player fällt aus (wie nach „Connection timed out“) – das Schlüsselbild ist längst vorbei
+    old = view.player
+    view._had_frames = False
+    old.errorOccurred.emit(QMediaPlayer.ResourceError, "Demuxing failed")
+    assert _until(lambda: view.player is not old, 3), "Player wurde nicht sofort neu gestartet"
+    frames = []  # nur Bilder des neuen Players zählen
+    view.sink.videoFrameChanged.connect(lambda f: view.player is not old and f.isValid() and frames.append(1))
+    assert _until(lambda: len(frames) >= 3, 10), "Nach dem Neustart kein Bild (Schlüsselbild nicht nachgereicht)"
+    assert view._image is not None or _until(lambda: view._image is not None, 3)
+    controller.extend()
+    assert _until(lambda: not controller.airplay.running(), 5)
+    assert controller.airplay.relay is None  # Relais mit UxPlay beendet

@@ -8,7 +8,20 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.58.0)
+### Neu in dieser Version (0.59.0)
+**Behoben (Linux): AirPlay verbunden, Ton da – aber kein Bild**
+- Ursache: Ein iPhone/iPad schickt beim Bildschirm-Spiegeln das vollständige Bild (Schlüsselbild) nur einmal,
+  direkt beim Verbinden. AluPCs Player gab ohne Daten nach ~20 s auf und wurde erst nach 30 s neu gestartet.
+  Verband sich das iPad in dieser Lücke, ging das Schlüsselbild verloren – und es kam nie ein Bild.
+- Jetzt: Ein kleines Relais zwischen UxPlay und AluPC merkt sich das letzte Schlüsselbild samt allem danach und
+  reicht es einem neu gestarteten Player sofort nach. Es hält die Verbindung wach, und fällt der Player aus,
+  startet AluPC ihn sofort neu (nicht erst nach 30 s).
+- Ein ruhiger iPad-Bildschirm (keine neuen Bilder) schaltet nicht mehr zurück auf „AirPlay bereit“ – das passiert
+  nur noch, wenn sich das iPad wirklich trennt.
+- Geprüft mit nachgestelltem iPad (nur ein Schlüsselbild, Verbinden in der Lücke) und Bildern in iPad-Größe
+  (2048×1536). Mit einem echten iPad konnte ich nicht testen.
+
+### Neu in Version 0.58.0
 - **Programme: „Verschieben“ entfernt.** „Programm auf Monitor 2“ zeigt jetzt nur noch die Liste der Programme –
   auswählen, „Anzeigen“, fertig (AluPC zeigt eine Kopie des Fensters; das Programm bleibt, wo es ist).
 

@@ -715,6 +715,11 @@ class AirPlaySource(SinkView):
         self.mode = self.server.acquire(want_stream=True)
         self._watch = QTimer(self, interval=1000)
         self._watch.timeout.connect(self._check)
+        self._restart_soon = QTimer(self, singleShot=True, interval=300)
+        self._restart_soon.timeout.connect(self._start_player)
+        self._replay_timer = QTimer(self, interval=700)
+        self._replay_timer.timeout.connect(self._replay_if_needed)
+        self._player_frames = 0
         if self.mode == "fehlt":
             self.set_message("AirPlay-Empfang: Das Programm UxPlay fehlt.\n\nSeite „Handy“ → „Automatisch "
                              "einrichten“ installiert es.")
@@ -771,21 +776,41 @@ class AirPlaySource(SinkView):
     def _start_player(self):
         if self.player is not None:
             self.player.stop()
+            self.player.setSource(QUrl())  # Anschluss sofort freigeben – sonst „Address already in use“ beim neuen
             self.player.deleteLater()
         self.player = QMediaPlayer(self)
         self.player.setVideoSink(self.sink)
+        # Gibt der Player auf (z. B. „Connection timed out“ nach ~10 s ohne Daten), sofort neu – sonst verpasst er
+        # das einzige Schlüsselbild beim Verbinden und zeigt nie etwas (Fehler bis 0.58: Ton ja, Bild nein)
+        self.player.errorOccurred.connect(lambda *_: self._restart_soon.start())
         self.player.setSource(QUrl.fromLocalFile(str(self.server.sdp_path())))
         self.player.play()
         self._started = time.monotonic()
+        # Relais schickt das gemerkte Bild (Schlüsselbild + alles danach) – so lange, bis dieser Player ein Bild hat
+        # (wann er wirklich lauscht, sagt Qt nicht; zu frühe Pakete gehen verloren)
+        self._player_frames = 0
+        self._replays = 0
+        self._replay_timer.start()
+
+    def _replay_if_needed(self):
+        if self._player_frames or self._replays >= 15:
+            self._replay_timer.stop()
+            return
+        self._replays += 1
+        self.server.replay()
 
     def _got_frame(self, frame):
         if frame.isValid():
             self._last_frame = time.monotonic()
             self._had_frames = True
+            self._player_frames += 1
 
     def _check(self):
         now = time.monotonic()
-        if self._had_frames and now - self._last_frame > 4:
+        # Ein ruhiger iPad-Bildschirm schickt keine neuen Bilder – das ist kein Trennen. Zurück zu „AirPlay bereit“
+        # nur, wenn UxPlay das Trennen meldet (oder sehr lange gar nichts mehr kommt).
+        gone = not self.server.is_connected or now - self._last_frame > 120
+        if self._had_frames and now - self._last_frame > 4 and gone:
             # Handy hat aufgehört zu senden → Hinweis zeigen und für die nächste Verbindung neu bereit machen
             self._had_frames = False
             self._show_waiting()
@@ -797,6 +822,8 @@ class AirPlaySource(SinkView):
 
     def stop(self):
         self._watch.stop()
+        self._restart_soon.stop()
+        self._replay_timer.stop()
         for sig, slot in ((self.server.failed, self._failed), (self.server.status, self._status)):
             try:
                 sig.disconnect(slot)

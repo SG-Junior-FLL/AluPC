@@ -8,10 +8,17 @@ import av
 
 
 def main(port: int, seconds: float = 6.0, fps: int = 25):
+    # wie ein iPad: RTP_GOP=0 → nur EIN Schlüsselbild am Anfang, danach nur Änderungen; RTP_DELAY → später senden
+    import os
+
+    gop = int(os.environ.get("RTP_GOP", "10")) or 100000
+    seconds = float(os.environ.get("RTP_SECONDS", seconds))
+    time.sleep(float(os.environ.get("RTP_DELAY", "0")))
     out = av.open(f"rtp://127.0.0.1:{port}", mode="w", format="rtp")
     stream = out.add_stream("libx264", rate=fps)
     stream.width, stream.height, stream.pix_fmt = 320, 180, "yuv420p"
-    stream.options = {"tune": "zerolatency", "preset": "ultrafast", "g": "10", "x264-params": "repeat-headers=1"}
+    stream.options = {"tune": "zerolatency", "preset": "ultrafast", "g": str(gop), "keyint_min": str(gop),
+                      "sc_threshold": "0", "x264-params": "repeat-headers=1"}
     start = time.time()
     i = 0
     while time.time() - start < seconds:
