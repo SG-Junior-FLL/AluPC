@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import os
 import sys
 
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl
@@ -1601,9 +1602,37 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, e):
         super().showEvent(e)
-        if not getattr(self, "_intro_done", False):  # beim ersten Öffnen: Kacheln fliegen nacheinander ein
+        first = not getattr(self, "_intro_done", False)
+        if first:  # beim ersten Öffnen: Kacheln fliegen nacheinander ein
             self._intro_done = True
             QTimer.singleShot(60, self._intro_tiles)
+        out = self.controller.output_screen()
+        if first or (out is not None and self.screen() is out):
+            self.place_on_main()
+
+    def place_on_main(self) -> None:
+        """AluPC gehört auf Monitor 1 – nie auf Monitor 2 (dort sehen es die anderen). Linux/Wayland lässt Programme
+        ihr Fenster nicht selbst hinlegen und öffnete es oft auf Monitor 2 → dort KDE (KWin) darum bitten."""
+        screen = self.controller.main_screen()
+        if screen is None or self.isMaximized() or self.isFullScreen():
+            return
+        geo = screen.availableGeometry()
+        w, h = min(self.width(), geo.width() - 40), min(self.height(), geo.height() - 40)
+        x, y = geo.x() + (geo.width() - w) // 2, geo.y() + (geo.height() - h) // 2
+        handle = self.windowHandle()
+        if handle is not None and handle.screen() is not screen:
+            handle.setScreen(screen)
+        self.setGeometry(x, y, w, h)
+        from ..platform.linux_display import is_wayland
+
+        if sys.platform.startswith("linux") and is_wayland() and \
+                "KDE" in os.environ.get("XDG_CURRENT_DESKTOP", "").upper():
+            from ..platform.linux_windows import kwin_place_window
+            from .util import run_async
+
+            title = self.windowTitle()
+            QTimer.singleShot(300, lambda: run_async(lambda: kwin_place_window(title, x, y, w, h),
+                                                     lambda _r: None, lambda _e: None))
 
     def _intro_tiles(self):
         i = 0

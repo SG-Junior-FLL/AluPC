@@ -3372,3 +3372,28 @@ def test_pip_stays_on_top_on_kde(env, monkeypatch):
     script = next(s for s in scripts if "Bild-in-Bild" in s)
     assert "keepAbove = true" in script and "if (false) { list[i].fullScreen" in script
     pip.hide()
+
+
+def test_main_window_opens_on_monitor_1(env, monkeypatch):
+    """AluPC öffnet sich auf Monitor 1 – nicht auf Monitor 2 (dort sehen es die anderen). KDE/Wayland: KWin wird
+    gebeten, das Fenster dorthin zu legen."""
+    import sys
+
+    from alupc.platform import linux_display, linux_windows
+
+    controller, window, _ = env
+    main, out = controller.main_screen(), controller.output_screen()
+    if main is None or out is None or main is out:
+        pytest.skip("braucht zwei (Offscreen-)Monitore")
+    placed = []
+    monkeypatch.setattr(linux_display, "is_wayland", lambda: True)
+    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "KDE")
+    monkeypatch.setattr(linux_windows, "kwin_place_window", lambda *a: placed.append(a) or True)
+    window.hide()
+    window.windowHandle().setScreen(out)
+    window.move(out.geometry().center())
+    window.show()
+    pump()
+    assert main.availableGeometry().contains(window.geometry().center())
+    if sys.platform.startswith("linux"):
+        assert _until(lambda: placed, 3) and placed[-1][0] == window.windowTitle()
