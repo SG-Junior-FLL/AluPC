@@ -8,7 +8,17 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.65.0)
+### Neu in dieser Version (0.66.0)
+- **Helligkeit entfernt** (Kachel, Menü, Fenster und Befehle „heller/dunkler“) – hat nicht zuverlässig funktioniert.
+  Gespeicherte Startseiten ohne die Kachel laden normal weiter.
+- **Bild-in-Bild bleibt unter Linux (KDE) oben:** Solange es offen ist, läuft ein KWin-Skript, das „immer oben“
+  bei jedem neu geöffneten oder angeklickten Fenster erneut setzt (vorher nur einmal kurz nach dem Öffnen).
+  Das Fenster ist unter Linux kein „Hilfsfenster“ mehr, erscheint aber trotzdem nicht in der Taskleiste und
+  auf allen Arbeitsflächen. Beim Schließen wird das Skript entfernt.
+  *Ehrlich:* nur mit Tests und nachgebautem KWin geprüft, nicht auf einem echten KDE-Desktop. Vollbild-Programme
+  (z. B. Video im Vollbild), die gerade aktiv sind, legt KDE trotzdem darüber.
+
+### Neu in Version 0.65.0
 - **Behoben: AluPC „stürzte ab“, wenn man AirPlay verlassen hat.** Genauer: Es fror ein – Qts Videoplayer wartete
   beim Aufräumen auf seinen Lese-Thread, der auf Netzwerkdaten hing (das Lebenszeichen des Relais hielt ihn am
   Leben). KDE beendete AluPC dann als „reagiert nicht“. Jetzt wird der Player vom Strom getrennt, bevor er

@@ -122,6 +122,56 @@ def kde_keep_above(caption: str, above: bool = True, fullscreen: bool = True) ->
     run_kwin_script(KWIN_KEEP_ABOVE % (json.dumps(caption), flag, "true" if (above and fullscreen) else "false"))
 
 
+KWIN_PIN_ABOVE = r"""
+(function () {
+    var part = %s;
+    function set(w, key, value) { try { w[key] = value; } catch (e) {} }
+    function fix(w) {
+        if (!w || !w.caption || w.caption.indexOf(part) < 0) { return; }
+        set(w, "keepBelow", false);
+        set(w, "keepAbove", true);
+        set(w, "skipTaskbar", true);
+        set(w, "skipSwitcher", true);
+        set(w, "skipPager", true);
+        set(w, "onAllDesktops", true);
+        try { if (workspace.raiseWindow !== undefined) { workspace.raiseWindow(w); } } catch (e) {}
+    }
+    function all() {
+        var list = (workspace.windowList !== undefined) ? workspace.windowList() : workspace.clientList();
+        for (var i = 0; i < list.length; i++) { fix(list[i]); }
+    }
+    all();
+    var added = (workspace.windowAdded !== undefined) ? workspace.windowAdded : workspace.clientAdded;
+    added.connect(function (w) {
+        fix(w);
+        try { w.captionChanged.connect(function () { fix(w); }); } catch (e) {}
+    });
+    var activated = (workspace.windowActivated !== undefined) ? workspace.windowActivated
+                                                              : workspace.clientActivated;
+    activated.connect(function () { all(); });
+})();
+"""
+
+
+def kde_pin_above(caption_part: str) -> str | None:
+    """KDE: Fenster, deren Titel `caption_part` enthält, dauerhaft über allen anderen halten. Das Skript bleibt
+    aktiv und setzt „immer oben“ bei jedem neuen/aktivierten Fenster neu. Rückgabe: Name für `kde_unpin`."""
+    if IS_WINDOWS or "KDE" not in os.environ.get("XDG_CURRENT_DESKTOP", "").upper():
+        return None
+    import json
+
+    from .linux_windows import start_kwin_script
+
+    return start_kwin_script(KWIN_PIN_ABOVE % json.dumps(caption_part))
+
+
+def kde_unpin(token: str | None) -> None:
+    if token:
+        from .linux_windows import stop_kwin_script
+
+        stop_kwin_script(token)
+
+
 # --------------------------------------------------------------------------- Computer sperren
 def lock_computer() -> None:
     """Wie Win+L: den ganzen Computer sperren (Windows bzw. Bildschirmsperre unter Linux)."""

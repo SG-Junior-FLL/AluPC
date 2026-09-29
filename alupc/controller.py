@@ -114,11 +114,6 @@ class Controller(QObject):
 
         self.screensaver = ScreensaverManager(self)
         self.screensaver.changed.connect(self.changed.emit)
-        from .display_control import DisplayControl
-
-        # Helligkeit der Monitore (echt über DDC/CI bzw. Laptop, sonst abdunkeln)
-        self.displays = DisplayControl(self)
-        self.displays.changed.connect(self.changed.emit)
 
         # Timer beobachten: Ton bei „noch 1 Minute“ und bei Ablauf
         from PySide6.QtCore import QTimer
@@ -1173,8 +1168,6 @@ class Controller(QObject):
             "overlays_an": lambda: self.set_overlays(True),
             "overlays_aus": lambda: self.set_overlays(False),
             "whiteboard": self.show_whiteboard,
-            "heller": lambda: self.displays.step_all(10),
-            "dunkler": lambda: self.displays.step_all(-10),
         }
         action = actions.get(command)
         if action:
@@ -1410,7 +1403,8 @@ class Controller(QObject):
         tracker().shutdown()
         self.screensaver.timer.stop()
         self.screensaver.keep_awake.set(False)  # System darf wieder abdunkeln
-        self.displays.shutdown()  # abgedunkelte Monitore wieder normal
+        if self.pip is not None:
+            self.pip.shutdown()  # KWin-Skript „immer oben“ entfernen
         self.output.set_screensaver(None)
         self.output.set_content(None)
         self.airplay.shutdown()

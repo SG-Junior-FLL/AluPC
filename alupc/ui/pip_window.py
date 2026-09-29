@@ -55,8 +55,12 @@ class PipView(FrameView):
 
 class PipWindow(QWidget):
     def __init__(self, controller):
-        super().__init__(None, Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        # Linux: kein Qt.Tool – KWin behandelt solche Hilfsfenster unter Wayland anders (nicht zuverlässig oben)
+        kind = Qt.Window if sys.platform.startswith("linux") else Qt.Tool
+        super().__init__(None, kind | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.controller = controller
+        self._pin: str | None = None  # aktives KWin-Skript („immer oben“)
+        self._pin_wanted = False
         self.setWindowTitle("AluPC – Bild-in-Bild")
         self.view = PipView(controller, self)
         self.grip = QSizeGrip(self)
@@ -103,12 +107,42 @@ class PipWindow(QWidget):
         from ..platform.window_tools import keep_on_top
 
         keep_on_top(self)
-        if sys.platform.startswith("linux"):
-            from ..platform.window_tools import kde_keep_above
+        if sys.platform.startswith("linux") and not self._pin_wanted:
+            from ..platform.window_tools import kde_pin_above
             from .util import run_async
 
-            QTimer.singleShot(400, lambda: run_async(lambda: kde_keep_above(self.windowTitle(), True, False),
-                                                     lambda _r: None, lambda _e: None))
+            self._pin_wanted = True
+
+            def started(token):
+                if self._pin_wanted and self._pin is None:
+                    self._pin = token
+                else:  # inzwischen wieder zu
+                    self._unpin_token(token)
+
+            caption = self.windowTitle()  # Teil genügt: KWin hängt bei Doppelten „<2>“ an
+            run_async(lambda: kde_pin_above(caption), started, lambda _e: None)
+
+    def _unpin(self) -> None:
+        self._pin_wanted = False
+        token, self._pin = self._pin, None
+        self._unpin_token(token)
+
+    def shutdown(self) -> None:
+        """Beim Beenden: KWin-Skript sofort entfernen (nicht im Hintergrund – das Programm ist gleich weg)."""
+        self._pin_wanted = False
+        token, self._pin = self._pin, None
+        if token:
+            from ..platform.window_tools import kde_unpin
+
+            kde_unpin(token)
+
+    @staticmethod
+    def _unpin_token(token) -> None:
+        if token:
+            from ..platform.window_tools import kde_unpin
+            from .util import run_async
+
+            run_async(lambda: kde_unpin(token), lambda _r: None, lambda _e: None)
 
     def _place_wayland(self, x: int, y: int) -> None:
         """Wayland: Programme dürfen ihr Fenster nicht selbst hinlegen → KDE (KWin) bitten, es unten rechts auf
@@ -130,6 +164,7 @@ class PipWindow(QWidget):
     def hideEvent(self, event):
         self.timer.stop()
         self._stop_live()
+        self._unpin()
         super().hideEvent(event)
 
     def _stop_live(self):

@@ -3323,43 +3323,10 @@ def test_whiteboard_backgrounds_and_pen(env, monkeypatch):
     assert "Kariert" in labels and "Tafel (grün)" in labels
 
 
-def test_display_control_software_dim(env, monkeypatch):
-    """Helligkeit: ohne steuerbaren Monitor dunkelt AluPC selbst ab (Klicks gehen durch). Ausschalten gibt es
-    nicht mehr (funktionierte nicht zuverlässig)."""
-    from PySide6.QtCore import Qt
-
-    from alupc import display_control as dc
-    from alupc.startpage import COMMANDS
-
-    controller, window, _ = env
-    d = controller.displays
-    monkeypatch.setattr(d, "method", lambda name: "abdunkeln")
-    name = d.screens()[0].name()
-    assert d.set_brightness(name, 40) == "abdunkeln"
-    shade = d.shades[name]
-    assert abs(shade.alpha - 0.54) < 0.01
-    assert shade.windowFlags() & Qt.WindowTransparentForInput  # Klicks gehen durch
-    window.refresh()
-    assert window.t_display.badge == "GEDIMMT"
-    d.set_brightness(name, 100)
-    assert name not in d.shades
-    d.step_all(-20)
-    assert all(v == 80 for v in d.software.values())
-    d.shutdown()
-    assert not d.shades
-    assert "displays_aus" not in COMMANDS and "monitor2_aus" not in COMMANDS
-    assert not hasattr(d, "off") and not hasattr(controller, "displays_off")
-    # Parser
-    assert dc.parse_ddcutil_brightness("VCP 10 C 30 100") == 30
-    assert dc.parse_brightnessctl("intel_backlight,backlight,5000,50%,10000") == 50
-    text = "Display 1\n   I2C bus:  /dev/i2c-4\n   DRM connector:  card1-HDMI-A-1\nDisplay 2\n   DRM_connector: card1-DP-2\n"
-    assert dc.ddcutil_displays(text) == {"hdmi1": 1, "dp2": 2}
-    assert dc._norm("HDMI-1") == dc._norm("HDMI-A-1") and dc.is_internal("eDP-1")
-
-
 def test_pip_stays_on_top_on_kde(env, monkeypatch):
     """Bild-in-Bild: andere Fenster dürfen es nicht verdecken. KDE (Wayland) ignoriert Qts „immer oben“ – AluPC
-    setzt es per KWin-Skript (ohne Vollbild, Größe bleibt)."""
+    lässt ein KWin-Skript laufen, solange Bild-in-Bild offen ist; es setzt „immer oben“ bei jedem neuen oder
+    aktivierten Fenster neu. Beim Schließen wird es entfernt."""
     import sys
 
     if not sys.platform.startswith("linux"):
@@ -3368,13 +3335,26 @@ def test_pip_stays_on_top_on_kde(env, monkeypatch):
 
     controller, _window, _ = env
     monkeypatch.setenv("XDG_CURRENT_DESKTOP", "KDE")
-    scripts = []
-    monkeypatch.setattr(linux_windows, "run_kwin_script", lambda s: scripts.append(s) or "")
+    started, stopped = [], []
+    monkeypatch.setattr(linux_windows, "start_kwin_script", lambda s: started.append(s) or f"s{len(started)}")
+    monkeypatch.setattr(linux_windows, "stop_kwin_script", lambda name: stopped.append(name))
     pip = controller.pip
+    assert pip.windowType() == Qt.Window  # Linux: kein Hilfsfenster (Qt.Tool)
     pip.show_on_main()
-    assert _until(lambda: any("Bild-in-Bild" in s for s in scripts), 3)
-    script = next(s for s in scripts if "Bild-in-Bild" in s)
-    assert "keepAbove = true" in script and "if (false) { list[i].fullScreen" in script
+    assert _until(lambda: pip._pin == "s1", 3)
+    script = started[0]
+    assert "Bild-in-Bild" in script
+    for part in ("keepAbove", "windowAdded", "windowActivated", "captionChanged", "indexOf(part)"):
+        assert part in script
+    pip.show_on_main()  # zweimal zeigen startet kein zweites Skript
+    assert len(started) == 1
+    pip.hide()
+    assert _until(lambda: stopped == ["s1"], 3)
+    assert pip._pin is None
+    pip.show_on_main()
+    assert _until(lambda: pip._pin == "s2", 3)
+    pip.shutdown()
+    assert "s2" in stopped and pip._pin is None
     pip.hide()
 
 

@@ -26,7 +26,6 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "draw": ("edit", "Zeigen & Zeichnen", "Laser, Stift, Marker", "#f97316", "schnell"),
     "overlays": ("layers", "Overlays", "Über Monitor 2", "#d946ef", "schnell"),
     "whiteboard": ("board", "Whiteboard", "Tafel zum Zeichnen", "#0d9488", "schnell"),
-    "display": ("sun", "Helligkeit", "Displays heller/dunkler", "#f59e0b", "schnell"),
 }
 # Schwarz, Standbild, Bild-in-Bild sind jetzt Schalter oben beim Live-Bild – als Kachel nur noch auf Wunsch
 HIDDEN_BY_DEFAULT = {"freeze", "black", "pip", "draw"}
@@ -85,8 +84,6 @@ COMMANDS = {
     "overlays_an": "Overlays an",
     "overlays_aus": "Overlays aus",
     "whiteboard": "Whiteboard zeigen",
-    "heller": "Displays heller",
-    "dunkler": "Displays dunkler",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann
