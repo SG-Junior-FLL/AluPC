@@ -8,7 +8,13 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.70.0)
+### Neu in dieser Version (0.71.0)
+- **Wetter: Postleitzahl = Deutschland.** Eine 5-stellige PLZ (z. B. 80331 oder „80331 München“) sucht nur noch in
+  Deutschland – vorher kam manchmal ein Ort in den USA heraus. Kennt der Wetterdienst die PLZ nicht, fragt AluPC
+  OpenStreetMap. Ortsnamen suchen weiter weltweit.
+  Ort neu eintragen: Kachel „Wetter & Uhr“ → Pfeil → „Ort ändern …“.
+
+### Neu in Version 0.70.0
 - **„Ausprobieren“ ist zurück** im Fenster *Begrüßung* (Seite Fingerabdruck): Name wählen oder eintippen →
   Animation sofort sehen, auch ohne Fingerabdrucksensor.
 

@@ -3720,6 +3720,13 @@ def test_weather_live_open_meteo():
             raise
         pytest.skip(f"kein Internet: {exc}")
     assert place and abs(place["lat"] - 52.5) < 1 and "Deutschland" in place["label"]
+    # Postleitzahl = Deutschland (nicht USA): 80331 = München, 10115 = Berlin
+    munich = weather.geocode("80331")
+    assert munich and abs(munich["lat"] - 48.14) < 0.3 and abs(munich["lon"] - 11.57) < 0.3, munich
+    assert "Deutschland" in munich["label"] and munich["label"].startswith("80331")
+    berlin = weather.geocode("10115 Berlin")
+    assert berlin and abs(berlin["lat"] - 52.53) < 0.3, berlin
+    print("PLZ:", munich["label"], "|", berlin["label"])
     data = weather.fetch(place["lat"], place["lon"])
     assert -50 < data["temp"] < 60 and len(data["days"]) == 4
     print("Wetter Berlin:", data["temp"], weather.describe(data["code"])[0])
@@ -3801,3 +3808,32 @@ def test_bug_report(env, tmp_path, monkeypatch):
         assert "Testfehler 42" in z.read("fehler.log").decode()
     assert bug_report.redact({"a": {"secret": "x", "items": [{"password": "y"}]}, "code": ""}) == \
         {"a": {"secret": "•••", "items": [{"password": "•••"}]}, "code": ""}
+
+
+def test_weather_postcode_is_german(monkeypatch):
+    """5-stellige Postleitzahl → Suche nur in Deutschland; kennt Open-Meteo sie nicht, fragt AluPC OpenStreetMap."""
+    from alupc import weather
+
+    calls = []
+
+    def fake(url, params, timeout=10):
+        calls.append((url, dict(params)))
+        if url == weather.GEO_URL and params["name"] == "80331":
+            return {"results": [{"name": "München", "admin1": "Bayern", "country": "Deutschland",
+                                 "country_code": "DE", "latitude": 48.14, "longitude": 11.57,
+                                 "postcodes": ["80331", "80333"]}]}
+        if url == weather.GEO_URL:
+            return {}
+        return [{"lat": "51.34", "lon": "12.37", "address": {"city": "Leipzig", "state": "Sachsen",
+                                                             "country": "Deutschland"}}]
+
+    monkeypatch.setattr(weather, "_get_json", fake)
+    p = weather.geocode(" 80331 ")
+    assert calls[0][1]["countryCode"] == "DE" and p["label"] == "80331 München, Bayern, Deutschland"
+    calls.clear()
+    p = weather.geocode("04109 Leipzig")  # Open-Meteo leer → Nominatim, nur Deutschland
+    assert calls[1][0] == weather.NOMINATIM_URL and calls[1][1]["country"] == "de"
+    assert p["name"] == "Leipzig" and abs(p["lat"] - 51.34) < 0.01 and p["label"].startswith("04109 Leipzig")
+    calls.clear()
+    weather.geocode("Paris")  # Ortsnamen: weltweit wie bisher
+    assert "countryCode" not in calls[0][1]

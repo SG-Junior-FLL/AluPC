@@ -50,15 +50,44 @@ def _get_json(url: str, params: dict, timeout: float = 10) -> dict:
         return json.loads(r.read().decode("utf-8"))
 
 
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+
+
+def _place(r: dict, fallback: str, postcode: str = "") -> dict:
+    label = ", ".join(x for x in (f"{postcode} {r.get('name', '')}".strip() if postcode else r.get("name"),
+                                  r.get("admin1"), r.get("country")) if x)
+    return {"name": r.get("name", fallback), "lat": float(r["latitude"]), "lon": float(r["longitude"]),
+            "label": label}
+
+
 def geocode(name: str) -> dict | None:
-    """Ort suchen → {"name", "lat", "lon", "label"} oder None."""
-    data = _get_json(GEO_URL, {"name": name.strip(), "count": 1, "language": "de", "format": "json"})
+    """Ort suchen → {"name", "lat", "lon", "label"} oder None.
+    Eine 5-stellige Zahl ist eine deutsche Postleitzahl (nicht eine aus den USA): Suche nur in Deutschland."""
+    import re
+
+    text = " ".join(name.split())
+    m = re.match(r"^(\d{5})(?:\s+(.*))?$", text)
+    if m:  # „80331“ oder „80331 München“
+        plz = m.group(1)
+        data = _get_json(GEO_URL, {"name": plz, "count": 10, "language": "de", "format": "json",
+                                   "countryCode": "DE"})
+        results = [r for r in (data.get("results") or []) if r.get("country_code", "DE").upper() == "DE"]
+        exact = [r for r in results if plz in (r.get("postcodes") or [])]
+        if exact:  # nur Treffer, zu denen die PLZ wirklich gehört (keine ähnlich klingenden Orte)
+            return _place(exact[0], text, plz)
+        # Open-Meteo kennt die PLZ nicht → OpenStreetMap (Nominatim) fragen, ebenfalls nur Deutschland
+        hits = _get_json(NOMINATIM_URL, {"postalcode": plz, "country": "de", "format": "json", "limit": 1,
+                                         "addressdetails": 1, "accept-language": "de"})
+        if not hits:
+            return None
+        h = hits[0]
+        addr = h.get("address") or {}
+        town = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("municipality") or plz
+        return _place({"name": town, "admin1": addr.get("state"), "country": addr.get("country", "Deutschland"),
+                       "latitude": h["lat"], "longitude": h["lon"]}, text, plz)
+    data = _get_json(GEO_URL, {"name": text, "count": 1, "language": "de", "format": "json"})
     results = data.get("results") or []
-    if not results:
-        return None
-    r = results[0]
-    label = ", ".join(x for x in (r.get("name"), r.get("admin1"), r.get("country")) if x)
-    return {"name": r.get("name", name), "lat": float(r["latitude"]), "lon": float(r["longitude"]), "label": label}
+    return _place(results[0], text) if results else None
 
 
 def parse_forecast(data: dict) -> dict:

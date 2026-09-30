@@ -110,7 +110,7 @@ def ask_weather_place(controller, parent=None) -> None:
     from .util import error_box, run_async
 
     current = controller.config["weather"].get("name", "")
-    name, ok = QInputDialog.getText(parent, "Wetter", "Ort (z. B. Berlin oder 80331):", text=current)
+    name, ok = QInputDialog.getText(parent, "Wetter", "Ort oder Postleitzahl (z. B. Berlin oder 80331):", text=current)
     if not ok or not name.strip():
         return
 
