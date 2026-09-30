@@ -1,5 +1,5 @@
 """Fenster „Begrüßung“ (Seite Fingerabdruck): Animation nach der Anmeldung mit dem Finger, eigene Namen und
-Geburtstage je Person."""
+Geburtstage je Person – und „Ausprobieren“ ohne Sensor."""
 
 from __future__ import annotations
 
@@ -66,6 +66,18 @@ class WelcomeSettings(QDialog):
             names_form.addRow(person, row)
         lay.addLayout(names_form)
 
+        # Ausprobieren (ohne Sensor): Animation mit gewähltem Namen jetzt zeigen
+        lay.addSpacing(6)
+        row = QHBoxLayout()
+        self.try_name = QComboBox()
+        self.try_name.setEditable(True)
+        self.try_name.addItems(persons or ["Noah"])
+        self.try_name.setToolTip("Name zum Ausprobieren")
+        row.addWidget(self.try_name, 1)
+        self.try_button = button("Ausprobieren", "play")
+        self.try_button.clicked.connect(self.try_it)
+        row.addWidget(self.try_button)
+        lay.addLayout(row)
         close = button("Fertig", "check", primary=True)
         close.clicked.connect(self.accept)
         lay.addWidget(close)
@@ -94,3 +106,11 @@ class WelcomeSettings(QDialog):
             "birthdays": {p: v for p, v in birthdays.items() if v},
         }
         self.controller.config.save()
+
+    def try_it(self) -> None:
+        self.save()
+        from ..welcome import display_name
+
+        typed = self.try_name.currentText().strip()
+        person = typed if typed in self.name_edits else ""
+        self.controller.show_welcome(display_name(self.controller.config, typed), person)

@@ -3517,8 +3517,8 @@ def test_welcome_watcher_and_show(env, monkeypatch):
 
 
 def test_welcome_settings(env, monkeypatch):
-    """Begrüßung: nicht mehr geheim (Seite Fingerabdruck → Begrüßung), ohne „Ausprobieren“; speichert Stil, Text,
-    eigene Namen und Geburtstage."""
+    """Begrüßung: nicht geheim (Seite Fingerabdruck → Begrüßung); speichert Stil, Text, eigene Namen und
+    Geburtstage; „Ausprobieren“ zeigt die Animation ohne Sensor."""
     from alupc.ui import fingerprint_page, welcome_settings
 
     controller, window, _ = env
@@ -3530,11 +3530,16 @@ def test_welcome_settings(env, monkeypatch):
     assert "Aurora" in page.welcome_label.text()
     page.open_welcome()
     menu = opened[0]
-    assert menu.windowTitle() == "Begrüßung" and not hasattr(menu, "try_button") and not hasattr(menu, "try_it")
+    assert menu.windowTitle() == "Begrüßung"
     menu.style.setCurrentIndex(menu.style.findData("scan"))
     menu.name_edits["Noah"].setText("Chef")
     menu.birthday_edits["Lena"].setText("24.12.")
     menu.text.setText("Servus")
+    shown = []
+    monkeypatch.setattr(controller, "show_welcome", lambda name, person="", style=None: shown.append((name, person)))
+    menu.try_name.setCurrentText("Noah")
+    menu.try_it()
+    assert shown == [("Chef", "Noah")]
     menu.accept()
     cfg = controller.config["welcome"]
     assert cfg["style"] == "scan" and cfg["names"] == {"Noah": "Chef"} and cfg["text"] == "Servus"

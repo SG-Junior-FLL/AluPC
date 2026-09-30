@@ -115,7 +115,7 @@ Außerdem:
   | ![Aurora](docs/willkommen-aurora.gif) | ![Konfetti](docs/willkommen-konfetti.gif) | ![Scan](docs/willkommen-scan.gif) |
 
   **Einstellen:** Seite *Fingerabdruck* → *Begrüßung* → an/aus, Animation, eigene Überschrift, Ton,
-  **eigene Namen je Person** (z. B. „Noah“ → „Chef“) und **Geburtstage**.
+  **eigene Namen je Person** (z. B. „Noah“ → „Chef“), **Geburtstage** und **Ausprobieren** (ohne Sensor).
 
   <img src="docs/begruessung.png" alt="Begrüßung einstellen" width="420">
 

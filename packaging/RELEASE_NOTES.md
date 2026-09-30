@@ -8,7 +8,11 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.69.0)
+### Neu in dieser Version (0.70.0)
+- **„Ausprobieren“ ist zurück** im Fenster *Begrüßung* (Seite Fingerabdruck): Name wählen oder eintippen →
+  Animation sofort sehen, auch ohne Fingerabdrucksensor.
+
+### Neu in Version 0.69.0
 - **Begrüßung ist nicht mehr geheim:** Aus dem „geheimen Menü“ wird das Fenster **Begrüßung** – zu finden auf der
   Seite *Fingerabdruck* → „Begrüßung“ → *Einstellen …*. Der Klick-Trick auf die Versionsnummer und
   Strg+Alt+Umschalt+G sind weg.
