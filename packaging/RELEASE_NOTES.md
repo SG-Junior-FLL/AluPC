@@ -8,7 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.71.0)
+### Neu in dieser Version (0.72.0)
+- **Glücksrad dreht nicht mehr von selbst:** Die Kachel zeigt das Rad nur. Gedreht wird mit **„Drehen“** – neuer
+  Knopf in der Seitenleiste (erscheint, solange das Rad auf Monitor 2 ist), im Pfeil-Menü, per Befehl
+  `gluecksrad_drehen`, Finger-Schnelltaste oder Handy.
+- **Menüs überarbeitet:** runde Ecken, Überschriften (z. B. HINTERGRUND, TAFEL), die aktuelle Auswahl ist fett mit
+  Haken (Kamera, Whiteboard-Hintergrund), sichtbare Häkchen-Kästchen, Symbole im Timer-Menü, runde
+  Hintergrund-Vorschauen. Auswahllisten (Dropdowns) mit neuem Pfeil und ruhiger Markierung.
+- **„Läuft gerade“ neu:** neue Musiknote, weicherer Hintergrund aus dem Cover (keine Schlieren mehr), Text mittig
+  neben dem Cover, hüpfende Equalizer-Balken, Titel bis zu zwei Zeilen, Restzeit, runder Pause-Knopf.
+- Statuskarte zeigt „Glücksrad“, „Wetter & Uhr“, „Abstimmung“, „Whiteboard“ statt interner Namen; schmale
+  Seitenleiste zeigt das Symbol des Inhalts.
+
+### Neu in Version 0.71.0
 - **Wetter: Postleitzahl = Deutschland.** Eine 5-stellige PLZ (z. B. 80331 oder „80331 München“) sucht nur noch in
   Deutschland – vorher kam manchmal ein Ort in den USA heraus. Kennt der Wetterdienst die PLZ nicht, fragt AluPC
   OpenStreetMap. Ortsnamen suchen weiter weltweit.

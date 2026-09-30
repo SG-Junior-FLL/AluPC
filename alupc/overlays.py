@@ -295,9 +295,9 @@ def _text(p: QPainter, r: QRectF, text: str, px: float, color: QColor, bold=Fals
 
 
 def _note(p: QPainter, r: QRectF, color: QColor) -> None:
-    from .now_playing_view import NowPlayingSource
+    from .ui.icons import draw_note
 
-    NowPlayingSource._paint_note(p, r, color)
+    draw_note(p, r, color)
 
 
 def _cover(p: QPainter, r: QRectF, data: OverlayData, accent: QColor, radius: float) -> None:

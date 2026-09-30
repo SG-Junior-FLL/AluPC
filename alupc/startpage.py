@@ -88,7 +88,8 @@ COMMANDS = {
     "overlays_aus": "Overlays aus",
     "whiteboard": "Whiteboard zeigen",
     "wetter": "Wetter & Uhr zeigen",
-    "gluecksrad": "Glücksrad drehen",
+    "gluecksrad": "Glücksrad zeigen",
+    "gluecksrad_drehen": "Glücksrad drehen",
     "umfrage_zeigen": "Abstimmung zeigen",
     "umfrage_ende": "Abstimmung beenden (Ergebnis)",
 }

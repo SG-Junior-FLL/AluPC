@@ -62,6 +62,28 @@ PAGE_ICONS = {"Setup": "sliders", "Meine Szenen": "scenes", "Fingerabdruck": "fi
               "Szene bearbeiten": "scenes"}
 
 
+def menu_header(menu, text: str) -> None:
+    """Kleine Überschrift in einem Menü (z. B. „HINTERGRUND“) – gliedert längere Menüs.
+    Ein normaler, ausgegrauter Eintrag (kein eingebettetes Widget: das vertragen Taskleisten-Menüs nicht)."""
+    action = menu.addAction(text.upper())
+    action.setEnabled(False)
+    action.setData("header")
+    f = action.font()
+    f.setPointSizeF(max(7.0, f.pointSizeF() * 0.8 if f.pointSizeF() > 0 else 8.0))
+    f.setBold(True)
+    f.setLetterSpacing(QFont.PercentageSpacing, 108)
+    action.setFont(f)
+
+
+def mark_current(action, on: bool) -> None:
+    """Aktuelle Auswahl in einem Menü: fett und mit Haken am Ende (auch bei Einträgen mit Symbol sichtbar)."""
+    f = action.font()
+    f.setBold(bool(on))
+    action.setFont(f)
+    text = action.text().removesuffix("  ✓")
+    action.setText(text + "  ✓" if on else text)
+
+
 def page_header(title: str, subtitle: str = "", icon_name: str | None = None) -> QWidget:
     w = QWidget()
     row = QHBoxLayout(w)
@@ -164,6 +186,7 @@ class Tile(HoverMixin, QAbstractButton):
     hover = Property(float, HoverMixin._get_hover, HoverMixin._set_hover)
 
     def set_menu(self, menu, split: bool = False):
+        theme.round_popup(menu)
         self.menu = menu
         self.split = split
         self.update()
@@ -413,9 +436,16 @@ class MonitorCard(QWidget):
                 p.setClipPath(path)
                 p.drawImage(thumb, self.image)
                 p.restore()
-            p.setPen(Qt.NoPen)
+            else:  # ohne Live-Bild: Symbol des Inhalts statt leerer Fläche
+                s_ = min(18.0, thumb.height() - 8)
+                icons.paint(p, self.icon_name, QRectF(thumb.center().x() - s_ / 2, thumb.center().y() - s_ / 2,
+                                                      s_, s_), t.muted, 1.6)
+            p.setPen(QPen(QBrush(t.gradient(thumb, alpha=0.45)), 1.0))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(path)
+            p.setPen(QPen(QColor(t.surface), 1.5))
             p.setBrush(QColor(self.state[1]))
-            p.drawEllipse(QPointF(thumb.right() - 5, thumb.top() + 5), 3.5, 3.5)
+            p.drawEllipse(QPointF(thumb.right() - 4, thumb.top() + 4), 4, 4)
             p.end()
             return
         # Glas-Karte mit Verlaufsrand (Akzent → Partnerfarbe)

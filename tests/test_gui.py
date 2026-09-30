@@ -62,6 +62,9 @@ def env(tmp_path, monkeypatch):
     pump()
     yield controller, window, tmp_path
     controller.pip.hide()
+    presenter = getattr(window, "presenter", None)
+    if presenter is not None:  # „Zeigen & Zeichnen“ nimmt Monitor 2 live auf – beim Aufräumen stoppen
+        presenter.hide()
     controller.shutdown()
     window.tray.hide()
     window.deleteLater()
@@ -3319,7 +3322,7 @@ def test_whiteboard_backgrounds_and_pen(env, monkeypatch):
     assert window.t_board.active
     menu = window.t_board.menu
     window._fill_board_menu(menu)
-    labels = [a.text() for a in menu.actions()]
+    labels = [a.text().removesuffix("  ✓") for a in menu.actions()]  # aktueller Hintergrund trägt einen Haken
     assert "Kariert" in labels and "Tafel (grün)" in labels
 
 
@@ -3837,3 +3840,38 @@ def test_weather_postcode_is_german(monkeypatch):
     calls.clear()
     weather.geocode("Paris")  # Ortsnamen: weltweit wie bisher
     assert "countryCode" not in calls[0][1]
+
+
+def test_wheel_does_not_spin_by_itself_and_menus(env):
+    """Glücksrad-Kachel zeigt nur – gedreht wird mit „Drehen“ (Seitenleiste/Menü). Menüs: Überschriften, aktuelle
+    Auswahl markiert; neue Seiten haben lesbare Namen."""
+    from alupc import wheel
+    from alupc.scenes import describe_source
+
+    controller, window, _ = env
+    controller.config["wheel"] = {"names": ["A", "B", "C"], "remove_picked": False}
+    window.t_wheel.activated.emit()
+    pump()
+    w = controller.wheel_widget()
+    assert isinstance(w, wheel.WheelSource) and not w.spinning and w.winner is None
+    window.refresh()
+    assert window.wheel_row.isVisibleTo(window) and window.wheel_spin.isEnabled()
+    window.wheel_spin.click()
+    pump()
+    assert w.spinning and not window.wheel_spin.isEnabled()
+    controller.spin_wheel()  # dreht schon → nichts Neues
+    assert controller.wheel_widget() is w
+    w.stop()  # nicht weiterdrehen lassen, wenn das Testfenster abgebaut wird
+    menu = window.t_wheel.menu
+    window._fill_wheel_menu(menu)
+    headers = [a.text() for a in menu.actions() if a.data() == "header"]
+    assert headers == ["GLÜCKSRAD"]
+    controller.show_whiteboard("kariert")
+    pump()
+    menu = window.t_board.menu
+    window._fill_board_menu(menu)
+    current = [a.text() for a in menu.actions() if a.text().endswith("✓")]
+    assert current == ["Kariert  ✓"] and menu.actions()[1].font().bold() is False
+    for typ, text in (("zufall", "Glücksrad"), ("wetter", "Wetter & Uhr"), ("umfrage", "Abstimmung"),
+                      ("whiteboard", "Whiteboard")):
+        assert describe_source({"type": typ}) == text

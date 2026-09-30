@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from .. import settings_sync as ss
 from .util import error_box, run_async
+from . import theme
 from .widgets import Banner, button, page_header
 
 
@@ -178,6 +179,7 @@ def sync_group(page) -> QGroupBox:
 
     def do_pick():
         menu = QMenu(page)
+        theme.round_popup(menu)
         for drive in ss.drives():
             menu.addAction(f"Laufwerk {drive}", lambda d=drive: use_folder(Path(d)))
         menu.addSeparator()
@@ -206,6 +208,7 @@ def sync_group(page) -> QGroupBox:
                                     "schon eingehängt (oder es gibt keins).")
             return
         menu = QMenu(page)
+        theme.round_popup(menu)
         for part in parts:
             label = f"{part['label'] or part['path']} ({part['fstype']}, {part['size']})"
 

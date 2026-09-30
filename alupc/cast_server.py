@@ -37,7 +37,7 @@ ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirm
                     "timer_neustart", "timer_zeigen", "video_pause", "video_vor", "video_zurueck",
                     "rgb_farbe", "rgb_monitor2", "rgb_aus", "zeichnung_zurueck", "kamera", "airplay", "qr",
                     "timer_stopp", "ablauf_weiter", "ablauf_zurueck",
-                    "musik_zeigen", "musik_pause", "musik_weiter", "musik_zurueck", "overlays", "gluecksrad", "wetter",
+                    "musik_zeigen", "musik_pause", "musik_weiter", "musik_zurueck", "overlays", "gluecksrad", "gluecksrad_drehen", "wetter",
                     "umfrage_zeigen", "umfrage_ende"}
 MAX_FAILS = 10
 BLOCK_SECONDS = 60

@@ -1180,7 +1180,8 @@ class Controller(QObject):
             "overlays_aus": lambda: self.set_overlays(False),
             "whiteboard": self.show_whiteboard,
             "wetter": self.show_weather,
-            "gluecksrad": self.spin_wheel,
+            "gluecksrad": self.show_wheel,
+            "gluecksrad_drehen": self.spin_wheel,
             "umfrage_zeigen": lambda: self.show_source({"type": "umfrage"}, remember=False),
             "umfrage_ende": lambda: self.poll_action("ende"),
         }
@@ -1418,31 +1419,42 @@ class Controller(QObject):
 
         return clean_names(self.config["wheel"].get("names") or []) or default_names()
 
-    def spin_wheel(self) -> None:
-        """Glücksrad auf Monitor 2 zeigen und drehen (läuft es schon: nochmal drehen)."""
+    def wheel_widget(self):
+        """Das Glücksrad auf Monitor 2 (oder None, wenn es gerade nicht zu sehen ist)."""
         from .wheel import WheelSource
 
+        widget = self.output.content if self.mode == "content" else None
+        return widget if isinstance(widget, WheelSource) else None
+
+    def show_wheel(self):
+        """Glücksrad auf Monitor 2 zeigen – es dreht sich NICHT von selbst (dafür „Drehen“)."""
         names = self.wheel_names()
         if self.config["wheel"].get("remove_picked"):
             if not self.wheel_left or not set(self.wheel_left) <= set(names):
                 self.wheel_left = list(names)
             names = self.wheel_left
-        widget = self.output.content if self.mode == "content" else None
-        if not isinstance(widget, WheelSource) or widget.spinning:
-            if isinstance(widget, WheelSource):
-                return  # dreht gerade
+        widget = self.wheel_widget()
+        if widget is None:
             self.show_source({"type": "zufall", "names": names})
-            widget = self.output.content
-            if not isinstance(widget, WheelSource):
-                return
-        elif widget.names != names:
+            widget = self.wheel_widget()
+            if widget is None:
+                return None
+        elif widget.names != names and not widget.spinning:
             widget.set_names(names)
         if not getattr(widget, "_alupc_connected", False):
             widget.finished.connect(self._wheel_done)
             widget._alupc_connected = True
-        widget.spin()
+        return widget
+
+    def spin_wheel(self) -> None:
+        """Glücksrad drehen (wird es noch nicht gezeigt: erst zeigen, dann drehen)."""
+        widget = self.show_wheel()
+        if widget is not None and not widget.spinning:
+            widget.spin()
+            self.changed.emit()
 
     def _wheel_done(self, name: str) -> None:
+        self.changed.emit()
         if self.config["sounds"].get("enabled", True):
             self.sounds.play("builtin:ding")
         if self.config["wheel"].get("remove_picked") and self.wheel_left and name in self.wheel_left:

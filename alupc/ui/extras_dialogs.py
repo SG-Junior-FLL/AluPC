@@ -82,7 +82,7 @@ class WheelDialog(QDialog):
         row = QHBoxLayout()
         save = button("Speichern", "check")
         save.clicked.connect(self.accept)
-        spin = button("Speichern & drehen", "play", primary=True)
+        spin = button("Speichern & zeigen", "monitor", primary=True)
         spin.clicked.connect(self._spin)
         row.addStretch(1)
         row.addWidget(save)
@@ -99,7 +99,7 @@ class WheelDialog(QDialog):
 
     def _spin(self):
         self.accept()
-        self.controller.spin_wheel()
+        self.controller.show_wheel()  # gedreht wird erst mit „Drehen“
 
 
 def ask_weather_place(controller, parent=None) -> None:

@@ -51,7 +51,7 @@ from .source_picker import IMAGE_FILTER, VIDEO_FILTER
 from ..startpage import BUILTIN_TILES, custom_key, find_custom, ordered_keys, section_of, sections
 from .start_page_dialog import StartPageDialog
 from .widgets import (EmptyState, MonitorCard, NavButton, SceneCard, SectionHeader, StatusCard, Tile, Toast,
-                      animate_height, button, fade_in, font, page_header)
+                      animate_height, button, fade_in, font, mark_current, menu_header, page_header)
 
 __all__ = ["MainWindow", "app_icon"]
 
@@ -370,6 +370,22 @@ class MainWindow(QMainWindow):
         row.addWidget(self.step_next)
         self.step_row.hide()
         lay.addWidget(self.step_row)
+        # Glücksrad auf Monitor 2: hier drehen (es dreht sich nie von selbst)
+        self.wheel_row = QWidget()
+        wrow = QHBoxLayout(self.wheel_row)
+        wrow.setContentsMargins(8, 4, 8, 0)
+        wrow.setSpacing(4)
+        self.wheel_spin = button("Drehen", "wheel", primary=True)
+        self.wheel_spin.setToolTip("Glücksrad auf Monitor 2 drehen")
+        self.wheel_spin.clicked.connect(lambda: self.controller.spin_wheel())
+        wheel_names = button("", "edit")
+        wheel_names.setToolTip("Namen bearbeiten")
+        wheel_names.clicked.connect(self.open_wheel_dialog)
+        self.wheel_names_btn = wheel_names
+        wrow.addWidget(self.wheel_spin, 1)
+        wrow.addWidget(wheel_names)
+        self.wheel_row.hide()
+        lay.addWidget(self.wheel_row)
         lay.addSpacing(6)
         lock = NavButton("lock", "Computer sperren")
         lock.setToolTip("Wie Win+L – Monitor 2 zeigt weiter, was gerade läuft")
@@ -519,7 +535,7 @@ class MainWindow(QMainWindow):
         poll_menu.aboutToShow.connect(lambda: self._fill_poll_menu(poll_menu))
         self.t_poll.set_menu(poll_menu, split=True)
         self.t_wheel = self.tiles["zufall"]
-        self.t_wheel.activated.connect(c.spin_wheel)
+        self.t_wheel.activated.connect(c.show_wheel)  # zeigt nur – gedreht wird mit „Drehen“
         wheel_menu = QMenu(self)
         wheel_menu.aboutToShow.connect(lambda: self._fill_wheel_menu(wheel_menu))
         self.t_wheel.set_menu(wheel_menu, split=True)
@@ -670,6 +686,7 @@ class MainWindow(QMainWindow):
 
     def _section_menu(self, head, section_id: str, pos) -> None:
         menu = QMenu(self)
+        theme.round_popup(menu)
         t = theme.current().text
         menu.addAction(icons.icon("edit", t, 18), "Umbenennen …", lambda: self._rename_section(section_id))
         menu.addAction(icons.icon("down", t, 18), "Alle ausklappen", lambda: self._fold_all(False))
@@ -747,13 +764,13 @@ class MainWindow(QMainWindow):
             act.setEnabled(False)
             return
         current = (self.controller.default_camera() or {}).get("device_id")
+        menu_header(menu, "Kamera wählen")
         for d in devices:
             cfg = {"type": "camera", "device_id": camera_id(d), "name": d.description(),
                    "fit": self.config.get("camera_fit", "cover") or "cover"}
             act = menu.addAction(icons.icon("camera", col, 18), d.description(),
                                  lambda c=cfg: self._use_camera(c))
-            act.setCheckable(True)
-            act.setChecked(cfg["device_id"] == current)
+            mark_current(act, cfg["device_id"] == current)
 
     def _use_camera(self, cfg: dict):
         """Kamera aus dem Pfeil-Menü: zeigen und als Standard merken (nächster Klick nimmt sie wieder)."""
@@ -763,6 +780,7 @@ class MainWindow(QMainWindow):
     def _fill_scene_menu(self, menu):
         menu.clear()
         names = self.config.scene_names()
+        menu_header(menu, "Meine Szenen")
         if not names:
             act = menu.addAction("Keine Szenen")
             act.setEnabled(False)
@@ -789,7 +807,8 @@ class MainWindow(QMainWindow):
         menu.addAction(icons.icon("edit", t, 18), "Neuer Text …", self.open_text_dialog)
         recent = self.config.get("recent_texts", [])
         if recent:
-            menu.addSection("Zuletzt")
+            menu.addSeparator()
+            menu_header(menu, "Zuletzt gezeigt")
         for text in recent[:8]:
             short = text.replace("\n", " ")
             menu.addAction(icons.icon("text", t, 18), short if len(short) <= 40 else short[:39] + "…",
@@ -845,7 +864,7 @@ class MainWindow(QMainWindow):
     def _fill_board_menu(self, menu):
         """Hintergründe mit kleiner Vorschau; der aktuelle ist abgehakt."""
         from PySide6.QtCore import QRectF
-        from PySide6.QtGui import QIcon, QPainter, QPixmap
+        from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
 
         from .. import whiteboard
 
@@ -853,16 +872,25 @@ class MainWindow(QMainWindow):
         c = self.controller
         current = c.config["whiteboard"].get("background", whiteboard.DEFAULT)
         showing = (c.content or {}).get("type") == "whiteboard"
+        menu_header(menu, "Hintergrund")
         for key, (label, _dark) in whiteboard.BACKGROUNDS.items():
-            px = QPixmap(48, 30)
-            p = QPainter(px)
+            img = QImage(48, 30, QImage.Format_ARGB32_Premultiplied)
+            img.fill(Qt.transparent)
+            p = QPainter(img)
             p.setRenderHint(QPainter.Antialiasing)
+            clip = QPainterPath()
+            clip.addRoundedRect(QRectF(1, 1, 46, 28), 6, 6)
+            p.setClipPath(clip)
             whiteboard.paint_background(p, QRectF(0, 0, 48, 30), key)
+            p.setClipping(False)
+            p.setPen(QPen(QColor(theme.current().border), 1.2))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(clip)
             p.end()
-            act = menu.addAction(QIcon(px), label, lambda k=key: c.show_whiteboard(k))
-            act.setCheckable(True)
-            act.setChecked(showing and key == current)
+            act = menu.addAction(QIcon(QPixmap.fromImage(img)), label, lambda k=key: c.show_whiteboard(k))
+            mark_current(act, showing and key == current)
         menu.addSeparator()
+        menu_header(menu, "Tafel")
         col = theme.current().text
         menu.addAction(icons.icon("edit", col, 18), "Zeichnen öffnen …", self.open_presenter)
         menu.addAction(icons.icon("trash", col, 18), "Tafel wischen (Zeichnungen löschen)", c.laser.clear_strokes)
@@ -875,9 +903,9 @@ class MainWindow(QMainWindow):
         c = self.controller
         col = theme.current().text
         place = c.config["weather"].get("label", "")
-        if place:
-            info = menu.addAction(place)
-            info.setEnabled(False)
+        menu_header(menu, place or "Kein Ort eingestellt")
+        menu.addAction(icons.icon("monitor", col, 18), "Auf Monitor 2 zeigen", c.show_weather)
+        menu.addSeparator()
         menu.addAction(icons.icon("edit", col, 18), "Ort ändern …", lambda: ask_weather_place(c, self))
         menu.addAction(icons.icon("refresh", col, 18), "Jetzt aktualisieren", lambda: c.weather.refresh(force=True))
 
@@ -902,8 +930,8 @@ class MainWindow(QMainWindow):
         if poll is None:
             return
         menu.addSeparator()
-        info = menu.addAction(f"„{poll.question}“ · {poll.total()} Stimmen")
-        info.setEnabled(False)
+        question = poll.question if len(poll.question) <= 34 else poll.question[:33] + "…"
+        menu_header(menu, f"{question} · {poll.total()} Stimmen")
         menu.addAction(icons.icon("monitor", col, 18), "Auf Monitor 2 zeigen",
                        lambda: c.show_source({"type": "umfrage"}, remember=False))
         if poll.open:
@@ -913,15 +941,23 @@ class MainWindow(QMainWindow):
         menu.addAction(icons.icon("refresh", col, 18), "Stimmen löschen", lambda: c.poll_action("neu"))
         menu.addAction(icons.icon("x", col, 18), "Abstimmung schließen", lambda: c.poll_action("aus"))
 
-    def _fill_wheel_menu(self, menu):
+    def open_wheel_dialog(self):
         from .extras_dialogs import WheelDialog
 
+        WheelDialog(self.controller, self).exec()
+
+    def _fill_wheel_menu(self, menu):
         menu.clear()
         c = self.controller
         col = theme.current().text
-        menu.addAction(icons.icon("play", col, 18), "Drehen", c.spin_wheel)
-        menu.addAction(icons.icon("edit", col, 18), "Namen bearbeiten …", lambda: WheelDialog(c, self).exec())
-        act = menu.addAction("Gezogene herausnehmen")
+        menu_header(menu, "Glücksrad")
+        menu.addAction(icons.icon("monitor", col, 18), "Auf Monitor 2 zeigen", c.show_wheel)
+        spin = menu.addAction(icons.icon("play", col, 18), "Drehen", c.spin_wheel)
+        wheel = c.wheel_widget()
+        spin.setEnabled(not (wheel is not None and wheel.spinning))
+        menu.addSeparator()
+        menu.addAction(icons.icon("edit", col, 18), "Namen bearbeiten …", self.open_wheel_dialog)
+        act = menu.addAction("Jeder nur einmal")
         act.setCheckable(True)
         act.setChecked(bool(c.config["wheel"].get("remove_picked")))
 
@@ -957,6 +993,7 @@ class MainWindow(QMainWindow):
         items = cfg.get("items", [])
         if items:
             menu.addSeparator()
+            menu_header(menu, "Einzeln an/aus")
         for it in items:
             act = menu.addAction(it.get("name") or "Overlay")
             act.setCheckable(True)
@@ -1014,6 +1051,7 @@ class MainWindow(QMainWindow):
         t = theme.current()
         menu.clear()
         favs = self.config["websites"].get("favorites", [])
+        menu_header(menu, "Favoriten")
         for fav in favs[:15]:
             menu.addAction(icons.icon("globe", t.text, 18), fav.get("title") or fav.get("url"),
                            lambda u=fav.get("url"): self.controller.show_source({"type": "website", "url": u}))
@@ -1041,6 +1079,7 @@ class MainWindow(QMainWindow):
         menu.clear()
         kinds = {"image": "image", "video": "video", "slideshow": "slides"}
         items = lib.saved(self.config)[:10]
+        menu_header(menu, "Mediathek")
         for item in items:
             cfg = {k: v for k, v in item.items() if k != "title"}
             act = menu.addAction(icons.icon(kinds.get(item.get("type"), "image"), t.text, 18), item.get("title", ""),
@@ -1052,6 +1091,7 @@ class MainWindow(QMainWindow):
         recent = lib.recent(self.config)[:5]
         if recent:
             sub = menu.addMenu(icons.icon("clock", t.text, 18), "Zuletzt gezeigt")
+            theme.round_popup(sub)
             for item in recent:
                 cfg = {k: v for k, v in item.items() if k != "title"}
                 act = sub.addAction(icons.icon(kinds.get(item.get("type"), "image"), t.text, 18),
@@ -1392,13 +1432,15 @@ class MainWindow(QMainWindow):
     def _fill_timer_menu(self, menu):
         c = self.controller
         menu.clear()
-        menu.addAction("Auf Monitor 2 zeigen", c.show_timer)
-        menu.addAction("Start / Pause", lambda: c.timer_action("toggle"))
-        menu.addAction("Neu starten", lambda: c.timer_action("restart"))
-        menu.addAction("+1 Minute", lambda: c.timer_action("plus"))
-        menu.addAction("−1 Minute", lambda: c.timer_action("minus"))
+        col = theme.current().text
+        menu_header(menu, "Timer")
+        menu.addAction(icons.icon("monitor", col, 18), "Auf Monitor 2 zeigen", c.show_timer)
+        menu.addAction(icons.icon("play", col, 18), "Start / Pause", lambda: c.timer_action("toggle"))
+        menu.addAction(icons.icon("refresh", col, 18), "Neu starten", lambda: c.timer_action("restart"))
+        menu.addAction(icons.icon("up", col, 18), "+1 Minute", lambda: c.timer_action("plus"))
+        menu.addAction(icons.icon("down", col, 18), "−1 Minute", lambda: c.timer_action("minus"))
         menu.addSeparator()
-        menu.addAction("Timer einstellen …", self.edit_timer)
+        menu.addAction(icons.icon("sliders", col, 18), "Timer einstellen …", self.edit_timer)
 
     def edit_timer(self):
         from .timer_dialog import TimerDialog
@@ -1542,6 +1584,11 @@ class MainWindow(QMainWindow):
         label = c.step_label()
         self.step_row.setVisible(bool(label))
         self.step_text.setText(label)
+        wheel = c.wheel_widget()
+        self.wheel_row.setVisible(wheel is not None)
+        self.wheel_spin.setEnabled(wheel is not None and not wheel.spinning)
+        if not self.compact:
+            self.wheel_spin.setText("Dreht …" if wheel is not None and wheel.spinning else "Drehen")
 
         self.t_mirror.set_state(is_mirror, badge="AKTIV" if is_mirror else "")
         handy_desktop = c.mode == "desktop" and c.desktop_note.startswith(HANDY_NOTES)
@@ -1642,6 +1689,9 @@ class MainWindow(QMainWindow):
             b.set_compact(compact)
         self.side_monitor.set_compact(compact)
         self.step_text.setVisible(not compact)
+        # Glücksrad-Leiste: schmal nur der runde Dreh-Knopf
+        self.wheel_names_btn.setVisible(not compact)
+        self.wheel_spin.setText("" if compact else ("Dreht …" if not self.wheel_spin.isEnabled() else "Drehen"))
         margin = (12, 12, 12, 10) if narrow else ((18, 16, 18, 14) if compact else (28, 24, 28, 20))
         for page in self.pages:
             inner = page.widget() if isinstance(page, QScrollArea) else page

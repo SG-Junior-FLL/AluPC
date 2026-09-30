@@ -23,6 +23,42 @@ def _arrow(p, x1, y1, x2, y2, head=2.6, both=False):
             p.drawLine(QPointF(bx, by), QPointF(bx + head * math.cos(a2), by + head * math.sin(a2)))
 
 
+def draw_note(p: QPainter, rect: QRectF, color: QColor) -> None:
+    """Zwei verbundene Achtelnoten (gefüllt): schräge Notenköpfe, Hälse rechts, kräftiger schräger Balken."""
+    from PySide6.QtGui import QTransform
+
+    s = min(rect.width(), rect.height())
+    x0 = rect.center().x() - s / 2
+    y0 = rect.center().y() - s / 2
+    path = QPainterPath()
+    path.setFillRule(Qt.WindingFill)
+    stem = 0.085 * s
+    stems = []
+    for cx, cy in ((0.27, 0.80), (0.77, 0.70)):
+        head = QPainterPath()
+        head.addEllipse(QPointF(0, 0), 0.19 * s, 0.135 * s)
+        tr = QTransform()
+        tr.translate(x0 + cx * s, y0 + cy * s)
+        tr.rotate(-24)
+        path.addPath(tr.map(head))
+        stems.append((x0 + cx * s + 0.165 * s, y0 + cy * s - 0.06 * s))
+    (lx, ly), (rx, ry) = stems
+    top_l, top_r = y0 + 0.2 * s, y0 + 0.08 * s
+    path.addRect(QRectF(lx - stem, top_l, stem, ly - top_l))
+    path.addRect(QRectF(rx - stem, top_r, stem, ry - top_r))
+    beam = QPainterPath(QPointF(lx - stem, top_l))
+    beam.lineTo(QPointF(rx, top_r))
+    beam.lineTo(QPointF(rx, top_r + 0.15 * s))
+    beam.lineTo(QPointF(lx - stem, top_l + 0.15 * s))
+    beam.closeSubpath()
+    path.addPath(beam)
+    p.save()
+    p.setPen(Qt.NoPen)
+    p.setBrush(color)
+    p.drawPath(path)
+    p.restore()
+
+
 def _draw(name: str, p: QPainter, color: QColor):
     """Zeichnet in einem 24×24-Raster (Stil ähnlich „Lucide“)."""
     fill = QColor(color)
@@ -233,15 +269,8 @@ def _draw(name: str, p: QPainter, color: QColor):
                 p.setBrush(fill)
             p.drawPath(path)
             p.setBrush(Qt.NoBrush)
-    elif name == "music":  # Musiknote
-        p.setBrush(fill)
-        p.drawEllipse(QRectF(4.2, 15.2, 5.6, 4.4))
-        p.drawEllipse(QRectF(13.6, 13.2, 5.6, 4.4))
-        p.setBrush(Qt.NoBrush)
-        p.drawLine(QPointF(9.8, 17.2), QPointF(9.8, 6.8))
-        p.drawLine(QPointF(19.2, 15.2), QPointF(19.2, 4.6))
-        p.drawLine(QPointF(9.8, 6.8), QPointF(19.2, 4.6))
-        p.drawLine(QPointF(9.8, 9.6), QPointF(19.2, 7.4))
+    elif name == "music":  # Musiknote (zwei verbundene Achtel)
+        draw_note(p, QRectF(2, 2, 20, 20), fill)
     elif name == "play":
         path = QPainterPath(QPointF(7, 4.5))
         path.lineTo(19, 12)
@@ -605,7 +634,7 @@ SOURCE_ICONS = {
     "camera": "camera", "window": "window", "screen": "monitor", "website": "globe", "image": "image",
     "video": "video", "slideshow": "slides", "text": "text", "clock": "clock", "countdown": "timer",
     "color": "palette", "scene": "scenes", "airplay": "phone", "cast": "qr", "design": "star",
-    "nowplaying": "music",
+    "nowplaying": "music", "zufall": "wheel", "wetter": "weather", "umfrage": "poll", "whiteboard": "board",
 }
 
 

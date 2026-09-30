@@ -49,7 +49,7 @@ from . import icons, theme
 from .hotkey_edit import HotkeyButton
 from .setup_page import Swatch
 from .source_picker import SourcePicker
-from .widgets import button, page_header
+from .widgets import button, menu_header, page_header
 
 
 ACTION_KINDS = {
@@ -610,8 +610,9 @@ class StartPageDialog(QDialog):
         from ..screensaver import STYLE_GROUPS, STYLES
 
         menu = QMenu(self)
+        theme.round_popup(menu)
         for group, keys in STYLE_GROUPS.items():
-            menu.addSection(group)
+            menu_header(menu, group)
             for key in keys:
                 menu.addAction(STYLES[key], lambda k=key: self.add_saver(k))
         menu.exec(QCursor.pos())
@@ -643,11 +644,12 @@ class StartPageDialog(QDialog):
         from ..overlays import TEMPLATES
 
         menu = QMenu(self)
+        theme.round_popup(menu)
         last = None
         for i, (cat, name, desc, _tpl) in enumerate(TEMPLATES):
             if cat != last:
                 last = cat
-                menu.addSection(cat)
+                menu_header(menu, cat)
             act = menu.addAction(name, lambda i=i: self.add_overlay(i))
             act.setToolTip(desc)
         menu.exec(QCursor.pos())

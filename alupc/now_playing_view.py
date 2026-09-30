@@ -9,13 +9,14 @@ from __future__ import annotations
 import queue
 import threading
 
-from PySide6.QtCore import QObject, QRectF, Qt, QTimer, QVariantAnimation, Signal
+from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, QVariantAnimation, Signal
 from PySide6.QtGui import (QColor, QFont, QFontMetricsF, QImage, QLinearGradient, QPainter, QPainterPath, QPixmap,
-                           QRadialGradient)
+                           QPen, QRadialGradient)
 from PySide6.QtWidgets import QWidget
 
 from . import now_playing
 from .now_playing import Track, fmt_time
+from .ui.icons import draw_note
 
 
 class NowPlayingFeed(QObject):
@@ -137,6 +138,9 @@ class NowPlayingSource(QWidget):
         self.setAttribute(Qt.WA_OpaquePaintEvent)
         self._tick = QTimer(self, interval=1000)  # Fortschritt weiterzählen (nur beim Abspielen)
         self._tick.timeout.connect(self.update)
+        self._eq_rect = None  # Equalizer-Balken: nur diese kleine Fläche oft neu zeichnen
+        self._eq_timer = QTimer(self, interval=110)
+        self._eq_timer.timeout.connect(lambda: self.update(self._eq_rect) if self._eq_rect is not None else None)
         self.feed = feed()
         self.feed.changed.connect(self._changed)
         self.feed.failed.connect(self._failed)
@@ -146,6 +150,7 @@ class NowPlayingSource(QWidget):
 
     def stop(self) -> None:
         self._tick.stop()
+        self._eq_timer.stop()
         try:
             self.feed.changed.disconnect(self._changed)
             self.feed.failed.disconnect(self._failed)
@@ -173,8 +178,10 @@ class NowPlayingSource(QWidget):
             self._bg_cache = None
         if track is not None and track.playing:
             self._tick.start()
+            self._eq_timer.start()
         else:
             self._tick.stop()
+            self._eq_timer.stop()
         if new_song:
             self._start_fade()
         self.update()
@@ -208,13 +215,19 @@ class NowPlayingSource(QWidget):
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         if not self._art.isNull():
             # stark verkleinert und wieder vergrößert = weicher, unscharfer Hintergrund (ohne teuren Filter)
-            small = self._art.scaled(18, 18, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-            big = small.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-            p.drawImage((w - big.width()) // 2, (h - big.height()) // 2, big)
+            # zweimal stark verkleinern = sehr weicher Farbverlauf ohne erkennbare Schrift/Formen vom Cover
+            small = self._art.scaled(24, 24, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+            small = small.scaled(5, 5, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            big = small.scaled(w, h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            p.drawImage(0, 0, big)
             grad = QLinearGradient(0, 0, w, h)
-            grad.setColorAt(0, QColor(0, 0, 0, 150))
-            grad.setColorAt(1, QColor(0, 0, 0, 215))
+            grad.setColorAt(0, QColor(0, 0, 0, 120))
+            grad.setColorAt(1, QColor(0, 0, 0, 200))
             p.fillRect(0, 0, w, h, grad)
+            vignette = QRadialGradient(w / 2, h / 2, max(w, h) * 0.75)
+            vignette.setColorAt(0.55, QColor(0, 0, 0, 0))
+            vignette.setColorAt(1, QColor(0, 0, 0, 150))
+            p.fillRect(0, 0, w, h, vignette)
         else:
             grad = QLinearGradient(0, 0, w, h)
             grad.setColorAt(0, QColor("#0f172a"))
@@ -248,81 +261,156 @@ class NowPlayingSource(QWidget):
 
     def _paint_idle(self, p: QPainter, w: float, h: float) -> None:
         m = min(w, h)
-        note = QRectF(w / 2 - m * 0.09, h * 0.5 - m * 0.3, m * 0.18, m * 0.18)
-        self._paint_note(p, note, QColor(255, 255, 255, 90))
+        # Note in einem weichen Kreis, darunter Text
+        c = QPointF(w / 2, h * 0.4)
+        r = m * 0.15
+        ring = QRadialGradient(c, r * 1.6)
+        glow = QColor(self._accent)
+        glow.setAlpha(60)
+        ring.setColorAt(0, glow)
+        glow.setAlpha(0)
+        ring.setColorAt(1, glow)
+        p.setPen(Qt.NoPen)
+        p.setBrush(ring)
+        p.drawEllipse(c, r * 1.6, r * 1.6)
+        p.setBrush(QColor(255, 255, 255, 18))
+        p.setPen(QPen(QColor(255, 255, 255, 40), max(1.5, m * 0.003)))
+        p.drawEllipse(c, r, r)
+        draw_note(p, QRectF(c.x() - r * 0.55, c.y() - r * 0.55, r * 1.1, r * 1.1), QColor(255, 255, 255, 200))
         title = "Gerade läuft nichts" if not self.feed.problem else "„Läuft gerade“ geht hier nicht"
         sub = ("Spotify, YouTube oder eine andere App abspielen – erscheint hier automatisch."
                if not self.feed.problem else self.feed.problem)
-        self._text(p, QRectF(w * 0.08, h * 0.52, w * 0.84, m * 0.1), title, m * 0.06, QColor(255, 255, 255, 230),
+        top = c.y() + r * 1.35
+        self._text(p, QRectF(w * 0.08, top, w * 0.84, m * 0.1), title, m * 0.06, QColor(255, 255, 255, 235),
                    bold=True, align=Qt.AlignCenter)
-        self._text(p, QRectF(w * 0.1, h * 0.52 + m * 0.11, w * 0.8, m * 0.12), sub, m * 0.03,
-                   QColor(255, 255, 255, 140), align=Qt.AlignHCenter | Qt.AlignTop, wrap=True)
+        self._text(p, QRectF(w * 0.12, top + m * 0.11, w * 0.76, m * 0.12), sub, m * 0.032,
+                   QColor(255, 255, 255, 150), align=Qt.AlignHCenter | Qt.AlignTop, wrap=True)
 
     def _paint_track(self, p: QPainter, w: float, h: float) -> None:
         t = self.track
         landscape = w >= h * 1.15
         if landscape:
-            size = min(h * 0.62, w * 0.36)
+            size = min(h * 0.64, w * 0.38)
             cover = QRectF(w * 0.08, (h - size) / 2, size, size)
-            tx = cover.right() + w * 0.05
-            text = QRectF(tx, cover.top(), w * 0.92 - tx, size)
+            tx = cover.right() + w * 0.055
+            area = QRectF(tx, cover.top(), w * 0.93 - tx, size)
             align = Qt.AlignLeft
+            unit = size
         else:
-            size = min(w * 0.62, h * 0.42)
-            cover = QRectF((w - size) / 2, h * 0.08, size, size)
-            text = QRectF(w * 0.08, cover.bottom() + h * 0.04, w * 0.84, h * 0.92 - cover.bottom() - h * 0.04)
+            size = min(w * 0.64, h * 0.42)
+            cover = QRectF((w - size) / 2, h * 0.07, size, size)
+            area = QRectF(w * 0.08, cover.bottom() + h * 0.04, w * 0.84, h * 0.93 - cover.bottom() - h * 0.04)
             align = Qt.AlignHCenter
+            unit = min(w, h) * 0.9
         self._paint_cover(p, cover)
-        unit = size if landscape else min(w, h) * 0.9
-        # Oben: Player + Zustand
-        chip = (t.player.upper() if t.player else "MEDIEN") + ("  ·  LÄUFT" if t.playing else "  ·  PAUSE")
-        y = text.top() + (text.height() * 0.08 if landscape else 0)
-        chip_h = unit * 0.07
-        self._text(p, QRectF(text.left(), y, text.width(), chip_h), chip, unit * 0.045, self._accent, bold=True,
-                   align=align | Qt.AlignVCenter, spacing=1.5)
-        y += chip_h * 1.25
-        title_px = self._fit_px(t.title, unit * 0.14, text.width(), bold=True, minimum=unit * 0.07)
-        title_h = title_px * 1.3
-        self._text(p, QRectF(text.left(), y, text.width(), title_h), t.title, title_px, QColor("#ffffff"),
-                   bold=True, align=align | Qt.AlignVCenter)
-        y += title_h
+        # Titel darf zwei Zeilen haben; Größe so, dass er hineinpasst
+        title_px = self._fit_px(t.title, unit * 0.13, area.width() * 1.9, bold=True, minimum=unit * 0.07)
+        title_font = self._font(title_px, True)
+        lines = self._wrap(t.title, title_font, area.width(), 2)
+        chip_h = unit * 0.075
+        blocks = [chip_h * 1.35, title_px * 1.22 * len(lines)]
         if t.artist:
-            px = unit * 0.07
-            self._text(p, QRectF(text.left(), y, text.width(), px * 1.4), t.artist, px, QColor(255, 255, 255, 215),
-                       align=align | Qt.AlignVCenter)
-            y += px * 1.4
+            blocks.append(unit * 0.075 * 1.45)
         if t.album:
-            px = unit * 0.05
-            self._text(p, QRectF(text.left(), y, text.width(), px * 1.4), t.album, px, QColor(255, 255, 255, 140),
+            blocks.append(unit * 0.052 * 1.5)
+        progress = self.show_progress and t.length > 0
+        if progress:
+            blocks.append(unit * 0.16)
+        total = sum(blocks)
+        y = area.top() + max(0.0, (area.height() - total) / 2) if landscape else area.top()
+        # Zeile oben: Equalizer + Player + Zustand
+        eq = QRectF(area.left(), y + chip_h * 0.15, chip_h * 0.9, chip_h * 0.7)
+        if align == Qt.AlignHCenter:
+            chip_text = (t.player.upper() if t.player else "MEDIEN") + ("  ·  LÄUFT" if t.playing else "  ·  PAUSE")
+            cw = QFontMetricsF(self._font(unit * 0.045, True, 1.5)).horizontalAdvance(chip_text)
+            eq.moveLeft(area.center().x() - (cw + eq.width() * 1.4) / 2)
+        self._paint_eq(p, eq, t.playing)
+        self._eq_rect = eq.adjusted(-2, -2, 2, 2).toAlignedRect()
+        chip = (t.player.upper() if t.player else "MEDIEN") + ("  ·  LÄUFT" if t.playing else "  ·  PAUSE")
+        chip_rect = QRectF(eq.right() + eq.width() * 0.4, y, area.right() - eq.right(), chip_h)
+        self._text(p, chip_rect, chip, unit * 0.045, self._accent, bold=True, align=Qt.AlignLeft | Qt.AlignVCenter,
+                   spacing=1.5)
+        y += chip_h * 1.35
+        for line in lines:
+            self._text(p, QRectF(area.left(), y, area.width(), title_px * 1.22), line, title_px, QColor("#ffffff"),
+                       bold=True, align=align | Qt.AlignVCenter)
+            y += title_px * 1.22
+        if t.artist:
+            px = unit * 0.075
+            self._text(p, QRectF(area.left(), y, area.width(), px * 1.45), t.artist, px, QColor(255, 255, 255, 220),
                        align=align | Qt.AlignVCenter)
-            y += px * 1.4
-        if self.show_progress and t.length > 0:
-            bar_y = max(y + unit * 0.06, text.bottom() - unit * 0.12) if landscape else y + unit * 0.06
-            bar_h = max(3.0, unit * 0.018)
-            bar = QRectF(text.left(), bar_y, text.width(), bar_h)
+            y += px * 1.45
+        if t.album:
+            px = unit * 0.052
+            self._text(p, QRectF(area.left(), y, area.width(), px * 1.5), t.album, px, QColor(255, 255, 255, 140),
+                       align=align | Qt.AlignVCenter)
+            y += px * 1.5
+        if progress:
+            y += unit * 0.05
+            bar_h = max(4.0, unit * 0.022)
+            bar = QRectF(area.left(), y, area.width(), bar_h)
             p.setPen(Qt.NoPen)
-            p.setBrush(QColor(255, 255, 255, 55))
+            p.setBrush(QColor(255, 255, 255, 50))
             p.drawRoundedRect(bar, bar_h / 2, bar_h / 2)
             frac = max(0.0, min(1.0, t.position_now() / t.length))
-            p.setBrush(self._accent)
-            p.drawRoundedRect(QRectF(bar.left(), bar.top(), max(bar_h, bar.width() * frac), bar_h), bar_h / 2,
-                              bar_h / 2)
+            done = QRectF(bar.left(), bar.top(), max(bar_h, bar.width() * frac), bar_h)
+            grad = QLinearGradient(done.topLeft(), done.topRight())
+            grad.setColorAt(0, self._accent.darker(125))
+            grad.setColorAt(1, self._accent)
+            p.setBrush(grad)
+            p.drawRoundedRect(done, bar_h / 2, bar_h / 2)
+            p.setBrush(QColor("#ffffff"))  # Knopf am Ende
+            p.drawEllipse(QPointF(done.right(), done.center().y()), bar_h * 1.1, bar_h * 1.1)
             px = unit * 0.042
-            times = QRectF(bar.left(), bar.bottom() + px * 0.5, bar.width(), px * 1.5)
-            self._text(p, times, fmt_time(t.position_now()), px, QColor(255, 255, 255, 160),
+            times = QRectF(bar.left(), bar.bottom() + px * 0.6, bar.width(), px * 1.5)
+            self._text(p, times, fmt_time(t.position_now()), px, QColor(255, 255, 255, 170),
                        align=Qt.AlignLeft | Qt.AlignVCenter)
-            self._text(p, times, fmt_time(t.length), px, QColor(255, 255, 255, 160),
-                       align=Qt.AlignRight | Qt.AlignVCenter)
+            self._text(p, times, "−" + fmt_time(max(0.0, t.length - t.position_now())), px,
+                       QColor(255, 255, 255, 170), align=Qt.AlignRight | Qt.AlignVCenter)
+
+    def _paint_eq(self, p: QPainter, rect: QRectF, playing: bool) -> None:
+        """Drei hüpfende Balken, solange Musik läuft (in Pause: flach)."""
+        import math
+        import time as _time
+
+        bw = rect.width() / 5
+        now = _time.monotonic()
+        p.save()
+        p.setPen(Qt.NoPen)
+        p.setBrush(self._accent)
+        for i in range(3):
+            level = 0.25
+            if playing:
+                level = 0.35 + 0.65 * abs(math.sin(now * (3.1 + i * 1.7) + i * 1.3))
+            bh = max(bw, rect.height() * level)
+            p.drawRoundedRect(QRectF(rect.left() + i * bw * 2, rect.bottom() - bh, bw, bh), bw / 2, bw / 2)
+        p.restore()
+
+    def _wrap(self, text: str, font: QFont, width: float, max_lines: int) -> list[str]:
+        fm = QFontMetricsF(font)
+        if fm.horizontalAdvance(text) <= width:
+            return [text]
+        words, lines, cur = text.split(), [], ""
+        for word in words:
+            probe = f"{cur} {word}".strip()
+            if fm.horizontalAdvance(probe) <= width or not cur:
+                cur = probe
+            else:
+                lines.append(cur)
+                cur = word
+                if len(lines) == max_lines - 1:
+                    break
+        rest = " ".join(words[len(" ".join(lines).split()):]) if len(lines) == max_lines - 1 else cur
+        lines.append(fm.elidedText(rest, Qt.ElideRight, width))
+        return lines[:max_lines]
 
     def _paint_cover(self, p: QPainter, rect: QRectF) -> None:
-        radius = rect.width() * 0.05
-        shadow = QColor(0, 0, 0, 110)
+        radius = rect.width() * 0.045
         p.setPen(Qt.NoPen)
-        for i in range(3):  # weicher Schatten (drei Lagen)
-            grow = rect.width() * (0.012 + i * 0.012)
-            shadow.setAlpha(60 - i * 18)
-            p.setBrush(shadow)
-            p.drawRoundedRect(rect.adjusted(-grow, -grow * 0.2, grow, grow * 1.8), radius + grow, radius + grow)
+        for i in range(4):  # weicher Schatten (mehrere Lagen)
+            grow = rect.width() * (0.01 + i * 0.014)
+            p.setBrush(QColor(0, 0, 0, 55 - i * 12))
+            p.drawRoundedRect(rect.adjusted(-grow, -grow * 0.1, grow, grow * 2.0), radius + grow, radius + grow)
         path = QPainterPath()
         path.addRoundedRect(rect, radius, radius)
         p.save()
@@ -334,42 +422,27 @@ class NowPlayingSource(QWidget):
                                rect.top() - (img.height() - rect.height()) / 2, img.width(), img.height()), img)
         else:
             grad = QLinearGradient(rect.topLeft(), rect.bottomRight())
-            grad.setColorAt(0, self._accent.darker(160))
-            grad.setColorAt(1, QColor("#111827"))
+            grad.setColorAt(0, self._accent.darker(140))
+            grad.setColorAt(1, QColor("#0b1020"))
             p.fillRect(rect, grad)
-            s = rect.width() * 0.36
-            self._paint_note(p, QRectF(rect.center().x() - s / 2, rect.center().y() - s / 2, s, s),
-                             QColor(255, 255, 255, 170))
+            if self.track is None or self.track.playing:  # in Pause steht dort der Pause-Knopf
+                s = rect.width() * 0.42
+                draw_note(p, QRectF(rect.center().x() - s / 2, rect.center().y() - s / 2, s, s),
+                          QColor(255, 255, 255, 190))
         p.restore()
-        if self.track is not None and not self.track.playing:  # Pause-Zeichen über dem Cover
-            p.setBrush(QColor(0, 0, 0, 120))
-            p.drawRoundedRect(rect, radius, radius)
-            bw, bh = rect.width() * 0.06, rect.height() * 0.24
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor(255, 255, 255, 30), 1.2))
+        p.drawRoundedRect(rect, radius, radius)
+        if self.track is not None and not self.track.playing:  # Pause-Zeichen im runden Knopf über dem Cover
             c = rect.center()
-            p.setBrush(QColor(255, 255, 255, 230))
-            p.drawRoundedRect(QRectF(c.x() - bw * 1.6, c.y() - bh / 2, bw, bh), bw * 0.3, bw * 0.3)
-            p.drawRoundedRect(QRectF(c.x() + bw * 0.6, c.y() - bh / 2, bw, bh), bw * 0.3, bw * 0.3)
-
-    @staticmethod
-    def _paint_note(p: QPainter, r: QRectF, color: QColor) -> None:
-        """Einfache Musiknote (zwei Köpfe, Balken)."""
-        p.save()
-        p.setPen(Qt.NoPen)
-        p.setBrush(color)
-        head = r.width() * 0.3
-        p.drawEllipse(QRectF(r.left(), r.bottom() - head * 0.8, head, head * 0.8))
-        p.drawEllipse(QRectF(r.right() - head, r.bottom() - head * 1.05, head, head * 0.8))
-        stem = r.width() * 0.08
-        p.drawRect(QRectF(r.left() + head - stem, r.top() + r.height() * 0.18, stem, r.height() * 0.72))
-        p.drawRect(QRectF(r.right() - stem, r.top(), stem, r.height() * 0.66))
-        beam = QPainterPath()
-        beam.moveTo(r.left() + head - stem, r.top() + r.height() * 0.18)
-        beam.lineTo(r.right(), r.top())
-        beam.lineTo(r.right(), r.top() + r.height() * 0.16)
-        beam.lineTo(r.left() + head - stem, r.top() + r.height() * 0.34)
-        beam.closeSubpath()
-        p.drawPath(beam)
-        p.restore()
+            r = rect.width() * 0.14
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(0, 0, 0, 150))
+            p.drawEllipse(c, r, r)
+            bw, bh = r * 0.22, r * 0.8
+            p.setBrush(QColor(255, 255, 255, 235))
+            p.drawRoundedRect(QRectF(c.x() - bw * 1.5, c.y() - bh / 2, bw, bh), bw * 0.35, bw * 0.35)
+            p.drawRoundedRect(QRectF(c.x() + bw * 0.5, c.y() - bh / 2, bw, bh), bw * 0.35, bw * 0.35)
 
     @staticmethod
     def _font(px: float, bold: bool = False, spacing: float = 0.0) -> QFont:

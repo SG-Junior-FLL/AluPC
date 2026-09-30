@@ -162,8 +162,43 @@ def apply(app, mode: str = "system", accent: str = "blau") -> Theme:
     for role in (QPalette.Text, QPalette.WindowText, QPalette.ButtonText):
         pal.setColor(QPalette.Disabled, role, QColor(t.muted))
     app.setPalette(pal)
-    app.setStyleSheet(stylesheet(t, _check_image()))
+    app.setStyleSheet(stylesheet(t, _check_image(), _arrow_image(t)))
     return t
+
+
+def round_popup(menu) -> None:
+    """Menü mit echten runden Ecken (durchsichtiger Fensterhintergrund, kein eckiger Systemschatten).
+    Einzeln am Menü gesetzt – ein programmweiter Ereignisfilter bringt den Browser-Baustein zum Absturz."""
+    if menu is None or menu.testAttribute(Qt.WA_TranslucentBackground) or menu.isVisible():
+        return
+    menu.setWindowFlag(Qt.FramelessWindowHint, True)
+    menu.setWindowFlag(Qt.NoDropShadowWindowHint, True)
+    menu.setAttribute(Qt.WA_TranslucentBackground, True)
+
+
+def _arrow_image(t) -> str:
+    """Pfeil nach unten für Auswahllisten (Farbe passend zum Design)."""
+    import tempfile
+    from pathlib import Path
+
+
+    path = Path(tempfile.gettempdir()) / f"alupc-chevron-{QColor(t.muted).name()[1:]}.png"
+    try:
+        if not path.exists():
+            from PySide6.QtCore import QPointF
+            from PySide6.QtGui import QPainter, QPen, QPixmap
+
+            px = QPixmap(28, 28)  # doppelt so groß gezeichnet → scharf auf hochauflösenden Bildschirmen
+            px.fill(Qt.transparent)
+            p = QPainter(px)
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setPen(QPen(QColor(t.muted), 3.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.drawPolyline([QPointF(7, 11), QPointF(14, 18), QPointF(21, 11)])
+            p.end()
+            px.save(str(path))
+        return path.as_posix()
+    except OSError:
+        return ""
 
 
 def _check_image() -> str:
@@ -182,7 +217,7 @@ def _check_image() -> str:
         return ""
 
 
-def stylesheet(t: Theme, check_image: str = "") -> str:
+def stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
     hover = t.mix(t.surface2, t.text, 0.06).name()
     a1, a2 = t.accent, t.accent2
     a1_hi = t.mix(a1, "#ffffff", 0.14).name()
@@ -247,9 +282,17 @@ QLineEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QKeySequenceEdit
 QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border-color: {edge}; }}
 QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
     border-color: {a1}; background: {t.mix(t.surface2, a1, 0.05).name()}; }}
-QComboBox::drop-down {{ border: none; width: 22px; }}
-QComboBox QAbstractItemView {{ background: {t.surface}; border: 1px solid {edge}; border-radius: 10px;
-    selection-background-color: {t.soft(a1, 0.35)}; selection-color: {t.text}; padding: 4px; }}
+QComboBox {{ padding-right: 30px; combobox-popup: 0; }}
+QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: center right; border: none; width: 28px; }}
+QComboBox::down-arrow {{ {f'image: url("{arrow_image}");' if arrow_image else ''} width: 14px; height: 14px; }}
+QComboBox::down-arrow:on {{ top: 1px; }}
+QComboBoxPrivateContainer {{ background: {t.surface}; border: 1px solid {edge}; }}
+QComboBox QAbstractItemView {{ background: {t.surface}; border: none; padding: 4px; outline: 0;
+    selection-background-color: transparent; selection-color: {t.text}; }}
+QComboBox QAbstractItemView::item {{ min-height: 30px; padding: 2px 10px; border-radius: 8px; margin: 1px 0; }}
+QComboBox QAbstractItemView::item:hover {{ background: {hover}; }}
+QComboBox QAbstractItemView::item:selected {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+    stop:0 {t.soft(a1, 0.30)}, stop:1 {t.soft(a2, 0.14)}); color: {t.text}; }}
 QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
     width: 18px; border: none; }}
 
@@ -295,12 +338,17 @@ QSlider::handle:horizontal {{ background: #ffffff; border: 2px solid {a2}; width
 QProgressBar {{ background: {t.surface2}; border: none; border-radius: 5px; height: 10px; text-align: center; }}
 QProgressBar::chunk {{ background: {grad_h}; border-radius: 5px; }}
 
-QMenu {{ background: {t.surface}; border: 1px solid {edge}; border-radius: 12px; padding: 6px; }}
-QMenu::item {{ padding: 7px 26px 7px 12px; border-radius: 8px; }}
+QMenu {{ background: {t.surface}; border: 1px solid {edge}; border-radius: 14px; padding: 6px; }}
+QMenu::item {{ padding: 8px 28px 8px 12px; border-radius: 9px; margin: 1px 0; }}
 QMenu::item:selected {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {t.soft(a1, 0.30)},
     stop:1 {t.soft(a2, 0.14)}); }}
 QMenu::item:disabled {{ color: {t.muted}; }}
-QMenu::separator {{ height: 1px; background: {t.border}; margin: 5px 8px; }}
+QMenu::icon {{ padding-left: 10px; }}
+QMenu::indicator {{ width: 16px; height: 16px; margin-left: 10px; border-radius: 5px; border: 1px solid {t.border};
+    background: {t.surface2}; }}
+QMenu::indicator:checked {{ background: {grad}; border-color: transparent;
+    {f'image: url("{check_image}");' if check_image else ''} }}
+QMenu::separator {{ height: 1px; background: {t.border}; margin: 6px 10px; }}
 
 QStatusBar {{ background: transparent; color: {t.muted}; }}
 QMessageBox, QInputDialog, QColorDialog, QFileDialog {{ background: {t.bg}; }}

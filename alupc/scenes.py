@@ -131,6 +131,14 @@ def describe_source(cfg: dict | None) -> str:
         return "Uhr"
     if t == "nowplaying":
         return "Läuft gerade (Musik)"
+    if t == "whiteboard":
+        return "Whiteboard"
+    if t == "zufall":
+        return "Glücksrad"
+    if t == "wetter":
+        return "Wetter & Uhr"
+    if t == "umfrage":
+        return "Abstimmung"
     if t == "countdown":
         return f"Countdown: {cfg.get('minutes')} min"
     if t == "color":
