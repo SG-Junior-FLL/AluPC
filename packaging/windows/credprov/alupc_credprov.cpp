@@ -41,6 +41,7 @@
 
 #include <atomic>
 #include <cmath>
+#include <ctime>
 #include <mutex>
 #include <new>
 #include <string>
@@ -105,6 +106,24 @@ static std::wstring ConfigPath() {
     }
     CoTaskMemFree(base);
     return path;
+}
+
+// Erkannten Platz merken („Platz;Unix-Zeit“) – AluPC begrüßt danach mit Namen („Willkommen, Lena!“).
+// Registry statt Datei: normale Benutzer dürfen unter HKLM\SOFTWARE nur lesen (keine Link-Tricks möglich).
+static void RememberFinger(const std::wstring& user, int slot) {
+#ifdef ALUPC_CP_TEST
+    HKEY root = HKEY_CURRENT_USER;
+#else
+    HKEY root = HKEY_LOCAL_MACHINE;
+#endif
+    HKEY key = nullptr;
+    if (RegCreateKeyExW(root, L"SOFTWARE\\AluPC\\Fingerprint", 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key,
+                        nullptr) != ERROR_SUCCESS)
+        return;
+    std::wstring value = std::to_wstring(slot) + L";" + std::to_wstring((long long)time(nullptr));
+    RegSetValueExW(key, user.c_str(), 0, REG_SZ, (const BYTE*)value.c_str(),
+                   (DWORD)((value.size() + 1) * sizeof(wchar_t)));
+    RegCloseKey(key);
 }
 
 static std::vector<int> ParseSlots(const std::string& text) {
@@ -816,6 +835,7 @@ private:
                 continue;
             }
             std::wstring person = PersonForSlot(idx, slot);
+            RememberFinger(cfg_.users[idx].name, slot);
             Status(person.empty() ? L"Erkannt – melde an …" : L"Hallo " + person + L" – melde an …");
             matched_ = idx;
             ICredentialProviderEvents* ev = nullptr;

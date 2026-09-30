@@ -70,6 +70,8 @@ DEFAULTS: dict = {
     "hotkeys": dict(DEFAULT_HOTKEYS),
     "privacy": {"text": "", "image": ""},
     "pip": {"opacity": 1.0, "width": 480, "fps": 20},
+    # Begrüßung nach der Anmeldung mit dem Finger (geheimes Menü): Stil, eigener Text, eigene Namen je Person
+    "welcome": {"on": True, "style": "aurora", "text": "", "sound": True, "names": {}},
     # Timer (Countdown/Stoppuhr): Voreinstellung für Kachel und Befehle
     "timer": {"minutes": 5, "seconds": 0, "mode": "countdown", "finished_text": "Zeit ist um!",
               "warn_colors": True, "size": 30},

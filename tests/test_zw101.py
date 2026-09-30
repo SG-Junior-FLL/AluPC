@@ -113,7 +113,10 @@ def test_pam_check(fake, tmp_path):
     fake.library = {3: "noah", 4: "gast"}
     login.write_text(json.dumps({"users": {"noah": [3]}, "port": fake.port, "baud": 57600, "timeout": 2}))
     fake.finger = "noah"
-    assert zw.pam_check({"PAM_USER": "noah"}, login, out=open("/dev/null", "w")) == 0
+    seen = []
+    assert zw.pam_check({"PAM_USER": "noah"}, login, out=open("/dev/null", "w"),
+                        record=lambda u, slot: seen.append((u, slot))) == 0
+    assert seen == [("noah", 3)]  # erkannter Platz → „Willkommen, …“ in AluPC
     fake.finger = "gast"  # gespeichert, aber gehört nicht zu diesem Benutzer
     assert zw.pam_check({"PAM_USER": "noah"}, login, out=open("/dev/null", "w")) == 1
     fake.finger = "noah"
@@ -515,3 +518,23 @@ def test_windows_login_state_without_admin_rights(fake, tmp_path, monkeypatch):
     assert backend.login_check == "repariert" and sp.read_text(encoding="utf-8").startswith("0,1\n")
     backend.list_enrolled(fake.port)
     assert backend.login_check == "ok"
+
+
+def test_welcome_record_and_read(tmp_path):
+    """Begrüßung: PAM merkt sich den Platz (als Benutzer im Home, als root in /run/alupc), AluPC liest den neuesten."""
+    import os
+
+    from alupc import welcome
+
+    home = tmp_path / "home"
+    run = tmp_path / "run"
+    assert welcome.record_login("noah", 4, now=100.0, euid=1000, home=str(home))
+    assert welcome.last_login("noah", run_dir=run, home=str(home)) == (4, 100.0)
+    if os.geteuid() == 0:
+        assert welcome.record_login("noah", 9, now=200.0, run_dir=run)
+        assert (run / "finger-noah.json").is_file()
+        assert welcome.last_login("noah", run_dir=run, home=str(home)) == (9, 200.0)
+        os.chmod(run, 0o777)  # von anderen beschreibbar → root schreibt dort nichts
+        assert welcome.record_login("noah", 5, now=300.0, run_dir=run) is None
+    assert welcome.last_login("jemand", run_dir=run, home=str(tmp_path / "leer")) is None
+    assert not list(home.rglob("*.tmp"))

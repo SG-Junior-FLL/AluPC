@@ -6,8 +6,8 @@ import copy
 import os
 import sys
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl
-from PySide6.QtGui import QAction, QFont
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer, QUrl
+from PySide6.QtGui import QAction, QFont, QKeySequence, QShortcut
 from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtWidgets import (
     QApplication,
@@ -379,11 +379,31 @@ class MainWindow(QMainWindow):
         lay.addWidget(lock)
         version = QLabel(f"Version {__version__}")
         version.setObjectName("Muted")
+        version.installEventFilter(self)  # 5× klicken → geheimes Menü
+        self._secret_clicks: list[float] = []
         version.setContentsMargins(14, 6, 0, 0)
         version.setFont(font(8.5))
         self.version_label = version
+        QShortcut(QKeySequence("Ctrl+Alt+Shift+G"), self, self.open_secret_menu)
         lay.addWidget(version)
         return side
+
+    def eventFilter(self, obj, event):
+        if obj is getattr(self, "version_label", None) and event.type() == QEvent.MouseButtonPress:
+            import time
+
+            now = time.monotonic()
+            self._secret_clicks = [t for t in self._secret_clicks if now - t < 3] + [now]
+            if len(self._secret_clicks) >= 5:
+                self._secret_clicks = []
+                self.open_secret_menu()
+            return False
+        return super().eventFilter(obj, event)
+
+    def open_secret_menu(self):
+        from .secret_menu import SecretMenu
+
+        SecretMenu(self.controller, self).exec()
 
     def _go(self, index: int):
         page = self.pages[index]

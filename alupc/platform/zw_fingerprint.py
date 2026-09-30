@@ -810,8 +810,11 @@ def user_slots_from_home(user: str, home: str | None = None) -> set[int] | None:
 
 
 # --------------------------------------------------------------------------- Anmelde-Prüfung (PAM)
-def pam_check(env=None, login_file: Path = LOGIN_FILE, out=None) -> int:
-    """Wird von pam_exec aufgerufen (Befehl `alupc --fingerabdruck-pam`). 0 = Finger passt zum Benutzer."""
+def pam_check(env=None, login_file: Path = LOGIN_FILE, out=None, record=None) -> int:
+    """Wird von pam_exec aufgerufen (Befehl `alupc --fingerabdruck-pam`). 0 = Finger passt zum Benutzer.
+    record(Benutzer, Platz): erkannten Platz merken (für „Willkommen, Lena!“) – beim echten Aufruf automatisch."""
+    if record is None and env is None:
+        from ..welcome import record_login as record
     env = os.environ if env is None else env
     out = out or sys.stdout
     if hasattr(os, "fork") and env is os.environ:  # echter PAM-Aufruf: nie länger als 30 s blockieren
@@ -858,6 +861,8 @@ def pam_check(env=None, login_file: Path = LOGIN_FILE, out=None) -> int:
                         except SensorError:
                             hit = None
                         if hit is not None and hit[0] in allowed:
+                            if record is not None:
+                                record(user, hit[0])
                             return 0
                         print("Nicht erkannt.", file=out, flush=True)
                         time.sleep(0.4)

@@ -36,6 +36,7 @@ class Controller(QObject):
         self.grabber.done.connect(self._frozen_grab_done)
         self.grabber.failed.connect(self._frozen_grab_failed)
         self.pip = None  # wird von der Oberfläche gesetzt
+        self._welcome = None  # laufende Begrüßung (Fenster)
 
         self.mode = "desktop"  # "content" = AluPC zeigt etwas, "desktop" = normaler zweiter Desktop
         self.content: dict | None = None
@@ -1391,6 +1392,19 @@ class Controller(QObject):
         if self.pip is not None and self._guard():
             self.pip.toggle()
             self.changed.emit()
+
+    def show_welcome(self, name: str, style: str | None = None) -> None:
+        """„Willkommen, Lena!“ auf Monitor 1 (nach Fingerabdruck oder zum Ausprobieren im geheimen Menü)."""
+        from .ui.welcome_window import WelcomeWindow
+
+        cfg = self.config["welcome"]
+        if self._welcome is not None:
+            self._welcome.finish()
+        window = WelcomeWindow(name, style or cfg.get("style", "aurora"), cfg.get("text", ""),
+                               bool(cfg.get("sound", True)), self)
+        self._welcome = window
+        window.finished.connect(lambda: setattr(self, "_welcome", None) if self._welcome is window else None)
+        window.play()
 
     def shutdown(self) -> None:
         self._timer_watch.stop()

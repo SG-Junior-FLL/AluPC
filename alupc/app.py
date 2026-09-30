@@ -133,6 +133,11 @@ def main(argv=None) -> int:
         controller.message.emit(p)
 
     controller.pip = PipWindow(controller)
+    # Anmeldung mit dem Finger → „Willkommen, Lena!“ (auch direkt nach dem Start, wenn AluPC automatisch startet)
+    from .ui.welcome_window import WelcomeWatcher
+
+    controller.welcome_watcher = WelcomeWatcher(config, parent=controller)
+    controller.welcome_watcher.greet.connect(controller.show_welcome)
 
     instance = SingleInstance(app)
 
@@ -167,6 +172,7 @@ def main(argv=None) -> int:
     from . import reset
 
     QTimer.singleShot(900, lambda: reset.report_leftovers(window))  # nach „Alle Daten löschen“
+    QTimer.singleShot(1200, controller.welcome_watcher.greet_startup)
     code = app.exec()
     if reset.pending():
         # erst jetzt löschen: AirPlay, Protokolle usw. sind beendet und halten keine Dateien mehr offen
@@ -219,6 +225,8 @@ def self_test(log_path: str) -> int:
         window = MainWindow(controller, hotkeys)
         hotkeys.attach(window)
         controller.pip = PipWindow(controller)
+        controller.show_welcome("Selbsttest", "konfetti")  # Begrüßung (geheimes Menü)
+        controller._welcome.finish()
         controller.show_source({"type": "text", "text": "Selbsttest"})
         controller.show_source({"type": "clock"})
         controller.show_source({"type": "website", "url": "about:blank"})

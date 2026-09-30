@@ -232,7 +232,10 @@ jobs:
           if ($text -notmatch "CPTEST-OK" -or $text -notmatch "USER=ci-tester" -or $text -notmatch "PASS=Tüt-Geheim 42!" -or $text -notmatch "MSG=Hallo Lena – melde an …") {
             Write-Output "::error title=Anmeldebaustein::$($text -replace "`n", ' | ')"; exit 1
           }
-          Write-Output "::notice title=Anmeldebaustein::Finger erkannt → Anmeldung für ci-tester gebaut, Passwort aus DPAPI korrekt"
+          # Begrüßung: erkannter Platz steht in der Registry (Test: HKCU statt HKLM)
+          $last = (Get-ItemProperty -Path "HKCU:\SOFTWARE\AluPC\Fingerprint" -Name "ci-tester" -ErrorAction SilentlyContinue)."ci-tester"
+          if ($last -notmatch '^7;\d{9,}$') { Write-Output "::error title=Begrüßung::Platz nicht gemerkt: '$last'"; exit 1 }
+          Write-Output "::notice title=Anmeldebaustein::Finger erkannt → Anmeldung für ci-tester gebaut, Passwort aus DPAPI korrekt · Begrüßung merkt Platz $last"
           # Einrichten wie AluPC (Admin): Datei schützen, bei Windows anmelden, wieder abmelden
           python -c "import sys; sys.path.insert(0,'.'); from pathlib import Path; from alupc.platform import windows_serial_login as w; p=Path(sys.argv[1]); w.apply_request({'action':'an','user':'ci-tester','domain':'.','slots':[7],'port':'COM9','baud':57600,'capacity':50,'secret':w.protect('x'),'sid':w.current_sid()}, path=p, dll=Path(sys.argv[2])); assert w.registered(), 'nicht registriert'; assert w._default_provider() == w.CLSID, 'nicht vorausgewählt';sp=w.slots_path('ci-tester', p.parent); assert sp.is_file(), 'keine Plätze-Datei'; sp.write_text(w.format_slots([7, 12])); print('SLOTS', sp.read_text().strip(), __import__('subprocess').run(['icacls', str(sp)], capture_output=True, text=True).stdout.replace(chr(10),' ')); print('ACL', __import__('subprocess').run(['icacls', str(p)], capture_output=True, text=True).stdout.replace(chr(10),' ')); w.apply_request({'action':'aus','user':'ci-tester','slots':[]}, path=p); assert not w.registered() and not p.exists() and not sp.exists() and not w._default_provider(), 'nicht abgemeldet'; print('REG-OK')" "$env:RUNNER_TEMP\fp-reg.cfg" "$PWD\dist\AluPC\credprov\AluPCFingerprint.dll"
           if ($LASTEXITCODE -ne 0) { Write-Output "::error title=Anmeldebaustein::Registrieren/Abmelden fehlgeschlagen"; exit 1 }

@@ -3448,3 +3448,99 @@ def test_leaving_airplay_does_not_freeze(env, tmp_path):
     gaps = [b - a for a, b in zip([start] + ticks, ticks)]
     assert ticks and max(gaps) < 1.5, f"Oberfläche hing {max(gaps or [99]):.1f} s"
     assert _until(lambda: not controller.airplay.running(), 5)
+
+
+def test_welcome_animation_styles(env):
+    """Begrüßung: alle Stile zeichnen sich zu jedem Zeitpunkt; Klick schließt sofort."""
+    from PySide6.QtGui import QImage, QPainter
+
+    from alupc.ui import welcome_window as ww
+
+    for style in ("aurora", "konfetti", "scan", "zufall"):
+        for name in ("Lena", "", "Maximilian-Alexander von Irgendwo"):
+            w = ww.WelcomeWindow(name, style)
+            w.resize(960, 540)
+            for t in (0.0, 0.3, 0.8, 1.3, 2.0, 3.0, 4.2, ww.DURATION):
+                w.t = t
+                img = QImage(w.size(), QImage.Format_ARGB32)
+                img.fill(0)
+                w.render(img)
+            w.t = 2.0
+            img = QImage(w.size(), QImage.Format_ARGB32)
+            img.fill(0)
+            w.render(img)
+            assert img.pixelColor(480, 270).alpha() > 200  # Hintergrund deckt ab
+            w.deleteLater()
+    assert ww.greeting(8) == "Guten Morgen" and ww.greeting(20) == "Guten Abend" and ww.greeting(2) == "Noch wach?"
+    _ = QPainter
+
+
+def test_welcome_watcher_and_show(env, monkeypatch):
+    """Neue Anmeldung mit dem Finger → Begrüßung mit Namen der Person (oder eigenem Namen aus dem geheimen Menü)."""
+    import time
+
+    from alupc import welcome
+    from alupc.ui import welcome_window as ww
+
+    controller, _window, _ = env
+    records = [(3, time.time() - 30)]  # vor 30 s angemeldet, AluPC startet gerade
+    monkeypatch.setattr(ww, "person_for_slot", lambda slot: {3: "Lena", 4: "Noah"}.get(slot, ""))
+    controller.config["welcome"] = {**controller.config["welcome"], "names": {"Noah": "Chef"}}
+    watcher = ww.WelcomeWatcher(controller.config, reader=lambda: records[-1], interval=60000)
+    got = []
+    watcher.greet.connect(got.append)
+    watcher.greet_startup()
+    assert got == ["Lena"]
+    watcher.poll()  # nichts Neues
+    assert got == ["Lena"]
+    records.append((4, time.time()))
+    watcher.poll()
+    assert got == ["Lena", "Chef"]
+    records.append((4, time.time() - 3600))  # alt → nicht mehr begrüßen
+    watcher.seen = 0
+    watcher.poll()
+    assert got == ["Lena", "Chef"]
+    controller.config["welcome"] = {**controller.config["welcome"], "on": False}
+    records.append((3, time.time() + 1))
+    watcher.poll()
+    assert got == ["Lena", "Chef"]
+    assert welcome.display_name(controller.config, "Lena") == "Lena"
+
+    controller.show_welcome("Lena", "konfetti")
+    shown = controller._welcome
+    assert shown is not None and shown.isVisible() and shown.name == "Lena"
+    controller.show_welcome("Noah")  # zweite ersetzt die erste
+    assert controller._welcome is not shown
+    controller._welcome.finish()
+    pump()
+    assert controller._welcome is None
+
+
+def test_secret_menu(env, monkeypatch):
+    """5× auf die Versionsnummer → geheimes Menü; dort einstellen und ausprobieren."""
+    from PySide6.QtCore import QEvent, QPointF
+    from PySide6.QtGui import QMouseEvent
+
+    from alupc.ui import secret_menu
+
+    controller, window, _ = env
+    opened = []
+    monkeypatch.setattr(window, "open_secret_menu", lambda: opened.append(1))
+    for _ in range(5):
+        ev = QMouseEvent(QEvent.MouseButtonPress, QPointF(2, 2), QPointF(2, 2), Qt.LeftButton, Qt.LeftButton,
+                         Qt.NoModifier)
+        window.eventFilter(window.version_label, ev)
+    assert opened == [1]
+    monkeypatch.setattr(secret_menu.SecretMenu, "_persons", staticmethod(lambda: ["Lena", "Noah"]))
+    menu = secret_menu.SecretMenu(controller, window)
+    menu.style.setCurrentIndex(menu.style.findData("scan"))
+    menu.name_edits["Noah"].setText("Chef")
+    menu.text.setText("Servus")
+    shown = []
+    monkeypatch.setattr(controller, "show_welcome", lambda name, style=None: shown.append(name))
+    menu.try_name.setCurrentText("Noah")
+    menu.try_it()
+    assert shown == ["Chef"]
+    cfg = controller.config["welcome"]
+    assert cfg["style"] == "scan" and cfg["names"] == {"Noah": "Chef"} and cfg["text"] == "Servus"
+    menu.close()

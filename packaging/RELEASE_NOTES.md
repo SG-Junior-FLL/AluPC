@@ -8,7 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.66.0)
+### Neu in dieser Version (0.67.0)
+- **Willkommen nach dem Fingerabdruck:** Wer sich mit dem Finger anmeldet oder entsperrt, bekommt auf Monitor 1
+  eine Vollbild-Animation mit Namen („Guten Morgen – Lena“). Klick oder Taste schließt sie sofort.
+  Drei Stile: **Aurora**, **Konfetti**, **Scan** (oder zufällig).
+- **Geheimes Menü:** 5× schnell auf die Versionsnummer unten links klicken (oder Strg+Alt+Umschalt+G).
+  Dort: Begrüßung an/aus, Stil, eigene Überschrift, Ton, **eigene Namen je Person** (z. B. „Noah“ → „Chef“)
+  und **Ausprobieren**.
+- So weiß AluPC, wer es war: Linux – die Fingerabdruck-Prüfung beim Anmelden merkt sich den erkannten Platz
+  (/run/alupc bzw. ~/.cache/alupc). Windows – der Anmeldebaustein schreibt ihn in die Registry
+  (HKLM\SOFTWARE\AluPC\Fingerprint). Die Person kommt aus den Namen auf der Fingerabdruck-Seite.
+  *Ehrlich:* Animation und Menü sind getestet, die Windows-Anmeldung im CI mit nachgebautem Sensor. Mit dem
+  echten Sensor beim echten Anmelden/Entsperren ist es nicht ausprobiert. Unter Windows muss die
+  Fingerabdruck-Anmeldung nach dem Update **neu eingeschaltet** werden, falls der alte Baustein noch geladen ist
+  (Neustart reicht meist).
+
+### Neu in Version 0.66.0
 - **Helligkeit entfernt** (Kachel, Menü, Fenster und Befehle „heller/dunkler“) – hat nicht zuverlässig funktioniert.
   Gespeicherte Startseiten ohne die Kachel laden normal weiter.
 - **Bild-in-Bild bleibt unter Linux (KDE) oben:** Solange es offen ist, läuft ein KWin-Skript, das „immer oben“
