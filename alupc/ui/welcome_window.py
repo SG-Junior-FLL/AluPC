@@ -167,7 +167,7 @@ class WelcomeWindow(QWidget):
         p.save()
         p.setOpacity(p.opacity() * a)
         p.setFont(f)
-        p.setPen(QColor(255, 255, 255, 215))
+        p.setPen(QColor(255, 255, 255, 240))
         p.drawText(QRectF(0, y + 24 * (1 - a), w, size * 1.6), Qt.AlignHCenter | Qt.AlignTop, self.headline)
         p.restore()
 
@@ -197,8 +197,11 @@ class WelcomeWindow(QWidget):
                 p.save()
                 p.setOpacity(p.opacity() * _clamp(v * 1.6))
                 p.setPen(Qt.NoPen)
+                shape = tr.map(path)
+                p.setBrush(QColor(0, 0, 0, 120))  # Schatten: lesbar auch über hellen Farbwolken
+                p.drawPath(shape.translated(0, max(2.0, fm.height() * 0.035)))
                 p.setBrush(brush)
-                p.drawPath(tr.map(path))
+                p.drawPath(shape)
                 p.restore()
             x += adv
         return rect
@@ -329,6 +332,8 @@ class WelcomeWindow(QWidget):
         path = QPainterPath()
         path.addText(x, base, font, shown)
         p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0, 120))
+        p.drawPath(path.translated(0, max(2.0, fm.height() * 0.035)))
         p.setBrush(th.gradient(rect, diagonal=False))
         p.drawPath(path)
         if t >= start - 0.2 and (n < len(text) or int(t * 2.5) % 2 == 0):  # Cursor

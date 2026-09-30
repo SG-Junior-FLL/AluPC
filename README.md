@@ -106,6 +106,19 @@ Außerdem:
   | Setup | Finger anlernen | Bild-in-Bild |
   |---|---|---|
   | ![Setup](docs/setup.png) | ![Fingerabdruck](docs/fingerabdruck.png) | ![Bild-in-Bild](docs/bild-in-bild.png) |
+- **Willkommen nach dem Fingerabdruck** (neu in 0.67): Wer sich mit dem Finger anmeldet oder entsperrt, wird
+  auf Monitor 1 mit Namen begrüßt – „Guten Morgen – Lena“. Drei Animationen: **Aurora**, **Konfetti**, **Scan**
+  (oder zufällig). Klick oder Taste schließt sofort.
+
+  | Aurora | Konfetti | Scan |
+  |---|---|---|
+  | ![Aurora](docs/willkommen-aurora.gif) | ![Konfetti](docs/willkommen-konfetti.gif) | ![Scan](docs/willkommen-scan.gif) |
+
+  **Geheimes Menü:** 5× schnell auf die Versionsnummer unten links klicken (oder Strg+Alt+Umschalt+G).
+  Dort: Begrüßung an/aus, Animation, eigene Überschrift, Ton, **eigene Namen je Person** (z. B. „Noah“ → „Chef“)
+  und **Ausprobieren**.
+
+  <img src="docs/geheimes-menue.png" alt="Geheimes Menü" width="420">
 - **Tastenkürzel** (Setup → Tastenkürzel: auf das Kürzel klicken, neue Tasten drücken – fertig;
   „Kein Kürzel“ entfernt es):
 
