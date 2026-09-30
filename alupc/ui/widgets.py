@@ -869,21 +869,22 @@ def paint_scene_thumb(p: QPainter, rect: QRectF, scene: dict | None, layout: str
     t = theme.current()
     p.save()
     p.setRenderHint(QPainter.Antialiasing)
+    # ruhiger Rahmen statt hartem Schwarz: Szenen-Hintergrund leicht in die Kartenfarbe gemischt
     bg = QColor((scene or {}).get("background", "#000000")) if scene else QColor(t.surface2)
-    if scene is None:
-        bg = t.mix(t.surface2, t.border, 0.5)
-    p.fillPath(rounded(rect, 8), bg)
+    bg = t.mix(bg.name(), t.surface2, 0.35 if scene else 0.5)
+    p.fillPath(rounded(rect, 10), bg)
     slots = (scene or {}).get("slots", [])
     lay = layout or (scene or {}).get("layout", "vollbild")
     for i, (x, y, w, h, _name) in enumerate(layout_slots(lay)):
         cell = QRectF(rect.left() + x * rect.width(), rect.top() + y * rect.height(),
-                      w * rect.width(), h * rect.height()).adjusted(2, 2, -2, -2)
+                      w * rect.width(), h * rect.height()).adjusted(3, 3, -3, -3)
         slot = slots[i] if i < len(slots) else None
         if slot:
             color = QColor(theme.SOURCE_COLORS.get(slot.get("type"), t.muted))
-            fill = QColor(color)
-            fill.setAlphaF(0.85)
-            p.fillPath(rounded(cell, 5), fill)
+            fill = QLinearGradient(cell.topLeft(), cell.bottomRight())
+            fill.setColorAt(0, color.lighter(112))
+            fill.setColorAt(1, color.darker(112))
+            p.fillPath(rounded(cell, 7), fill)
             side = min(cell.width(), cell.height()) * 0.45
             if side >= 8:
                 icons.paint(p, icons.SOURCE_ICONS.get(slot.get("type"), "monitor"),
@@ -894,7 +895,7 @@ def paint_scene_thumb(p: QPainter, rect: QRectF, scene: dict | None, layout: str
             color = QColor(palette[i % 4]) if numbers else QColor(t.muted)
             fill = QColor(color)
             fill.setAlphaF(0.85 if numbers else 0.18)
-            p.fillPath(rounded(cell, 5), fill)
+            p.fillPath(rounded(cell, 7), fill)
             if numbers and min(cell.width(), cell.height()) > 12:
                 p.setPen(QColor("#ffffff"))
                 p.setFont(font(9, QFont.Bold))
@@ -902,7 +903,7 @@ def paint_scene_thumb(p: QPainter, rect: QRectF, scene: dict | None, layout: str
             elif not numbers:
                 pen = QPen(QColor(t.muted), 1, Qt.DashLine)
                 p.setPen(pen)
-                p.drawPath(rounded(cell, 5))
+                p.drawPath(rounded(cell, 7))
     p.restore()
 
 
@@ -929,10 +930,14 @@ class SceneCard(HoverMixin, QAbstractButton):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
-        p.fillPath(rounded(r, 14), t.mix(t.surface, t.surface2, 0.9 * self._hover))
-        border = QColor(t.accent) if self.isChecked() else QColor(t.border)
-        p.setPen(QPen(border, 2 if self.isChecked() else 1))
-        p.drawPath(rounded(r, 14))
+        p.fillPath(rounded(r, 18), t.mix(t.surface, t.surface2, 0.6 * self._hover))
+        if self.isChecked():
+            tint = QColor(t.accent)
+            tint.setAlphaF(0.08)
+            p.fillPath(rounded(r, 18), tint)
+        border = QColor(t.accent) if self.isChecked() else t.mix(t.border, t.accent, 0.4 * self._hover)
+        p.setPen(QPen(border, 1.8 if self.isChecked() else 1))
+        p.drawPath(rounded(r, 18))
         thumb = QRectF(r.left() + 12, r.top() + 12, r.width() - 24, (r.width() - 24) * 9 / 16)
         paint_scene_thumb(p, thumb, self.scene)
         p.setPen(QColor(t.text))

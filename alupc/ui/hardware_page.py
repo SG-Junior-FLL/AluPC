@@ -293,7 +293,7 @@ class HardwarePage(QWidget):
 
     # ================================================================ Lüfter
     def _fan_box(self) -> QGroupBox:
-        box = QGroupBox("Lüfter & Temperaturen")
+        box = QGroupBox("Lüfter && Temperaturen")
         self.fan_lay = QVBoxLayout(box)
         self.fan_status = Banner("", "info")
         self.fan_lay.addWidget(self.fan_status)

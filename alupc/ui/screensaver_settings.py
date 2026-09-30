@@ -127,7 +127,7 @@ class ScreensaverSettings(QGroupBox):
         for items in rows.values():
             for label, field in items:
                 if id(field) not in added:
-                    form.addRow(label, field)
+                    form.addRow(label.replace("&", "&&"), field)
                     added.add(id(field))
         test_row = QHBoxLayout()
         test_row.addWidget(test)

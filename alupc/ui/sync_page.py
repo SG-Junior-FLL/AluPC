@@ -62,7 +62,7 @@ class SectionPicker(QDialog):
 def backup_group(page) -> QGroupBox:
     """Einstellungen in eine Datei sichern bzw. daraus laden (auch nur die Startseite)."""
     config = page.config
-    box = QGroupBox("Sichern & Laden")
+    box = QGroupBox("Sichern && Laden")
     lay = QVBoxLayout(box)
     info = QLabel("Alle Einstellungen als Datei · Sicherung oder zweiter PC")
     info.setWordWrap(True)

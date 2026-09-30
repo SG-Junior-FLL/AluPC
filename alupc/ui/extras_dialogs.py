@@ -82,7 +82,7 @@ class WheelDialog(QDialog):
         row = QHBoxLayout()
         save = button("Speichern", "check")
         save.clicked.connect(self.accept)
-        spin = button("Speichern & zeigen", "monitor", primary=True)
+        spin = button("Speichern && zeigen", "monitor", primary=True)
         spin.clicked.connect(self._spin)
         row.addStretch(1)
         row.addWidget(save)

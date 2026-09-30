@@ -8,7 +8,20 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.73.0)
+### Neu in dieser Version (0.74.0)
+- **Design-Tour durch alle Seiten und Fenster** – alles im neuen, ruhigen Stil:
+  - **Szenen:** Vorschauen weich eingefärbt mit runden Feldern statt knalliger Flächen mit harten schwarzen Rändern;
+    Szenen-Karten flacher mit runden Ecken.
+  - **Vorlagen („Neue Szene“):** drei Spalten statt zwei, Vorschaubilder mit runden Ecken, das Etikett „✦ ANIMIERT“
+    sitzt unten rechts und verdeckt keine Überschriften mehr.
+  - **Listen mit Häkchen** (z. B. „Startseite anpassen“): runde Häkchen-Kästchen wie im Rest von AluPC.
+  - **Reiter, Schieberegler, Setup-Liste:** Markierung in der Akzentfarbe statt Lila.
+  - **Setup → Darstellung** ragte rechts aus der Karte (sehr lange Einträge in der Liste „Szenenwechsel“) – behoben.
+  - **„&“ in Texten** erschien als Unterstrich („Speichern_zeigen“, „Sichern_Laden“, „Lüfter_Temperaturen“,
+    „Zeigen _Zeichnen“ bei den Tastenkürzeln) – behoben.
+- GitHub-Seite: neue Bilder von Startseite, Szenen, Setup, Fingerabdruck und „Startseite anpassen“.
+
+### Neu in Version 0.73.0
 - **Neues, frisches Design:** Startseite mit Karten wie ein modernes Kontrollzentrum – Symbol oben, Titel unten,
   mehr Karten pro Zeile. Was gerade läuft, ist **ganz in seiner Farbe** eingefärbt. Ruhige, neutrale Farben (kein
   Lila-Schimmer mehr), flache Karten mit feinem Rand, schlichte Bereichs-Überschriften, Seitenleiste mit ruhiger

@@ -566,6 +566,9 @@ class SetupPage(QWidget):
 
         tr = self.config["transition"]
         self.transition_combo = QComboBox()
+        # lange Einträge („Zoom (altes Bild …)“) dürfen die Karte nicht breiter machen
+        self.transition_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.transition_combo.setMinimumContentsLength(12)
         for key, label in TRANSITIONS.items():
             self.transition_combo.addItem(label, key)
         current = "schnitt" if not a.get("fade", True) else tr.get("type", "blende")
@@ -602,6 +605,8 @@ class SetupPage(QWidget):
         from .. import perf
 
         power = QComboBox()
+        power.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        power.setMinimumContentsLength(12)
         for key, label in perf.MODES.items():
             power.addItem(label, key)
         power.setCurrentIndex(max(0, power.findData(a.get("performance", "auto"))))
@@ -1010,7 +1015,7 @@ class SetupPage(QWidget):
                 self.config["sounds"] = new
 
             picker.changed.connect(save_event)
-            form.addRow(label + ":", picker)
+            form.addRow(label.replace("&", "&&") + ":", picker)
             self.sound_pickers[event] = picker
         more = QLabel("Eigene Töne: WAV, MP3, OGG, FLAC, M4A")
         more.setObjectName("Muted")
@@ -1028,7 +1033,7 @@ class SetupPage(QWidget):
         for action, label in HOTKEY_LABELS.items():
             btn = HotkeyButton(self.config["hotkeys"].get(action, ""), label)
             btn.changed.connect(lambda seq, a=action: self._save_hotkey(a, seq))
-            form.addRow(label + ":", btn)
+            form.addRow(label.replace("&", "&&") + ":", btn)
             self.hotkey_edits[action] = btn
         more = QLabel("Szenen: im Szenen-Editor · Eigene Kacheln: „Startseite anpassen“")
         more.setWordWrap(True)

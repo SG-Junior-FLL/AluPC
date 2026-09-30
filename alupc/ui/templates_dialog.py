@@ -48,21 +48,39 @@ HEADER = ("kategorie", "")
 
 
 def badge_image(img: QImage) -> None:
-    """Kleines „✦ ANIMIERT“-Schild oben links aufs Vorschaubild."""
+    """Kleines „✦“-Schild unten rechts aufs Vorschaubild (verdeckt keine Überschrift)."""
     p = QPainter(img)
     p.setRenderHint(QPainter.Antialiasing)
     font = QFont()
-    font.setPixelSize(10)
+    font.setPixelSize(9)
     font.setBold(True)
     p.setFont(font)
     text = "✦ ANIMIERT"
     w = p.fontMetrics().horizontalAdvance(text) + 12
+    x, y = img.width() - w - 6, img.height() - 22
     p.setPen(Qt.NoPen)
-    p.setBrush(QColor(0, 0, 0, 170))
-    p.drawRoundedRect(6, 6, w, 18, 9, 9)
+    p.setBrush(QColor(0, 0, 0, 150))
+    p.drawRoundedRect(x, y, w, 16, 8, 8)
     p.setPen(QColor("#fde68a"))
-    p.drawText(6, 6, w, 18, Qt.AlignCenter, text)
+    p.drawText(x, y, w, 16, Qt.AlignCenter, text)
     p.end()
+
+
+def round_image(img: QImage, radius: float = 12) -> QImage:
+    """Vorschaubild mit runden Ecken (passt zu den Karten im Rest von AluPC)."""
+    from PySide6.QtCore import QRectF
+    from PySide6.QtGui import QPainterPath
+
+    out = QImage(img.size(), QImage.Format_ARGB32_Premultiplied)
+    out.fill(Qt.transparent)
+    p = QPainter(out)
+    p.setRenderHint(QPainter.Antialiasing)
+    path = QPainterPath()
+    path.addRoundedRect(QRectF(0, 0, img.width(), img.height()), radius, radius)
+    p.setClipPath(path)
+    p.drawImage(0, 0, img)
+    p.end()
+    return out
 
 
 def header_image(title: str, count: int) -> QImage:
@@ -101,7 +119,7 @@ class TemplatesDialog(QDialog):
         self.controller = controller
         self.config = controller.config
         self.setWindowTitle("Neue Szene")
-        self.resize(1080, 700)
+        self.resize(1180, 740)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 20, 24, 18)
         lay.setSpacing(12)
@@ -139,7 +157,8 @@ class TemplatesDialog(QDialog):
         blank.setData(Qt.UserRole, EMPTY)
         blank.setData(Qt.UserRole + 1, "")
         blank.setData(Qt.UserRole + 2, "leer")
-        blank.setIcon(QIcon(QPixmap.fromImage(render_scene_preview(new_scene("Leer"), THUMB.width(), THUMB.height()))))
+        blank.setIcon(QIcon(QPixmap.fromImage(round_image(render_scene_preview(new_scene("Leer"), THUMB.width(),
+                                                                              THUMB.height())))))
         self.list.addItem(blank)
         entries = [("scene", k, v[0], v[1], TEMPLATE_CATEGORIES.get(k, "")) for k, v in SCENE_TEMPLATES.items()]
         entries += [("design", k, v[0], v[1], CATEGORIES.get(k, "")) for k, v in DESIGNS.items()]
@@ -172,14 +191,15 @@ class TemplatesDialog(QDialog):
                 render_scene_preview(build_template(key, {}), THUMB.width(), THUMB.height())
             if animated:
                 badge_image(img)
-            item.setIcon(QIcon(QPixmap.fromImage(img)))
+            item.setIcon(QIcon(QPixmap.fromImage(round_image(img))))
             self.list.addItem(item)
-        body.addWidget(self.list, 3)
+        body.addWidget(self.list, 5)
 
         side = QWidget()
         side.setObjectName("Card")
         side.setAttribute(Qt.WA_StyledBackground, True)
-        side.setMinimumWidth(320)
+        side.setMinimumWidth(340)
+        side.setMaximumWidth(380)
         col = QVBoxLayout(side)
         col.setContentsMargins(16, 16, 16, 16)
         self.heading = QLabel()
@@ -212,7 +232,7 @@ class TemplatesDialog(QDialog):
         col.addLayout(form)
         col.addStretch(1)
         col.addWidget(self.next_btn)
-        body.addWidget(side, 2)
+        body.addWidget(side, 0)
         lay.addLayout(body, 1)
 
         self._redraw = QTimer(self, singleShot=True, interval=150)

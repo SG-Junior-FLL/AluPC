@@ -308,7 +308,11 @@ QCheckBox::indicator:checked {{ background: {grad}; border-color: transparent;
 QListWidget {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 12px; padding: 4px; }}
 QListWidget::item {{ padding: 7px 8px; border-radius: 8px; }}
 QListWidget::item:hover {{ background: {hover}; }}
-QListWidget::item:selected {{ background: {t.soft(a1, 0.26)}; color: {t.text}; }}
+QListWidget::item:selected {{ background: {t.soft(a1, 0.16 if t.dark else 0.10)}; color: {t.text}; }}
+QListWidget::indicator, QTreeWidget::indicator {{ width: 17px; height: 17px; border-radius: 5px;
+    border: 1px solid {t.border}; background: {t.surface2}; }}
+QListWidget::indicator:checked, QTreeWidget::indicator:checked {{ background: {grad}; border-color: transparent;
+    {f'image: url("{check_image}");' if check_image else ''} }}
 QListWidget#SetupNav {{ background: {card}; border: 1px solid {edge}; border-radius: 18px; padding: 6px; }}
 QListWidget#SetupNav::item {{ padding: 8px 10px; margin: 1px 0; border-radius: 11px; border-left: 3px solid transparent; }}
 QListWidget#SetupNav::item:selected {{ background: {t.soft(a1, 0.16 if t.dark else 0.10)}; border-left: 3px solid {a1};
@@ -316,7 +320,7 @@ QListWidget#SetupNav::item:selected {{ background: {t.soft(a1, 0.16 if t.dark el
 
 QTabWidget::pane {{ border: 1px solid {edge}; border-radius: 12px; top: -1px; background: {t.surface}; }}
 QTabBar::tab {{ background: transparent; padding: 8px 14px; margin-right: 4px; border-radius: 9px; color: {t.muted}; }}
-QTabBar::tab:selected {{ background: {t.soft(a1, 0.22)}; color: {t.text}; border-bottom: 2px solid {a2}; }}
+QTabBar::tab:selected {{ background: {t.soft(a1, 0.14)}; color: {t.text}; border-bottom: 2px solid {a1}; }}
 
 QScrollArea {{ background: transparent; border: none; }}
 QScrollArea > QWidget > QWidget {{ background: transparent; }}
@@ -331,7 +335,7 @@ QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
 
 QSlider::groove:horizontal {{ height: 6px; background: {t.surface2}; border-radius: 3px; }}
 QSlider::sub-page:horizontal {{ background: {grad_h}; border-radius: 3px; }}
-QSlider::handle:horizontal {{ background: #ffffff; border: 2px solid {a2}; width: 14px; height: 14px;
+QSlider::handle:horizontal {{ background: #ffffff; border: 2px solid {a1}; width: 14px; height: 14px;
     margin: -6px 0; border-radius: 9px; }}
 
 QProgressBar {{ background: {t.surface2}; border: none; border-radius: 5px; height: 10px; text-align: center; }}

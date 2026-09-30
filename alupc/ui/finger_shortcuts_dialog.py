@@ -46,7 +46,7 @@ class FingerShortcutsDialog(QDialog):
                 combo.addItem(current[slot], current[slot])  # z. B. gelöschte Szene: nicht still verlieren
             combo.setCurrentIndex(max(0, combo.findData(current.get(slot, ""))))
             self.combos[slot] = combo
-            form.addRow(f"{person} · {finger}", combo)
+            form.addRow(f"{person} · {finger}".replace("&", "&&"), combo)
         if not fingers:
             empty = QLabel("Noch keine Finger angelernt (Seite Fingerabdruck → Finger anlernen).")
             empty.setWordWrap(True)

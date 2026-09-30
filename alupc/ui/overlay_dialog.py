@@ -545,7 +545,7 @@ class OverlayDialog(QDialog):
             edit = QLineEdit(it.get(key, ""))
             edit.setPlaceholderText(placeholder)
             edit.textChanged.connect(lambda v: self._set(iid, **{key: v}))
-            form.addRow(label, edit)
+            form.addRow(label.replace("&", "&&"), edit)
 
         def check(key: str, label: str, default: bool = False):
             box = QCheckBox(label)
