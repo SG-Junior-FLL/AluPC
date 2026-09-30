@@ -101,6 +101,9 @@ def main(argv=None) -> int:
     if args.befehl and args.befehl != "zeigen":
         print("AluPC läuft nicht – Befehl wird nach dem Start ausgeführt.", file=sys.stderr)
 
+    from . import bug_report
+
+    bug_report.install()  # Programmfehler/Abstürze mitschreiben (für „Fehlerbericht“)
     from .config import Config
     from .controller import Controller
     from .hotkeys import HotkeyManager
@@ -225,8 +228,14 @@ def self_test(log_path: str) -> int:
         window = MainWindow(controller, hotkeys)
         hotkeys.attach(window)
         controller.pip = PipWindow(controller)
-        controller.show_welcome("Selbsttest", "konfetti")  # Begrüßung (geheimes Menü)
+        controller.show_welcome("Selbsttest", style="konfetti")  # Begrüßung (geheimes Menü)
         controller._welcome.finish()
+        for typ in ("zufall", "wetter", "umfrage"):  # neue Seiten im fertigen Paket vorhanden?
+            controller.show_source({"type": typ}, remember=False)
+            kind = type(controller.output.content).__name__
+            lines.append(f"Seite {typ}: {kind}")
+            if kind == "TextSource":  # = Fehlermeldung statt Seite (Modul fehlt im Paket?)
+                raise RuntimeError(f"Seite {typ} fehlt im Paket")
         controller.show_source({"type": "text", "text": "Selbsttest"})
         controller.show_source({"type": "clock"})
         controller.show_source({"type": "website", "url": "about:blank"})

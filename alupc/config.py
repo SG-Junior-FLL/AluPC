@@ -70,8 +70,16 @@ DEFAULTS: dict = {
     "hotkeys": dict(DEFAULT_HOTKEYS),
     "privacy": {"text": "", "image": ""},
     "pip": {"opacity": 1.0, "width": 480, "fps": 20},
+    # Wetter & Uhr: Ort (name, lat, lon, label – per Suche bei Open-Meteo)
+    "weather": {},
+    # Glücksrad: Namen (leer = Personen vom Fingerabdruck), Gezogene bis zum Neustart herausnehmen
+    "wheel": {"names": [], "remove_picked": False},
+    # Abstimmung: zuletzt gestellte Frage (zum schnellen Wiederholen)
+    "poll": {"question": "", "options": []},
+    # Finger als Schnelltaste (Modul am USB-Seriell-Adapter): Platz → Befehl
+    "finger_shortcuts": {"on": False, "map": {}},
     # Begrüßung nach der Anmeldung mit dem Finger (geheimes Menü): Stil, eigener Text, eigene Namen je Person
-    "welcome": {"on": True, "style": "aurora", "text": "", "sound": True, "names": {}},
+    "welcome": {"on": True, "style": "aurora", "text": "", "sound": True, "names": {}, "birthdays": {}},
     # Timer (Countdown/Stoppuhr): Voreinstellung für Kachel und Befehle
     "timer": {"minutes": 5, "seconds": 0, "mode": "countdown", "finished_text": "Zeit ist um!",
               "warn_colors": True, "size": 30},

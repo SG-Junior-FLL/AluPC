@@ -8,7 +8,26 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.67.0)
+### Neu in dieser Version (0.68.0)
+- **Geburtstage:** im geheimen Menü je Person (TT.MM.). Am Tag: Konfetti und „Alles Gute zum Geburtstag!“.
+- **Finger als Schnelltaste** (Modul am USB-Seriell-Adapter): Seite Fingerabdruck → „Finger als Schnelltaste“.
+  Jeder angelernte Finger kann einen Befehl auslösen (Schwarz, Szene, Glücksrad, Computer sperren …).
+  Nur bei entsperrtem PC; ein Befehl kommt erst beim erneuten Auflegen (nicht, wenn der Finger noch vom
+  Entsperren draufliegt). AluPC lässt das Modul in Ruhe, solange es selbst anlernt oder testet.
+  *Ehrlich:* mit einem nachgebauten Modul getestet, nicht mit dem echten ZW101. Unter Linux kann eine
+  gleichzeitige sudo-Abfrage per Finger mit der Schnelltaste kollidieren (dann einfach nochmal auflegen).
+- **Abstimmung per Handy** (neue Kachel): Frage + 2–6 Antworten → Monitor 2 zeigt QR-Code und Live-Balken.
+  Abstimmen ohne App und ohne den Code der Handy-Steuerung. Beenden zeigt das Ergebnis.
+  *Ehrlich:* Wer die Browserdaten löscht, kann nochmal abstimmen.
+- **Glücksrad** (neue Kachel): Namen eintragen oder die Personen vom Fingerabdruck nehmen; fair gezogen;
+  „Gezogene herausnehmen“ = jeder kommt einmal dran.
+- **Wetter & Uhr** (neue Kachel): Uhr, Wetter jetzt und 3 Tage (Open-Meteo, kostenlos, ohne Anmeldung).
+  Ort über den Pfeil der Kachel. Der echte Abruf wird im CI geprüft.
+- **Fehlerbericht per Knopf:** Setup → „Fehlerbericht …“ → ZIP auf dem Desktop (Codes/PINs geschwärzt).
+  AluPC schreibt dafür ab jetzt Programmfehler und Abstürze in ein Protokoll mit.
+- Begrüßung: Der Name hat einen leichten Schatten (besser lesbar über den Farbwolken).
+
+### Neu in Version 0.67.0
 - **Willkommen nach dem Fingerabdruck:** Wer sich mit dem Finger anmeldet oder entsperrt, bekommt auf Monitor 1
   eine Vollbild-Animation mit Namen („Guten Morgen – Lena“). Klick oder Taste schließt sie sofort.
   Drei Stile: **Aurora**, **Konfetti**, **Scan** (oder zufällig).

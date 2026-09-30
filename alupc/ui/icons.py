@@ -327,6 +327,34 @@ def _draw(name: str, p: QPainter, color: QColor):
         p.drawEllipse(QPointF(19, 16), 0.9, 0.9)
         p.drawEllipse(QPointF(15.5, 19.5), 0.6, 0.6)
         p.setBrush(Qt.NoBrush)
+    elif name == "poll":  # Balken einer Abstimmung
+        for i, length in enumerate((14, 9, 17)):
+            p.drawRoundedRect(QRectF(3.5, 4.5 + i * 5.5, length, 3.5), 1.5, 1.5)
+    elif name == "wheel":  # Glücksrad
+        p.drawEllipse(QPointF(11, 12), 8.5, 8.5)
+        for i in range(4):
+            a = math.radians(i * 45)
+            p.drawLine(QPointF(11 - 8.5 * math.cos(a), 12 - 8.5 * math.sin(a)),
+                       QPointF(11 + 8.5 * math.cos(a), 12 + 8.5 * math.sin(a)))
+        path = QPainterPath(QPointF(19, 12))
+        path.lineTo(QPointF(22.5, 10))
+        path.lineTo(QPointF(22.5, 14))
+        path.closeSubpath()
+        p.drawPath(path)
+    elif name == "weather":  # Sonne hinter Wolke
+        p.drawEllipse(QPointF(8.5, 8.5), 3.5, 3.5)
+        for i in range(5):
+            a = math.radians(180 + i * 45)
+            p.drawLine(QPointF(8.5 + 5.2 * math.cos(a), 8.5 + 5.2 * math.sin(a)),
+                       QPointF(8.5 + 7 * math.cos(a), 8.5 + 7 * math.sin(a)))
+        cloud = QPainterPath()
+        cloud.moveTo(QPointF(8, 20))
+        cloud.lineTo(QPointF(18, 20))
+        cloud.arcTo(QRectF(14.5, 12.5, 7.5, 7.5), -90, 180)
+        cloud.arcTo(QRectF(8.5, 9.5, 8.5, 8.5), 20, 140)
+        cloud.arcTo(QRectF(5, 14, 6, 6), 90, 180)
+        p.setBrush(QColor(0, 0, 0, 0))
+        p.drawPath(cloud)
     elif name == "star":
         path = QPainterPath()
         for i in range(10):

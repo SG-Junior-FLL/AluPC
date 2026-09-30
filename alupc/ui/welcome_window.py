@@ -52,7 +52,8 @@ class WelcomeWindow(QWidget):
     TITLE = "AluPC – Willkommen"
     finished = Signal()
 
-    def __init__(self, name: str, style: str = "aurora", text: str = "", sound: bool = False, controller=None):
+    def __init__(self, name: str, style: str = "aurora", text: str = "", sound: bool = False, controller=None,
+                 birthday: bool = False):
         super().__init__(None, Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setWindowTitle(self.TITLE)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -61,7 +62,8 @@ class WelcomeWindow(QWidget):
         if style not in STYLES or style == "zufall":
             style = random.choice([k for k in STYLES if k != "zufall"])
         self.style, self.name = style, " ".join(name.split())[:40]
-        self.headline = text.strip() or greeting()
+        self.birthday = birthday
+        self.headline = "Alles Gute zum Geburtstag!" if birthday else (text.strip() or greeting())
         self.controller, self.sound = controller, sound
         self.t = 0.0  # Sekunden seit Start (Tests setzen das direkt)
         rng = random.Random(len(self.name) * 7919 + 17)
@@ -345,7 +347,7 @@ class WelcomeWindow(QWidget):
 class WelcomeWatcher(QObject):
     """Meldet eine neue Anmeldung mit dem Finger: `greet(Anzeigename)`."""
 
-    greet = Signal(str)
+    greet = Signal(str, str)  # Anzeigename, Person (für Geburtstage)
     FRESH = 90.0  # so alt darf ein Eintrag höchstens sein (Sekunden)
 
     def __init__(self, config, reader=last_login, parent=None, interval: int = 2000):
@@ -387,4 +389,4 @@ class WelcomeWatcher(QObject):
             person = person_for_slot(slot)
         except Exception:  # noqa: BLE001
             person = ""
-        self.greet.emit(display_name(self.config, person))
+        self.greet.emit(display_name(self.config, person), person)

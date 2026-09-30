@@ -527,6 +527,22 @@ class MainWindow(QMainWindow):
         board_menu = QMenu(self)
         board_menu.aboutToShow.connect(lambda: self._fill_board_menu(board_menu))
         self.t_board.set_menu(board_menu, split=True)
+        # Wetter & Uhr, Abstimmung, Glücksrad
+        self.t_weather = self.tiles["wetter"]
+        self.t_weather.activated.connect(c.show_weather)
+        weather_menu = QMenu(self)
+        weather_menu.aboutToShow.connect(lambda: self._fill_weather_menu(weather_menu))
+        self.t_weather.set_menu(weather_menu, split=True)
+        self.t_poll = self.tiles["umfrage"]
+        self.t_poll.activated.connect(self._poll_clicked)
+        poll_menu = QMenu(self)
+        poll_menu.aboutToShow.connect(lambda: self._fill_poll_menu(poll_menu))
+        self.t_poll.set_menu(poll_menu, split=True)
+        self.t_wheel = self.tiles["zufall"]
+        self.t_wheel.activated.connect(c.spin_wheel)
+        wheel_menu = QMenu(self)
+        wheel_menu.aboutToShow.connect(lambda: self._fill_wheel_menu(wheel_menu))
+        self.t_wheel.set_menu(wheel_menu, split=True)
         # Handy: eigene Kachel je Weg – Klick startet, Pfeil zeigt Optionen und die Handy-Seite
         self.t_airplay, self.t_remote = self.tiles["airplay"], self.tiles["handy_remote"]
         self.handy_menus = {}
@@ -870,6 +886,70 @@ class MainWindow(QMainWindow):
         col = theme.current().text
         menu.addAction(icons.icon("edit", col, 18), "Zeichnen öffnen …", self.open_presenter)
         menu.addAction(icons.icon("trash", col, 18), "Tafel wischen (Zeichnungen löschen)", c.laser.clear_strokes)
+
+    # ------------------------------------------------------------ Wetter, Abstimmung, Glücksrad
+    def _fill_weather_menu(self, menu):
+        from .extras_dialogs import ask_weather_place
+
+        menu.clear()
+        c = self.controller
+        col = theme.current().text
+        place = c.config["weather"].get("label", "")
+        if place:
+            info = menu.addAction(place)
+            info.setEnabled(False)
+        menu.addAction(icons.icon("edit", col, 18), "Ort ändern …", lambda: ask_weather_place(c, self))
+        menu.addAction(icons.icon("refresh", col, 18), "Jetzt aktualisieren", lambda: c.weather.refresh(force=True))
+
+    def open_poll_dialog(self):
+        from .extras_dialogs import PollDialog
+
+        PollDialog(self.controller, self).exec()
+
+    def _poll_clicked(self):
+        c = self.controller
+        if c.cast.poll is not None and (c.content or {}).get("type") != "umfrage":
+            c.show_source({"type": "umfrage"}, remember=False)  # laufende Abstimmung wieder zeigen
+        else:
+            self.open_poll_dialog()
+
+    def _fill_poll_menu(self, menu):
+        menu.clear()
+        c = self.controller
+        col = theme.current().text
+        poll = c.cast.poll
+        menu.addAction(icons.icon("plus", col, 18), "Neue Abstimmung …", self.open_poll_dialog)
+        if poll is None:
+            return
+        menu.addSeparator()
+        info = menu.addAction(f"„{poll.question}“ · {poll.total()} Stimmen")
+        info.setEnabled(False)
+        menu.addAction(icons.icon("monitor", col, 18), "Auf Monitor 2 zeigen",
+                       lambda: c.show_source({"type": "umfrage"}, remember=False))
+        if poll.open:
+            menu.addAction(icons.icon("check", col, 18), "Beenden – Ergebnis zeigen", lambda: c.poll_action("ende"))
+        else:
+            menu.addAction(icons.icon("play", col, 18), "Weiter abstimmen", lambda: c.poll_action("weiter"))
+        menu.addAction(icons.icon("refresh", col, 18), "Stimmen löschen", lambda: c.poll_action("neu"))
+        menu.addAction(icons.icon("x", col, 18), "Abstimmung schließen", lambda: c.poll_action("aus"))
+
+    def _fill_wheel_menu(self, menu):
+        from .extras_dialogs import WheelDialog
+
+        menu.clear()
+        c = self.controller
+        col = theme.current().text
+        menu.addAction(icons.icon("play", col, 18), "Drehen", c.spin_wheel)
+        menu.addAction(icons.icon("edit", col, 18), "Namen bearbeiten …", lambda: WheelDialog(c, self).exec())
+        act = menu.addAction("Gezogene herausnehmen")
+        act.setCheckable(True)
+        act.setChecked(bool(c.config["wheel"].get("remove_picked")))
+
+        def toggle(on):
+            c.config["wheel"] = {**c.config["wheel"], "remove_picked": on}
+            c.wheel_left = None
+
+        act.toggled.connect(toggle)
 
     # ------------------------------------------------------------ Overlays
     def _overlays_clicked(self):
@@ -1494,11 +1574,15 @@ class MainWindow(QMainWindow):
             (self.t_text, typ == "text"),
             (self.t_music, typ == "nowplaying"),
             (self.t_board, typ == "whiteboard"),
+            (self.t_weather, typ == "wetter"),
+            (self.t_wheel, typ == "zufall"),
             (self.t_media, typ in ("image", "video", "slideshow")),
             (self.t_scenes, typ == "scene"),
             (self.t_airplay, typ == "airplay" or (c.mode == "desktop" and c.desktop_note.startswith("iPhone"))),
         ]:
             tile.set_state(on, badge="AKTIV" if on else "")
+        poll = c.cast.poll
+        self.t_poll.set_state(poll is not None, badge="" if poll is None else ("LÄUFT" if poll.open else "ERGEBNIS"))
         remote_on = c.cast.running()  # Handy-Steuerung: „LÄUFT“, solange Handys verbinden können
         self.t_remote.set_state(remote_on or typ == "cast", badge="LÄUFT" if remote_on else "")
         saver_on = c.screensaver.active

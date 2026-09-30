@@ -538,3 +538,75 @@ def test_welcome_record_and_read(tmp_path):
         assert welcome.record_login("noah", 5, now=300.0, run_dir=run) is None
     assert welcome.last_login("jemand", run_dir=run, home=str(tmp_path / "leer")) is None
     assert not list(home.rglob("*.tmp"))
+
+
+def test_finger_shortcuts(fake):
+    """Finger als Schnelltaste: neu aufgelegter Finger → Befehl (einmal); nicht bei gesperrtem PC und nicht, wenn
+    der Finger vom Entsperren noch drauf liegt; keine Abfrage, während AluPC das Modul selbst benutzt."""
+    import time
+
+    from alupc.finger_shortcuts import FingerShortcuts
+
+    fake.library = {3: "noah", 4: "lena"}
+    config = {"finger_shortcuts": {"on": True, "map": {"3": "schwarz", "4": "szene:Pause"}}}
+    state = {"locked": False}
+    got = []
+    fs = FingerShortcuts(config, locked=lambda: state["locked"], port=lambda: (fake.port, 57600), poll=0.05)
+    fs.triggered.connect(got.append)
+
+    from PySide6.QtCore import QCoreApplication
+
+    app = QCoreApplication.instance() or QCoreApplication([])
+
+    def pause(seconds):  # Signal kommt (wie in AluPC) über die Qt-Ereignisschleife in diesen Thread
+        end = time.time() + seconds
+        while time.time() < end:
+            app.processEvents()
+            time.sleep(0.02)
+
+    def wait(cond, seconds=4):
+        end = time.time() + seconds
+        while not cond() and time.time() < end:
+            pause(0.05)
+        return cond()
+
+    fake.finger = "noah"  # liegt schon beim Start drauf → nichts
+    fs.apply()
+    assert fs.running()
+    pause(0.6)
+    assert got == []
+    fake.finger = None
+    pause(1.0)
+    fake.finger = "noah"
+    assert wait(lambda: got == ["schwarz"])
+    pause(0.5)
+    assert got == ["schwarz"]  # liegen lassen → nicht nochmal
+    fake.finger = None
+    pause(1.0)
+    fake.finger = "lena"
+    assert wait(lambda: got == ["schwarz", "szene:Pause"])
+    fake.finger = None
+    pause(1.0)
+    state["locked"] = True  # Sperrbildschirm: Modul gehört der Anmeldung
+    fake.finger = "noah"
+    pause(0.8)
+    assert got == ["schwarz", "szene:Pause"]
+    state["locked"] = False  # entsperrt, Finger liegt noch → nichts
+    pause(2.8)
+    assert got == ["schwarz", "szene:Pause"]
+    fake.finger = None
+    # AluPC benutzt das Modul selbst (Anlernen/Test-Scan) → Schnelltasten warten
+    lock = zw._port_lock(fake.port)
+    lock.acquire()
+    pause(0.3)
+    fake.finger = "noah"
+    pause(0.6)
+    assert got == ["schwarz", "szene:Pause"]
+    lock.release()
+    fake.finger = None
+    pause(1.0)
+    fake.finger = "noah"
+    assert wait(lambda: len(got) == 3, 6)
+    config["finger_shortcuts"]["on"] = False
+    fs.apply()
+    assert not fs.running()

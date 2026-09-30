@@ -1529,6 +1529,18 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             from .whiteboard import WhiteboardSource
 
             return WhiteboardSource(cfg, parent)
+        if t == "umfrage":
+            from .poll_source import PollSource
+
+            return PollSource(cfg, parent)
+        if t == "zufall":
+            from .wheel import WheelSource
+
+            return WheelSource(cfg, parent)
+        if t == "wetter":
+            from .weather import WeatherSource
+
+            return WeatherSource(cfg, parent)
         if t in ("image", "video", "slideshow"):  # Dual-Boot: Pfad vom anderen System hier finden
             from .platform.shared_paths import resolve_cfg
 

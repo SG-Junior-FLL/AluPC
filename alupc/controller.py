@@ -28,6 +28,16 @@ class Controller(QObject):
         self.display = create_display_backend()
         self.windows = create_window_backend()
         self.fingerprint = create_fingerprint_backend()
+        # Finger als Schnelltaste: Befehl kommt aus einem Hintergrund-Thread → Qt stellt ihn in den GUI-Thread
+        from .finger_shortcuts import FingerShortcuts
+
+        self.finger_shortcuts = FingerShortcuts(config, self)
+        self.finger_shortcuts.triggered.connect(self.run_command)
+        self.finger_shortcuts.apply()
+        from .weather import service as weather_service
+
+        self.weather = weather_service(config)
+        self.wheel_left: list[str] | None = None  # Glücksrad: noch nicht gezogene Namen (bei „Gezogene raus“)
         self._scene_volume: dict | None = None
         self._mirror_hint_shown = False
         self._system_main: str | None = None
@@ -1169,6 +1179,10 @@ class Controller(QObject):
             "overlays_an": lambda: self.set_overlays(True),
             "overlays_aus": lambda: self.set_overlays(False),
             "whiteboard": self.show_whiteboard,
+            "wetter": self.show_weather,
+            "gluecksrad": self.spin_wheel,
+            "umfrage_zeigen": lambda: self.show_source({"type": "umfrage"}, remember=False),
+            "umfrage_ende": lambda: self.poll_action("ende"),
         }
         action = actions.get(command)
         if action:
@@ -1393,21 +1407,95 @@ class Controller(QObject):
             self.pip.toggle()
             self.changed.emit()
 
-    def show_welcome(self, name: str, style: str | None = None) -> None:
-        """„Willkommen, Lena!“ auf Monitor 1 (nach Fingerabdruck oder zum Ausprobieren im geheimen Menü)."""
+    # ------------------------------------------------------------ Wetter, Glücksrad, Abstimmung
+    def show_weather(self) -> None:
+        self.show_source({"type": "wetter"})
+        if "lat" not in self.config["weather"]:
+            self.message.emit("Wetter: Ort einstellen (Kachel „Wetter & Uhr“ → Pfeil → „Ort ändern …“).")
+
+    def wheel_names(self) -> list[str]:
+        from .wheel import clean_names, default_names
+
+        return clean_names(self.config["wheel"].get("names") or []) or default_names()
+
+    def spin_wheel(self) -> None:
+        """Glücksrad auf Monitor 2 zeigen und drehen (läuft es schon: nochmal drehen)."""
+        from .wheel import WheelSource
+
+        names = self.wheel_names()
+        if self.config["wheel"].get("remove_picked"):
+            if not self.wheel_left or not set(self.wheel_left) <= set(names):
+                self.wheel_left = list(names)
+            names = self.wheel_left
+        widget = self.output.content if self.mode == "content" else None
+        if not isinstance(widget, WheelSource) or widget.spinning:
+            if isinstance(widget, WheelSource):
+                return  # dreht gerade
+            self.show_source({"type": "zufall", "names": names})
+            widget = self.output.content
+            if not isinstance(widget, WheelSource):
+                return
+        elif widget.names != names:
+            widget.set_names(names)
+        if not getattr(widget, "_alupc_connected", False):
+            widget.finished.connect(self._wheel_done)
+            widget._alupc_connected = True
+        widget.spin()
+
+    def _wheel_done(self, name: str) -> None:
+        if self.config["sounds"].get("enabled", True):
+            self.sounds.play("builtin:ding")
+        if self.config["wheel"].get("remove_picked") and self.wheel_left and name in self.wheel_left:
+            self.wheel_left.remove(name)
+            if not self.wheel_left:
+                self.wheel_left = None
+                self.message.emit("Glücksrad: alle waren dran – beim nächsten Drehen sind wieder alle dabei.")
+
+    def start_poll(self, question: str, options: list[str]) -> None:
+        from .polls import Poll
+
+        poll = Poll(question, options)
+        self.cast.poll = poll
+        self.config["poll"] = {"question": poll.question, "options": poll.options}
+        self.show_source({"type": "umfrage"}, remember=False)
+        self.changed.emit()
+
+    def poll_action(self, action: str) -> None:
+        """„ende“ (Ergebnis zeigen), „weiter“ (wieder abstimmen), „neu“ (Stimmen löschen), „aus“ (Abstimmung weg)."""
+        poll = self.cast.poll
+        if poll is None:
+            return
+        if action == "ende":
+            poll.close()
+        elif action == "weiter":
+            poll.reopen()
+        elif action == "neu":
+            poll.reset()
+        elif action == "aus":
+            self.cast.poll = None
+            if self.mode == "content" and (self.content or {}).get("type") == "umfrage":
+                self.extend()  # Monitor 2 wieder normaler Desktop
+        self.changed.emit()
+
+    def show_welcome(self, name: str, person: str = "", style: str | None = None) -> None:
+        """„Willkommen, Lena!“ auf Monitor 1 (nach Fingerabdruck oder zum Ausprobieren im geheimen Menü).
+        Hat die Person heute Geburtstag: Konfetti und „Alles Gute zum Geburtstag!“."""
         from .ui.welcome_window import WelcomeWindow
+        from .welcome import is_birthday
 
         cfg = self.config["welcome"]
         if self._welcome is not None:
             self._welcome.finish()
-        window = WelcomeWindow(name, style or cfg.get("style", "aurora"), cfg.get("text", ""),
-                               bool(cfg.get("sound", True)), self)
+        birthday = is_birthday(self.config, person)
+        window = WelcomeWindow(name, "konfetti" if birthday else (style or cfg.get("style", "aurora")),
+                               cfg.get("text", ""), bool(cfg.get("sound", True)), self, birthday=birthday)
         self._welcome = window
         window.finished.connect(lambda: setattr(self, "_welcome", None) if self._welcome is window else None)
         window.play()
 
     def shutdown(self) -> None:
         self._timer_watch.stop()
+        self.finger_shortcuts.stop()
         self._stop_handy_window()
         self.laser.close()
         self.overlay_window.shutdown()

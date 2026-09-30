@@ -113,3 +113,45 @@ def display_name(config, person: str) -> str:
     """Eigener Begrüßungsname (geheimes Menü) – sonst der Name der Person."""
     names = config["welcome"].get("names") or {}
     return str(names.get(person) or person or "").strip()
+
+
+# --------------------------------------------------------------------------- Geburtstage
+def parse_birthday(text: str) -> str | None:
+    """„24.12.“, „24.12“ oder „24.12.2010“ → „12-24“. Leer → "". Ungültig → None."""
+    import re
+
+    text = (text or "").strip()
+    if not text:
+        return ""
+    m = re.fullmatch(r"(\d{1,2})\.(\d{1,2})\.?(\d{2,4})?", text)
+    if not m:
+        return None
+    day, month = int(m.group(1)), int(m.group(2))
+    days = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    if not (1 <= month <= 12 and 1 <= day <= days[month - 1]):
+        return None
+    return f"{month:02d}-{day:02d}"
+
+
+def format_birthday(value: str) -> str:
+    """„12-24“ → „24.12.“"""
+    try:
+        month, day = value.split("-")
+        return f"{int(day):02d}.{int(month):02d}."
+    except (ValueError, AttributeError):
+        return ""
+
+
+def is_birthday(config, person: str, today=None) -> bool:
+    import datetime
+
+    value = (config["welcome"].get("birthdays") or {}).get(person or "", "")
+    if not value:
+        return False
+    today = today or datetime.date.today()
+    if value == "02-29" and today.month == 2 and today.day == 28:  # kein Schaltjahr → am 28. feiern
+        try:
+            datetime.date(today.year, 2, 29)
+        except ValueError:
+            return True
+    return value == f"{today.month:02d}-{today.day:02d}"

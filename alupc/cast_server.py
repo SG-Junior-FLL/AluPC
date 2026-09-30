@@ -37,7 +37,8 @@ ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirm
                     "timer_neustart", "timer_zeigen", "video_pause", "video_vor", "video_zurueck",
                     "rgb_farbe", "rgb_monitor2", "rgb_aus", "zeichnung_zurueck", "kamera", "airplay", "qr",
                     "timer_stopp", "ablauf_weiter", "ablauf_zurueck",
-                    "musik_zeigen", "musik_pause", "musik_weiter", "musik_zurueck", "overlays"}
+                    "musik_zeigen", "musik_pause", "musik_weiter", "musik_zurueck", "overlays", "gluecksrad", "wetter",
+                    "umfrage_zeigen", "umfrage_ende"}
 MAX_FAILS = 10
 BLOCK_SECONDS = 60
 
@@ -172,6 +173,7 @@ class CastServer(QObject):
         self.preview_wanted = 0.0
         self._fails: dict[str, list[float]] = {}
         self._lock = threading.Lock()
+        self.poll = None  # laufende Abstimmung (polls.Poll) – Handys stimmen ohne Steuer-Code ab
 
     # ------------------------------------------------------------ Einstellungen
     def settings(self) -> dict:
@@ -222,6 +224,10 @@ class CastServer(QObject):
 
     def running(self) -> bool:
         return self.httpd is not None
+
+    def poll_url(self) -> str:
+        base = f"http://{local_ip(self.settings().get('ip', ''))}:{self.port or self.settings()['port']}/"
+        return base + (f"abstimmung?u={self.poll.token}" if self.poll else "abstimmung")
 
     # ------------------------------------------------------------ Start/Stopp
     def start(self) -> bool:
@@ -322,6 +328,15 @@ def _make_handler(server: CastServer):
             path = urlparse(self.path).path
             if path in ("/", "/index.html"):
                 self._send(200, PAGE.encode(), "text/html; charset=utf-8")
+            elif path == "/abstimmung":
+                from .polls import POLL_PAGE
+
+                self._send(200, POLL_PAGE.encode(), "text/html; charset=utf-8")
+            elif path == "/api/umfrage":
+                q = parse_qs(urlparse(self.path).query)
+                poll = self._poll(q.get("u", [""])[0])
+                if poll is not None:
+                    self._json(200, poll.public(q.get("v", [""])[0]))
             elif path == "/api/status":
                 if self._auth():
                     self._json(200, server.snapshot)
@@ -350,8 +365,31 @@ def _make_handler(server: CastServer):
             self._json(423, {"error": "In AluPC ausgeschaltet (Setup → Handy & Kamera)"})
             return False
 
+        def _poll(self, token: str):
+            """Laufende Abstimmung zu diesem Stichwort – sonst 404 (Stichwort statt Steuer-Code)."""
+            poll = server.poll
+            if not server.running() or poll is None or not hmac.compare_digest(token.encode(), poll.token.encode()):
+                self._json(404, {"error": "Keine laufende Abstimmung"})
+                return None
+            return poll
+
         def do_POST(self):
             u = urlparse(self.path)
+            if u.path == "/api/umfrage":  # Abstimmen: ohne Steuer-Code, nur mit dem Stichwort der Abstimmung
+                try:
+                    data = self._body_json()
+                    poll = self._poll(str(data.get("u", "")))
+                    if poll is None:
+                        return
+                    voter = str(data.get("v", ""))
+                    if not poll.vote(voter, int(data.get("c", -1))):
+                        self._json(400, {"error": "Stimme nicht gezählt"})
+                        return
+                    server.request.emit({"kind": "poll"})
+                    self._json(200, poll.public(voter))
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    self._json(400, {"error": "Ungültige Anfrage"})
+                return
             if not self._auth():
                 return
             need = {"/api/upload": "senden", "/api/link": "senden", "/api/text": "senden",

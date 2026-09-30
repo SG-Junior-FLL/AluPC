@@ -785,6 +785,10 @@ class SetupPage(QWidget):
                         "zum Weitergeben, wenn etwas nicht geht")
         diag.clicked.connect(self._diagnose)
         diag_row.addWidget(diag)
+        report = button("Fehlerbericht …", "alert")
+        report.setToolTip("Speichert eine Datei mit Diagnose und Fehlerprotokollen – zum Weiterschicken")
+        report.clicked.connect(self._bug_report)
+        diag_row.addWidget(report)
         again = button("Ersteinrichtung starten", "sync")
         again.setToolTip("Prüft Monitore und Spiegeln, installiert Handy-Programme – wie beim ersten Start")
         again.clicked.connect(lambda: self.window().open_first_run())
@@ -792,6 +796,11 @@ class SetupPage(QWidget):
         diag_row.addStretch(1)
         form.addRow("Hilfe:", diag_row)
         return box
+
+    def _bug_report(self):
+        from .bug_report_dialog import BugReportDialog
+
+        BugReportDialog(self.controller, self).exec()
 
     def _diagnose(self):
         from PySide6.QtWidgets import QApplication

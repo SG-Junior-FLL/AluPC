@@ -201,10 +201,40 @@ class FingerprintPage(QWidget):
         wl.addWidget(self.win_text)
         wl.addWidget(self.win_btn, 0, Qt.AlignLeft)
         lay.addWidget(self.win_box)
+        # Finger als Schnelltaste (nur Modul am USB-Seriell-Adapter)
+        self.shortcut_box = QGroupBox("Finger als Schnelltaste")
+        sl = QHBoxLayout(self.shortcut_box)
+        self.shortcut_label = QLabel()
+        self.shortcut_label.setWordWrap(True)
+        shortcut_btn = button("Einstellen …", "keyboard")
+        shortcut_btn.clicked.connect(self.open_shortcuts)
+        sl.addWidget(self.shortcut_label, 1)
+        sl.addWidget(shortcut_btn)
+        lay.addWidget(self.shortcut_box)
+        self._update_shortcut_label()
         self._apply_capabilities()
         lay.addStretch(1)
         self._set_enabled(False)
         QTimer.singleShot(0, self.reload)
+
+    def _update_shortcut_label(self):
+        from ..finger_shortcuts import shortcut_map
+        from ..platform.zw_fingerprint import HAVE_SERIAL
+
+        self.shortcut_box.setVisible(HAVE_SERIAL)
+        c = self.controller
+        count = len(shortcut_map(c.config))
+        if not c.config["finger_shortcuts"].get("on") or not count:
+            self.shortcut_label.setText("Aus – z. B. Zeigefinger = Schwarz, Daumen = nächste Szene")
+        else:
+            error = c.finger_shortcuts.last_error
+            self.shortcut_label.setText(f"An · {count} Finger" + (f" · Problem: {error}" if error else ""))
+
+    def open_shortcuts(self):
+        from .finger_shortcuts_dialog import FingerShortcutsDialog
+
+        FingerShortcutsDialog(self.controller, self).exec()
+        self._update_shortcut_label()
 
     # ------------------------------------------------------------ Finger wählen
     def _finger_clicked(self, finger: str):

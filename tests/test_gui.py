@@ -3488,7 +3488,7 @@ def test_welcome_watcher_and_show(env, monkeypatch):
     controller.config["welcome"] = {**controller.config["welcome"], "names": {"Noah": "Chef"}}
     watcher = ww.WelcomeWatcher(controller.config, reader=lambda: records[-1], interval=60000)
     got = []
-    watcher.greet.connect(got.append)
+    watcher.greet.connect(lambda name, _person: got.append(name))
     watcher.greet_startup()
     assert got == ["Lena"]
     watcher.poll()  # nichts Neues
@@ -3506,7 +3506,7 @@ def test_welcome_watcher_and_show(env, monkeypatch):
     assert got == ["Lena", "Chef"]
     assert welcome.display_name(controller.config, "Lena") == "Lena"
 
-    controller.show_welcome("Lena", "konfetti")
+    controller.show_welcome("Lena", style="konfetti")
     shown = controller._welcome
     assert shown is not None and shown.isVisible() and shown.name == "Lena"
     controller.show_welcome("Noah")  # zweite ersetzt die erste
@@ -3537,10 +3537,266 @@ def test_secret_menu(env, monkeypatch):
     menu.name_edits["Noah"].setText("Chef")
     menu.text.setText("Servus")
     shown = []
-    monkeypatch.setattr(controller, "show_welcome", lambda name, style=None: shown.append(name))
+    monkeypatch.setattr(controller, "show_welcome", lambda name, person="", style=None: shown.append((name, person)))
     menu.try_name.setCurrentText("Noah")
     menu.try_it()
-    assert shown == ["Chef"]
+    assert shown == [("Chef", "Noah")]
     cfg = controller.config["welcome"]
     assert cfg["style"] == "scan" and cfg["names"] == {"Noah": "Chef"} and cfg["text"] == "Servus"
     menu.close()
+
+
+def test_birthday_welcome(env, monkeypatch):
+    """Geburtstag (geheimes Menü): an dem Tag Konfetti und „Alles Gute zum Geburtstag!“ – egal welcher Stil."""
+    import datetime
+
+    from alupc import welcome
+
+    assert welcome.parse_birthday("24.12.") == "12-24" and welcome.parse_birthday("3.7.2011") == "07-03"
+    assert welcome.parse_birthday("") == "" and welcome.parse_birthday("31.02.") is None
+    assert welcome.parse_birthday("hallo") is None and welcome.format_birthday("12-24") == "24.12."
+    controller, _window, _ = env
+    today = datetime.date.today()
+    controller.config["welcome"] = {**controller.config["welcome"], "style": "scan",
+                                    "birthdays": {"Lena": f"{today.month:02d}-{today.day:02d}"}}
+    assert welcome.is_birthday(controller.config, "Lena") and not welcome.is_birthday(controller.config, "Noah")
+    cfg = {"welcome": {"birthdays": {"Mia": "02-29"}}}
+    assert welcome.is_birthday(cfg, "Mia", datetime.date(2027, 2, 28))  # kein Schaltjahr
+    assert not welcome.is_birthday(cfg, "Mia", datetime.date(2028, 2, 28))
+    controller.show_welcome("Lena", "Lena")
+    w = controller._welcome
+    assert w.style == "konfetti" and w.birthday and w.headline == "Alles Gute zum Geburtstag!"
+    controller.show_welcome("Noah", "Noah")
+    assert controller._welcome.style == "scan" and not controller._welcome.birthday
+    controller._welcome.finish()
+    pump()
+
+
+def test_poll_end_to_end(env, monkeypatch):
+    """Abstimmung: Monitor 2 zeigt Frage + QR; Handy stimmt ohne Steuer-Code ab (nur mit Stichwort), ändert seine
+    Stimme; falsches Stichwort/ohne Abstimmung → 404; nach „Beenden“ keine Stimmen mehr."""
+    import json
+
+    from alupc.poll_source import PollSource
+    from alupc.startpage import COMMANDS
+
+    controller, window, _ = env
+    port = _free_tcp_port()
+    controller.config["cast"] = {**controller.config["cast"], "port": port, "code": "123456"}
+    controller.start_poll("Welche Mission?", ["Brücke", "Kran", "  ", "Fähre"])
+    pump()
+    poll = controller.cast.poll
+    assert poll.options == ["Brücke", "Kran", "Fähre"] and isinstance(controller.output.content, PollSource)
+    assert controller.config["poll"]["question"] == "Welche Mission?"
+    base = f"http://127.0.0.1:{controller.cast.port}"
+    status, body = _http("GET", base + "/abstimmung")
+    assert status == 200 and b"Abstimmung" in body
+    status, _ = _http("GET", base + "/api/umfrage?u=falsch")
+    assert status == 404
+    status, body = _http("GET", f"{base}/api/umfrage?u={poll.token}&v=handy0001")
+    data = json.loads(body)
+    assert status == 200 and data["question"] == "Welche Mission?" and "counts" not in data  # erst nach Stimme
+
+    def vote(voter, choice, token=poll.token):
+        return _http("POST", base + "/api/umfrage", json.dumps({"u": token, "v": voter, "c": choice}).encode(),
+                     {"Content-Type": "application/json"})
+
+    status, body = vote("handy0001", 1)
+    assert status == 200 and json.loads(body)["counts"] == [0, 1, 0]
+    vote("handy0002", 1)
+    vote("handy0001", 2)  # ändert seine Stimme
+    assert poll.counts() == [0, 1, 1] and poll.total() == 2
+    assert vote("handy0003", 7)[0] == 400 and vote("kurz", 0)[0] == 400
+    assert vote("handy0004", 0, token="falsch")[0] == 404
+    # Steuern geht mit dem Stichwort der Abstimmung nicht
+    status, _ = _http("POST", base + "/api/cmd", json.dumps({"cmd": "schwarz"}).encode(),
+                      {"Content-Type": "application/json", "X-AluPC-Code": poll.token})
+    assert status == 403
+    window.refresh()
+    assert window.t_poll.badge == "LÄUFT"
+    controller.poll_action("ende")
+    assert vote("handy0005", 0)[0] == 400 and poll.total() == 2
+    window.refresh()
+    assert window.t_poll.badge == "ERGEBNIS"
+    menu = window.t_poll.menu
+    window._fill_poll_menu(menu)
+    labels = [a.text() for a in menu.actions()]
+    assert "Weiter abstimmen" in labels and "Stimmen löschen" in labels
+    controller.poll_action("neu")
+    assert poll.total() == 0 and poll.open
+    img = controller.output.content.grab()  # zeichnet ohne Fehler
+    assert not img.isNull()
+    controller.poll_action("aus")
+    assert controller.cast.poll is None
+    assert _http("GET", f"{base}/api/umfrage?u={poll.token}")[0] == 404
+    assert "umfrage_ende" in COMMANDS and "gluecksrad" in COMMANDS and "wetter" in COMMANDS
+    controller.cast.stop()
+
+
+def test_wheel_spins_to_fair_winner(env, monkeypatch):
+    """Glücksrad: das gezogene Segment landet genau unter dem Zeiger; „Gezogene herausnehmen“ zieht jeden einmal."""
+    from alupc import wheel
+
+    controller, window, _ = env
+    w = wheel.WheelSource({"names": ["A", "B", "C", "D", "E"]})
+    w.resize(800, 450)
+    for target in range(5):
+        for _ in range(3):
+            w.spin(target)
+            w.timer.stop()
+            w.clock.restart()
+            w.progress = 1.0
+            w.angle = w.end_angle % 360
+            assert w.pointer_index() == target
+            assert w.end_angle < w.start_angle - 360 * 4  # dreht mehrere Runden
+    assert wheel.clean_names("  Lena \n\nNoah\n" + "x" * 60) == ["Lena", "Noah", "x" * 40]
+    monkeypatch.setattr(wheel, "SPIN_SECONDS", 0.2)
+    controller.config["wheel"] = {"names": ["Lena", "Noah", "Mia"], "remove_picked": True}
+    picked = []
+    for _ in range(3):
+        controller.spin_wheel()
+        pump()
+        src = controller.output.content
+        assert isinstance(src, wheel.WheelSource)
+        assert _until(lambda: not src.spinning, 3)
+        pump()
+        picked.append(src.names[src.winner])
+    assert sorted(picked) == ["Lena", "Mia", "Noah"]  # jeder genau einmal
+    window.refresh()
+    assert window.t_wheel.badge == "AKTIV"
+    menu = window.t_wheel.menu
+    window._fill_wheel_menu(menu)
+    assert "Namen bearbeiten …" in [a.text() for a in menu.actions()]
+
+
+def test_weather_source_and_service(env, monkeypatch):
+    """Wetter & Uhr: ohne Ort Hinweis; mit Ort holt der Dienst im Hintergrund (hier: nachgebaut) und zeichnet."""
+    import time
+
+    from alupc import weather
+
+    controller, window, _ = env
+    calls = []
+
+    def fake_fetch(lat, lon):
+        calls.append((lat, lon))
+        return weather.parse_forecast({
+            "current": {"temperature_2m": 17.4, "weather_code": 61, "wind_speed_10m": 9.6, "is_day": 0},
+            "daily": {"time": ["2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03"],
+                      "weather_code": [61, 3, 0, 95], "temperature_2m_max": [18, 15, 19, 21],
+                      "temperature_2m_min": [9, 8, 7, 12]}})
+
+    controller.weather.fetcher = fake_fetch
+    controller.weather.data = None
+    controller.show_weather()
+    pump()
+    assert isinstance(controller.output.content, weather.WeatherSource) and not calls  # kein Ort → nichts holen
+    controller.config["weather"] = {"name": "Berlin", "lat": 52.52, "lon": 13.41, "label": "Berlin, Deutschland"}
+    controller.weather.refresh()
+    assert _until(lambda: controller.weather.data is not None, 3)
+    assert calls == [(52.52, 13.41)] and controller.weather.data["temp"] == 17.4
+    assert len(controller.weather.data["days"]) == 4
+    controller.weather.refresh()  # noch frisch → nicht nochmal
+    time.sleep(0.1)
+    assert len(calls) == 1
+    assert not controller.output.content.grab().isNull()
+    assert weather.describe(95) == ("Gewitter", "gewitter") and weather.describe(1234)[1] == "wolke"
+    window.refresh()
+    assert window.t_weather.badge == "AKTIV"
+
+
+def test_weather_live_open_meteo():
+    """Echte Abfrage bei Open-Meteo (Ort suchen + Wetter holen). Ohne Internet übersprungen – im CI muss es gehen."""
+    import os
+    import urllib.error
+
+    from alupc import weather
+
+    try:
+        place = weather.geocode("Berlin")
+    except (urllib.error.URLError, OSError) as exc:
+        if os.environ.get("CI"):
+            raise
+        pytest.skip(f"kein Internet: {exc}")
+    assert place and abs(place["lat"] - 52.5) < 1 and "Deutschland" in place["label"]
+    data = weather.fetch(place["lat"], place["lon"])
+    assert -50 < data["temp"] < 60 and len(data["days"]) == 4
+    print("Wetter Berlin:", data["temp"], weather.describe(data["code"])[0])
+
+
+def test_finger_shortcuts_dialog(env, monkeypatch):
+    from alupc import finger_shortcuts
+    from alupc.ui import finger_shortcuts_dialog as fsd
+
+    controller, _window, _ = env
+    monkeypatch.setattr(fsd, "own_fingers", lambda: [(3, "Lena", "Rechter Zeigefinger"), (7, "Noah", "Linker Daumen")])
+    applied = []
+    monkeypatch.setattr(controller.finger_shortcuts, "apply", lambda: applied.append(1))
+    d = fsd.FingerShortcutsDialog(controller)
+    d.on.setChecked(True)
+    d.combos[3].setCurrentIndex(d.combos[3].findData("schwarz"))
+    d.combos[7].setCurrentIndex(d.combos[7].findData("gluecksrad"))
+    d.accept()
+    assert controller.config["finger_shortcuts"] == {"on": True, "map": {"3": "schwarz", "7": "gluecksrad"}}
+    assert applied and finger_shortcuts.shortcut_map(controller.config) == {3: "schwarz", 7: "gluecksrad"}
+
+
+def test_poll_and_wheel_dialogs(env, monkeypatch):
+    from alupc.ui.extras_dialogs import PollDialog, WheelDialog
+
+    controller, window, _ = env
+    started = []
+    monkeypatch.setattr(controller, "start_poll", lambda q, opts: started.append((q, opts)))
+    d = PollDialog(controller, window)
+    d.question.setText("")
+    assert not d.start.isEnabled()
+    d.question.setText("Pizza oder Nudeln?")
+    d.options[0].setText("Pizza")
+    d.options[1].setText("")
+    assert not d.start.isEnabled()  # nur eine Antwort
+    d.options[1].setText("Nudeln")
+    d.options[3].setText("Beides")
+    assert d.start.isEnabled()
+    d.start.click()
+    assert started == [("Pizza oder Nudeln?", ["Pizza", "Nudeln", "Beides"])]
+    w = WheelDialog(controller, window)
+    w.names.setPlainText("Lena\n\n  Noah  \nMia")
+    w.remove.setChecked(True)
+    w.accept()
+    assert controller.config["wheel"] == {"names": ["Lena", "Noah", "Mia"], "remove_picked": True}
+
+
+def test_bug_report(env, tmp_path, monkeypatch):
+    """Fehlerbericht: ZIP mit Beschreibung, Diagnose, Einstellungen ohne Geheimnisse, Fehlerprotokoll, Fensterbild."""
+    import json
+    import sys
+    import zipfile
+
+    from alupc import bug_report, diagnose
+    from alupc.ui.bug_report_dialog import BugReportDialog
+
+    controller, window, _ = env
+    controller.config["cast"] = {**controller.config["cast"], "code": "123456"}
+    controller.config["handy"] = {**controller.config["handy"], "pin": "4711", "airplay_name": "Mein PC"}
+    try:
+        raise ValueError("Testfehler 42")
+    except ValueError:
+        bug_report.log_exception(*sys.exc_info())
+    monkeypatch.setattr(diagnose, "report", lambda c, probe=True: "DIAGNOSE-OK")
+    d = BugReportDialog(controller, window)
+    d.text.setPlainText("AirPlay: Ton ja, Bild nein")
+    d.make(folder=tmp_path, ask=False)
+    assert d.path is not None and d.path.parent == tmp_path and d.path.suffix == ".zip"
+    with zipfile.ZipFile(d.path) as z:
+        names = set(z.namelist())
+        assert {"beschreibung.txt", "diagnose.txt", "einstellungen.json", "fehler.log", "alupc-fenster.png"} <= names
+        assert "Ton ja, Bild nein" in z.read("beschreibung.txt").decode()
+        assert z.read("diagnose.txt") == b"DIAGNOSE-OK"
+        cfg = json.loads(z.read("einstellungen.json"))
+        assert cfg["cast"]["code"] == "•••" and cfg["handy"]["pin"] == "•••"
+        assert cfg["handy"]["airplay_name"] == "Mein PC"  # normale Werte bleiben
+        raw = z.read("einstellungen.json").decode()
+        assert "123456" not in raw and "4711" not in raw
+        assert "Testfehler 42" in z.read("fehler.log").decode()
+    assert bug_report.redact({"a": {"secret": "x", "items": [{"password": "y"}]}, "code": ""}) == \
+        {"a": {"secret": "•••", "items": [{"password": "•••"}]}, "code": ""}

@@ -119,6 +119,26 @@ Außerdem:
   und **Ausprobieren**.
 
   <img src="docs/geheimes-menue.png" alt="Geheimes Menü" width="420">
+
+  **Geburtstage** (neu in 0.68): Im geheimen Menü je Person den Geburtstag eintragen (TT.MM.) – an dem Tag gibt es
+  Konfetti und „Alles Gute zum Geburtstag!“.
+- **Finger als Schnelltaste** (neu in 0.68, Modul am USB-Seriell-Adapter): Seite *Fingerabdruck* →
+  „Finger als Schnelltaste“ → jedem angelernten Finger einen Befehl geben (z. B. Zeigefinger = Schwarz,
+  Daumen = Glücksrad). Nur wenn der PC entsperrt ist; ein Befehl kommt erst beim erneuten Auflegen.
+- **Abstimmung per Handy** (neu in 0.68): Kachel *Abstimmung* → Frage und 2–6 Antworten. Monitor 2 zeigt
+  QR-Code und Balken, die live mitwachsen. Abstimmen geht ohne App und **ohne** den Code der Handy-Steuerung
+  (der QR-Code erlaubt nur Abstimmen). Pfeil: Beenden (Ergebnis), weiter abstimmen, Stimmen löschen.
+- **Glücksrad** (neu in 0.68): „Wer ist dran?“ – Namen eintragen (leer = Personen vom Fingerabdruck), fair gezogen,
+  auf Wunsch kommt jeder genau einmal dran.
+- **Wetter & Uhr** (neu in 0.68): große Uhr, Wetter jetzt und die nächsten 3 Tage (Open-Meteo, ohne Anmeldung).
+  Ort über den Pfeil der Kachel einstellen.
+
+  | Abstimmung | Glücksrad | Wetter & Uhr |
+  |---|---|---|
+  | ![Abstimmung](docs/abstimmung.png) | ![Glücksrad](docs/gluecksrad.png) | ![Wetter & Uhr](docs/wetter.png) |
+- **Fehlerbericht per Knopf** (neu in 0.68): Setup → *Fehlerbericht …* speichert eine ZIP-Datei auf dem Desktop:
+  Beschreibung, Diagnose, Einstellungen (Codes/PINs geschwärzt), Fehler- und Absturzprotokoll, AirPlay-Protokoll,
+  auf Wunsch ein Bild vom AluPC-Fenster.
 - **Tastenkürzel** (Setup → Tastenkürzel: auf das Kürzel klicken, neue Tasten drücken – fertig;
   „Kein Kürzel“ entfernt es):
 
