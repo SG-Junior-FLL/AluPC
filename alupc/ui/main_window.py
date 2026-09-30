@@ -654,7 +654,7 @@ class MainWindow(QMainWindow):
             head.toggled.connect(lambda folded, sid=sec["id"]: self._fold_section(sid, folded))
             head.setContextMenuPolicy(Qt.CustomContextMenu)
             head.customContextMenuRequested.connect(lambda pos, h=head, sid=sec["id"]: self._section_menu(h, sid, pos))
-            grid = FlowGrid(min_width=270, max_cols=4, spacing=12)
+            grid = FlowGrid(min_width=176, max_cols=6, spacing=12)
             grid.set_items(items)
             grid.setVisible(not sec.get("collapsed"))
             if not sec.get("collapsed"):

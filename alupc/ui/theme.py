@@ -98,11 +98,11 @@ def make_theme(mode: str = "system", accent: str = "blau") -> Theme:
     dark = system_prefers_dark() if mode == "system" else mode == "dunkel"
     key = accent if accent in ACCENTS else "blau"
     accent_hex, partner = ACCENTS[key][1], ACCENT_PARTNERS[key]
-    if dark:  # tiefes Nachtblau – farbige Verläufe leuchten darauf
-        return Theme(True, accent_hex, bg="#070a12", surface="#0f1421", surface2="#171e2e",
-                     border="#232c40", text="#f1f4fa", muted="#8d97ab", accent2=partner)
-    return Theme(False, accent_hex, bg="#eef1f8", surface="#ffffff", surface2="#f1f4fa",
-                 border="#dde3ee", text="#0f172a", muted="#58627a", accent2=partner)
+    if dark:  # ruhiges, fast neutrales Dunkelgrau-Blau
+        return Theme(True, accent_hex, bg="#0b0e14", surface="#12161f", surface2="#1a1f2b",
+                     border="#252b38", text="#eef1f6", muted="#8b93a3", accent2=partner)
+    return Theme(False, accent_hex, bg="#f4f5f8", surface="#ffffff", surface2="#f1f3f6",
+                 border="#e2e5eb", text="#111827", muted="#5b6474", accent2=partner)
 
 
 def current() -> Theme:
@@ -222,9 +222,12 @@ def stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
     a1, a2 = t.accent, t.accent2
     a1_hi = t.mix(a1, "#ffffff", 0.14).name()
     a2_hi = t.mix(a2, "#ffffff", 0.14).name()
-    grad = f"qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {a1}, stop:1 {a2})"
-    grad_h = f"qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {a1}, stop:1 {a2})"
-    grad_hover = f"qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {a1_hi}, stop:1 {a2_hi})"
+    # schlicht: einfarbig in der Akzentfarbe (nur ein Hauch Tiefe), keine zweifarbigen Verläufe mehr
+    a1_top = t.mix(a1, "#ffffff", 0.06).name()
+    grad = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {a1_top}, stop:1 {a1})"
+    grad_h = f"qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {a1}, stop:1 {a1_top})"
+    grad_hover = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {a1_hi}, stop:1 {t.mix(a1, '#ffffff', 0.08).name()})"
+    del a2_hi
     # Glas-Karten: oben einen Hauch heller, feine helle Kante
     card_top = t.mix(t.surface, "#ffffff", 0.035 if t.dark else 0.0).name()
     card_bottom = t.mix(t.surface, t.bg, 0.35 if t.dark else 0.0).name()
@@ -237,10 +240,9 @@ QMainWindow, QDialog {{ background: {t.bg}; }}
 QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {edge};
             border-radius: 8px; padding: 6px 9px; }}
 
-#Sidebar {{ background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {t.surface}, stop:0.7 {t.bg},
-             stop:1 {t.soft(a2, 0.10)}); border-right: 1px solid {t.border}; }}
-#Content {{ background: qradialgradient(cx:0.15, cy:0, radius:0.9, fx:0.15, fy:0, stop:0 {t.soft(a1, 0.16 if t.dark else 0.10)},
-             stop:0.45 {t.soft(a2, 0.06 if t.dark else 0.04)}, stop:1 {t.bg}); }}
+#Sidebar {{ background: {t.surface if not t.dark else t.mix(t.bg, t.surface, 0.55).name()};
+             border-right: 1px solid {t.border}; }}
+#Content {{ background: {t.bg}; }}
 #PageIcon {{ background: {grad}; border-radius: 14px; }}
 #Brand {{ font-size: 15pt; font-weight: 800; }}
 #BrandSub, #Muted, QLabel[muted="true"] {{ color: {t.muted}; }}
@@ -250,10 +252,8 @@ QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {edge};
 #StartSection {{ font-size: 8.5pt; font-weight: 800; letter-spacing: 1.4px; color: {t.muted};
                  padding: 10px 0 2px 2px; border-bottom: 1px solid {t.border}; }}
 
-#Card, QGroupBox {{ background: {card}; border: 1px solid {edge}; border-radius: 18px; }}
-#Hero {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {card_top}, stop:0.5 {t.surface},
-        stop:0.85 {t.soft(a1, 0.16)}, stop:1 {t.soft(a2, 0.24)}); border: 1px solid {t.soft(a1, 0.35)};
-        border-radius: 24px; }}
+#Card, QGroupBox {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 16px; }}
+#Hero {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 20px; }}
 QPushButton#Chip {{ border-radius: 17px; padding: 7px 14px; background: {t.surface2}; font-weight: 600; }}
 QPushButton#Chip:checked {{ background: {grad_h}; border-color: transparent; color: #ffffff; }}
 QGroupBox {{ margin-top: 30px; padding: 18px 18px 16px 18px; font-weight: 700; }}
@@ -266,7 +266,7 @@ QPushButton, QToolButton#Plain {{
 QPushButton:hover, QToolButton#Plain:hover {{ background: {hover}; border-color: {edge}; }}
 QPushButton:pressed {{ background: {t.border}; }}
 QPushButton:disabled {{ color: {t.muted}; background: {t.surface}; }}
-QPushButton[primary="true"] {{ background: {grad}; border: 1px solid {t.soft(a2, 0.6)}; color: #ffffff;
+QPushButton[primary="true"] {{ background: {grad}; border: 1px solid {a1}; color: #ffffff;
     font-weight: 700; }}
 QPushButton[primary="true"]:hover {{ background: {grad_hover}; }}
 QPushButton[primary="true"]:disabled {{ background: {t.surface2}; border-color: {t.border}; color: {t.muted}; }}
@@ -291,8 +291,7 @@ QComboBox QAbstractItemView {{ background: {t.surface}; border: none; padding: 4
     selection-background-color: transparent; selection-color: {t.text}; }}
 QComboBox QAbstractItemView::item {{ min-height: 30px; padding: 2px 10px; border-radius: 8px; margin: 1px 0; }}
 QComboBox QAbstractItemView::item:hover {{ background: {hover}; }}
-QComboBox QAbstractItemView::item:selected {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-    stop:0 {t.soft(a1, 0.30)}, stop:1 {t.soft(a2, 0.14)}); color: {t.text}; }}
+QComboBox QAbstractItemView::item:selected {{ background: {t.soft(a1, 0.16 if t.dark else 0.10)}; color: {t.text}; }}
 QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
     width: 18px; border: none; }}
 
@@ -312,8 +311,8 @@ QListWidget::item:hover {{ background: {hover}; }}
 QListWidget::item:selected {{ background: {t.soft(a1, 0.26)}; color: {t.text}; }}
 QListWidget#SetupNav {{ background: {card}; border: 1px solid {edge}; border-radius: 18px; padding: 6px; }}
 QListWidget#SetupNav::item {{ padding: 8px 10px; margin: 1px 0; border-radius: 11px; border-left: 3px solid transparent; }}
-QListWidget#SetupNav::item:selected {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {t.soft(a1, 0.28)},
-    stop:1 {t.soft(a2, 0.10)}); border-left: 3px solid {a2}; font-weight: 700; }}
+QListWidget#SetupNav::item:selected {{ background: {t.soft(a1, 0.16 if t.dark else 0.10)}; border-left: 3px solid {a1};
+    font-weight: 700; }}
 
 QTabWidget::pane {{ border: 1px solid {edge}; border-radius: 12px; top: -1px; background: {t.surface}; }}
 QTabBar::tab {{ background: transparent; padding: 8px 14px; margin-right: 4px; border-radius: 9px; color: {t.muted}; }}
@@ -338,10 +337,9 @@ QSlider::handle:horizontal {{ background: #ffffff; border: 2px solid {a2}; width
 QProgressBar {{ background: {t.surface2}; border: none; border-radius: 5px; height: 10px; text-align: center; }}
 QProgressBar::chunk {{ background: {grad_h}; border-radius: 5px; }}
 
-QMenu {{ background: {t.surface}; border: 1px solid {edge}; border-radius: 14px; padding: 6px; }}
-QMenu::item {{ padding: 8px 28px 8px 12px; border-radius: 9px; margin: 1px 0; }}
-QMenu::item:selected {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {t.soft(a1, 0.30)},
-    stop:1 {t.soft(a2, 0.14)}); }}
+QMenu {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 16px; padding: 8px; min-width: 230px; }}
+QMenu::item {{ padding: 9px 30px 9px 12px; border-radius: 10px; margin: 1px 0; }}
+QMenu::item:selected {{ background: {t.soft(a1, 0.16 if t.dark else 0.10)}; color: {t.text}; }}
 QMenu::item:disabled {{ color: {t.muted}; }}
 QMenu::icon {{ padding-left: 10px; }}
 QMenu::indicator {{ width: 16px; height: 16px; margin-left: 10px; border-radius: 5px; border: 1px solid {t.border};

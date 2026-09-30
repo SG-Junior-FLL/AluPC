@@ -8,7 +8,14 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.72.0)
+### Neu in dieser Version (0.73.0)
+- **Neues, frisches Design:** Startseite mit Karten wie ein modernes Kontrollzentrum – Symbol oben, Titel unten,
+  mehr Karten pro Zeile. Was gerade läuft, ist **ganz in seiner Farbe** eingefärbt. Ruhige, neutrale Farben (kein
+  Lila-Schimmer mehr), flache Karten mit feinem Rand, schlichte Bereichs-Überschriften, Seitenleiste mit ruhiger
+  Markierung statt leuchtendem Verlauf, einfarbige Knöpfe.
+- **Menüs luftiger:** mehr Abstand, ruhige Markierung beim Drüberfahren, größere Mindestbreite.
+- Test „Bildschirmschoner“ robuster (Feuerwerk ist zufällig – 0.72.0 war daran im Windows-Build gescheitert und
+  wurde deshalb nicht veröffentlicht; alles aus 0.72 steht hier mit drin):
 - **Glücksrad dreht nicht mehr von selbst:** Die Kachel zeigt das Rad nur. Gedreht wird mit **„Drehen“** – neuer
   Knopf in der Seitenleiste (erscheint, solange das Rad auf Monitor 2 ist), im Pfeil-Menü, per Befehl
   `gluecksrad_drehen`, Finger-Schnelltaste oder Handy.

@@ -177,7 +177,7 @@ class Tile(HoverMixin, QAbstractButton):
         self.split = False
         self._press_pos = None
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumSize(QSize(200, 78))
+        self.setMinimumSize(QSize(160, 118))
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setToolTip(subtitle)
         self._init_hover()
@@ -192,7 +192,8 @@ class Tile(HoverMixin, QAbstractButton):
         self.update()
 
     def menu_zone(self) -> QRectF:
-        return QRectF(self.width() - 54, 0, 54, self.height())
+        """Pfeil oben rechts (großzügige Klickfläche)."""
+        return QRectF(self.width() - 50, 0, 50, 50)
 
     def mousePressEvent(self, e):
         self._press_pos = e.position()
@@ -212,128 +213,100 @@ class Tile(HoverMixin, QAbstractButton):
             self.update()
 
     def sizeHint(self):
-        return QSize(240, 82)
+        return QSize(190, 118)
 
     def paintEvent(self, _e):
+        """Schnellzugriff-Karte: Symbol oben links, Pfeil oben rechts, Titel unten.
+        Aktiv: ganze Karte in der Kachelfarbe (weiße Schrift) – auf einen Blick zu sehen, was läuft."""
         t = theme.current()
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        lift = 1.5 * self._hover if not self.isDown() else 0.0
-        r = QRectF(self.rect()).adjusted(2.5, 1.5 - lift, -2.5, -4.5 - lift)
+        r = QRectF(self.rect()).adjusted(2, 2, -2, -3)
+        radius = 18
         accent = QColor(t.danger if self.alert else (self.color or t.accent))
-        # weicher Schatten unter der Kachel (stärker beim Drüberfahren)
-        p.setPen(Qt.NoPen)
-        for i, alpha in enumerate((0.05, 0.035, 0.02)):
-            shade = QColor(0, 0, 0)
-            shade.setAlphaF((alpha * (1.6 if t.dark else 1.0)) * (1 + 1.2 * self._hover))
-            p.fillPath(rounded(r.adjusted(-i * 0.5, 1.5 + i * 1.2, i * 0.5, 1.5 + i * 1.6), 16 + i), shade)
-        base = QColor(t.surface)
-        hover_bg = t.mix(t.surface, t.surface2, 0.9)
-        flat = t.mix(base.name(), hover_bg.name(), self._hover)
-        bg = QLinearGradient(r.topLeft(), r.bottomLeft())  # Glas: oben einen Hauch heller
-        bg.setColorAt(0, t.mix(flat.name(), "#ffffff", 0.04 if t.dark else 0.0))
-        bg.setColorAt(1, flat)
-        if self.active or self.alert:
-            soft = QColor(accent)
-            soft.setAlphaF(0.14 if t.dark else 0.10)
-            p.fillPath(rounded(r, 16), bg)
-            p.fillPath(rounded(r, 16), soft)
+        on = self.active or self.alert
+        if not t.dark:  # hell: ganz leichter Schatten, damit die Karte sich abhebt
+            shade = QColor(15, 23, 42, int(9 + 14 * self._hover))
+            p.fillPath(rounded(r.adjusted(0, 2, 0, 2), radius), shade)
+        if on:
+            fill = QLinearGradient(r.topLeft(), r.bottomRight())
+            fill.setColorAt(0, accent.lighter(108 + int(6 * self._hover)))
+            fill.setColorAt(1, accent.darker(108))
+            p.fillPath(rounded(r, radius), fill)
         else:
-            p.fillPath(rounded(r, 16), bg)
-        if self.active or self.alert:  # Leuchtrand
-            for i, a in enumerate((0.22, 0.12, 0.06)):
-                glow = QColor(accent)
-                glow.setAlphaF(a)
-                p.setPen(QPen(glow, 2 + i * 2))
-                p.setBrush(Qt.NoBrush)
-                p.drawPath(rounded(r.adjusted(-i, -i, i, i), 16 + i))
-        if self.active or self.alert:
-            p.setPen(QPen(QColor(accent), 1.6))
-        elif self._hover > 0.01:  # Rand leuchtet im Verlauf der Kachelfarbe
-            edge = QLinearGradient(r.topLeft(), r.bottomRight())
-            c1, c2 = QColor(accent), _partner(accent)
-            c1.setAlphaF(0.25 + 0.55 * self._hover)
-            c2.setAlphaF(0.15 + 0.45 * self._hover)
-            edge.setColorAt(0, c1)
-            edge.setColorAt(1, c2)
-            p.setPen(QPen(QBrush(edge), 1.3))
-        else:
-            p.setPen(QPen(QColor(t.border), 1))
-        p.setBrush(Qt.NoBrush)
-        p.drawPath(rounded(r, 16))
-        # feine helle Kante oben (Glas)
-        top_edge = QColor(255, 255, 255, 18 if t.dark else 0)
-        p.setPen(QPen(top_edge, 1))
-        p.drawLine(QPointF(r.left() + 14, r.top() + 1), QPointF(r.right() - 14, r.top() + 1))
+            p.fillPath(rounded(r, radius), t.mix(t.surface, t.surface2, 0.6 * self._hover))
+            p.setPen(QPen(t.mix(t.border, accent.name(), 0.4 * self._hover), 1.0))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(rounded(r.adjusted(0.5, 0.5, -0.5, -0.5), radius))
         if self.isDown():
-            p.fillPath(rounded(r, 16), QColor(0, 0, 0, 30))
+            p.fillPath(rounded(r, radius), QColor(0, 0, 0, 26))
 
-        # Symbol links: farbiger Verlauf (aktiv kräftiger), weißes Symbol
         pad = 14
-        chip = QRectF(r.left() + pad, r.center().y() - 22, 44, 44)
+        text_col = QColor("#ffffff") if on else QColor(t.text)
+        sub_col = QColor(255, 255, 255, 200) if on else QColor(t.muted)
+        # Symbol oben links
+        chip = QRectF(r.left() + pad, r.top() + pad, 38, 38)
         p.setPen(Qt.NoPen)
-        grad = QLinearGradient(chip.topLeft(), chip.bottomRight())
-        top, bottom = QColor(accent.lighter(118)), _partner(accent)  # zweifarbig: Farbe → Nachbarfarbe
-        if self._hover > 0.01 and not (self.active or self.alert):  # Leuchten hinter dem Symbol
-            halo = QColor(accent)
-            halo.setAlphaF(0.22 * self._hover)
-            p.setBrush(halo)
-            p.drawRoundedRect(chip.adjusted(-4, -3, 4, 5), 16, 16)
-        if not (self.active or self.alert):
-            strength = 0.82 + 0.18 * self._hover
-            top.setAlphaF(strength)
-            bottom.setAlphaF(strength)
-        grad.setColorAt(0, top)
-        grad.setColorAt(1, bottom)
-        p.setBrush(grad)
-        p.drawRoundedRect(chip, 13, 13)
-        shine = QColor(255, 255, 255, 40)  # leichter Glanz oben
-        p.setBrush(shine)
-        p.drawRoundedRect(QRectF(chip.left() + 3, chip.top() + 2, chip.width() - 6, chip.height() * 0.42), 10, 10)
-        icons.paint(p, self.icon_name, chip.adjusted(11, 11, -11, -11), "#ffffff", 2.1)
+        if on:
+            p.setBrush(QColor(255, 255, 255, 46))
+            icon_col = "#ffffff"
+        else:
+            soft = QColor(accent)
+            soft.setAlphaF((0.17 if t.dark else 0.12) + 0.06 * self._hover)
+            p.setBrush(soft)
+            icon_col = (t.mix(accent.name(), "#ffffff", 0.25) if t.dark else accent.darker(112)).name()
+        p.drawRoundedRect(chip, 11, 11)
+        icons.paint(p, self.icon_name, chip.adjusted(9, 9, -9, -9), icon_col, 2.0)
 
-        right = r.right() - pad
-        # Menü-Pfeil rechts mittig
+        # Pfeil oben rechts (öffnet das Menü); dahinter beim Drüberfahren eine ruhige Fläche
+        top_right = r.right() - pad + 4
         if self.menu is not None:
-            cx, cy = right - 10, r.center().y()
+            cx, cy = r.right() - 24, chip.center().y()
             if self.split:
-                ring = QColor(t.muted)
-                ring.setAlphaF(0.16 + 0.3 * self._hover)
+                ring = QColor(255, 255, 255, 40) if on else QColor(t.text)
+                if not on:
+                    ring.setAlphaF(0.05 + 0.06 * self._hover)
                 p.setPen(Qt.NoPen)
                 p.setBrush(ring)
-                p.drawEllipse(QRectF(cx - 13, cy - 13, 26, 26))
-            p.setPen(QPen(QColor(t.text if self.split else t.muted), 1.8, Qt.SolidLine, Qt.RoundCap))
-            p.drawLine(QPointF(cx - 4, cy - 2), QPointF(cx, cy + 2))
-            p.drawLine(QPointF(cx, cy + 2), QPointF(cx + 4, cy - 2))
-            right -= 34
-        # Zustand (z. B. AKTIV) klein oben rechts
+                p.drawEllipse(QPointF(cx, cy), 14, 14)
+            p.setPen(QPen(text_col if on else QColor(t.mix(t.muted, t.text, self._hover)), 1.8, Qt.SolidLine,
+                          Qt.RoundCap, Qt.RoundJoin))
+            p.drawPolyline([QPointF(cx - 4, cy - 2), QPointF(cx, cy + 2), QPointF(cx + 4, cy - 2)])
+            top_right = cx - 20
+        # Zustand (z. B. AKTIV, LÄUFT) als kleines Etikett neben dem Pfeil
         if self.badge:
-            f = font(7.5, QFont.Bold)
+            f = font(7, QFont.Bold)
             p.setFont(f)
             bw = QFontMetrics(f).horizontalAdvance(self.badge) + 14
-            badge = QRectF(r.right() - pad - bw, r.top() + 7, bw, 18)
-            p.setPen(Qt.NoPen)
-            p.setBrush(accent)
-            p.drawRoundedRect(badge, 9, 9)
-            p.setPen(QColor("#ffffff"))
-            p.drawText(badge, Qt.AlignCenter, self.badge)
+            badge = QRectF(top_right - bw, chip.center().y() - 9, bw, 18)
+            if badge.left() > chip.right() + 6:
+                p.setPen(Qt.NoPen)
+                if on:
+                    p.setBrush(QColor(255, 255, 255, 56))
+                else:
+                    tint = QColor(accent)
+                    tint.setAlphaF(0.16)
+                    p.setBrush(tint)
+                p.drawRoundedRect(badge, 9, 9)
+                p.setPen(QColor("#ffffff") if on else
+                         QColor(t.mix(accent.name(), "#ffffff", 0.3) if t.dark else accent.darker(125)))
+                p.drawText(badge, Qt.AlignCenter, self.badge)
 
-        # Texte rechts vom Symbol
-        left = chip.right() + 12
-        width = max(20.0, right - left - 4)
-        tf = font(11.5, QFont.DemiBold)
+        # Titel und Untertitel unten links
+        width = r.width() - 2 * pad
+        tf = font(11.2, QFont.DemiBold)
         p.setFont(tf)
-        p.setPen(QColor(t.text))
-        title = QFontMetrics(tf).elidedText(self.title, Qt.ElideRight, int(width))
+        p.setPen(text_col)
         has_sub = bool(self.subtitle)
-        p.drawText(QRectF(left, r.center().y() - (21 if has_sub else 11), width, 22), Qt.AlignLeft | Qt.AlignVCenter,
-                   title)
+        title_y = r.bottom() - pad - (38 if has_sub else 22)
+        title = QFontMetrics(tf).elidedText(self.title, Qt.ElideRight, int(width))
+        p.drawText(QRectF(r.left() + pad, title_y, width, 22), Qt.AlignLeft | Qt.AlignVCenter, title)
         if has_sub:
-            p.setPen(QColor(t.muted))
             sf = font(8.8)
             p.setFont(sf)
+            p.setPen(sub_col)
             sub = QFontMetrics(sf).elidedText(self.subtitle, Qt.ElideRight, int(width))
-            p.drawText(QRectF(left, r.center().y() + 1, width, 20), Qt.AlignLeft | Qt.AlignVCenter, sub)
+            p.drawText(QRectF(r.left() + pad, title_y + 20, width, 18), Qt.AlignLeft | Qt.AlignVCenter, sub)
         p.end()
 
 
@@ -361,26 +334,24 @@ class NavButton(HoverMixin, QAbstractButton):
         r = QRectF(self.rect()).adjusted(8, 2, -8, -2)
         if self.compact:  # nur Symbol, mittig
             r = QRectF(self.rect().center().x() - 22, 2, 44, self.height() - 4)
-        if self.isChecked():
-            # Verlauf Akzent → Partnerfarbe mit weichem Leuchten darunter
-            for i, a in enumerate((0.20, 0.10, 0.05)):
-                glow = QColor(t.accent2)
-                glow.setAlphaF(a)
-                p.fillPath(rounded(r.adjusted(-i, 2 + i, i, 3 + i * 2), 13 + i), glow)
-            p.fillPath(rounded(r, 13), t.gradient(r, diagonal=False))
-            shine = QColor(255, 255, 255, 34)  # Glanzkante oben
-            p.fillPath(rounded(QRectF(r.left() + 2, r.top() + 1, r.width() - 4, r.height() * 0.45), 11), shine)
+        if self.isChecked():  # ruhig: zart getönte Fläche, Symbol und Text in der Akzentfarbe
+            tint = QColor(t.accent)
+            tint.setAlphaF(0.16 if t.dark else 0.11)
+            p.fillPath(rounded(r, 12), tint)
+            if not self.compact:  # kleiner Balken links als Markierung
+                p.fillPath(rounded(QRectF(r.left() + 1, r.center().y() - 9, 3, 18), 1.5), QColor(t.accent))
         elif self._hover > 0:
             h = QColor(t.text)
-            h.setAlphaF(0.07 * self._hover)
+            h.setAlphaF(0.06 * self._hover)
             p.fillPath(rounded(r, 12), h)
-        col = "#ffffff" if self.isChecked() else t.muted
+        sel = (t.mix(t.accent, "#ffffff", 0.25) if t.dark else QColor(t.accent).darker(110)).name()
+        col = sel if self.isChecked() else t.muted
         if self.compact:
             icons.paint(p, self.icon_name, QRectF(r.center().x() - 10, r.center().y() - 10, 20, 20), col, 2.0)
             p.end()
             return
         icons.paint(p, self.icon_name, QRectF(r.left() + 14, r.center().y() - 10, 20, 20), col, 2.0)
-        p.setPen(QColor("#ffffff" if self.isChecked() else t.text))
+        p.setPen(QColor(sel if self.isChecked() else t.text))
         p.setFont(font(10.5, QFont.DemiBold if self.isChecked() else QFont.Medium))
         p.drawText(r.adjusted(46, 0, 0, 0), Qt.AlignLeft | Qt.AlignVCenter, self.text_)
         p.end()
@@ -448,13 +419,10 @@ class MonitorCard(QWidget):
             p.drawEllipse(QPointF(thumb.right() - 4, thumb.top() + 4), 4, 4)
             p.end()
             return
-        # Glas-Karte mit Verlaufsrand (Akzent → Partnerfarbe)
-        bg = QLinearGradient(r.topLeft(), r.bottomLeft())
-        bg.setColorAt(0, t.mix(t.surface2, "#ffffff", 0.04 if t.dark else 0.0))
-        bg.setColorAt(1, QColor(t.surface))
-        p.fillPath(rounded(r, 16), bg)
-        p.setPen(QPen(QBrush(t.gradient(r, alpha=0.55)), 1.2))
-        p.drawPath(rounded(r, 16))
+        # schlichte Karte mit feinem Rand
+        p.fillPath(rounded(r, 16), QColor(t.surface))
+        p.setPen(QPen(QColor(t.border), 1.0))
+        p.drawPath(rounded(r.adjusted(0.5, 0.5, -0.5, -0.5), 16))
         thumb = QRectF(r.left() + 8, r.top() + 8, r.width() - 16, (r.width() - 16) * 9 / 16)
         path = rounded(thumb, 9)
         p.fillPath(path, QColor("#000000" if self.image is not None else t.bg))
@@ -1093,27 +1061,22 @@ class SectionHeader(QWidget):
             p.drawPolyline([QPointF(cx - s / 2, cy - s), QPointF(cx + s / 2, cy), QPointF(cx - s / 2, cy + s)])
         else:
             p.drawPolyline([QPointF(cx - s, cy - s / 2), QPointF(cx, cy + s / 2), QPointF(cx + s, cy - s / 2)])
-        f = font(10.5, QFont.Bold)
+        f = font(8.8, QFont.Bold)
+        f.setLetterSpacing(QFont.PercentageSpacing, 110)
         p.setFont(f)
-        p.setPen(QColor(t.text))
+        p.setPen(QColor(t.text if self._hover else t.muted))
         x = 30
-        width = QFontMetrics(f).horizontalAdvance(self.name)
-        p.drawText(QRectF(x, 0, width + 2, h), Qt.AlignVCenter | Qt.AlignLeft, self.name)
-        x += width + 10
-        # Anzahl als kleine Pille
-        cf = font(8.5, QFont.Bold)
+        label = self.name.upper()
+        width = QFontMetrics(f).horizontalAdvance(label)
+        p.drawText(QRectF(x, 0, width + 2, h), Qt.AlignVCenter | Qt.AlignLeft, label)
+        x += width + 8
+        cf = font(8.5)
         p.setFont(cf)
-        label = str(self.count)
-        pill_w = QFontMetrics(cf).horizontalAdvance(label) + 14
-        pill = QRectF(x, h / 2 - 9, pill_w, 18)
-        p.setPen(Qt.NoPen)
-        if self.collapsed:
-            p.setBrush(QColor(t.surface2))
-        else:  # Verlauf wie Knöpfe und Navigation
-            p.setBrush(t.gradient(pill, diagonal=False))
-        p.drawRoundedRect(pill, 9, 9)
-        p.setPen(QColor("#ffffff" if not self.collapsed else t.muted))
-        p.drawText(pill, Qt.AlignCenter, label)
+        p.setPen(QColor(t.muted))
+        count = str(self.count)
+        cw = QFontMetrics(cf).horizontalAdvance(count)
+        p.drawText(QRectF(x, 0, cw + 2, h), Qt.AlignVCenter | Qt.AlignLeft, count)
+        pill = QRectF(x, h / 2 - 9, cw, 18)
         x = pill.right() + 12
         # eingeklappt: die Kacheln als kleine farbige Symbole (bis 10)
         if self.collapsed and self.tiles:
@@ -1130,17 +1093,6 @@ class SectionHeader(QWidget):
                             1.8)
                 x += size + 5
             x += 7
-        # Linie bis zum Rand – beginnt in der Akzentfarbe und läuft aus
-        line = QLinearGradient(QPointF(x, 0), QPointF(self.width() - 4, 0))
-        start = QColor(t.accent2 if self._hover else t.accent)
-        start.setAlphaF(0.55 if not self.collapsed else 0.25)
-        line.setColorAt(0, start)
-        line.setColorAt(0.5, QColor(t.border))
-        end = QColor(t.border)
-        end.setAlphaF(0.0)
-        line.setColorAt(1, end)
-        p.setPen(QPen(QBrush(line), 1.2))
-        p.drawLine(QPointF(x, h / 2), QPointF(self.width() - 4, h / 2))
         p.end()
 
 
