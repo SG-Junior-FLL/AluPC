@@ -212,6 +212,17 @@ class FingerprintPage(QWidget):
         sl.addWidget(shortcut_btn)
         lay.addWidget(self.shortcut_box)
         self._update_shortcut_label()
+        # Begrüßung nach der Anmeldung mit dem Finger
+        welcome_box = QGroupBox("Begrüßung")
+        wl2 = QHBoxLayout(welcome_box)
+        self.welcome_label = QLabel()
+        self.welcome_label.setWordWrap(True)
+        welcome_btn = button("Einstellen …", "star")
+        welcome_btn.clicked.connect(self.open_welcome)
+        wl2.addWidget(self.welcome_label, 1)
+        wl2.addWidget(welcome_btn)
+        lay.addWidget(welcome_box)
+        self._update_welcome_label()
         self._apply_capabilities()
         lay.addStretch(1)
         self._set_enabled(False)
@@ -229,6 +240,22 @@ class FingerprintPage(QWidget):
         else:
             error = c.finger_shortcuts.last_error
             self.shortcut_label.setText(f"An · {count} Finger" + (f" · Problem: {error}" if error else ""))
+
+    def _update_welcome_label(self):
+        from ..welcome import STYLES
+
+        cfg = self.controller.config["welcome"]
+        if not cfg.get("on", True):
+            self.welcome_label.setText("Aus")
+        else:
+            self.welcome_label.setText(f"An · {STYLES.get(cfg.get('style', 'aurora'), 'Aurora')} · "
+                                       "„Guten Morgen – Lena“ nach der Anmeldung")
+
+    def open_welcome(self):
+        from .welcome_settings import WelcomeSettings
+
+        WelcomeSettings(self.controller, self).exec()
+        self._update_welcome_label()
 
     def open_shortcuts(self):
         from .finger_shortcuts_dialog import FingerShortcutsDialog

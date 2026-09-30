@@ -78,7 +78,7 @@ DEFAULTS: dict = {
     "poll": {"question": "", "options": []},
     # Finger als Schnelltaste (Modul am USB-Seriell-Adapter): Platz → Befehl
     "finger_shortcuts": {"on": False, "map": {}},
-    # Begrüßung nach der Anmeldung mit dem Finger (geheimes Menü): Stil, eigener Text, eigene Namen je Person
+    # Begrüßung nach der Anmeldung mit dem Finger (Seite Fingerabdruck → Begrüßung): Stil, eigener Text, eigene Namen je Person
     "welcome": {"on": True, "style": "aurora", "text": "", "sound": True, "names": {}, "birthdays": {}},
     # Timer (Countdown/Stoppuhr): Voreinstellung für Kachel und Befehle
     "timer": {"minutes": 5, "seconds": 0, "mode": "countdown", "finished_text": "Zeit ist um!",

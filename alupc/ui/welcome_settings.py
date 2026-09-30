@@ -1,5 +1,5 @@
-"""Geheimes Menü (5× auf die Versionsnummer klicken oder Strg+Alt+Umschalt+G): Begrüßung nach dem Fingerabdruck
-einstellen und ausprobieren."""
+"""Fenster „Begrüßung“ (Seite Fingerabdruck): Animation nach der Anmeldung mit dem Finger, eigene Namen und
+Geburtstage je Person."""
 
 from __future__ import annotations
 
@@ -10,15 +10,15 @@ from ..welcome import STYLES, format_birthday, parse_birthday
 from .widgets import button, page_header
 
 
-class SecretMenu(QDialog):
+class WelcomeSettings(QDialog):
     def __init__(self, controller, parent=None):
         super().__init__(parent)
         self.controller = controller
-        self.setWindowTitle("Geheimes Menü")
+        self.setWindowTitle("Begrüßung")
         self.setMinimumWidth(460)
         cfg = controller.config["welcome"]
         lay = QVBoxLayout(self)
-        lay.addWidget(page_header("Geheimes Menü", "Begrüßung nach dem Fingerabdruck", "star"))
+        lay.addWidget(page_header("Begrüßung", "Nach der Anmeldung mit dem Finger", "star"))
 
         form = QFormLayout()
         self.on = QCheckBox("Nach Fingerabdruck begrüßen")
@@ -66,19 +66,7 @@ class SecretMenu(QDialog):
             names_form.addRow(person, row)
         lay.addLayout(names_form)
 
-        # Ausprobieren
-        lay.addSpacing(6)
-        row = QHBoxLayout()
-        self.try_name = QComboBox()
-        self.try_name.setEditable(True)
-        self.try_name.addItems(persons or ["Noah"])
-        self.try_name.setToolTip("Name zum Ausprobieren")
-        row.addWidget(self.try_name, 1)
-        self.try_button = button("Ausprobieren", "play", primary=True)
-        self.try_button.clicked.connect(self.try_it)
-        row.addWidget(self.try_button)
-        lay.addLayout(row)
-        close = button("Fertig", "check")
+        close = button("Fertig", "check", primary=True)
         close.clicked.connect(self.accept)
         lay.addWidget(close)
         self.finished.connect(lambda _r: self.save())
@@ -106,11 +94,3 @@ class SecretMenu(QDialog):
             "birthdays": {p: v for p, v in birthdays.items() if v},
         }
         self.controller.config.save()
-
-    def try_it(self) -> None:
-        self.save()
-        from ..welcome import display_name
-
-        typed = self.try_name.currentText().strip()
-        person = typed if typed in self.name_edits else ""
-        self.controller.show_welcome(display_name(self.controller.config, typed), person)

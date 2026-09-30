@@ -3476,7 +3476,7 @@ def test_welcome_animation_styles(env):
 
 
 def test_welcome_watcher_and_show(env, monkeypatch):
-    """Neue Anmeldung mit dem Finger → Begrüßung mit Namen der Person (oder eigenem Namen aus dem geheimen Menü)."""
+    """Neue Anmeldung mit dem Finger → Begrüßung mit Namen der Person (oder eigenem Namen aus „Begrüßung“)."""
     import time
 
     from alupc import welcome
@@ -3516,38 +3516,34 @@ def test_welcome_watcher_and_show(env, monkeypatch):
     assert controller._welcome is None
 
 
-def test_secret_menu(env, monkeypatch):
-    """5× auf die Versionsnummer → geheimes Menü; dort einstellen und ausprobieren."""
-    from PySide6.QtCore import QEvent, QPointF
-    from PySide6.QtGui import QMouseEvent
-
-    from alupc.ui import secret_menu
+def test_welcome_settings(env, monkeypatch):
+    """Begrüßung: nicht mehr geheim (Seite Fingerabdruck → Begrüßung), ohne „Ausprobieren“; speichert Stil, Text,
+    eigene Namen und Geburtstage."""
+    from alupc.ui import fingerprint_page, welcome_settings
 
     controller, window, _ = env
+    assert not hasattr(window, "open_secret_menu")  # kein Geheimzugang mehr
+    monkeypatch.setattr(welcome_settings.WelcomeSettings, "_persons", staticmethod(lambda: ["Lena", "Noah"]))
     opened = []
-    monkeypatch.setattr(window, "open_secret_menu", lambda: opened.append(1))
-    for _ in range(5):
-        ev = QMouseEvent(QEvent.MouseButtonPress, QPointF(2, 2), QPointF(2, 2), Qt.LeftButton, Qt.LeftButton,
-                         Qt.NoModifier)
-        window.eventFilter(window.version_label, ev)
-    assert opened == [1]
-    monkeypatch.setattr(secret_menu.SecretMenu, "_persons", staticmethod(lambda: ["Lena", "Noah"]))
-    menu = secret_menu.SecretMenu(controller, window)
+    monkeypatch.setattr(welcome_settings.WelcomeSettings, "exec", lambda self: opened.append(self) or 0)
+    page = fingerprint_page.FingerprintPage(controller)
+    assert "Aurora" in page.welcome_label.text()
+    page.open_welcome()
+    menu = opened[0]
+    assert menu.windowTitle() == "Begrüßung" and not hasattr(menu, "try_button") and not hasattr(menu, "try_it")
     menu.style.setCurrentIndex(menu.style.findData("scan"))
     menu.name_edits["Noah"].setText("Chef")
+    menu.birthday_edits["Lena"].setText("24.12.")
     menu.text.setText("Servus")
-    shown = []
-    monkeypatch.setattr(controller, "show_welcome", lambda name, person="", style=None: shown.append((name, person)))
-    menu.try_name.setCurrentText("Noah")
-    menu.try_it()
-    assert shown == [("Chef", "Noah")]
+    menu.accept()
     cfg = controller.config["welcome"]
     assert cfg["style"] == "scan" and cfg["names"] == {"Noah": "Chef"} and cfg["text"] == "Servus"
-    menu.close()
-
+    assert cfg["birthdays"] == {"Lena": "12-24"}
+    page._update_welcome_label()
+    assert "Scan" in page.welcome_label.text()
 
 def test_birthday_welcome(env, monkeypatch):
-    """Geburtstag (geheimes Menü): an dem Tag Konfetti und „Alles Gute zum Geburtstag!“ – egal welcher Stil."""
+    """Geburtstag (Fenster „Begrüßung“): an dem Tag Konfetti und „Alles Gute zum Geburtstag!“ – egal welcher Stil."""
     import datetime
 
     from alupc import welcome

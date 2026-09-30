@@ -1478,7 +1478,7 @@ class Controller(QObject):
         self.changed.emit()
 
     def show_welcome(self, name: str, person: str = "", style: str | None = None) -> None:
-        """„Willkommen, Lena!“ auf Monitor 1 (nach Fingerabdruck oder zum Ausprobieren im geheimen Menü).
+        """„Willkommen, Lena!“ auf Monitor 1 (nach der Anmeldung mit dem Finger).
         Hat die Person heute Geburtstag: Konfetti und „Alles Gute zum Geburtstag!“."""
         from .ui.welcome_window import WelcomeWindow
         from .welcome import is_birthday

@@ -114,13 +114,12 @@ Außerdem:
   |---|---|---|
   | ![Aurora](docs/willkommen-aurora.gif) | ![Konfetti](docs/willkommen-konfetti.gif) | ![Scan](docs/willkommen-scan.gif) |
 
-  **Geheimes Menü:** 5× schnell auf die Versionsnummer unten links klicken (oder Strg+Alt+Umschalt+G).
-  Dort: Begrüßung an/aus, Animation, eigene Überschrift, Ton, **eigene Namen je Person** (z. B. „Noah“ → „Chef“)
-  und **Ausprobieren**.
+  **Einstellen:** Seite *Fingerabdruck* → *Begrüßung* → an/aus, Animation, eigene Überschrift, Ton,
+  **eigene Namen je Person** (z. B. „Noah“ → „Chef“) und **Geburtstage**.
 
-  <img src="docs/geheimes-menue.png" alt="Geheimes Menü" width="420">
+  <img src="docs/begruessung.png" alt="Begrüßung einstellen" width="420">
 
-  **Geburtstage** (neu in 0.68): Im geheimen Menü je Person den Geburtstag eintragen (TT.MM.) – an dem Tag gibt es
+  **Geburtstage** (neu in 0.68): Im Fenster *Begrüßung* je Person den Geburtstag eintragen (TT.MM.) – an dem Tag gibt es
   Konfetti und „Alles Gute zum Geburtstag!“.
 - **Finger als Schnelltaste** (neu in 0.68, Modul am USB-Seriell-Adapter): Seite *Fingerabdruck* →
   „Finger als Schnelltaste“ → jedem angelernten Finger einen Befehl geben (z. B. Zeigefinger = Schwarz,

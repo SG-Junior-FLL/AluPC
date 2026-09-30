@@ -110,7 +110,7 @@ def person_for_slot(slot: int) -> str:
 
 
 def display_name(config, person: str) -> str:
-    """Eigener Begrüßungsname (geheimes Menü) – sonst der Name der Person."""
+    """Eigener Begrüßungsname (Fenster „Begrüßung“) – sonst der Name der Person."""
     names = config["welcome"].get("names") or {}
     return str(names.get(person) or person or "").strip()
 

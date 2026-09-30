@@ -228,7 +228,7 @@ def self_test(log_path: str) -> int:
         window = MainWindow(controller, hotkeys)
         hotkeys.attach(window)
         controller.pip = PipWindow(controller)
-        controller.show_welcome("Selbsttest", style="konfetti")  # Begrüßung (geheimes Menü)
+        controller.show_welcome("Selbsttest", style="konfetti")  # Begrüßung
         controller._welcome.finish()
         for typ in ("zufall", "wetter", "umfrage"):  # neue Seiten im fertigen Paket vorhanden?
             controller.show_source({"type": typ}, remember=False)
