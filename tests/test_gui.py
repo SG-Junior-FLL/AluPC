@@ -3756,11 +3756,52 @@ def test_finger_shortcuts_dialog(env, monkeypatch):
     assert applied and finger_shortcuts.shortcut_map(controller.config) == {3: "schwarz", 7: "gluecksrad"}
 
 
+def _ws_connect(port, path):
+    """Kleiner WebSocket-Client für den Test (Handshake + Rahmen lesen/schreiben)."""
+    import base64
+    import os
+    import socket
+
+    sock = socket.create_connection(("127.0.0.1", port), timeout=5)
+    key = base64.b64encode(os.urandom(16)).decode()
+    sock.sendall((f"GET {path} HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                  f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").encode())
+    head = b""
+    while b"\r\n\r\n" not in head:
+        head += sock.recv(1)
+    return sock, sock.makefile("rb"), head.decode()
+
+
+def _ws_send(sock, obj):
+    import json
+    import os
+    import struct
+
+    data = json.dumps(obj).encode()
+    mask = os.urandom(4)
+    head = struct.pack(">BB", 0x81, 0x80 | len(data)) if len(data) < 126 else struct.pack(">BBH", 0x81, 0xFE,
+                                                                                         len(data))
+    sock.sendall(head + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
+
+
+def _ws_recv(rfile):
+    import json
+
+    from alupc.ws import read_frame
+
+    op, data = read_frame(rfile)
+    return op, (json.loads(data) if op == 1 else data)
+
+
 def test_games_end_to_end(env):
-    """Minispiele: Lobby mit QR auf Monitor 2; Handys treten ohne Steuer-Code bei (nur Stichwort), starten, spielen;
-    alle Spiele und das Ergebnis zeichnen; Kachel-Menü; falsches Stichwort → 404; Steuern geht damit nicht."""
+    """Minispiele: Lobby mit QR auf Monitor 2; Handys treten ohne Steuer-Code bei (nur Stichwort), spielen über
+    WebSocket (und zur Not per POST); starten können nur der PC und das Steuerfenster (mit Tasten); jedes Spiel
+    zeichnet; falsches Stichwort → 404; Steuern geht damit nicht."""
     import json
     import time
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
 
     from alupc.game_source import GameSource
     from alupc.games import GAMES
@@ -3768,76 +3809,93 @@ def test_games_end_to_end(env):
     controller, window, _ = env
     port = _free_tcp_port()
     controller.config["cast"] = {**controller.config["cast"], "port": port, "code": "123456"}
-    controller.start_games("rennen")
+    window.open_games_window()
     pump()
+    gw = window.games_window
     hub = controller.cast.games
-    assert hub.game_key == "rennen" and isinstance(controller.output.content, GameSource)
-    assert controller.config["games"]["last"] == "rennen"
+    assert gw.isVisible() and isinstance(controller.output.content, GameSource) and hub.game_key == "schaetzen"
     base = f"http://127.0.0.1:{controller.cast.port}"
     status, body = _http("GET", base + "/spiel")
-    assert status == 200 and b"Mitspielen" in body
+    assert status == 200 and b"Mitspielen" in body and b"/ws/spiel" in body
     assert _http("GET", base + "/api/spiel?u=falsch")[0] == 404
 
     def post(data, token=hub.token):
         return _http("POST", base + "/api/spiel", json.dumps({"u": token, **data}).encode(),
                      {"Content-Type": "application/json"})
 
-    status, body = post({"action": "join", "name": "Lena"})
-    lena = json.loads(body)
-    assert status == 200 and lena["name"] == "Lena" and lena["p"]
+    lena = json.loads(post({"action": "join", "name": "Lena"})[1])
     mia = json.loads(post({"action": "join", "name": "Mia"})[1])
+    assert lena["name"] == "Lena" and mia["p"]
     assert post({"action": "join", "name": "X"}, token="falsch")[0] == 404
-    assert post({"action": "start", "p": "fremd"})[0] == 403
-    status, body = _http("GET", f"{base}/api/spiel?u={hub.token}&p={lena['p']}")
-    data = json.loads(body)
-    assert status == 200 and data["joined"] and data["phase"] == "lobby" and data["players"] == 2
-    _until(lambda: window.refresh() or window.t_games.badge == "LOBBY")
-    assert not controller.output.content.grab().isNull()  # Lobby mit QR-Code
-    # Steuern geht mit dem Stichwort der Runde nicht
+    assert post({"action": "start", "p": lena["p"]})[0] == 400 and hub.phase == "lobby"  # Handys starten nicht
+    # Steuern geht mit dem Stichwort der Runde nicht – und „spiel_start“ ist fürs Handy gesperrt
     status, _ = _http("POST", base + "/api/cmd", json.dumps({"cmd": "schwarz"}).encode(),
                       {"Content-Type": "application/json", "X-AluPC-Code": hub.token})
     assert status == 403
-    status, body = post({"action": "start", "p": mia["p"]})
-    assert status == 200 and hub.phase == "running"
-    hub.game.start = hub.clock() - 1  # Countdown überspringen
+    status, _ = _http("POST", base + "/api/cmd", json.dumps({"cmd": "spiel_start"}).encode(),
+                      {"Content-Type": "application/json", "X-AluPC-Code": "123456"})
+    pump()
+    assert hub.phase == "lobby"
+    # WebSocket: Stand kommt von selbst, Eingaben gehen sofort
+    sock, rfile, head = _ws_connect(controller.cast.port, f"/ws/spiel?u={hub.token}&p={lena['p']}")
+    assert head.startswith("HTTP/1.1 101")
+    op, state = _ws_recv(rfile)
+    assert op == 1 and state["joined"] and state["ui"]["status"].startswith("Warte auf den Start am PC")
+    _until(lambda: gw.players.count() == 2)
+    assert "Lena" in gw.players.item(0).text()
+    # Steuerfenster: Taste 5 = Tauziehen, Leertaste = Start
+    gw.activateWindow()
+    QTest.keyClick(gw, Qt.Key_5)
+    assert hub.game_key == "tauziehen" and gw.cards["tauziehen"].isChecked()
+    QTest.keyClick(gw, Qt.Key_Space)
+    assert hub.phase == "running"
+    _until(lambda: window.t_games.badge == "LÄUFT")
+    hub.intro_until = hub.clock()  # 3-2-1 überspringen
+    _until(lambda: _ws_recv(rfile)[1].get("ui", {}).get("ui") == "tap")
     for _ in range(3):
-        assert post({"action": "input", "p": lena["p"], "tap": 1})[0] == 200
-        time.sleep(0.06)
-    assert hub.game.progress[lena["p"]] == 3
+        _ws_send(sock, {"tap": 1})
+        time.sleep(0.07)
+    _until(lambda: hub.game.taps[lena["p"]] == 3)
+    assert post({"action": "input", "p": mia["p"], "tap": 1})[0] == 200  # Rückweg ohne WebSocket
     assert post({"action": "input", "p": "fremd", "tap": 1})[0] == 404
-    assert post({"action": "quatsch", "p": lena["p"]})[0] == 400
-    window.refresh()
-    assert window.t_games.badge == "LÄUFT"
-    assert not controller.output.content.grab().isNull()
-    for key in GAMES:  # jedes Spiel zeichnet (auch mit Spielern drin)
+    QTest.keyClick(gw, Qt.Key_E)  # E = Ergebnis
+    assert hub.phase == "over"
+    _until(lambda: window.t_games.badge == "ERGEBNIS")
+    # jedes Spiel zeichnet (3-2-1, Spiel, Ergebnis)
+    for key in GAMES:
         controller.start_games(key)
         controller.game_action("start")
+        assert not controller.output.content.grab().isNull()
+        hub.intro_until = hub.clock()
         hub.tick()
-        if key == "reaktion":
-            hub.game.go_at = hub.clock() - 0.1
-            hub.tick()
-            hub.input(lena["p"], {"tap": 1})
-            hub.game.go_at -= 5
-            hub.tick()
-            assert hub.game.phase == "ergebnis"
-        assert hub.phase == "running" and not controller.output.content.grab().isNull()
-    hub.game.over = True
-    hub.tick()
-    assert hub.phase == "over"
-    assert not controller.output.content.grab().isNull()  # Siegertreppchen
-    window.refresh()
-    assert window.t_games.badge == "ERGEBNIS"
+        for _ in range(3):
+            controller.output.content.grab()
+        controller.game_action("weiter")
+        controller.output.content.grab()
+        controller.game_action("ende")
+        assert hub.phase == "over" and not controller.output.content.grab().isNull(), key
+    # Spieler entfernen (Entf)
+    gw.refresh(force=True)
+    gw.players.setCurrentRow(1)
+    QTest.keyClick(gw, Qt.Key_Delete)
+    assert list(hub.players) == [lena["p"]]
     menu = window.t_games.menu
     window._fill_games_menu(menu)
     labels = [a.text() for a in menu.actions()]
-    assert "Neu starten" not in labels and "Runde starten" in labels and "Zurück zur Lobby" in labels
-    assert any(t.startswith("Tipp-Rennen") and "✓" in t for t in labels)
-    controller.run_command("spiel_start")
+    assert "Steuerfenster …" in labels and "Spiel starten" in labels and "Zurück zur Lobby" in labels
+    controller.run_command("spiel_start")  # am PC (eigene Kachel, Finger) geht es
     assert hub.phase == "running"
-    controller.game_action("lobby")
-    assert hub.phase == "lobby"
     controller.game_action("aus")
     assert controller.cast.games is None
+    from alupc.ws import read_frame
+
+    closed = False
+    for _ in range(200):  # der Server schließt die Verbindung (letzte Stände dürfen noch kommen)
+        if read_frame(rfile) is None:
+            closed = True
+            break
+    assert closed
+    sock.close()
     assert _http("GET", f"{base}/api/spiel?u={hub.token}")[0] == 404
     controller.cast.stop()
 

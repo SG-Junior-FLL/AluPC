@@ -135,16 +135,33 @@ Außerdem:
   | Abstimmung | Glücksrad | Wetter & Uhr |
   |---|---|---|
   | ![Abstimmung](docs/abstimmung.png) | ![Glücksrad](docs/gluecksrad.png) | ![Wetter & Uhr](docs/wetter.png) |
-- **Minispiele – Handy = Controller** (neu in 0.76): Kachel *Minispiele* → Monitor 2 zeigt eine Lobby mit
-  QR-Code. Jeder scannt, gibt einen Namen ein und spielt mit – ohne App und **ohne** den Code der Handy-Steuerung
-  (der QR-Code erlaubt nur Mitspielen). Bis 12 Spieler. Starten am Handy oder am PC (Pfeil der Kachel).
-  - **Schlangen-Party:** Steuerkreuz oder wischen, Punkte fressen, 90 Sekunden. Crash → kurz Pause, dann weiter.
-  - **Schnellster Finger:** rot … GRÜN → sofort tippen. Die ersten drei bekommen 3/2/1 Punkte, zu früh = −1. 5 Runden.
-  - **Tipp-Rennen:** 60 Tipps bis zum Ziel, wer zuerst da ist, gewinnt.
+- **Minispiele – Handy = Controller** (neu in 0.76, stark erweitert in 0.77): Kachel *Minispiele* öffnet das
+  **Steuerfenster** am PC, Monitor 2 zeigt die Lobby mit QR-Code. Jeder scannt, gibt einen Namen ein und spielt mit –
+  ohne App und **ohne** den Code der Handy-Steuerung (der QR-Code erlaubt nur Mitspielen). Bis 16 Spieler.
+  **Gestartet wird nur am PC** – Handys können nichts starten oder umstellen.
+  - **Schätzen:** knapp 300 Fragen aus 8 Themen (Erde & Weltall, Tiere, Körper, Technik, Geschichte, Sport,
+    Alltag, Deutschland). Zahl auf dem Handy eintippen, Auflösung auf einem Zahlenstrahl.
+  - **Malen & Raten:** einer malt auf dem Handy (live auf Monitor 2), alle anderen tippen ihren Tipp ein.
+  - **Farb-Chaos:** Farbe oder Wort tippen – wer falsch liegt, ist raus. Alle gleichzeitig, es wird immer schneller.
+  - **Simon sagt:** Farbfolge merken und nachtippen – alle gleichzeitig, ein Fehler und man ist raus.
+  - **Tauziehen:** Team Rot gegen Team Blau, so schnell tippen wie möglich.
+  - **Pong:** Teams mit bis zu 3 Schlägern pro Seite, Finger hoch und runter ziehen.
+  - **Ballon:** aufpumpen und rechtzeitig sichern – alle Ballons platzen an derselben (geheimen) Stelle.
+  - **Schlangen-Party**, **Schnellster Finger**, **Tipp-Rennen**.
+  - Jedes Spiel mit 3-2-1, Animationen und Siegertreppchen (bei Teams: Team-Ergebnis).
+  - **Schnelle Steuerung:** Die Handys sind per WebSocket verbunden – Eingaben gehen ohne Umweg raus. Klappt das
+    nicht, fällt die Seite automatisch auf normale Abfragen zurück (grüner Punkt oben rechts = schnelle Verbindung).
+  - **Steuerfenster mit Tasten:** Leertaste = Start, N = Weiter, E = Ergebnis, L = Lobby, T = Teams mischen,
+    M = Monitor 2, Entf = Spieler entfernen, 1 … 0 = Spiel wählen. Dazu Einstellungen je Spiel (Fragen, Thema,
+    Dauer, Runden, Tempo …).
 
-  | Lobby | Schlangen-Party | Ergebnis |
+  | Lobby | Schätzen | Malen & Raten |
   |---|---|---|
-  | ![Lobby](docs/spiele-lobby.png) | ![Schlangen-Party](docs/spiele-schlangen.png) | ![Ergebnis](docs/spiele-ergebnis.png) |
+  | ![Lobby](docs/spiele-lobby.png) | ![Schätzen](docs/spiele-schaetzen.png) | ![Malen & Raten](docs/spiele-malen.png) |
+  | **Simon sagt** | **Tauziehen** | **Pong** |
+  | ![Simon sagt](docs/spiele-simon.png) | ![Tauziehen](docs/spiele-tauziehen.png) | ![Pong](docs/spiele-pong.png) |
+
+  ![Steuerfenster](docs/spiele-steuerung.png)
 
   ![Handy als Controller](docs/spiele-handy.png)
 - **Fehlerbericht per Knopf** (neu in 0.68): Setup → *Fehlerbericht …* speichert eine ZIP-Datei auf dem Desktop:

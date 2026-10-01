@@ -38,7 +38,7 @@ ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirm
                     "rgb_farbe", "rgb_monitor2", "rgb_aus", "zeichnung_zurueck", "kamera", "airplay", "qr",
                     "timer_stopp", "ablauf_weiter", "ablauf_zurueck",
                     "musik_zeigen", "musik_pause", "musik_weiter", "musik_zurueck", "overlays", "gluecksrad", "gluecksrad_drehen", "wetter",
-                    "umfrage_zeigen", "umfrage_ende", "spiele", "spiel_start"}
+                    "umfrage_zeigen", "umfrage_ende", "spiele"}  # Minispiele starten nur am PC
 MAX_FAILS = 10
 BLOCK_SECONDS = 60
 
@@ -343,9 +343,11 @@ def _make_handler(server: CastServer):
                 if poll is not None:
                     self._json(200, poll.public(q.get("v", [""])[0]))
             elif path == "/spiel":
-                from .games import GAME_PAGE
+                from .game_page import GAME_PAGE
 
                 self._send(200, GAME_PAGE.encode(), "text/html; charset=utf-8")
+            elif path == "/ws/spiel":  # schnelle Verbindung fürs Spielen
+                self._game_ws(parse_qs(urlparse(self.path).query))
             elif path == "/api/spiel":
                 q = parse_qs(urlparse(self.path).query)
                 hub = self._games(q.get("u", [""])[0])
@@ -397,6 +399,26 @@ def _make_handler(server: CastServer):
                 return None
             return hub
 
+        def _game_ws(self, q):
+            from . import ws
+
+            hub = self._games(q.get("u", [""])[0])
+            if hub is None:
+                return
+            key = self.headers.get("Sec-WebSocket-Key", "")
+            if "websocket" not in self.headers.get("Upgrade", "").lower() or not key:
+                self._json(400, {"error": "WebSocket erwartet"})
+                return
+            self.send_response(101, "Switching Protocols")
+            self.send_header("Upgrade", "websocket")
+            self.send_header("Connection", "Upgrade")
+            self.send_header("Sec-WebSocket-Accept", ws.accept_key(key))
+            self.end_headers()
+            self.wfile.flush()
+            self.close_connection = True
+            ws.serve_game(self.connection, self.rfile, hub, q.get("p", [""])[0],
+                          lambda: server.running() and server.games is hub)
+
         def _game_post(self):
             data = self._body_json()
             hub = self._games(str(data.get("u", "")))
@@ -410,16 +432,9 @@ def _make_handler(server: CastServer):
                     return
                 server.request.emit({"kind": "spiel"})
                 self._json(200, {"p": player.pid, "color": player.color, "name": player.name})
-            elif action == "input":
-                inp = {k: data[k] for k in ("tap", "dir") if k in data}
+            elif action == "input":  # starten können Handys nicht – nur der PC
+                inp = {k: v for k, v in data.items() if k not in ("u", "p", "action")}
                 self._json(200 if hub.input(pid, inp) else 404, {})
-            elif action == "start":
-                if hub.seen(pid) is None:
-                    self._json(403, {"error": "Erst mitspielen"})
-                    return
-                hub.start()
-                server.request.emit({"kind": "spiel"})
-                self._json(200, hub.state_for(pid))
             else:
                 self._json(400, {"error": "Ungültige Anfrage"})
 

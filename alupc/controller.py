@@ -20,6 +20,7 @@ class Controller(QObject):
     message = Signal(str)
     settings_imported = Signal(list)  # Dual-Boot: Einstellungen vom anderen System übernommen
     sync_status = Signal(str)
+    games_changed = Signal()  # Minispiele: Spieler/Phase geändert (Steuerfenster)
     presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
 
     def __init__(self, config: Config):
@@ -47,6 +48,8 @@ class Controller(QObject):
         self.grabber.failed.connect(self._frozen_grab_failed)
         self.pip = None  # wird von der Oberfläche gesetzt
         self._welcome = None  # laufende Begrüßung (Fenster)
+        self._games_timer = None
+        self._games_version = -1
 
         self.mode = "desktop"  # "content" = AluPC zeigt etwas, "desktop" = normaler zweiter Desktop
         self.content: dict | None = None
@@ -1478,21 +1481,52 @@ class Controller(QObject):
         self.changed.emit()
 
     def start_games(self, key: str | None = None) -> None:
-        """Minispiele: Lobby mit QR-Code auf Monitor 2 (eine laufende Runde bleibt erhalten)."""
+        """Minispiele: Lobby mit QR-Code auf Monitor 2 (eine laufende Runde bleibt erhalten).
+        Gestartet wird nur am PC (Steuerfenster, Kachel-Menü, eigene Kachel/Finger-Befehl „spiel_start“)."""
         from .games import GAMES, GameHub
 
         key = key if key in GAMES else None
+        cfg = self.config["games"]
         if self.cast.games is None:
-            self.cast.games = GameHub(key or self.config["games"].get("last", "schlangen"))
+            hub = GameHub(key or cfg.get("last") or "schaetzen")
+            for game, opts in (cfg.get("options") or {}).items():
+                for opt, value in (opts or {}).items():
+                    if game in GAMES:
+                        hub.set_option(opt, value, game)
+            self.cast.games = hub
         elif key:
             self.cast.games.set_game(key)
         if key:
-            self.config["games"] = {**self.config["games"], "last": key}
-        self.show_source({"type": "spiel"}, remember=False)
+            self.config["games"] = {**cfg, "last": key}
+        if self._games_timer is None:
+            from PySide6.QtCore import QTimer
+
+            self._games_timer = QTimer(self, interval=33)  # Spiel-Uhr – läuft auch, wenn Monitor 2 etwas anderes zeigt
+            self._games_timer.timeout.connect(self._games_tick)
+        self._games_timer.start()
+        if not (self.mode == "content" and (self.content or {}).get("type") == "spiel"):
+            self.show_source({"type": "spiel"}, remember=False)
         self.changed.emit()
 
+    def _games_tick(self) -> None:
+        hub = self.cast.games
+        if hub is None:
+            self._games_timer.stop()
+            return
+        hub.tick()
+        if hub.version != self._games_version:
+            self._games_version = hub.version
+            self.games_changed.emit()
+
+    def save_game_options(self) -> None:
+        hub = self.cast.games
+        if hub is not None:
+            self.config["games"] = {**self.config["games"], "last": hub.game_key,
+                                    "options": {k: dict(v) for k, v in hub.options.items()}}
+
     def game_action(self, action: str) -> None:
-        """„start“ (Runde starten/neu), „lobby“ (zurück zur Lobby), „aus“ (Minispiele beenden), „spiel:<key>“."""
+        """„start“ (Spiel starten/neu), „weiter“ (nächste Frage/Runde), „ende“ (sofort Ergebnis), „lobby“,
+        „aus“ (Minispiele beenden), „spiel:<key>“ (Spiel wählen)."""
         hub = self.cast.games
         if action.startswith("spiel:"):
             self.start_games(action.split(":", 1)[1])
@@ -1507,12 +1541,20 @@ class Controller(QObject):
                 self.message.emit("Minispiele: noch niemand dabei – QR-Code auf Monitor 2 scannen.")
             if not (self.mode == "content" and (self.content or {}).get("type") == "spiel"):
                 self.show_source({"type": "spiel"}, remember=False)
+        elif action == "weiter":
+            hub.next()
+        elif action == "ende":
+            hub.finish()
         elif action == "lobby":
             hub.to_lobby()
         elif action == "aus":
+            self.save_game_options()
             self.cast.games = None
+            if self._games_timer is not None:
+                self._games_timer.stop()
             if self.mode == "content" and (self.content or {}).get("type") == "spiel":
                 self.extend()
+        self.games_changed.emit()
         self.changed.emit()
 
     def poll_action(self, action: str) -> None:
@@ -1550,6 +1592,8 @@ class Controller(QObject):
 
     def shutdown(self) -> None:
         self._timer_watch.stop()
+        if self._games_timer is not None:
+            self._games_timer.stop()
         self.finger_shortcuts.stop()
         self._stop_handy_window()
         self.laser.close()

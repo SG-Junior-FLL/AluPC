@@ -77,7 +77,7 @@ DEFAULTS: dict = {
     # Abstimmung: zuletzt gestellte Frage (zum schnellen Wiederholen)
     "poll": {"question": "", "options": []},
     # Minispiele: zuletzt gewähltes Spiel
-    "games": {"last": "schlangen"},
+    "games": {"last": "schaetzen", "options": {}},
     # Finger als Schnelltaste (Modul am USB-Seriell-Adapter): Platz → Befehl
     "finger_shortcuts": {"on": False, "map": {}},
     # Begrüßung nach der Anmeldung mit dem Finger (Seite Fingerabdruck → Begrüßung): Stil, eigener Text, eigene Namen je Person

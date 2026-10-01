@@ -300,6 +300,7 @@ class MainWindow(QMainWindow):
         self.toast = Toast(self)
         self._build_tray()
         controller.changed.connect(self.refresh)
+        controller.games_changed.connect(self.refresh)  # Kachel „Minispiele“: LOBBY/LÄUFT/ERGEBNIS
         controller.message.connect(self.show_message)
         controller.presenter_requested.connect(self.open_presenter)
         controller.settings_imported.connect(self._settings_imported)
@@ -540,7 +541,7 @@ class MainWindow(QMainWindow):
         wheel_menu.aboutToShow.connect(lambda: self._fill_wheel_menu(wheel_menu))
         self.t_wheel.set_menu(wheel_menu, split=True)
         self.t_games = self.tiles["spiele"]
-        self.t_games.activated.connect(lambda: c.start_games())
+        self.t_games.activated.connect(self.open_games_window)
         games_menu = QMenu(self)
         games_menu.aboutToShow.connect(lambda: self._fill_games_menu(games_menu))
         self.t_games.set_menu(games_menu, split=True)
@@ -946,6 +947,22 @@ class MainWindow(QMainWindow):
         menu.addAction(icons.icon("refresh", col, 18), "Stimmen löschen", lambda: c.poll_action("neu"))
         menu.addAction(icons.icon("x", col, 18), "Abstimmung schließen", lambda: c.poll_action("aus"))
 
+    def open_games_window(self):
+        """Steuerfenster der Minispiele (zeigt auch gleich die Lobby auf Monitor 2)."""
+        from .games_window import GamesWindow
+
+        self.controller.start_games()
+        if getattr(self, "games_window", None) is None:
+            self.games_window = GamesWindow(self.controller, self)
+        win = self.games_window
+        screen = self.controller.main_screen()
+        if screen is not None and not win.isVisible():
+            g = screen.availableGeometry()
+            win.move(g.x() + (g.width() - win.width()) // 2, g.y() + (g.height() - win.height()) // 2)
+        win.show()
+        win.raise_()
+        win.activateWindow()
+
     def _fill_games_menu(self, menu):
         from ..games import GAMES
 
@@ -953,20 +970,26 @@ class MainWindow(QMainWindow):
         c = self.controller
         col = theme.current().text
         hub = c.cast.games
+        menu.addAction(icons.icon("sliders", col, 18), "Steuerfenster …", self.open_games_window)
         menu_header(menu, "Spiel wählen")
-        current = hub.game_key if hub else c.config["games"].get("last", "schlangen")
-        for key, (title, _help) in GAMES.items():
-            act = menu.addAction(icons.icon("gamepad", col, 18), title, lambda k=key: c.start_games(k))
+        current = hub.game_key if hub else c.config["games"].get("last", "schaetzen")
+        running = hub is not None and hub.phase == "running"
+        for key, spec in GAMES.items():
+            act = menu.addAction(icons.icon("gamepad", col, 18), spec.title.replace("&", "&&"),
+                                 lambda k=key: c.start_games(k))
             mark_current(act, key == current)
+            act.setEnabled(not running or key == current)
         menu.addSeparator()
         menu.addAction(icons.icon("monitor", col, 18), "Lobby auf Monitor 2", lambda: c.start_games())
         if hub is None:
             return
         menu_header(menu, f"{len(hub.players)} dabei")
-        running = hub.phase == "running"
-        start = menu.addAction(icons.icon("play", col, 18), "Neu starten" if running else "Runde starten",
+        start = menu.addAction(icons.icon("play", col, 18), "Neu starten" if running else "Spiel starten",
                                lambda: c.game_action("start"))
         start.setEnabled(bool(hub.players))
+        if running:
+            menu.addAction(icons.icon("forward", col, 18), "Weiter", lambda: c.game_action("weiter"))
+            menu.addAction(icons.icon("check", col, 18), "Ergebnis zeigen", lambda: c.game_action("ende"))
         if hub.phase != "lobby":
             menu.addAction(icons.icon("refresh", col, 18), "Zurück zur Lobby", lambda: c.game_action("lobby"))
         menu.addAction(icons.icon("x", col, 18), "Minispiele beenden", lambda: c.game_action("aus"))

@@ -626,6 +626,21 @@ def icon(name: str, color: str | QColor, size: int = 24) -> QIcon:
     return _icon_cached(name, QColor(color).name(QColor.HexArgb), size)
 
 
+@lru_cache(maxsize=64)
+def dot_icon(color: str, size: int = 14) -> QIcon:
+    """Farbiger Punkt (z. B. Spielerfarbe in Listen)."""
+    px = QPixmap(size * 2, size * 2)
+    px.setDevicePixelRatio(2.0)
+    px.fill(Qt.transparent)
+    p = QPainter(px)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(color))
+    p.drawEllipse(QRectF(1, 1, size - 2, size - 2))
+    p.end()
+    return QIcon(px)
+
+
 def paint(p: QPainter, name: str, rect: QRectF, color: str | QColor, stroke: float = 1.9) -> None:
     """Symbol direkt in einen vorhandenen Painter zeichnen (skaliert auf `rect`)."""
     p.save()

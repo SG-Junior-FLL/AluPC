@@ -8,7 +8,25 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.76.0)
+### Neu in dieser Version (0.77.0)
+- **7 neue Minispiele** (jetzt 10):
+  - **Schätzen** – knapp 300 Fragen in 8 Themen, Thema und Anzahl wählbar; Auflösung auf einem Zahlenstrahl.
+  - **Malen & Raten** – einer malt auf dem Handy (live auf Monitor 2), die anderen raten.
+  - **Farb-Chaos** (Stroop) – Farbe oder Wort tippen; wer falsch liegt, ist raus.
+  - **Simon sagt** – Farbfolge merken; alle gleichzeitig, ein Fehler und man ist raus.
+  - **Tauziehen** und **Pong** – Team Rot gegen Team Blau.
+  - **Ballon** – aufpumpen und rechtzeitig sichern.
+- **Nur der PC startet:** Handys können nichts mehr starten. Neues **Steuerfenster** (Kachel „Minispiele“) mit Spielwahl,
+  Einstellungen, Spielerliste (Team wechseln, entfernen) und Tasten (Leertaste = Start, N = Weiter, E = Ergebnis,
+  L = Lobby, T = Teams mischen, 1 … 0 = Spiel).
+- **Schnellere Steuerung:** Handys sind per WebSocket verbunden statt ständig nachzufragen; Rückfall auf die alte Art,
+  falls das nicht geht.
+- **Animationen:** 3-2-1 vor jedem Spiel, Konfetti und wachsendes Siegertreppchen, Funken, platzende Ballons,
+  Tor-Blitz, ausscheidende Spieler wackeln …
+- Ehrlich: getestet mit automatischen Tests und einem simulierten iPhone in Chromium (über die schnelle Verbindung),
+  noch nicht mit vielen echten Handys gleichzeitig im WLAN.
+
+### Neu in Version 0.76.0
 - **Minispiele – das Handy ist der Controller:** neue Kachel *Minispiele* (Bereich Handy). Monitor 2 zeigt eine
   Lobby mit QR-Code → scannen, Namen eingeben, mitspielen (ohne App, bis 12 Spieler). Start am Handy oder am PC.
   - **Schlangen-Party** – Steuerkreuz oder wischen, 90 Sekunden, wer am meisten frisst, gewinnt.
