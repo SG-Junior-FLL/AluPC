@@ -29,6 +29,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "wetter": ("weather", "Wetter & Uhr", "Monitor 2", "#0ea5e9", "anzeigen"),
     "umfrage": ("poll", "Abstimmung", "Per Handy", "#22c55e", "handy"),
     "zufall": ("wheel", "Glücksrad", "Wer ist dran?", "#f59e0b", "schnell"),
+    "spiele": ("gamepad", "Minispiele", "Handy = Controller", "#f43f5e", "handy"),
 }
 # Schwarz, Standbild, Bild-in-Bild sind jetzt Schalter oben beim Live-Bild – als Kachel nur noch auf Wunsch
 HIDDEN_BY_DEFAULT = {"freeze", "black", "pip", "draw"}
@@ -92,6 +93,8 @@ COMMANDS = {
     "gluecksrad_drehen": "Glücksrad drehen",
     "umfrage_zeigen": "Abstimmung zeigen",
     "umfrage_ende": "Abstimmung beenden (Ergebnis)",
+    "spiele": "Minispiele zeigen (Lobby)",
+    "spiel_start": "Minispiel starten",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann
@@ -102,7 +105,7 @@ TILE_ICONS = {
     "eye_off": "Sichtschutz", "moon": "Bildschirmschoner", "mirror": "Spiegeln", "extend": "Erweitern",
     "pip": "Bild-in-Bild", "home": "Haus", "lock": "Schloss", "power": "Ein/Aus", "sun": "Sonne",
     "music": "Musik", "layers": "Ebenen", "board": "Whiteboard", "weather": "Wetter", "poll": "Abstimmung",
-    "wheel": "Glücksrad",
+    "wheel": "Glücksrad", "gamepad": "Spiel",
 }
 
 TILE_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#64748b"]

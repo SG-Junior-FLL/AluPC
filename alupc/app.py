@@ -230,7 +230,7 @@ def self_test(log_path: str) -> int:
         controller.pip = PipWindow(controller)
         controller.show_welcome("Selbsttest", style="konfetti")  # Begrüßung
         controller._welcome.finish()
-        for typ in ("zufall", "wetter", "umfrage"):  # neue Seiten im fertigen Paket vorhanden?
+        for typ in ("zufall", "wetter", "umfrage", "spiel"):  # neue Seiten im fertigen Paket vorhanden?
             controller.show_source({"type": typ}, remember=False)
             kind = type(controller.output.content).__name__
             lines.append(f"Seite {typ}: {kind}")

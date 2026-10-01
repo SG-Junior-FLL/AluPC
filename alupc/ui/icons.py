@@ -359,6 +359,16 @@ def _draw(name: str, p: QPainter, color: QColor):
     elif name == "poll":  # Balken einer Abstimmung
         for i, length in enumerate((14, 9, 17)):
             p.drawRoundedRect(QRectF(3.5, 4.5 + i * 5.5, length, 3.5), 1.5, 1.5)
+    elif name == "gamepad":  # Controller
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(2.5, 7, 19, 11), 5.5, 5.5)
+        p.drawPath(path)
+        p.drawLine(QPointF(7.5, 10.5), QPointF(7.5, 14.5))
+        p.drawLine(QPointF(5.5, 12.5), QPointF(9.5, 12.5))
+        p.setBrush(fill)
+        p.drawEllipse(QPointF(15.5, 11.2), 1.1, 1.1)
+        p.drawEllipse(QPointF(17.8, 13.8), 1.1, 1.1)
+        p.setBrush(Qt.NoBrush)
     elif name == "wheel":  # Glücksrad
         p.drawEllipse(QPointF(11, 12), 8.5, 8.5)
         for i in range(4):
@@ -634,7 +644,7 @@ SOURCE_ICONS = {
     "camera": "camera", "window": "window", "screen": "monitor", "website": "globe", "image": "image",
     "video": "video", "slideshow": "slides", "text": "text", "clock": "clock", "countdown": "timer",
     "color": "palette", "scene": "scenes", "airplay": "phone", "cast": "qr", "design": "star",
-    "nowplaying": "music", "zufall": "wheel", "wetter": "weather", "umfrage": "poll", "whiteboard": "board",
+    "nowplaying": "music", "zufall": "wheel", "wetter": "weather", "umfrage": "poll", "spiel": "gamepad", "whiteboard": "board",
 }
 
 

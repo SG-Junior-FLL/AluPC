@@ -539,6 +539,11 @@ class MainWindow(QMainWindow):
         wheel_menu = QMenu(self)
         wheel_menu.aboutToShow.connect(lambda: self._fill_wheel_menu(wheel_menu))
         self.t_wheel.set_menu(wheel_menu, split=True)
+        self.t_games = self.tiles["spiele"]
+        self.t_games.activated.connect(lambda: c.start_games())
+        games_menu = QMenu(self)
+        games_menu.aboutToShow.connect(lambda: self._fill_games_menu(games_menu))
+        self.t_games.set_menu(games_menu, split=True)
         # Handy: eigene Kachel je Weg – Klick startet, Pfeil zeigt Optionen und die Handy-Seite
         self.t_airplay, self.t_remote = self.tiles["airplay"], self.tiles["handy_remote"]
         self.handy_menus = {}
@@ -940,6 +945,31 @@ class MainWindow(QMainWindow):
             menu.addAction(icons.icon("play", col, 18), "Weiter abstimmen", lambda: c.poll_action("weiter"))
         menu.addAction(icons.icon("refresh", col, 18), "Stimmen löschen", lambda: c.poll_action("neu"))
         menu.addAction(icons.icon("x", col, 18), "Abstimmung schließen", lambda: c.poll_action("aus"))
+
+    def _fill_games_menu(self, menu):
+        from ..games import GAMES
+
+        menu.clear()
+        c = self.controller
+        col = theme.current().text
+        hub = c.cast.games
+        menu_header(menu, "Spiel wählen")
+        current = hub.game_key if hub else c.config["games"].get("last", "schlangen")
+        for key, (title, _help) in GAMES.items():
+            act = menu.addAction(icons.icon("gamepad", col, 18), title, lambda k=key: c.start_games(k))
+            mark_current(act, key == current)
+        menu.addSeparator()
+        menu.addAction(icons.icon("monitor", col, 18), "Lobby auf Monitor 2", lambda: c.start_games())
+        if hub is None:
+            return
+        menu_header(menu, f"{len(hub.players)} dabei")
+        running = hub.phase == "running"
+        start = menu.addAction(icons.icon("play", col, 18), "Neu starten" if running else "Runde starten",
+                               lambda: c.game_action("start"))
+        start.setEnabled(bool(hub.players))
+        if hub.phase != "lobby":
+            menu.addAction(icons.icon("refresh", col, 18), "Zurück zur Lobby", lambda: c.game_action("lobby"))
+        menu.addAction(icons.icon("x", col, 18), "Minispiele beenden", lambda: c.game_action("aus"))
 
     def open_wheel_dialog(self):
         from .extras_dialogs import WheelDialog
@@ -1608,6 +1638,9 @@ class MainWindow(QMainWindow):
             (self.t_airplay, typ == "airplay" or (c.mode == "desktop" and c.desktop_note.startswith("iPhone"))),
         ]:
             tile.set_state(on, badge="AKTIV" if on else "")
+        hub = c.cast.games
+        self.t_games.set_state(hub is not None,
+                               badge="" if hub is None else {"lobby": "LOBBY", "running": "LÄUFT"}.get(hub.phase, "ERGEBNIS"))
         poll = c.cast.poll
         self.t_poll.set_state(poll is not None, badge="" if poll is None else ("LÄUFT" if poll.open else "ERGEBNIS"))
         remote_on = c.cast.running()  # Handy-Steuerung: „LÄUFT“, solange Handys verbinden können

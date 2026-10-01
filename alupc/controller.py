@@ -765,6 +765,9 @@ class Controller(QObject):
         elif kind == "mouse":
             self._phone_mouse(req)
             return
+        elif kind == "spiel":  # Handy ist beigetreten / hat gestartet → Kachel aktualisieren
+            self.changed.emit()
+            return
         elif kind == "cmd":
             cmd = req.get("cmd", "")
             videos = video_sources(self.output.content) if self.mode == "content" else []
@@ -1184,6 +1187,8 @@ class Controller(QObject):
             "gluecksrad_drehen": self.spin_wheel,
             "umfrage_zeigen": lambda: self.show_source({"type": "umfrage"}, remember=False),
             "umfrage_ende": lambda: self.poll_action("ende"),
+            "spiele": self.start_games,
+            "spiel_start": lambda: self.game_action("start"),
         }
         action = actions.get(command)
         if action:
@@ -1470,6 +1475,44 @@ class Controller(QObject):
         self.cast.poll = poll
         self.config["poll"] = {"question": poll.question, "options": poll.options}
         self.show_source({"type": "umfrage"}, remember=False)
+        self.changed.emit()
+
+    def start_games(self, key: str | None = None) -> None:
+        """Minispiele: Lobby mit QR-Code auf Monitor 2 (eine laufende Runde bleibt erhalten)."""
+        from .games import GAMES, GameHub
+
+        key = key if key in GAMES else None
+        if self.cast.games is None:
+            self.cast.games = GameHub(key or self.config["games"].get("last", "schlangen"))
+        elif key:
+            self.cast.games.set_game(key)
+        if key:
+            self.config["games"] = {**self.config["games"], "last": key}
+        self.show_source({"type": "spiel"}, remember=False)
+        self.changed.emit()
+
+    def game_action(self, action: str) -> None:
+        """„start“ (Runde starten/neu), „lobby“ (zurück zur Lobby), „aus“ (Minispiele beenden), „spiel:<key>“."""
+        hub = self.cast.games
+        if action.startswith("spiel:"):
+            self.start_games(action.split(":", 1)[1])
+            return
+        if hub is None:
+            if action == "start":
+                self.start_games()
+                self.message.emit("Minispiele: erst Handys mitspielen lassen (QR-Code auf Monitor 2).")
+            return
+        if action == "start":
+            if not hub.start(restart=True):
+                self.message.emit("Minispiele: noch niemand dabei – QR-Code auf Monitor 2 scannen.")
+            if not (self.mode == "content" and (self.content or {}).get("type") == "spiel"):
+                self.show_source({"type": "spiel"}, remember=False)
+        elif action == "lobby":
+            hub.to_lobby()
+        elif action == "aus":
+            self.cast.games = None
+            if self.mode == "content" and (self.content or {}).get("type") == "spiel":
+                self.extend()
         self.changed.emit()
 
     def poll_action(self, action: str) -> None:

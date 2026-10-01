@@ -38,7 +38,7 @@ ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirm
                     "rgb_farbe", "rgb_monitor2", "rgb_aus", "zeichnung_zurueck", "kamera", "airplay", "qr",
                     "timer_stopp", "ablauf_weiter", "ablauf_zurueck",
                     "musik_zeigen", "musik_pause", "musik_weiter", "musik_zurueck", "overlays", "gluecksrad", "gluecksrad_drehen", "wetter",
-                    "umfrage_zeigen", "umfrage_ende"}
+                    "umfrage_zeigen", "umfrage_ende", "spiele", "spiel_start"}
 MAX_FAILS = 10
 BLOCK_SECONDS = 60
 
@@ -174,6 +174,7 @@ class CastServer(QObject):
         self._fails: dict[str, list[float]] = {}
         self._lock = threading.Lock()
         self.poll = None  # laufende Abstimmung (polls.Poll) – Handys stimmen ohne Steuer-Code ab
+        self.games = None  # Minispiele (games.GameHub) – Handys spielen ohne Steuer-Code mit
 
     # ------------------------------------------------------------ Einstellungen
     def settings(self) -> dict:
@@ -228,6 +229,10 @@ class CastServer(QObject):
     def poll_url(self) -> str:
         base = f"http://{local_ip(self.settings().get('ip', ''))}:{self.port or self.settings()['port']}/"
         return base + (f"abstimmung?u={self.poll.token}" if self.poll else "abstimmung")
+
+    def games_url(self) -> str:
+        base = f"http://{local_ip(self.settings().get('ip', ''))}:{self.port or self.settings()['port']}/"
+        return base + (f"spiel?u={self.games.token}" if self.games else "spiel")
 
     # ------------------------------------------------------------ Start/Stopp
     def start(self) -> bool:
@@ -337,6 +342,17 @@ def _make_handler(server: CastServer):
                 poll = self._poll(q.get("u", [""])[0])
                 if poll is not None:
                     self._json(200, poll.public(q.get("v", [""])[0]))
+            elif path == "/spiel":
+                from .games import GAME_PAGE
+
+                self._send(200, GAME_PAGE.encode(), "text/html; charset=utf-8")
+            elif path == "/api/spiel":
+                q = parse_qs(urlparse(self.path).query)
+                hub = self._games(q.get("u", [""])[0])
+                if hub is not None:
+                    pid = q.get("p", [""])[0]
+                    hub.seen(pid)
+                    self._json(200, hub.state_for(pid))
             elif path == "/api/status":
                 if self._auth():
                     self._json(200, server.snapshot)
@@ -373,8 +389,48 @@ def _make_handler(server: CastServer):
                 return None
             return poll
 
+        def _games(self, token: str):
+            """Laufende Minispiel-Runde zu diesem Stichwort – sonst 404."""
+            hub = server.games
+            if not server.running() or hub is None or not hmac.compare_digest(token.encode(), hub.token.encode()):
+                self._json(404, {"error": "Keine Spielrunde"})
+                return None
+            return hub
+
+        def _game_post(self):
+            data = self._body_json()
+            hub = self._games(str(data.get("u", "")))
+            if hub is None:
+                return
+            action, pid = data.get("action"), str(data.get("p", ""))
+            if action == "join":
+                player = hub.join(str(data.get("name", "")))
+                if player is None:
+                    self._json(423, {"error": "Spielrunde ist voll"})
+                    return
+                server.request.emit({"kind": "spiel"})
+                self._json(200, {"p": player.pid, "color": player.color, "name": player.name})
+            elif action == "input":
+                inp = {k: data[k] for k in ("tap", "dir") if k in data}
+                self._json(200 if hub.input(pid, inp) else 404, {})
+            elif action == "start":
+                if hub.seen(pid) is None:
+                    self._json(403, {"error": "Erst mitspielen"})
+                    return
+                hub.start()
+                server.request.emit({"kind": "spiel"})
+                self._json(200, hub.state_for(pid))
+            else:
+                self._json(400, {"error": "Ungültige Anfrage"})
+
         def do_POST(self):
             u = urlparse(self.path)
+            if u.path == "/api/spiel":  # Minispiele: ohne Steuer-Code, nur mit dem Stichwort der Runde
+                try:
+                    self._game_post()
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    self._json(400, {"error": "Ungültige Anfrage"})
+                return
             if u.path == "/api/umfrage":  # Abstimmen: ohne Steuer-Code, nur mit dem Stichwort der Abstimmung
                 try:
                     data = self._body_json()

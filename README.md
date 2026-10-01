@@ -135,6 +135,18 @@ Außerdem:
   | Abstimmung | Glücksrad | Wetter & Uhr |
   |---|---|---|
   | ![Abstimmung](docs/abstimmung.png) | ![Glücksrad](docs/gluecksrad.png) | ![Wetter & Uhr](docs/wetter.png) |
+- **Minispiele – Handy = Controller** (neu in 0.76): Kachel *Minispiele* → Monitor 2 zeigt eine Lobby mit
+  QR-Code. Jeder scannt, gibt einen Namen ein und spielt mit – ohne App und **ohne** den Code der Handy-Steuerung
+  (der QR-Code erlaubt nur Mitspielen). Bis 12 Spieler. Starten am Handy oder am PC (Pfeil der Kachel).
+  - **Schlangen-Party:** Steuerkreuz oder wischen, Punkte fressen, 90 Sekunden. Crash → kurz Pause, dann weiter.
+  - **Schnellster Finger:** rot … GRÜN → sofort tippen. Die ersten drei bekommen 3/2/1 Punkte, zu früh = −1. 5 Runden.
+  - **Tipp-Rennen:** 60 Tipps bis zum Ziel, wer zuerst da ist, gewinnt.
+
+  | Lobby | Schlangen-Party | Ergebnis |
+  |---|---|---|
+  | ![Lobby](docs/spiele-lobby.png) | ![Schlangen-Party](docs/spiele-schlangen.png) | ![Ergebnis](docs/spiele-ergebnis.png) |
+
+  ![Handy als Controller](docs/spiele-handy.png)
 - **Fehlerbericht per Knopf** (neu in 0.68): Setup → *Fehlerbericht …* speichert eine ZIP-Datei auf dem Desktop:
   Beschreibung, Diagnose, Einstellungen (Codes/PINs geschwärzt), Fehler- und Absturzprotokoll, AirPlay-Protokoll,
   auf Wunsch ein Bild vom AluPC-Fenster.

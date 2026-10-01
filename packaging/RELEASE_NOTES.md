@@ -8,7 +8,20 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.75.0)
+### Neu in dieser Version (0.76.0)
+- **Minispiele – das Handy ist der Controller:** neue Kachel *Minispiele* (Bereich Handy). Monitor 2 zeigt eine
+  Lobby mit QR-Code → scannen, Namen eingeben, mitspielen (ohne App, bis 12 Spieler). Start am Handy oder am PC.
+  - **Schlangen-Party** – Steuerkreuz oder wischen, 90 Sekunden, wer am meisten frisst, gewinnt.
+  - **Schnellster Finger** – bei GRÜN zuerst tippen (3/2/1 Punkte, zu früh = −1), 5 Runden.
+  - **Tipp-Rennen** – 60 Tipps bis zum Ziel.
+  - Danach Siegertreppchen; „Nochmal“ auf dem Handy. Wer zu spät kommt, steigt über den kleinen QR-Code ein.
+  - Pfeil der Kachel: Spiel wählen, Runde starten, zurück zur Lobby, beenden. Befehle „spiele“ und „spiel_start“
+    auch für eigene Kacheln und Finger-Schnelltasten.
+  - Der QR-Code erlaubt nur Mitspielen – nicht die Handy-Steuerung.
+  - Hinweis: getestet mit automatischen Tests und einem simulierten iPhone im Browser, noch nicht mit vielen echten
+    Handys im WLAN. Bei schlechtem WLAN kann die Steuerung etwas verzögert sein.
+
+### Neu in Version 0.75.0
 - **Glücksrad für alles, nicht nur Namen:** keine Anzeige „7 Namen“ mehr; im Fenster heißt es „Ein Eintrag pro Zeile –
   Namen, Aufgaben, Zahlen …“, im Menü „Einträge bearbeiten …“ und „Jeden Eintrag nur einmal“.
 - **Geburtstage auch ohne Fingerabdruck:** Fingerabdruck → Begrüßung → Einstellen … → unter „Namen & Geburtstage“

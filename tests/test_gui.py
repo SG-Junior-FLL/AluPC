@@ -3756,6 +3756,92 @@ def test_finger_shortcuts_dialog(env, monkeypatch):
     assert applied and finger_shortcuts.shortcut_map(controller.config) == {3: "schwarz", 7: "gluecksrad"}
 
 
+def test_games_end_to_end(env):
+    """Minispiele: Lobby mit QR auf Monitor 2; Handys treten ohne Steuer-Code bei (nur Stichwort), starten, spielen;
+    alle Spiele und das Ergebnis zeichnen; Kachel-Menü; falsches Stichwort → 404; Steuern geht damit nicht."""
+    import json
+    import time
+
+    from alupc.game_source import GameSource
+    from alupc.games import GAMES
+
+    controller, window, _ = env
+    port = _free_tcp_port()
+    controller.config["cast"] = {**controller.config["cast"], "port": port, "code": "123456"}
+    controller.start_games("rennen")
+    pump()
+    hub = controller.cast.games
+    assert hub.game_key == "rennen" and isinstance(controller.output.content, GameSource)
+    assert controller.config["games"]["last"] == "rennen"
+    base = f"http://127.0.0.1:{controller.cast.port}"
+    status, body = _http("GET", base + "/spiel")
+    assert status == 200 and b"Mitspielen" in body
+    assert _http("GET", base + "/api/spiel?u=falsch")[0] == 404
+
+    def post(data, token=hub.token):
+        return _http("POST", base + "/api/spiel", json.dumps({"u": token, **data}).encode(),
+                     {"Content-Type": "application/json"})
+
+    status, body = post({"action": "join", "name": "Lena"})
+    lena = json.loads(body)
+    assert status == 200 and lena["name"] == "Lena" and lena["p"]
+    mia = json.loads(post({"action": "join", "name": "Mia"})[1])
+    assert post({"action": "join", "name": "X"}, token="falsch")[0] == 404
+    assert post({"action": "start", "p": "fremd"})[0] == 403
+    status, body = _http("GET", f"{base}/api/spiel?u={hub.token}&p={lena['p']}")
+    data = json.loads(body)
+    assert status == 200 and data["joined"] and data["phase"] == "lobby" and data["players"] == 2
+    _until(lambda: window.refresh() or window.t_games.badge == "LOBBY")
+    assert not controller.output.content.grab().isNull()  # Lobby mit QR-Code
+    # Steuern geht mit dem Stichwort der Runde nicht
+    status, _ = _http("POST", base + "/api/cmd", json.dumps({"cmd": "schwarz"}).encode(),
+                      {"Content-Type": "application/json", "X-AluPC-Code": hub.token})
+    assert status == 403
+    status, body = post({"action": "start", "p": mia["p"]})
+    assert status == 200 and hub.phase == "running"
+    hub.game.start = hub.clock() - 1  # Countdown überspringen
+    for _ in range(3):
+        assert post({"action": "input", "p": lena["p"], "tap": 1})[0] == 200
+        time.sleep(0.06)
+    assert hub.game.progress[lena["p"]] == 3
+    assert post({"action": "input", "p": "fremd", "tap": 1})[0] == 404
+    assert post({"action": "quatsch", "p": lena["p"]})[0] == 400
+    window.refresh()
+    assert window.t_games.badge == "LÄUFT"
+    assert not controller.output.content.grab().isNull()
+    for key in GAMES:  # jedes Spiel zeichnet (auch mit Spielern drin)
+        controller.start_games(key)
+        controller.game_action("start")
+        hub.tick()
+        if key == "reaktion":
+            hub.game.go_at = hub.clock() - 0.1
+            hub.tick()
+            hub.input(lena["p"], {"tap": 1})
+            hub.game.go_at -= 5
+            hub.tick()
+            assert hub.game.phase == "ergebnis"
+        assert hub.phase == "running" and not controller.output.content.grab().isNull()
+    hub.game.over = True
+    hub.tick()
+    assert hub.phase == "over"
+    assert not controller.output.content.grab().isNull()  # Siegertreppchen
+    window.refresh()
+    assert window.t_games.badge == "ERGEBNIS"
+    menu = window.t_games.menu
+    window._fill_games_menu(menu)
+    labels = [a.text() for a in menu.actions()]
+    assert "Neu starten" not in labels and "Runde starten" in labels and "Zurück zur Lobby" in labels
+    assert any(t.startswith("Tipp-Rennen") and "✓" in t for t in labels)
+    controller.run_command("spiel_start")
+    assert hub.phase == "running"
+    controller.game_action("lobby")
+    assert hub.phase == "lobby"
+    controller.game_action("aus")
+    assert controller.cast.games is None
+    assert _http("GET", f"{base}/api/spiel?u={hub.token}")[0] == 404
+    controller.cast.stop()
+
+
 def test_poll_and_wheel_dialogs(env, monkeypatch):
     from alupc.ui.extras_dialogs import PollDialog, WheelDialog
 
