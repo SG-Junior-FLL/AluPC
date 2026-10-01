@@ -72,7 +72,7 @@ DEFAULTS: dict = {
     "pip": {"opacity": 1.0, "width": 480, "fps": 20},
     # Wetter & Uhr: Ort (name, lat, lon, label – per Suche bei Open-Meteo)
     "weather": {},
-    # Glücksrad: Namen (leer = Personen vom Fingerabdruck), Gezogene bis zum Neustart herausnehmen
+    # Glücksrad: Einträge (leer = Personen vom Fingerabdruck), Gezogene bis zum Neustart herausnehmen
     "wheel": {"names": [], "remove_picked": False},
     # Abstimmung: zuletzt gestellte Frage (zum schnellen Wiederholen)
     "poll": {"question": "", "options": []},

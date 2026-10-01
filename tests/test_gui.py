@@ -3674,7 +3674,7 @@ def test_wheel_spins_to_fair_winner(env, monkeypatch):
     assert window.t_wheel.badge == "AKTIV"
     menu = window.t_wheel.menu
     window._fill_wheel_menu(menu)
-    assert "Namen bearbeiten …" in [a.text() for a in menu.actions()]
+    assert "Einträge bearbeiten …" in [a.text() for a in menu.actions()]
 
 
 def test_weather_source_and_service(env, monkeypatch):
@@ -3879,3 +3879,20 @@ def test_wheel_does_not_spin_by_itself_and_menus(env):
     for typ, text in (("zufall", "Glücksrad"), ("wetter", "Wetter & Uhr"), ("umfrage", "Abstimmung"),
                       ("whiteboard", "Whiteboard")):
         assert describe_source({"type": typ}) == text
+
+
+def test_birthday_without_fingerprint(env, monkeypatch):
+    """Geburtstage gehen auch ohne angelernten Finger: Person im Fenster „Begrüßung“ von Hand hinzufügen."""
+    from alupc.ui import welcome_settings
+
+    controller, window, _ = env
+    monkeypatch.setattr(welcome_settings.WelcomeSettings, "_persons", staticmethod(lambda: []))
+    dlg = welcome_settings.WelcomeSettings(controller, window)
+    dlg.new_person.setText("Mia")
+    dlg._add_person()
+    dlg.birthday_edits["Mia"].setText("3.7.")
+    dlg.accept()
+    assert controller.config["welcome"]["birthdays"] == {"Mia": "07-03"}
+    again = welcome_settings.WelcomeSettings(controller, window)  # bleibt beim nächsten Öffnen stehen
+    assert again.birthday_edits["Mia"].text() == "03.07." and again.try_name.findText("Mia") >= 0
+    again.reject()

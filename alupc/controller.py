@@ -37,7 +37,7 @@ class Controller(QObject):
         from .weather import service as weather_service
 
         self.weather = weather_service(config)
-        self.wheel_left: list[str] | None = None  # Glücksrad: noch nicht gezogene Namen (bei „Gezogene raus“)
+        self.wheel_left: list[str] | None = None  # Glücksrad: noch nicht gezogene Einträge (bei „Gezogene raus“)
         self._scene_volume: dict | None = None
         self._mirror_hint_shown = False
         self._system_main: str | None = None
@@ -1461,7 +1461,7 @@ class Controller(QObject):
             self.wheel_left.remove(name)
             if not self.wheel_left:
                 self.wheel_left = None
-                self.message.emit("Glücksrad: alle waren dran – beim nächsten Drehen sind wieder alle dabei.")
+                self.message.emit("Glücksrad: alle Einträge waren dran – beim nächsten Drehen sind wieder alle dabei.")
 
     def start_poll(self, question: str, options: list[str]) -> None:
         from .polls import Poll

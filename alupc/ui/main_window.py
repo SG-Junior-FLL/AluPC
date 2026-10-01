@@ -379,7 +379,7 @@ class MainWindow(QMainWindow):
         self.wheel_spin.setToolTip("Glücksrad auf Monitor 2 drehen")
         self.wheel_spin.clicked.connect(lambda: self.controller.spin_wheel())
         wheel_names = button("", "edit")
-        wheel_names.setToolTip("Namen bearbeiten")
+        wheel_names.setToolTip("Einträge bearbeiten")
         wheel_names.clicked.connect(self.open_wheel_dialog)
         self.wheel_names_btn = wheel_names
         wrow.addWidget(self.wheel_spin, 1)
@@ -956,8 +956,8 @@ class MainWindow(QMainWindow):
         wheel = c.wheel_widget()
         spin.setEnabled(not (wheel is not None and wheel.spinning))
         menu.addSeparator()
-        menu.addAction(icons.icon("edit", col, 18), "Namen bearbeiten …", self.open_wheel_dialog)
-        act = menu.addAction("Jeder nur einmal")
+        menu.addAction(icons.icon("edit", col, 18), "Einträge bearbeiten …", self.open_wheel_dialog)
+        act = menu.addAction("Jeden Eintrag nur einmal")
         act.setCheckable(True)
         act.setChecked(bool(c.config["wheel"].get("remove_picked")))
 

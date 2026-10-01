@@ -1,7 +1,7 @@
-"""Zufallsauswahl: Glücksrad mit Namen auf Monitor 2 („Wer ist dran?“).
+"""Zufallsauswahl: Glücksrad auf Monitor 2 – mit Namen, Aufgaben, Zahlen oder was auch immer.
 
 Das Ergebnis wird vorher fair gezogen (secrets), das Rad dreht sich dann genau dorthin – langsam auslaufend.
-Auf Wunsch fliegt, wer gezogen wurde, bis zum Neustart raus (jeder kommt einmal dran).
+Auf Wunsch fliegt ein gezogener Eintrag bis zum Neustart raus (jeder Eintrag kommt einmal dran).
 """
 
 from __future__ import annotations
@@ -198,7 +198,7 @@ class WheelSource(QWidget):
         elif self.spinning:
             text = self.names[self.pointer_index()]
         else:
-            text = f"{n} Namen"
+            text = ""  # vor dem Drehen nur „GLÜCKSRAD“ – keine Anzahl
         big = fitted_font(p, text, int(area.width()), max(14, int(h * (0.13 if done else 0.08))))
         big.setBold(True)
         p.setFont(big)

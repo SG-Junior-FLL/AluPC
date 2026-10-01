@@ -43,28 +43,31 @@ class WelcomeSettings(QDialog):
         birthdays = cfg.get("birthdays") or {}
         self.name_edits: dict[str, QLineEdit] = {}
         self.birthday_edits: dict[str, QLineEdit] = {}
+        # Personen vom Fingerabdruck + von Hand hinzugefügte (z. B. nur für Geburtstage / Ausprobieren)
         persons = self._persons()
-        head = QLabel("Namen & Geburtstage" if persons else "Noch keine Personen mit Fingerabdruck angelernt.")
-        head.setObjectName("SectionTitle" if persons else "Muted")
+        persons += [p for p in list(birthdays) + list(names) if p not in persons]
+        head = QLabel("Namen & Geburtstage")
+        head.setObjectName("SectionTitle")
         lay.addWidget(head)
-        names_form = QFormLayout()
+        hint = QLabel("Personen vom Fingerabdruck stehen automatisch hier – weitere unten hinzufügen.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+        self.names_form = QFormLayout()
+        self._names, self._birthdays = names, birthdays
         for person in persons:
-            edit = QLineEdit(names.get(person, ""))
-            edit.setPlaceholderText(person)
-            edit.setMaxLength(40)
-            self.name_edits[person] = edit
-            day = QLineEdit(format_birthday(birthdays.get(person, "")))
-            day.setPlaceholderText("TT.MM.")
-            day.setToolTip("Geburtstag – an dem Tag gibt es Konfetti und „Alles Gute zum Geburtstag!“")
-            day.setMaxLength(10)
-            day.setFixedWidth(90)
-            day.textChanged.connect(lambda _t, d=day: self._check_day(d))
-            self.birthday_edits[person] = day
-            row = QHBoxLayout()
-            row.addWidget(edit, 1)
-            row.addWidget(day)
-            names_form.addRow(person, row)
-        lay.addLayout(names_form)
+            self._add_person_row(person)
+        lay.addLayout(self.names_form)
+        add_row = QHBoxLayout()
+        self.new_person = QLineEdit()
+        self.new_person.setPlaceholderText("Neue Person, z. B. Lena")
+        self.new_person.setMaxLength(40)
+        self.new_person.returnPressed.connect(self._add_person)
+        add_btn = button("Hinzufügen", "plus")
+        add_btn.clicked.connect(self._add_person)
+        add_row.addWidget(self.new_person, 1)
+        add_row.addWidget(add_btn)
+        lay.addLayout(add_row)
 
         # Ausprobieren (ohne Sensor): Animation mit gewähltem Namen jetzt zeigen
         lay.addSpacing(6)
@@ -83,6 +86,35 @@ class WelcomeSettings(QDialog):
         lay.addWidget(close)
         self.finished.connect(lambda _r: self.save())
 
+    def _add_person_row(self, person: str) -> None:
+        edit = QLineEdit(self._names.get(person, ""))
+        edit.setPlaceholderText(person)
+        edit.setToolTip("Eigener Begrüßungsname (leer = Name der Person)")
+        edit.setMaxLength(40)
+        self.name_edits[person] = edit
+        day = QLineEdit(format_birthday(self._birthdays.get(person, "")))
+        day.setPlaceholderText("TT.MM.")
+        day.setToolTip("Geburtstag – an dem Tag gibt es Konfetti und „Alles Gute zum Geburtstag!“")
+        day.setMaxLength(10)
+        day.setFixedWidth(90)
+        day.textChanged.connect(lambda _t, d=day: self._check_day(d))
+        self.birthday_edits[person] = day
+        row = QHBoxLayout()
+        row.addWidget(edit, 1)
+        row.addWidget(day)
+        self.names_form.addRow(person.replace("&", "&&"), row)
+
+    def _add_person(self) -> None:
+        name = " ".join(self.new_person.text().split())
+        if not name or name in self.name_edits:
+            self.new_person.clear()
+            return
+        self._add_person_row(name)
+        if hasattr(self, "try_name") and self.try_name.findText(name) < 0:
+            self.try_name.addItem(name)
+        self.new_person.clear()
+        self.birthday_edits[name].setFocus()
+
     @staticmethod
     def _persons() -> list[str]:
         try:
@@ -98,6 +130,7 @@ class WelcomeSettings(QDialog):
 
     def save(self) -> None:
         names = {p: e.text().strip() for p, e in self.name_edits.items() if e.text().strip()}
+        # von Hand hinzugefügte Personen ohne Geburtstag/eigenen Namen bleiben nicht hängen – mit bleiben sie
         birthdays = {p: parse_birthday(e.text()) for p, e in self.birthday_edits.items()}
         self.controller.config["welcome"] = {
             **self.controller.config["welcome"],

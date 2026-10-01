@@ -8,7 +8,14 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.74.0)
+### Neu in dieser Version (0.75.0)
+- **Glücksrad für alles, nicht nur Namen:** keine Anzeige „7 Namen“ mehr; im Fenster heißt es „Ein Eintrag pro Zeile –
+  Namen, Aufgaben, Zahlen …“, im Menü „Einträge bearbeiten …“ und „Jeden Eintrag nur einmal“.
+- **Geburtstage auch ohne Fingerabdruck:** Fingerabdruck → Begrüßung → Einstellen … → unter „Namen & Geburtstage“
+  eine Person eintippen → **Hinzufügen** → Geburtstag (TT.MM.). Bisher ging das nur für Personen mit angelerntem
+  Finger. „Ausprobieren“ kennt die neue Person auch.
+
+### Neu in Version 0.74.0
 - **Design-Tour durch alle Seiten und Fenster** – alles im neuen, ruhigen Stil:
   - **Szenen:** Vorschauen weich eingefärbt mit runden Feldern statt knalliger Flächen mit harten schwarzen Rändern;
     Szenen-Karten flacher mit runden Ecken.

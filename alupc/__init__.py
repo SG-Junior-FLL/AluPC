@@ -1,4 +1,4 @@
 """AluPC – Steuerprogramm für einen zweiten Monitor (Kubuntu und Windows 11)."""
 
-__version__ = "0.74.0"
+__version__ = "0.75.0"
 APP_NAME = "AluPC"

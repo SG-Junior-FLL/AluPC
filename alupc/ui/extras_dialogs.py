@@ -62,7 +62,7 @@ class PollDialog(QDialog):
 
 
 class WheelDialog(QDialog):
-    """Namen fürs Glücksrad (eine Zeile pro Name)."""
+    """Einträge fürs Glücksrad (eine Zeile pro Eintrag – Namen, Aufgaben, Zahlen …)."""
 
     def __init__(self, controller, parent=None):
         super().__init__(parent)
@@ -71,12 +71,12 @@ class WheelDialog(QDialog):
         self.setMinimumWidth(400)
         cfg = controller.config["wheel"]
         lay = QVBoxLayout(self)
-        lay.addWidget(page_header("Glücksrad", "Ein Name pro Zeile", "wheel"))
+        lay.addWidget(page_header("Glücksrad", "Ein Eintrag pro Zeile – Namen, Aufgaben, Zahlen …", "wheel"))
         self.names = QPlainTextEdit("\n".join(cfg.get("names") or []))
-        self.names.setPlaceholderText("leer = Personen vom Fingerabdruck\n\nLena\nNoah\nMia …")
+        self.names.setPlaceholderText("leer = Personen vom Fingerabdruck\n\nz. B.\nLena\nPizza\nMission 3\n…")
         self.names.setMinimumHeight(200)
         lay.addWidget(self.names)
-        self.remove = QCheckBox("Gezogene herausnehmen (jeder kommt einmal dran)")
+        self.remove = QCheckBox("Gezogene herausnehmen (jeder Eintrag kommt einmal dran)")
         self.remove.setChecked(bool(cfg.get("remove_picked")))
         lay.addWidget(self.remove)
         row = QHBoxLayout()

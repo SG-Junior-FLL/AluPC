@@ -127,8 +127,8 @@ Außerdem:
 - **Abstimmung per Handy** (neu in 0.68): Kachel *Abstimmung* → Frage und 2–6 Antworten. Monitor 2 zeigt
   QR-Code und Balken, die live mitwachsen. Abstimmen geht ohne App und **ohne** den Code der Handy-Steuerung
   (der QR-Code erlaubt nur Abstimmen). Pfeil: Beenden (Ergebnis), weiter abstimmen, Stimmen löschen.
-- **Glücksrad** (neu in 0.68): „Wer ist dran?“ – Namen eintragen (leer = Personen vom Fingerabdruck), fair gezogen,
-  auf Wunsch kommt jeder genau einmal dran.
+- **Glücksrad** (neu in 0.68): „Wer ist dran?“ – beliebige Einträge (Namen, Aufgaben, Zahlen …; leer = Personen vom Fingerabdruck), fair gezogen,
+  auf Wunsch kommt jeder Eintrag genau einmal dran.
 - **Wetter & Uhr** (neu in 0.68): große Uhr, Wetter jetzt und die nächsten 3 Tage (Open-Meteo, ohne Anmeldung).
   Ort über den Pfeil der Kachel einstellen.
 
