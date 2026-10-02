@@ -8,7 +8,21 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.83.0)
+### Neu in dieser Version (0.84.0)
+- **Leistung richtig messen (Seite „System“ und Dashboard):**
+  - Windows: Prozessor-Auslastung jetzt mit denselben Zählern wie der Task-Manager („% Processor Utility“) –
+    vorher deutlich zu niedrig. Takt jetzt der aktuelle statt immer der feste Basistakt.
+  - Windows: Grafikkarten-Auslastung und Grafikspeicher auch ohne NVIDIA (AMD, Intel) über die Zähler des
+    Task-Managers.
+  - Netzwerk: nur echte Anschlüsse – vorher zählte der interne Verkehr (127.0.0.1, z. B. AirPlay/Handy-Steuerung
+    von AluPC selbst), Docker, VPN und virtuelle Adapter mit; dadurch viel zu hohe Werte.
+  - Laufwerke: Lesen/Schreiben nur über ganze Laufwerke – vorher zählten Partitionen, Loop- und LVM-Geräte doppelt.
+  - Prozessor-Auslastung wird unabhängig gerechnet (eine Sprachfrage „Wie geht es dem Computer?“ konnte die
+    Messung verstellen). Ryzen: echte Temperatur (Tdie) statt der um bis zu 20 °C erhöhten Regel-Temperatur.
+- Ehrlich: in der CI läuft das nur in virtuellen Maschinen; ob die Zahlen auf deinem PC genau zum Task-Manager
+  bzw. KDE-Systemmonitor passen, konnte ich nicht vergleichen.
+
+### Neu in Version 0.83.0
 - **Ganz normal sprechen** statt fester Befehle: „Alu PC, mach mal den Bildschirm schwarz“, „… Licht auf blau“,
   „… Timer auf fünf Minuten“, „… kein Standbild mehr“, „… zeig mir die Kamera“. An und aus gehen gezielt.
 - **Bessere Antworten:** passend zum Zustand („Monitor 2 ist schon schwarz“), echte Antworten auf Fragen

@@ -353,6 +353,26 @@ def self_test(log_path: str) -> int:
             result = f"Abfrage nicht möglich: {type(exc).__name__}: {exc}"
         lines.append(f"Läuft gerade: {result}")
         lines.append(f"DIAG Läuft gerade: {result}")
+        # Leistung: zwei echte Messungen im fertigen Programm (Windows: Task-Manager-Zähler)
+        import time
+
+        from . import sysinfo
+
+        sampler = sysinfo.Sampler()
+        time.sleep(1.0)
+        snap = sampler.sample()
+        time.sleep(1.0)
+        snap = sampler.sample()
+        gpu = snap.gpu
+        perf = (f"CPU {snap.cpu:.0f} % ({len(snap.cores)} Kerne, Takt {snap.freq or 0:.0f} MHz, "
+                f"Quelle {'Task-Manager-Zähler' if sampler._pdh else 'psutil'}) · RAM {snap.ram:.0f} % · "
+                f"GPU {(f'{gpu.name} {gpu.load:.0f} %') if gpu and gpu.load is not None else 'keine Daten'} · "
+                f"Netz ↓{sysinfo.fmt_rate(snap.net_down)} ↑{sysinfo.fmt_rate(snap.net_up)} · "
+                f"Laufwerke {len(snap.disks)} · Temperatur {snap.cpu_temp if snap.cpu_temp is not None else '–'}")
+        lines.append(f"Leistung: {perf}")
+        lines.append(f"DIAG Leistung: {perf}")
+        if not (0 <= snap.cpu <= 100 and snap.ram_total > 0 and snap.cores):
+            raise RuntimeError(f"Leistung falsch gemessen: {perf}")
         controller.show_source({"type": "nowplaying"})
         app.processEvents()
         # Overlays: alle Vorlagen einmal im eigenen Fenster über Monitor 2 zeichnen

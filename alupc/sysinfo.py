@@ -218,7 +218,8 @@ def amd_gpu(drm: Path = Path("/sys/class/drm")) -> Gpu | None:
 
 
 CPU_CHIPS = ("k10temp", "coretemp", "zenpower", "cpu_thermal", "acpitz")
-CPU_LABELS = ("tctl", "tdie", "package id 0", "cpu")
+# Tdie vor Tctl: bei manchen Ryzen ist Tctl absichtlich 10–20 °C höher (Lüfter-Regelung), Tdie ist die echte
+CPU_LABELS = ("tdie", "package id 0", "tctl", "cpu")
 
 
 def pick_cpu_temp(chips) -> float | None:
@@ -232,6 +233,49 @@ def pick_cpu_temp(chips) -> float | None:
                             return value
                 return max(v for _l, v in chip.temps)
     return None
+
+
+# --------------------------------------------------------------------------- Rechnen (testbar)
+# Netzwerk: nur echte Anschlüsse zählen – Loopback (AluPC streamt intern über 127.0.0.1!), Docker, VPN-Tunnel und
+# virtuelle Switches würden denselben Verkehr doppelt oder Phantom-Verkehr zeigen
+VIRTUAL_NICS = ("lo", "ifb", "sit", "gre", "dummy", "docker", "br-", "veth", "virbr", "vnet", "tun", "tap", "wg", "tailscale", "zt", "vmnet",
+                "vboxnet", "loopback", "vethernet", "isatap", "teredo", "6to4", "npcap", "bluetooth",
+                "pseudo-interface", "wan miniport", "hyper-v", "virtualbox", "vmware")
+
+
+def real_nic(name: str) -> bool:
+    n = name.lower()
+    return not any(n.startswith(v) or v in n for v in VIRTUAL_NICS if len(v) > 3) and \
+        not any(n.startswith(v) for v in VIRTUAL_NICS if len(v) <= 3)
+
+
+DISK_RE = None
+
+
+def physical_disk(name: str) -> bool:
+    """Ganze Laufwerke zählen, keine Partitionen/Loop/RAM-Disks/LVM (sonst wird alles doppelt gezählt)."""
+    import re
+
+    global DISK_RE
+    if DISK_RE is None:
+        DISK_RE = re.compile(r"^(sd[a-z]+|hd[a-z]+|vd[a-z]+|xvd[a-z]+|nvme\d+n\d+|mmcblk\d+|PhysicalDrive\d+)$")
+    return bool(DISK_RE.match(name))
+
+
+def cpu_usage(prev, cur) -> float:
+    """Auslastung in % aus zwei cpu_times()-Ständen (wie top/KDE-Systemmonitor: alles außer Leerlauf/Warten)."""
+    def busy_total(t):
+        d = t._asdict()
+        total = sum(d.values()) - d.get("guest", 0) - d.get("guest_nice", 0)  # guest steckt schon in user
+        idle = d.get("idle", 0) + d.get("iowait", 0)
+        return total - idle, total
+
+    b1, t1 = busy_total(prev)
+    b2, t2 = busy_total(cur)
+    dt = t2 - t1
+    if dt <= 0:
+        return 0.0
+    return max(0.0, min(100.0, (b2 - b1) * 100 / dt))
 
 
 # --------------------------------------------------------------------------- Messen
@@ -248,39 +292,69 @@ class Sampler:
         self._nvidia = shutil.which("nvidia-smi")
         self._nvidia_off_until = 0.0
         self.top: list[Proc] = []
+        self._cpu_prev = self._cores_prev = None
+        self._pdh = None  # Windows: Leistungsindikatoren wie im Task-Manager
+        self._win_gpu = ("", None)
+        if sys.platform == "win32":
+            try:
+                from .platform import win_pdh
+
+                self._pdh = win_pdh.Pdh()
+                self._win_gpu = win_pdh.gpu_name_and_memory()
+            except Exception:  # noqa: BLE001 – dann eben psutil
+                self._pdh = None
         if psutil:
-            psutil.cpu_percent(None, percpu=True)  # erster Aufruf liefert 0 – Startpunkt setzen
-            psutil.cpu_percent(None)
+            self._cpu_prev = psutil.cpu_times()
+            self._cores_prev = psutil.cpu_times(percpu=True)
 
     def sample(self) -> Snapshot:
         now = time.monotonic()
         s = Snapshot(time=now)
         if psutil is None:
             return s
-        s.cpu = psutil.cpu_percent(None)
-        s.cores = psutil.cpu_percent(None, percpu=True)
-        try:
-            f = psutil.cpu_freq()
-            s.freq = f.current if f else None
-        except Exception:  # noqa: BLE001 - manche VMs/Kerne melden keinen Takt
-            s.freq = None
+        # Eigene Rechnung statt psutil.cpu_percent(): dessen Startpunkt ist global und wird von jeder anderen
+        # Abfrage (z. B. „Wie geht es dem Computer?“) verstellt
+        cur, cores = psutil.cpu_times(), psutil.cpu_times(percpu=True)
+        s.cpu = cpu_usage(self._cpu_prev, cur) if self._cpu_prev else 0.0
+        if self._cores_prev and len(self._cores_prev) == len(cores):
+            s.cores = [cpu_usage(a, b) for a, b in zip(self._cores_prev, cores)]
+        else:
+            s.cores = [0.0] * len(cores)
+        self._cpu_prev, self._cores_prev = cur, cores
+        if self._pdh is not None:  # Windows: „% Processor Utility“ = Zahl im Task-Manager
+            try:
+                self._pdh.collect()
+                total, per_core = self._pdh.cpu()
+                if total is not None:
+                    s.cpu = total
+                if per_core and len(per_core) == len(s.cores):
+                    s.cores = per_core
+                perf = self._pdh.value("perf")
+                base = psutil.cpu_freq()
+                if perf and base and base.max:  # psutil meldet unter Windows nur den festen Basistakt
+                    s.freq = base.max * perf / 100
+            except Exception:  # noqa: BLE001
+                pass
+        if s.freq is None:  # Windows: schon oben aus dem Leistungsindikator
+            try:
+                f = psutil.cpu_freq()
+                s.freq = f.current if f else None
+            except Exception:  # noqa: BLE001 - manche VMs/Kerne melden keinen Takt
+                s.freq = None
         vm = psutil.virtual_memory()
         s.ram_used, s.ram_total = vm.total - vm.available, vm.total
         sw = psutil.swap_memory()
         s.swap_used, s.swap_total = sw.used, sw.total
         s.uptime = time.time() - psutil.boot_time()
         dt = now - self._last_t if self._last_t else 0
-        net = psutil.net_io_counters()
-        try:
-            io = psutil.disk_io_counters()
-        except Exception:  # noqa: BLE001
-            io = None
+        net = self.read_net()
+        io = self.read_io()
         if dt > 0 and self._last_net and net:
-            s.net_up = max(0.0, (net.bytes_sent - self._last_net.bytes_sent) / dt)
-            s.net_down = max(0.0, (net.bytes_recv - self._last_net.bytes_recv) / dt)
+            s.net_up = max(0.0, (net[0] - self._last_net[0]) / dt)
+            s.net_down = max(0.0, (net[1] - self._last_net[1]) / dt)
         if dt > 0 and self._last_io and io:
-            s.disk_read = max(0.0, (io.read_bytes - self._last_io.read_bytes) / dt)
-            s.disk_write = max(0.0, (io.write_bytes - self._last_io.write_bytes) / dt)
+            s.disk_read = max(0.0, (io[0] - self._last_io[0]) / dt)
+            s.disk_write = max(0.0, (io[1] - self._last_io[1]) / dt)
         self._last_net, self._last_io, self._last_t = net, io, now
         if now - self._disks_at > 10 or not self._disks:
             self._disks, self._disks_at = self.read_disks(), now
@@ -309,6 +383,30 @@ class Sampler:
             self.top, self._procs_at = self.read_procs(), now
         s.procs = self.top
         return s
+
+    @staticmethod
+    def read_net() -> tuple[int, int] | None:
+        """(gesendet, empfangen) in Bytes über alle echten Netzwerkanschlüsse."""
+        try:
+            nics = psutil.net_io_counters(pernic=True)
+        except Exception:  # noqa: BLE001
+            return None
+        sent = recv = 0
+        for name, c in nics.items():
+            if real_nic(name):
+                sent += c.bytes_sent
+                recv += c.bytes_recv
+        return sent, recv
+
+    @staticmethod
+    def read_io() -> tuple[int, int] | None:
+        """(gelesen, geschrieben) in Bytes über alle physischen Laufwerke."""
+        try:
+            disks = psutil.disk_io_counters(perdisk=True) or {}
+        except Exception:  # noqa: BLE001
+            return None
+        real = {n: c for n, c in disks.items() if physical_disk(n)} or disks
+        return sum(c.read_bytes for c in real.values()), sum(c.write_bytes for c in real.values())
 
     @staticmethod
     def read_disks() -> list[Disk]:
@@ -341,6 +439,15 @@ class Sampler:
             self._nvidia_off_until = now + 30  # Treiber gerade weg? Später nochmal versuchen
         if sys.platform.startswith("linux"):
             return amd_gpu()
+        if self._pdh is not None:  # Windows ohne NVIDIA-Werkzeug: Zähler wie im Task-Manager (AMD, Intel, NVIDIA)
+            try:
+                load, vram = self._pdh.gpu()
+            except Exception:  # noqa: BLE001
+                load = vram = None
+            if load is not None:
+                name, total = self._win_gpu
+                return Gpu(name.replace("NVIDIA ", "").replace("(R)", "") or "Grafikkarte", load=load,
+                           mem_used=vram, mem_total=total)
         return None
 
     def read_procs(self, count: int = 6) -> list[Proc]:

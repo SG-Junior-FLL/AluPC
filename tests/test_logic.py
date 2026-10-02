@@ -1230,3 +1230,49 @@ def test_system_voice_command():
 
     assert match("monitor system", [])[0] == "system"
     assert match("monitor systemstatus", [])[0] == "system"
+
+
+# ---------------------------------------------------------------- 0.84: Leistung richtig messen
+def test_cpu_usage_and_device_filters():
+    from collections import namedtuple
+
+    from alupc import sysinfo
+    from alupc.platform.win_pdh import engine_load
+
+    T = namedtuple("T", "user nice system idle iowait irq softirq steal guest guest_nice")
+    a = T(100, 0, 50, 800, 50, 0, 0, 0, 10, 0)
+    b = T(160, 0, 70, 850, 70, 0, 0, 0, 30, 0)  # +80 belegt (guest steckt in user), +70 Leerlauf/Warten
+    assert round(sysinfo.cpu_usage(a, b), 1) == round(80 * 100 / 150, 1)
+    assert sysinfo.cpu_usage(a, a) == 0.0
+    for nic in ("eth0", "enp3s0", "wlp2s0", "Ethernet", "WLAN"):
+        assert sysinfo.real_nic(nic), nic
+    for nic in ("lo", "docker0", "veth12ab", "virbr0", "tun0", "wg0", "ifb0", "tailscale0",
+                "Loopback Pseudo-Interface 1", "vEthernet (Default Switch)"):
+        assert not sysinfo.real_nic(nic), nic
+    for disk in ("sda", "nvme0n1", "vda", "mmcblk0", "PhysicalDrive0"):
+        assert sysinfo.physical_disk(disk), disk
+    for disk in ("sda1", "nvme0n1p2", "loop3", "dm-0", "zram0", "mmcblk0p1", "sr0"):
+        assert not sysinfo.physical_disk(disk), disk
+    rows = [("pid_1_luid_0x1_phys_0_eng_0_engtype_3D", 30.0), ("pid_2_luid_0x1_phys_0_eng_0_engtype_3D", 25.0),
+            ("pid_2_luid_0x1_phys_0_eng_3_engtype_VideoDecode", 40.0), ("pid_3_x_engtype_Copy", 5.0)]
+    assert engine_load(rows) == 55.0  # wie der Task-Manager: stärkste Engine-Art, über Programme summiert
+    assert engine_load([("a_engtype_3D", 80.0), ("b_engtype_3D", 70.0)]) == 100.0
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Leistungsindikatoren gibt es nur unter Windows")
+def test_windows_pdh_counters_real():
+    import time
+
+    from alupc.platform import win_pdh
+
+    pdh = win_pdh.Pdh()
+    assert "cpu" in pdh.counters, "Prozessor-Zähler fehlt"
+    time.sleep(1)
+    pdh.collect()
+    total, cores = pdh.cpu()
+    assert total is not None and 0 <= total <= 100
+    assert len(cores) >= 1 and all(0 <= c <= 100 for c in cores)
+    load, _vram = pdh.gpu()  # CI-VM hat oft keine GPU-Zähler – dann None, aber kein Fehler
+    assert load is None or 0 <= load <= 100
+    print("PDH", total, len(cores), load, win_pdh.gpu_name_and_memory())
+    pdh.close()
