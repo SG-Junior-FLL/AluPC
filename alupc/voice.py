@@ -110,6 +110,9 @@ def fold(text: str) -> str:
 
 
 def _alupc_score(joined: str) -> float:
+    # In der CI echt gehört: „anno pc“, „alle pc“, „allo pc“ – kurzes A-Wort + „pc“ zählt (nicht „am pc“)
+    if joined.endswith("pc") and 5 <= len(joined) <= 6 and joined.startswith(("al", "an", "hal", "hel")):
+        return 0.9
     if not joined.startswith(("alu", "hal", "allu", "aloo")) or "p" not in joined[3:]:  # „hallo“ allein zählt nicht
         return 0.0
     return max(difflib.SequenceMatcher(None, joined, form).ratio() for form in ALUPC_FORMS)
@@ -625,7 +628,20 @@ class VoiceControl(QObject):
         words = fold(text).split()
         span = wake_span(words, wakes)
         if span is None and not self.open_ear():
-            return  # nicht an AluPC gerichtet
+            # Vosk hat das Startwort vielleicht verhört („am pc“ …) – Whisper (falls an) fragt nach
+            if not (self.stt is not None and audio and any(w in ("pc", "pe", "monitor") for w in words[:4])):
+                return  # nicht an AluPC gerichtet
+            try:
+                better = self.stt.transcribe(audio)
+            except Exception as exc:  # noqa: BLE001
+                self._note_error(exc)
+                return
+            w2 = fold(better).split()
+            s2 = wake_span(w2, wakes)
+            if s2 is None:
+                return
+            self.heard.emit(f"„{better}“ (genau)" + (f" – {who}" if who else ""))
+            text, words, span = better, w2, s2
         found, empty = self._interpret(words, span)
         # Vosk hat nichts verstanden → Whisper als zweite Meinung (in der CI war Vosk bei klaren Sätzen
         # zuverlässiger, Whisper hilft bei Sätzen, die das kleine Modell nicht kennt)

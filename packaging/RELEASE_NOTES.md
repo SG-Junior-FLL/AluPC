@@ -8,7 +8,14 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.84.0)
+### Neu in dieser Version (0.85.0)
+- **Startwort zuverlässiger:** Im echten Sprachtest der CI hat das kleine Modell „Alu PC“ auch als „anno pc“,
+  „alle pc“ oder „am pc“ gehört – dann passierte gar nichts. „Anno PC“/„Alle PC“ zählen jetzt; bei unklaren
+  Fällen wie „am PC …“ fragt Whisper (falls heruntergeladen) nach und lässt den Satz nur zu, wenn es „Alu PC“ hört.
+- Ehrlich: Die CI-Ergebnisse schwanken von Lauf zu Lauf (Piper spricht jedes Mal etwas anders) – zuletzt 4–6 von
+  6 Sätzen. Mit echtem Mikrofon im Raum habe ich es nicht testen können.
+
+### Neu in Version 0.84.0
 - **Leistung richtig messen (Seite „System“ und Dashboard):**
   - Windows: Prozessor-Auslastung jetzt mit denselben Zählern wie der Task-Manager („% Processor Utility“) –
     vorher deutlich zu niedrig. Takt jetzt der aktuelle statt immer der feste Basistakt.

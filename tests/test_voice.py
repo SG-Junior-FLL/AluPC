@@ -312,6 +312,9 @@ def test_real_ci_transcripts():
         ("hallo pc mach bitte dem bildschirm schwarz", "schwarz_an"),
         ("Alu PC, schaltet den Bildschirmschutz aus.", "bildschirmschoner_aus"),
         ("Alu PC, Licht auf Blaum.", "rgb_farbe:#0000ff"),
+        ("anno pc licht auf blau", "rgb_farbe:#0000ff"),  # 0.84, Vosk verhört das Startwort
+        ("alle pc zeigt mir die kamera", "kamera"),
+        ("Hallo PC, schaltet den Bildschirm schwarzschoner aus.", "bildschirmschoner_aus"),
     ]:
         words = voice.fold(heard).split()
         span = voice.wake_span(words)
@@ -332,3 +335,27 @@ def test_convert_audio_from_device_format():
     assert 15000 < np.abs(pcm).max() < 17000  # Lautstärke bleibt (0,5 × 32767)
     same = (np.zeros(160, np.int16)).tobytes()
     assert voice.convert_audio(same, 16000, 1, "Int16") == same
+
+
+def test_whisper_confirms_misheard_wake_word(qtbot_free_app, tmp_path, monkeypatch):
+    """„am pc …“ ist kein Startwort – mit Whisper wird nachgefragt; sagt Whisper „Alu PC“, zählt der Satz."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from alupc.config import Config
+
+    vc = voice.VoiceControl(Config(tmp_path / "c.json"))
+    got = []
+    vc.command.connect(lambda c, _l, _t: got.append(c))
+
+    class FakeWhisper:
+        def __init__(self, text):
+            self.text = text
+
+        def transcribe(self, _audio):
+            return self.text
+
+    vc._handle("am pc schaltet den bildschirmschoner aus", None, 0, b"")  # ohne Whisper/Ton: nichts
+    vc.stt = FakeWhisper("Alu PC, schalte den Bildschirmschoner aus.")
+    vc._handle("am pc schaltet den bildschirmschoner aus", None, 0, b"x")
+    vc.stt = FakeWhisper("Ich sitze am PC und arbeite.")
+    vc._handle("ich sitze am pc und arbeite", None, 0, b"x")  # Whisper: kein Startwort → nichts
+    assert got == ["bildschirmschoner_aus"]
