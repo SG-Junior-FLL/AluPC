@@ -41,7 +41,9 @@ WAKE_WORDS = ("monitor", "monitore", "monitors", "monitoren")
 # Startwörter: Schlüssel → Anzeige
 WAKES = {"monitor": "Monitor", "alupc": "Alu PC"}
 # „Alu PC“ hört das Modell je nach Aussprache als „alu pc“, „alu p c“, „alu pe ze“ … – zusammengeschrieben vergleichen
-ALUPC_FORMS = ("alupc", "alupeze", "alupezeh", "alupehzeh", "alupetse", "alupeetse", "alupece", "alupeceh")
+ALUPC_FORMS = ("alupc", "alupeze", "alupezeh", "alupehzeh", "alupetse", "alupeetse", "alupece", "alupeceh",
+               # das kleine Modell hört „Alu PC“ oft als „Hallo PC“ (in der CI mit Piper-Stimme: jedes Mal)
+               "hallopc", "halopc", "hallupc", "hallopeze", "hallopetse")
 TARGET_WORDS = {"bildschirm", "monitor", "monitore", "zwei", "2"}  # „Alu PC, Bildschirm schwarz“
 STRICTNESS = {"streng": 0.40, "normal": 0.55, "locker": 0.70}  # höchster Kosinus-Abstand zur angelernten Stimme
 MIN_SPK_FRAMES = 30  # kürzere Äußerungen haben einen zu ungenauen Stimmabdruck
@@ -107,10 +109,14 @@ def fold(text: str) -> str:
     return " ".join(s.split())
 
 
+def _alupc_score(joined: str) -> float:
+    if not joined.startswith(("alu", "hal", "allu", "aloo")) or "p" not in joined[3:]:  # „hallo“ allein zählt nicht
+        return 0.0
+    return max(difflib.SequenceMatcher(None, joined, form).ratio() for form in ALUPC_FORMS)
+
+
 def _is_alupc(joined: str) -> bool:
-    if not joined.startswith(("alu", "hal", "allu", "aloo")):
-        return False
-    return max(difflib.SequenceMatcher(None, joined, form).ratio() for form in ALUPC_FORMS) >= 0.82
+    return _alupc_score(joined) >= 0.82
 
 
 def wake_span(words: list[str], wakes=("monitor", "alupc")) -> tuple[int, int] | None:
@@ -119,12 +125,11 @@ def wake_span(words: list[str], wakes=("monitor", "alupc")) -> tuple[int, int] |
     for i, w in enumerate(words):
         if "monitor" in wakes and w in WAKE_WORDS:
             span = (i, i + 1)
-        if "alupc" in wakes:
-            for k in (3, 2, 1):  # „alu pe ze“, „alu pc“, „alupc“
-                if i + k <= len(words) and _is_alupc("".join(words[i:i + k])):
-                    if span is None or i + k > span[1]:
-                        span = (i, i + k)
-                    break
+        if "alupc" in wakes:  # „alu pe ze“, „alu pc“, „alupc“ – die Variante, die am besten passt
+            scores = [(_alupc_score("".join(words[i:i + k])), -k, k) for k in (1, 2, 3) if i + k <= len(words)]
+            best, _neg, k = max(scores) if scores else (0.0, 0, 0)
+            if best >= 0.82 and (span is None or i + k > span[1]):
+                span = (i, i + k)
     return span
 
 

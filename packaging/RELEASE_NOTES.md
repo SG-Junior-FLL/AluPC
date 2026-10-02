@@ -13,6 +13,8 @@
   „… Timer auf fünf Minuten“, „… kein Standbild mehr“, „… zeig mir die Kamera“. An und aus gehen gezielt.
 - **Bessere Antworten:** passend zum Zustand („Monitor 2 ist schon schwarz“), echte Antworten auf Fragen
   (Uhrzeit, Datum, Wetter, Prozessor-Temperatur, Auslastung, was läuft, „Was kannst du?“, Witz).
+- **Startwort zuverlässiger:** Das kleine Sprachmodell hört „Alu PC“ oft als „Hallo PC“ (in der CI gemessen) –
+  das zählt jetzt auch. „Hallo“ allein nicht.
 - **Gespräch:** Nur „Alu PC“ → „Ja?“. Nach jeder Antwort 8 s ohne Startwort nachfragen.
 - **Mikrofon-Schalter:** Knopf „Zuhören“ links oder Strg+Alt+H – solange an, kein Startwort nötig.
 - **Genauere Erkennung (optional):** Whisper Base (ca. 145 MB) oder Small (ca. 485 MB), offline.

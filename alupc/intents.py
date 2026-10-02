@@ -55,7 +55,8 @@ FEATURES = [
     Feature("schwarz", ("schwarz", "sichtschutz", "dunkel", "verdecken", "verdeck", "blackout", "abdunkeln",
                         "schwarzbild"), "Schwarz"),
     Feature("standbild", ("standbild", "einfrieren", "eingefroren", "freeze", "festhalten"), "Standbild"),
-    Feature("bildschirmschoner", ("bildschirmschoner", "schoner", "screensaver"), "Bildschirmschoner"),
+    Feature("bildschirmschoner", ("bildschirmschoner", "schoner", "screensaver", "bildschirmschutz"),
+            "Bildschirmschoner"),
     Feature("overlays", ("overlays", "overlay", "einblendung", "einblendungen"), "Overlays"),
     Feature("bild_in_bild", ("bild in bild", "minivorschau", "mini vorschau", "vorschau"), "Bild-in-Bild"),
     Feature("rgb", ("rgb", "licht", "lichter", "beleuchtung", "led", "leds", "lampe", "lampen", "leuchten"),
@@ -258,7 +259,8 @@ def understand(words: list[str], scenes: list[str] | None = None,
     state = switch(words)
     # 5) Licht / RGB: Farben, heller, dunkler, „wie der Bildschirm“
     light = any_of(words, FEATURES[5].words)
-    color = next((COLORS[w] for w in words if w in COLORS), None)
+    color = next((COLORS[c] for w in words for c in COLORS if w == c or (
+        w.startswith(c) and w[len(c):] in ("e", "es", "er", "en", "em", "m", "n"))), None)  # „blaues“, „Blaum“
     if light or (color and not any_of(words, ("szene", "whiteboard", "hintergrund"))):
         if color:
             return f"rgb_farbe:{color}", f"Licht {COLOR_NAMES.get(color, '')}".strip()

@@ -51,7 +51,8 @@ def qtbot_free_app():
     ("alupc spiegeln", "spiegeln"),
     ("alu pe ze glücksrad drehen", "gluecksrad_drehen"),
     ("alu p c monitor schwarz", "schwarz"),
-    ("halo pc schwarz", None),
+    ("hallo pc schwarz", "schwarz"),  # so hört das kleine Modell „Alu PC“ oft (echt gemessen in der CI)
+    ("hallo schwarz", None),  # „Hallo“ allein ist kein Startwort
     ("alpha pc schwarz", None),
     ("bildschirm schwarz", None),  # „Bildschirm“ allein ist kein Startwort
 ])
@@ -299,3 +300,20 @@ def test_direct_mode_follow_up_and_echo_mute(qtbot_free_app, tmp_path, monkeypat
     qtbot_free_app.wait(lambda: False, 0.3)
     assert got.count("rgb_an") == 1
     vc.stop()
+
+
+def test_real_ci_transcripts():
+    """Was Vosk und Whisper in der CI aus Piper-Sätzen wirklich gemacht haben (0.83, erster Lauf)."""
+    from alupc.intents import understand
+
+    for heard, command in [
+        ("hallo pc schaltet den bildschirmschoner aus", "bildschirmschoner_aus"),
+        ("hallo pc wie spät ist es", "frage:uhrzeit"),
+        ("hallo pc mach bitte dem bildschirm schwarz", "schwarz_an"),
+        ("Alu PC, schaltet den Bildschirmschutz aus.", "bildschirmschoner_aus"),
+        ("Alu PC, Licht auf Blaum.", "rgb_farbe:#0000ff"),
+    ]:
+        words = voice.fold(heard).split()
+        span = voice.wake_span(words)
+        assert span is not None, heard
+        assert understand(words[:span[0]] + words[span[1]:], [], [])[0] == command, heard

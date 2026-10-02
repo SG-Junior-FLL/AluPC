@@ -190,7 +190,8 @@ Außerdem:
     „… kein Standbild mehr“, „… Licht auf blau“, „… Licht aus“, „… Timer auf fünf Minuten“, „… zeig mir die
     Kamera“. **An und aus** gehen gezielt („Bildschirmschoner aus“), AluPC antwortet passend zum Zustand („Monitor 2
     ist schon schwarz“). **Fragen:** Uhrzeit, Datum, Wetter, Prozessor-Temperatur, Auslastung, was gerade läuft,
-    „Was kannst du?“, Witz. Nur „Alu PC“ → „Ja?“; nach jeder Antwort 8 s **ohne Startwort** nachfragen.
+    „Was kannst du?“, Witz. „Hallo PC“ zählt auch als Startwort (so hört das kleine Modell „Alu PC“ oft). Nur
+    „Alu PC“ → „Ja?“; nach jeder Antwort 8 s **ohne Startwort** nachfragen.
   - **Mikrofon-Schalter** (neu in 0.83): Knopf **„Zuhören“** links oder `Strg+Alt+H` – solange an, braucht es
     **kein Startwort**, jeder Satz zählt. Nochmal drücken oder „Hör auf zuzuhören“ = aus.
   - **Genauere Erkennung** (neu in 0.83): Setup → *Sprache* → *Erkennung* „Whisper Base“ (ca. 145 MB) oder
