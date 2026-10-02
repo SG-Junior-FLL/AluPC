@@ -8,7 +8,23 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.79.0)
+### Neu in dieser Version (0.80.0)
+- **Neues Startwort „Alu PC“:** „Alu PC, Bildschirm schwarz“, „Alu PC, nächste Szene“ … „Monitor“ geht weiter;
+  beide lassen sich im Setup → *Sprache* einzeln an- und ausschalten. „Bildschirm“/„Monitor“ nach dem Startwort
+  darf man sagen, muss man aber nicht.
+- **Nur auf bestimmte Stimmen hören:** Stimmerkennung einmal herunterladen (ca. 13 MB), „Stimme anlernen …“ –
+  sechs kurze Sätze vorlesen – und „Befehle nur von angelernten Stimmen annehmen“ einschalten. Mehrere Stimmen
+  möglich, Genauigkeit streng/normal/locker. Unter „Zuletzt gehört“ steht, wen AluPC erkannt hat und wie sicher.
+- Ehrlich:
+  - Das ist ein Komfort-Filter gegen Zurufe aus dem Raum, **kein Schutz** – eine Aufnahme oder eine sehr
+    ähnliche Stimme kann ihn täuschen.
+  - Getestet nur mit nachgebauter Erkennung; mit echten Stimmen und Mikrofon konnte ich es hier nicht
+    ausprobieren. Die Grenzwerte für „streng/normal/locker“ sind Startwerte – ggf. anpassen, wenn AluPC dich
+    nicht erkennt (locker) oder andere durchlässt (streng).
+  - Wie gut „Alu PC“ verstanden wird, hängt davon ab, wie das kleine Sprachmodell es hört; AluPC akzeptiert
+    dafür mehrere Schreibweisen („alu pc“, „alu pe ze“ …).
+
+### Neu in Version 0.79.0
 - **Sprachbefehle am PC (offline):** „Monitor schwarz“, „Monitor spiegeln“, „Monitor nächste Szene“,
   „Monitor Szene Pause“, „Monitor Glücksrad drehen“, „Monitor Spiel starten“ … Setup → *Sprache*: Sprachmodell
   einmal herunterladen (ca. 45 MB), einschalten, Mikrofon wählen. Alles bleibt auf dem PC (Vosk). Ohne das Wort

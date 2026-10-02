@@ -1034,8 +1034,8 @@ class SetupPage(QWidget):
 
         box = QGroupBox("Sprachbefehle")
         lay = QVBoxLayout(box)
-        intro = QLabel("„Monitor“ sagen, dann den Befehl – z. B. „Monitor schwarz“ oder „Monitor nächste Szene“. "
-                       "Läuft komplett auf dem PC (offline), es geht kein Ton ins Internet.")
+        intro = QLabel("Startwort sagen, dann den Befehl – z. B. „Alu PC, Bildschirm schwarz“ oder „Monitor nächste "
+                       "Szene“. Läuft komplett auf dem PC (offline), es geht kein Ton ins Internet.")
         intro.setWordWrap(True)
         lay.addWidget(intro)
         cfg = self.config["voice"]
@@ -1049,6 +1049,15 @@ class SetupPage(QWidget):
             mic.addItem(dev.description(), bytes(dev.id()).decode(errors="replace"))
         mic.setCurrentIndex(max(0, mic.findData(cfg.get("device", ""))))
         form.addRow("Mikrofon:", mic)
+        wake_row = QHBoxLayout()
+        self.wake_boxes = {}
+        for key, label in voice.WAKES.items():
+            cb = QCheckBox(f"„{label} …“")
+            cb.setChecked(key in (cfg.get("wake") or list(voice.WAKES)))
+            wake_row.addWidget(cb)
+            self.wake_boxes[key] = cb
+        wake_row.addStretch(1)
+        form.addRow("Startwort:", wake_row)
         lay.addLayout(form)
         self.voice_state = QLabel()
         self.voice_state.setObjectName("Muted")
@@ -1068,7 +1077,43 @@ class SetupPage(QWidget):
         model_row.addWidget(self.voice_bar)
         model_row.addWidget(self.voice_dl)
         lay.addLayout(model_row)
-        cmds = QLabel("<b>Befehle</b> (immer mit „Monitor“ davor):<br>" + "<br>".join(
+        # ---- nur bestimmte Stimmen
+        voices_box = QGroupBox("Nur auf bestimmte Stimmen hören")
+        vl = QVBoxLayout(voices_box)
+        self.only_voices = QCheckBox("Befehle nur von angelernten Stimmen annehmen")
+        self.only_voices.setChecked(bool(cfg.get("only_voices")))
+        vl.addWidget(self.only_voices)
+        self.voice_list = QListWidget()
+        self.voice_list.setMaximumHeight(110)
+        vl.addWidget(self.voice_list)
+        vrow = QHBoxLayout()
+        self.voice_add = button("Stimme anlernen …", "plus")
+        self.voice_del = button("Entfernen", "trash")
+        strict = QComboBox()
+        for key, label in (("streng", "streng"), ("normal", "normal"), ("locker", "locker")):
+            strict.addItem(f"Genauigkeit: {label}", key)
+        strict.setCurrentIndex(max(0, strict.findData(cfg.get("strict", "normal"))))
+        vrow.addWidget(self.voice_add)
+        vrow.addWidget(self.voice_del)
+        vrow.addStretch(1)
+        vrow.addWidget(strict)
+        vl.addLayout(vrow)
+        spk_row = QHBoxLayout()
+        self.spk_label = QLabel()
+        self.spk_label.setWordWrap(True)
+        self.spk_dl = button("Herunterladen", "download")
+        spk_row.addWidget(self.spk_label, 1)
+        spk_row.addWidget(self.spk_dl)
+        vl.addLayout(spk_row)
+        note = QLabel("Ein Filter gegen Zurufe aus dem Raum – kein Schutz: eine Aufnahme oder eine sehr ähnliche Stimme "
+                      "kann ihn täuschen. Hinter „Zuletzt gehört“ steht, wen AluPC erkannt hat und wie sicher "
+                      "(kleiner = ähnlicher).")
+        note.setObjectName("Muted")
+        note.setWordWrap(True)
+        vl.addWidget(note)
+        lay.addWidget(voices_box)
+
+        cmds = QLabel("<b>Befehle</b> (immer mit Startwort davor, z. B. „Alu PC, …“):<br>" + "<br>".join(
             f"„{variants[0].capitalize()}“ – {label.replace('&', '&amp;')}" for variants, _cmd, label in voice.COMMANDS)
             + "<br>„Szene <i>Name</i>“ – eigene Szene zeigen")
         cmds.setObjectName("Muted")
@@ -1076,9 +1121,23 @@ class SetupPage(QWidget):
         lay.addWidget(cmds)
         vc = self.controller.voice
 
+        def fill_voices():
+            self.voice_list.clear()
+            for v in self.config["voice"].get("voices") or []:
+                self.voice_list.addItem(v.get("name", "?"))
+            if not self.voice_list.count():
+                self.voice_list.addItem("(noch keine Stimme angelernt)")
+                self.voice_list.item(0).setFlags(Qt.NoItemFlags)
+
         def refresh():
             ok = voice.vosk_available()
             ready = voice.model_ready()
+            spk = voice.spk_ready()
+            self.spk_label.setText("Stimmerkennung ✓" if spk else
+                                   f"Stimmerkennung fehlt – einmal herunterladen (ca. {voice.SPK_SIZE_MB} MB)")
+            self.spk_dl.setVisible(ok and not spk)
+            self.voice_add.setEnabled(ok and spk and vc.state == "hört zu")
+            self.voice_add.setToolTip("" if vc.state == "hört zu" else "Erst Sprachbefehle einschalten")
             if not ok:
                 self.voice_model.setText("Spracherkennung (Vosk) fehlt in dieser AluPC-Version.")
             elif ready:
@@ -1090,11 +1149,56 @@ class SetupPage(QWidget):
             self.voice_state.setText(f"Status: {vc.state}")
 
         def save(*_):
+            wakes = [k for k, cb in self.wake_boxes.items() if cb.isChecked()] or ["monitor"]
             self.config["voice"] = {**self.config["voice"], "on": self.voice_on.isChecked(),
-                                    "device": mic.currentData()}
+                                    "device": mic.currentData(), "wake": wakes}
             vc.stop()
             vc.apply()
             refresh()
+
+        def save_filter(*_):
+            self.config["voice"] = {**self.config["voice"], "only_voices": self.only_voices.isChecked(),
+                                    "strict": strict.currentData()}
+
+        def enroll():
+            from .voice_enroll import VoiceEnrollDialog
+
+            VoiceEnrollDialog(self.controller, self).exec()
+            fill_voices()
+
+        def remove_voice():
+            item = self.voice_list.currentItem()
+            if item is None or not (item.flags() & Qt.ItemIsEnabled):
+                return
+            cfg = self.config["voice"]
+            self.config["voice"] = {**cfg, "voices": [v for v in cfg.get("voices") or []
+                                                      if v.get("name") != item.text()]}
+            fill_voices()
+
+        def download_spk():
+            self.spk_dl.setEnabled(False)
+
+            def done(_p):
+                self.spk_dl.setEnabled(True)
+                vc.stop()  # neu laden, damit die Stimmerkennung dabei ist
+                vc.apply()
+                refresh()
+
+            def failed(e):
+                self.spk_dl.setEnabled(True)
+                error_box(self, f"Stimmerkennung konnte nicht geladen werden: {e}")
+
+            run_async(lambda: voice.download_model(url=voice.SPK_URL, target=voice.spk_dir(), ready=voice.spk_ready),
+                      done, failed)
+
+        for cb in self.wake_boxes.values():
+            cb.toggled.connect(save)
+        self.only_voices.toggled.connect(save_filter)
+        strict.currentIndexChanged.connect(save_filter)
+        self.voice_add.clicked.connect(enroll)
+        self.voice_del.clicked.connect(remove_voice)
+        self.spk_dl.clicked.connect(download_spk)
+        fill_voices()
 
         def download():
             self.voice_dl.setEnabled(False)
@@ -1125,7 +1229,8 @@ class SetupPage(QWidget):
         mic.currentIndexChanged.connect(save)
         self.voice_dl.clicked.connect(download)
         vc.state_changed.connect(lambda _s: refresh())
-        vc.heard.connect(lambda text: self.voice_heard.setText(f"Zuletzt gehört: „{text}“"))
+        vc.heard.connect(lambda text: self.voice_heard.setText(f"Zuletzt gehört: {text}"))
+        vc.rejected.connect(lambda text, why: self.voice_heard.setText(f"Ignoriert: „{text}“ – {why}"))
         refresh()
         return box
 

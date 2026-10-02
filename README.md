@@ -170,11 +170,16 @@ Außerdem:
   ![Steuerfenster](docs/spiele-steuerung.png)
 
   ![Handy als Controller](docs/spiele-handy.png)
-- **Sprachbefehle** (neu in 0.79): „Monitor“ sagen, dann den Befehl – z. B. „Monitor schwarz“, „Monitor
-  spiegeln“, „Monitor nächste Szene“, „Monitor Szene Pause“, „Monitor Glücksrad drehen“, „Monitor Spiel starten“.
+- **Sprachbefehle** (neu in 0.79, Startwort „Alu PC“ und Stimmen in 0.80): Startwort sagen, dann den Befehl – z. B.
+  „Alu PC, Bildschirm schwarz“, „Monitor spiegeln“, „Alu PC, nächste Szene“, „Monitor Szene Pause“,
+  „Alu PC, Glücksrad drehen“. Startwörter „Monitor“ und „Alu PC“ einzeln an-/abschaltbar.
   Läuft **offline** mit [Vosk](https://alphacephei.com/vosk/): Setup → *Sprache* → Sprachmodell einmal
-  herunterladen (ca. 45 MB), einschalten, Mikrofon wählen. Es geht kein Ton ins Internet; ohne „Monitor“ passiert
+  herunterladen (ca. 45 MB), einschalten, Mikrofon wählen. Es geht kein Ton ins Internet; ohne Startwort passiert
   nie etwas. Die ganze Befehlsliste steht im Setup.
+  - **Nur bestimmte Stimmen:** Stimmerkennung herunterladen (ca. 13 MB), „Stimme anlernen …“ (ein paar Sätze
+    vorlesen), dann „Befehle nur von angelernten Stimmen annehmen“. Mehrere Stimmen möglich, Genauigkeit
+    streng/normal/locker. Das ist ein Filter gegen Zurufe aus dem Raum – **kein Schutz** (eine Aufnahme oder eine
+    sehr ähnliche Stimme kann ihn täuschen).
 - **Whiteboard vom Handy** (neu in 0.79): Handy-Steuerung → *Zeichnen* → Hintergrund antippen (Weiß, Kariert,
   Tafel …) – Monitor 2 zeigt das Whiteboard, gezeichnet wird oben im Live-Bild.
 - **Fehlerbericht per Knopf** (neu in 0.68): Setup → *Fehlerbericht …* speichert eine ZIP-Datei auf dem Desktop:

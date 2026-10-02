@@ -4119,3 +4119,36 @@ def test_board_sounds_and_voice_in_app(env, monkeypatch):
     status, body = _http("GET", base + "/")
     assert "whiteboard:kariert" in body.decode()
     controller.cast.stop()
+
+
+def test_voice_enroll_dialog_and_setup(env):
+    """Stimme anlernen: 5 Sätze → Mittelwert gespeichert; zu kurze Sätze zählen nicht; Setup zeigt Startwörter."""
+    from alupc.ui.setup_page import SetupPage
+    from alupc.ui.voice_enroll import SENTENCES, VoiceEnrollDialog
+
+    controller, window, _ = env
+    vc = controller.voice
+    vc.state, vc.has_spk = "hört zu", True  # wie nach dem Laden
+    d = VoiceEnrollDialog(controller, window, name="")
+    assert vc.enrolling and SENTENCES[0] in d.sentence.text()
+    vc.sample.emit([1.0, 0.0], 5, "zu kurz")
+    assert d.vectors == [] and "zu kurz" in d.hint.text()
+    for i in range(len(SENTENCES)):
+        vc.sample.emit([1.0, 0.1 * i], 100, f"satz {i}")
+    assert len(d.vectors) == len(SENTENCES) and "Fertig" in d.sentence.text()
+    assert not d.save_btn.isEnabled()  # erst Name
+    d.name.setText("Lena")
+    assert d.save_btn.isEnabled()
+    d.save_btn.click()
+    assert not vc.enrolling
+    voices = controller.config["voice"]["voices"]
+    assert [v["name"] for v in voices] == ["Lena"] and len(voices[0]["vec"]) == 2
+    vc.state, vc.has_spk = "aus", False
+    setup = SetupPage(controller, window.hotkeys)
+    assert set(setup.wake_boxes) == {"monitor", "alupc"} and all(cb.isChecked() for cb in setup.wake_boxes.values())
+    assert setup.voice_list.item(0).text() == "Lena"
+    setup.wake_boxes["monitor"].setChecked(False)
+    assert controller.config["voice"]["wake"] == ["alupc"]
+    setup.only_voices.setChecked(True)
+    assert controller.config["voice"]["only_voices"] is True
+    setup.deleteLater()

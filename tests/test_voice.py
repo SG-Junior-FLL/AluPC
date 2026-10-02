@@ -46,6 +46,14 @@ def qtbot_free_app():
     ("schwarz", None),  # ohne „Monitor“ passiert nie etwas
     ("monitor", None),
     ("das ist ein schöner monitor", None),
+    ("alu pc bildschirm schwarz", "schwarz"),  # neues Startwort „Alu PC“
+    ("alu pc, nächste szene", "naechste_szene"),
+    ("alupc spiegeln", "spiegeln"),
+    ("alu pe ze glücksrad drehen", "gluecksrad_drehen"),
+    ("alu p c monitor schwarz", "schwarz"),
+    ("halo pc schwarz", None),
+    ("alpha pc schwarz", None),
+    ("bildschirm schwarz", None),  # „Bildschirm“ allein ist kein Startwort
 ])
 def test_match(said, command):
     hit = voice.match(said, [])
@@ -71,7 +79,7 @@ def test_listen_with_fake_recognizer(qtbot_free_app):
         def Result(self):  # noqa: N802
             return json.dumps({"text": self.text})
 
-    config = {"voice": {"on": True, "device": ""}}
+    config = {"voice": {"on": True, "device": "", "wake": ["monitor"]}}
     vc = voice.VoiceControl(config, scenes=lambda: ["Pause"], recognizer_factory=FakeRec)
     got, heard = [], []
     vc.command.connect(lambda c, label, text: got.append((c, label)))
@@ -82,7 +90,7 @@ def test_listen_with_fake_recognizer(qtbot_free_app):
         vc.feed(text.encode())
     assert qtbot_free_app.wait(lambda: len(got) == 2)
     assert got == [("schwarz", "Schwarz an/aus"), ("szene:Pause", "Szene „Pause“")]
-    assert heard == ["hallo zusammen", "monitor schwarz", "monitor szene pause"]
+    assert heard == ["„hallo zusammen“", "„monitor schwarz“", "„monitor szene pause“"]
     vc.stop()
     assert not vc.running() and vc.state == "aus"
 
@@ -108,3 +116,69 @@ def test_download_model(tmp_path):
         z.writestr("readme.txt", b"x")
     with pytest.raises(RuntimeError, match="kein Sprachmodell"):
         voice.download_model(url=empty.as_uri(), target=tmp_path / "y" / voice.MODEL_NAME)
+
+
+def test_only_monitor_or_only_alupc():
+    assert voice.match("alu pc schwarz", [], wakes=("monitor",)) is None
+    assert voice.match("monitor schwarz", [], wakes=("alupc",)) is None
+    assert voice.match("alu pc schwarz", [], wakes=("alupc",))[0] == "schwarz"
+
+
+def test_voice_math():
+    assert voice.cosine_dist([1, 0], [1, 0]) == 0
+    assert abs(voice.cosine_dist([1, 0], [0, 1]) - 1) < 1e-9
+    assert voice.cosine_dist([0, 0], [1, 0]) == 2.0
+    avg = voice.average_voice([[2, 0], [0, 3]])  # erst normiert, dann gemittelt
+    assert avg == [0.5, 0.5]
+    assert voice.who_speaks([1, 0.1], [{"name": "Lena", "vec": [1, 0]}, {"name": "Noah", "vec": [0, 1]}])[0] == "Lena"
+
+
+def test_only_enrolled_voices_and_enrollment(qtbot_free_app):
+    """Befehle nur von angelernten Stimmen; Anlernen liefert Stimmabdrücke statt Befehle."""
+    lena, noah = [1.0, 0.0, 0.2], [0.0, 1.0, 0.1]
+
+    class FakeRec:
+        speaker = True
+
+        def AcceptWaveform(self, data):  # noqa: N802
+            text, who, frames = data.decode().split("|")
+            self.res = {"text": text, "spk": {"lena": lena, "noah": noah, "kurz": lena}[who],
+                        "spk_frames": int(frames)}
+            return True
+
+        def Result(self):  # noqa: N802
+            return json.dumps(self.res)
+
+    config = {"voice": {"on": True, "wake": ["monitor", "alupc"], "only_voices": True, "strict": "normal",
+                        "voices": [{"name": "Lena", "vec": voice.average_voice([lena])}]}}
+    vc = voice.VoiceControl(config, recognizer_factory=FakeRec)
+    got, rejected, samples = [], [], []
+    vc.command.connect(lambda c, label, text: got.append((c, label)))
+    vc.rejected.connect(lambda text, why: rejected.append(why))
+    vc.sample.connect(lambda vec, frames, text: samples.append(frames))
+    vc.start()
+    assert qtbot_free_app.wait(lambda: vc.state == "hört zu") and vc.has_spk
+    vc.feed(b"alu pc bildschirm schwarz|lena|120")
+    vc.feed(b"alu pc bildschirm schwarz|noah|120")  # fremde Stimme
+    vc.feed(b"monitor schwarz|kurz|5")  # zu kurz für einen sicheren Abdruck
+    assert qtbot_free_app.wait(lambda: len(got) + len(rejected) == 3)
+    assert got == [("schwarz", "Schwarz an/aus · Lena")]
+    assert rejected[0].startswith("fremde Stimme") and rejected[1].startswith("Stimme nicht erkannt")
+    config["voice"]["only_voices"] = False  # Filter aus → jeder darf
+    vc.feed(b"monitor schwarz|noah|120")
+    assert qtbot_free_app.wait(lambda: len(got) == 2)
+    vc.enrolling = True  # Anlernen: keine Befehle, nur Abdrücke
+    vc.feed(b"monitor schwarz|noah|80")
+    assert qtbot_free_app.wait(lambda: samples == [80])
+    assert len(got) == 2
+    vc.stop()
+
+
+def test_download_speaker_model(tmp_path):
+    src = tmp_path / "spk.zip"
+    with zipfile.ZipFile(src, "w") as z:
+        for f in ("mfcc.conf", "final.ext.raw", "mean.vec", "transform.mat"):
+            z.writestr(f"{voice.SPK_NAME}/{f}", b"x")
+    target = tmp_path / "sprache" / voice.SPK_NAME
+    voice.download_model(url=src.as_uri(), target=target, ready=voice.spk_ready)
+    assert voice.spk_ready(target)

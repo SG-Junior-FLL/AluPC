@@ -1,7 +1,12 @@
-"""Sprachbefehle am PC – offline (Vosk), mit dem Startwort „Monitor“.
+"""Sprachbefehle am PC – offline (Vosk), mit Startwort „Monitor“ oder „Alu PC“.
 
-Beispiele: „Monitor schwarz“, „Monitor spiegeln“, „Monitor nächste Szene“, „Monitor Szene Pause“,
-„Monitor Glücksrad drehen“, „Monitor Spiel starten“, „Monitor Bestenliste“.
+Beispiele: „Monitor schwarz“, „Alu PC, Bildschirm schwarz“, „Monitor nächste Szene“, „Alu PC, Szene Pause“,
+„Monitor Glücksrad drehen“, „Alu PC, Spiel starten“, „Monitor Bestenliste“.
+
+Nur bestimmte Stimmen: Mit dem Sprecher-Modell von Vosk (ca. 13 MB) bekommt jede Äußerung einen
+„Stimmabdruck“ (x-Vektor). Angelernte Stimmen sind der Mittelwert aus ein paar vorgelesenen Sätzen; ein Befehl
+zählt nur, wenn der Abdruck nah genug an einer davon liegt (Kosinus-Abstand). Das ist ein Komfort-Filter gegen
+Zurufe aus dem Raum – KEIN Schutz: eine Aufnahme der Stimme oder eine ähnliche Stimme kann ihn täuschen.
 
 Alles bleibt auf dem PC: Das Sprachmodell (Vosk, Deutsch, ca. 45 MB) wird einmal heruntergeladen und dann
 lokal benutzt – kein Ton geht ins Internet. Erkannt wird frei (ohne feste Wortliste), danach sucht AluPC nach
@@ -27,8 +32,18 @@ from .config import config_dir
 MODEL_NAME = "vosk-model-small-de-0.15"
 MODEL_URL = f"https://alphacephei.com/vosk/models/{MODEL_NAME}.zip"
 MODEL_SIZE_MB = 45
+SPK_NAME = "vosk-model-spk-0.4"
+SPK_URL = f"https://alphacephei.com/vosk/models/{SPK_NAME}.zip"
+SPK_SIZE_MB = 13
 RATE = 16000
 WAKE_WORDS = ("monitor", "monitore", "monitors", "monitoren")
+# Startwörter: Schlüssel → Anzeige
+WAKES = {"monitor": "Monitor", "alupc": "Alu PC"}
+# „Alu PC“ hört das Modell je nach Aussprache als „alu pc“, „alu p c“, „alu pe ze“ … – zusammengeschrieben vergleichen
+ALUPC_FORMS = ("alupc", "alupeze", "alupezeh", "alupehzeh", "alupetse", "alupeetse", "alupece", "alupeceh")
+TARGET_WORDS = {"bildschirm", "monitor", "monitore", "zwei", "2"}  # „Alu PC, Bildschirm schwarz“
+STRICTNESS = {"streng": 0.40, "normal": 0.55, "locker": 0.70}  # höchster Kosinus-Abstand zur angelernten Stimme
+MIN_SPK_FRAMES = 30  # kürzere Äußerungen haben einen zu ungenauen Stimmabdruck
 MIN_SCORE = 0.72
 FILLERS = {"bitte", "mal", "jetzt", "danke", "kurz", "doch", "noch", "aeh", "aehm", "ja", "nun"}
 
@@ -74,14 +89,34 @@ def fold(text: str) -> str:
     return " ".join(s.split())
 
 
-def match(text: str, scenes: list[str] | None = None) -> tuple[str, str] | None:
-    """Gehörten Satz → (Befehl, Anzeige) oder None. Nur mit „Monitor“ davor."""
+def _is_alupc(joined: str) -> bool:
+    if not joined.startswith(("alu", "hal", "allu", "aloo")):
+        return False
+    return max(difflib.SequenceMatcher(None, joined, form).ratio() for form in ALUPC_FORMS) >= 0.82
+
+
+def wake_end(words: list[str], wakes=("monitor", "alupc")) -> int | None:
+    """Position direkt nach dem LETZTEN Startwort im Satz (oder None, wenn keins vorkommt)."""
+    end = None
+    for i, w in enumerate(words):
+        if "monitor" in wakes and w in WAKE_WORDS:
+            end = i + 1
+        if "alupc" in wakes:
+            for k in (3, 2, 1):  # „alu pe ze“, „alu pc“, „alupc“
+                if i + k <= len(words) and _is_alupc("".join(words[i:i + k])):
+                    end = max(end or 0, i + k)
+                    break
+    return end
+
+
+def match(text: str, scenes: list[str] | None = None, wakes=("monitor", "alupc")) -> tuple[str, str] | None:
+    """Gehörten Satz → (Befehl, Anzeige) oder None. Nur mit einem Startwort davor."""
     words = fold(text).split()
-    idx = max((i for i, w in enumerate(words) if w in WAKE_WORDS), default=None)
+    idx = wake_end(words, wakes)
     if idx is None:
         return None
-    rest = words[idx + 1:]
-    if rest and rest[0] in ("zwei", "2"):  # „Monitor zwei schwarz“ geht auch
+    rest = words[idx:]
+    while rest and rest[0] in TARGET_WORDS:  # „Monitor zwei schwarz“, „Alu PC, Bildschirm schwarz“
         rest = rest[1:]
     rest = [w for w in rest if w not in FILLERS]
     if not rest:
@@ -119,6 +154,44 @@ def model_ready(path: Path | None = None) -> bool:
     return (path / "am" / "final.mdl").exists() and (path / "conf" / "model.conf").exists()
 
 
+def spk_dir() -> Path:
+    return config_dir() / "sprache" / SPK_NAME
+
+
+def spk_ready(path: Path | None = None) -> bool:
+    path = path or spk_dir()
+    return all((path / f).exists() for f in ("mfcc.conf", "final.ext.raw", "mean.vec", "transform.mat"))
+
+
+def cosine_dist(a, b) -> float:
+    """0 = gleiche Richtung (gleiche Stimme), 1 = nichts gemeinsam, bis 2 = entgegengesetzt."""
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    if not na or not nb:
+        return 2.0
+    return 1 - dot / (na * nb)
+
+
+def average_voice(vectors: list[list[float]]) -> list[float]:
+    """Stimmabdrücke mehrerer Sätze zu einem zusammenfassen (jeder vorher auf Länge 1 gebracht)."""
+    norm = []
+    for v in vectors:
+        n = sum(x * x for x in v) ** 0.5 or 1.0
+        norm.append([x / n for x in v])
+    return [round(sum(col) / len(norm), 6) for col in zip(*norm)]
+
+
+def who_speaks(vector, voices: list[dict]) -> tuple[str, float]:
+    """(Name der ähnlichsten angelernten Stimme, Abstand)."""
+    best = ("", 2.0)
+    for v in voices:
+        d = cosine_dist(vector, v.get("vec") or [])
+        if d < best[1]:
+            best = (str(v.get("name", "")), d)
+    return best
+
+
 def vosk_available() -> bool:
     try:
         import vosk  # noqa: F401
@@ -127,7 +200,7 @@ def vosk_available() -> bool:
     return True
 
 
-def download_model(progress=None, url: str = MODEL_URL, target: Path | None = None) -> Path:
+def download_model(progress=None, url: str = MODEL_URL, target: Path | None = None, ready=model_ready) -> Path:
     """Modell herunterladen und entpacken. progress(fertig_bytes, gesamt_bytes)."""
     import urllib.request
 
@@ -158,7 +231,7 @@ def download_model(progress=None, url: str = MODEL_URL, target: Path | None = No
                 raise RuntimeError("Ungültige Datei im Modell-Archiv")
         z.extractall(unpack)
     tmp.unlink(missing_ok=True)
-    inner = next((p for p in [unpack / target.name, *unpack.iterdir()] if p.is_dir() and model_ready(p)), None)
+    inner = next((p for p in [unpack / target.name, *unpack.iterdir()] if p.is_dir() and ready(p)), None)
     if inner is None:
         shutil.rmtree(unpack, ignore_errors=True)
         raise RuntimeError("Archiv enthält kein Sprachmodell")
@@ -173,7 +246,9 @@ class VoiceControl(QObject):
     """Mikrofon → Vosk (im Hintergrund) → Befehl. Signale kommen im GUI-Thread an."""
 
     command = Signal(str, str, str)  # Befehl, Anzeige, gehörter Text
-    heard = Signal(str)  # alles Gehörte (für die Anzeige im Setup)
+    heard = Signal(str)  # alles Gehörte (für die Anzeige im Setup), mit erkannter Stimme
+    rejected = Signal(str, str)  # Befehl kam von einer fremden Stimme: (gehörter Text, Grund)
+    sample = Signal(object, int, str)  # beim Anlernen: Stimmabdruck, Länge (Frames), gehörter Text
     state_changed = Signal(str)
     _loaded = Signal(object)
 
@@ -183,6 +258,8 @@ class VoiceControl(QObject):
         self.scenes = scenes or (lambda: [])
         self.recognizer_factory = recognizer_factory  # für Tests: liefert ein Objekt mit AcceptWaveform/Result
         self.state = "aus"
+        self.enrolling = False  # Stimme anlernen: Sätze liefern nur Stimmabdrücke, keine Befehle
+        self.has_spk = False  # Sprecher-Modell geladen?
         self._audio = None
         self._io = None
         self._queue: queue.Queue = queue.Queue(maxsize=200)
@@ -222,11 +299,16 @@ class VoiceControl(QObject):
             try:
                 if self.recognizer_factory is not None:
                     rec = self.recognizer_factory()
+                    self.has_spk = bool(getattr(rec, "speaker", False))
                 else:
                     import vosk
 
                     vosk.SetLogLevel(-1)
                     rec = vosk.KaldiRecognizer(vosk.Model(str(model_dir())), RATE)
+                    self.has_spk = False
+                    if spk_ready():  # Stimmen unterscheiden (nur wenn heruntergeladen)
+                        rec.SetSpkModel(vosk.SpkModel(str(spk_dir())))
+                        self.has_spk = True
                 self._loaded.emit(rec)
             except Exception as exc:  # noqa: BLE001
                 self._loaded.emit(exc)
@@ -294,20 +376,44 @@ class VoiceControl(QObject):
                 continue
             try:
                 if rec.AcceptWaveform(data):
-                    text = json.loads(rec.Result()).get("text", "")
+                    res = json.loads(rec.Result())
+                    text = res.get("text", "")
                     if text:
-                        self._handle(text)
+                        self._handle(text, res.get("spk"), int(res.get("spk_frames", 0) or 0))
             except Exception:  # noqa: BLE001 – ein kaputter Block darf das Zuhören nicht beenden
                 continue
 
-    def _handle(self, text: str) -> None:
-        self.heard.emit(text)
+    def _handle(self, text: str, spk=None, frames: int = 0) -> None:
+        if self.enrolling:
+            if spk:
+                self.sample.emit(list(spk), frames, text)
+            return
+        cfg = self.settings()
+        voices = [v for v in cfg.get("voices") or [] if v.get("vec")]
+        who = ""
+        if spk and voices and frames >= MIN_SPK_FRAMES:
+            name, dist = who_speaks(spk, voices)
+            limit = STRICTNESS.get(cfg.get("strict", "normal"), STRICTNESS["normal"])
+            who = f"{name} ({dist:.2f})".replace(".", ",") if dist <= limit else f"fremde Stimme ({dist:.2f})".replace(".", ",")
+        self.heard.emit(f"„{text}“" + (f" – {who}" if who else ""))
         try:
-            found = match(text, self.scenes())
+            found = match(text, self.scenes(), tuple(cfg.get("wake") or ("monitor", "alupc")))
         except Exception:  # noqa: BLE001
             found = None
-        if found:
-            self.command.emit(found[0], found[1], text)
+        if not found:
+            return
+        if cfg.get("only_voices") and voices:
+            if not spk or frames < MIN_SPK_FRAMES:
+                self.rejected.emit(text, "Stimme nicht erkannt (zu kurz oder Stimmerkennung fehlt)")
+                return
+            name, dist = who_speaks(spk, voices)
+            limit = STRICTNESS.get(cfg.get("strict", "normal"), STRICTNESS["normal"])
+            if dist > limit:
+                self.rejected.emit(text, f"fremde Stimme (Abstand {dist:.2f})".replace(".", ","))
+                return
+            self.command.emit(found[0], f"{found[1]} · {name}", text)
+            return
+        self.command.emit(found[0], found[1], text)
 
     def stop(self) -> None:
         self._stop.set()
