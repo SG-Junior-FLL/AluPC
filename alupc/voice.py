@@ -318,6 +318,14 @@ def convert_audio(data: bytes, rate: int, channels: int, sample_format) -> bytes
     return (np.clip(a, -1, 1) * 32767).astype(np.int16).tobytes()
 
 
+def audio_ok(error) -> bool:
+    """Kein Mikrofon-Fehler? PySide6 ≥ 6.7 meldet QtAudio.Error, älteres QAudio.Error – beide Aufzählungen sind
+    NICHT gleich (QtAudio.Error.NoError != QAudio.Error.NoError). Deshalb nach Namen vergleichen.
+    (0.84/0.85 hielten dadurch jedes Mikrofon für defekt.)"""
+    name = getattr(error, "name", None) or str(error)
+    return str(name).rsplit(".", 1)[-1] == "NoError"
+
+
 def _fmt_name(sample_format) -> str:
     if sample_format is None:
         return "Int16"
@@ -480,7 +488,7 @@ class VoiceControl(QObject):
     def _open_microphone(self) -> bool:
         """Mikrofon öffnen. Kann es kein 16 kHz/mono/16 Bit, nimmt AluPC das Format des Geräts und rechnet um
         (viele Mikrofone unter Windows liefern nur 44,1/48 kHz – vorher kam dann Stille oder ein Fehler)."""
-        from PySide6.QtMultimedia import QAudio, QAudioFormat, QAudioSource, QMediaDevices
+        from PySide6.QtMultimedia import QAudioFormat, QAudioSource, QMediaDevices
 
         self._close_microphone()
         fmt = QAudioFormat()
@@ -499,9 +507,10 @@ class VoiceControl(QObject):
             fmt = device.preferredFormat()
         self._in_format = (fmt.sampleRate(), fmt.channelCount(), fmt.sampleFormat())
         self._audio = QAudioSource(device, fmt, self)
-        self._audio.stateChanged.connect(self._audio_state)
+        # stateChanged NICHT verbinden: PySide 6.11 kann den Parameter (QAudio::State) nicht umwandeln und wirft bei
+        # jedem Zustandswechsel einen TypeError. Der Wächter fragt error() stattdessen alle 3 s ab.
         self._io = self._audio.start()
-        if self._io is None or self._audio.error() != QAudio.Error.NoError:
+        if self._io is None or not audio_ok(self._audio.error()):
             self._set_state(f"Mikrofon „{device.description()}“ lässt sich nicht öffnen – AluPC versucht es weiter")
             self._close_microphone()
             return False
@@ -513,22 +522,12 @@ class VoiceControl(QObject):
     def _close_microphone(self) -> None:
         if self._audio is not None:
             try:
-                self._audio.stateChanged.disconnect(self._audio_state)
-            except (RuntimeError, TypeError):
-                pass
-            try:
                 self._audio.stop()
             except RuntimeError:
                 pass
             self._audio.deleteLater()
         self._audio = None
         self._io = None
-
-    def _audio_state(self, _state) -> None:
-        from PySide6.QtMultimedia import QAudio
-
-        if self._audio is not None and self._audio.error() not in (QAudio.Error.NoError,):
-            self._mic_lost = True  # Wächter öffnet neu
 
     def _start_watchdog(self) -> None:
         from PySide6.QtCore import QTimer
@@ -550,6 +549,8 @@ class VoiceControl(QObject):
         stumm – dann neu öffnen."""
         if not self.running() or self.recognizer_factory is not None:
             return
+        if self._audio is not None and not audio_ok(self._audio.error()):
+            self._mic_lost = True
         silent = time.monotonic() - self._last_audio > 6
         if self._audio is None or self._mic_lost or silent:
             self._mic_lost = False

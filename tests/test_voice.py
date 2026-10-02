@@ -359,3 +359,17 @@ def test_whisper_confirms_misheard_wake_word(qtbot_free_app, tmp_path, monkeypat
     vc.stt = FakeWhisper("Ich sitze am PC und arbeite.")
     vc._handle("ich sitze am pc und arbeite", None, 0, b"x")  # Whisper: kein Startwort → nichts
     assert got == ["bildschirmschoner_aus"]
+
+
+def test_audio_ok_accepts_both_enum_types():
+    """0.84/0.85: QtAudio.Error.NoError != QAudio.Error.NoError – dadurch galt jedes Mikrofon als defekt."""
+    from PySide6.QtMultimedia import QAudio
+
+    assert voice.audio_ok(QAudio.Error.NoError)
+    assert not voice.audio_ok(QAudio.Error.OpenError)
+    try:
+        from PySide6.QtMultimedia import QtAudio
+    except ImportError:
+        return
+    assert voice.audio_ok(QtAudio.Error.NoError)
+    assert not voice.audio_ok(QtAudio.Error.IOError)

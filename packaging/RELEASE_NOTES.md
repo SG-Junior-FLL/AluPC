@@ -8,7 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.85.0)
+### Neu in dieser Version (0.86.0)
+- **Mikrofon wird wieder erkannt – bei jedem Mikrofon.** Fehler aus 0.84/0.85: PySide 6.11 meldet den
+  Mikrofon-Zustand mit einem anderen Aufzählungstyp (QtAudio statt QAudio); „kein Fehler“ war dadurch nie gleich
+  „kein Fehler“ und AluPC hielt jedes Mikrofon für defekt („lässt sich nicht öffnen“). Behoben.
+- Dazu ein PySide-Fehler beim Zustandswechsel des Mikrofons (TypeError bei jedem Wechsel) – umgangen; der Wächter
+  prüft das Mikrofon stattdessen alle 3 Sekunden.
+- **Jetzt mit echtem Mikrofon-Weg geprüft:** über PulseAudio mit virtuellem Mikrofon – Ton kommt an, Umrechnen
+  (44,1 kHz Stereo → 16 kHz) stimmt, nach Abziehen und Wieder-Anstecken öffnet AluPC das Mikrofon selbst neu.
+  Die CI lässt Piper jetzt auch über dieses Mikrofon sprechen und prüft, dass AluPC die Befehle versteht.
+- Ehrlich: Das ist ein virtuelles Mikrofon unter Linux, kein echtes im Raum; Windows-Mikrofone konnte ich nicht
+  prüfen (die Windows-CI hat kein Audiogerät).
+
+### Neu in Version 0.85.0
 - **Startwort zuverlässiger:** Im echten Sprachtest der CI hat das kleine Modell „Alu PC“ auch als „anno pc“,
   „alle pc“ oder „am pc“ gehört – dann passierte gar nichts. „Anno PC“/„Alle PC“ zählen jetzt; bei unklaren
   Fällen wie „am PC …“ fragt Whisper (falls heruntergeladen) nach und lässt den Satz nur zu, wenn es „Alu PC“ hört.

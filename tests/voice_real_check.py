@@ -65,6 +65,60 @@ def vosk_text(rec, pcm: bytes) -> str:
     return " ".join(t for t in texts if t)
 
 
+def mic_check(piper_voice) -> bool:
+    """Echtes Mikrofon-Stück: Piper spricht über PulseAudio in ein virtuelles Mikrofon; AluPC hört über Qt zu
+    (genau wie im Betrieb: QAudioSource → Vosk → Verstehen). Nur mit ALUPC_PULSE=1 (CI richtet das ein)."""
+    import subprocess
+
+    if not os.environ.get("ALUPC_PULSE"):
+        return True
+    from PySide6.QtMultimedia import QMediaDevices
+
+    note("Mikrofone: " + ", ".join(d.description() for d in QMediaDevices.audioInputs()))
+    config = Config(Path(tmp) / "mic.json")
+    config["voice"] = {**config["voice"], "on": True, "stt": "vosk"}
+    vc = voice.VoiceControl(config)
+    got: list[str] = []
+    vc.command.connect(lambda c, _l, _t: got.append(c))
+    heard: list[str] = []
+    vc.heard.connect(heard.append)
+
+    def wait(cond, seconds):
+        end = time.time() + seconds
+        while not cond() and time.time() < end:
+            app.processEvents()
+            time.sleep(0.01)
+        return cond()
+
+    vc.start()
+    if not wait(lambda: vc.state == "hört zu", 90):
+        print(f"::error title=Mikrofon echt::Zuhören startet nicht – Zustand: {vc.state}", flush=True)
+        return False
+    ok = 0
+    for sentence, expected in SENTENCES[:4]:
+        wav = speech.synthesize(piper_voice, sentence)
+        path = Path(tmp) / "satz.wav"
+        with wave.open(io.BytesIO(wav)) as w:
+            params, frames = w.getparams(), w.readframes(w.getnframes())
+        with wave.open(str(path), "wb") as out:  # 1 s Stille danach, damit Vosk das Satzende erkennt
+            out.setparams(params)
+            out.writeframes(frames + b"\0" * params.sampwidth * params.nchannels * params.framerate)
+        got.clear()
+        heard.clear()
+        player = subprocess.Popen(["paplay", "-d", "virt", str(path)])
+        wait(lambda: bool(got), 15)
+        player.wait(timeout=10)
+        cmd = got[-1] if got else "-"
+        ok += cmd == expected
+        note(f"Mikrofon: „{sentence}“ → gehört {heard[-1] if heard else '(nichts)'} = {cmd} (erwartet {expected})")
+    vc.stop()
+    note(f"Mikrofon echt: {ok}/4 richtig · Mikrofon neu geöffnet: {vc.mic_restarts}×")
+    if ok < 3:
+        print(f"::error title=Mikrofon echt::nur {ok}/4 über das (virtuelle) Mikrofon verstanden", flush=True)
+        return False
+    return True
+
+
 def main() -> int:
     t0 = time.time()
     speech.download_voice("thorsten")
@@ -124,6 +178,8 @@ def main() -> int:
     n = len(SENTENCES)
     note(f"Richtig verstanden: AluPC (Vosk + Whisper als zweite Meinung) {ok_both}/{n} · nur Vosk {ok_vosk}/{n} · "
          f"nur Whisper {ok_whisper}/{n} · Startwort von Vosk gehört {ok_wake}/{n}")
+    if not mic_check(piper_voice):
+        return 1
     if ok_both < n - 1 or ok_wake < n - 1:
         print(f"::error title=Sprache echt::AluPC hat nur {ok_both}/{n} richtig (Startwort {ok_wake}/{n})", flush=True)
         return 1
