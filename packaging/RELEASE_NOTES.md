@@ -19,8 +19,20 @@
   - Laufwerke: Lesen/Schreiben nur über ganze Laufwerke – vorher zählten Partitionen, Loop- und LVM-Geräte doppelt.
   - Prozessor-Auslastung wird unabhängig gerechnet (eine Sprachfrage „Wie geht es dem Computer?“ konnte die
     Messung verstellen). Ryzen: echte Temperatur (Tdie) statt der um bis zu 20 °C erhöhten Regel-Temperatur.
-- Ehrlich: in der CI läuft das nur in virtuellen Maschinen; ob die Zahlen auf deinem PC genau zum Task-Manager
-  bzw. KDE-Systemmonitor passen, konnte ich nicht vergleichen.
+- **Sprachsteuerung stabiler:**
+  - „Alu PC, Kamera“, „… AirPlay“, „… QR-Code“ meldeten „Unbekannter Befehl“ (gab es nur fürs Handy) – behoben.
+  - Mikrofone, die kein 16 kHz/Mono können (häufig unter Windows), lieferten Stille oder einen Fehler – AluPC rechnet
+    jetzt um. Ein Wächter öffnet das Mikrofon neu, wenn nach Energiesparen, Abstecken oder Gerätewechsel kein Ton
+    mehr kommt. „Hört zu“ steht nur noch da, wenn das Mikrofon wirklich offen ist.
+  - Vosk zuerst, Whisper nur als zweite Meinung (in der CI war Vosk bei klaren Sätzen zuverlässiger).
+  - Fehler beim Zuhören werden nicht mehr verschluckt: Antwort „Das ging nicht: …“ mit Grund, Eintrag im
+    Fehlerprotokoll (Fehlerbericht). Kein „Läuft“-Satz mehr, wenn es gar nicht geklappt hat.
+- **Stimme anlernen geht jetzt immer:** Knopf ist nicht mehr gesperrt; der Dialog lädt die Stimmerkennung selbst,
+  startet das Zuhören kurz selbst (auch wenn Sprachbefehle aus sind) und zeigt, was er hört.
+- **Bildschirmschoner:** neue Zeile „Zustand“ im Setup sagt, ob er läuft und warum er gerade nicht startet (z. B.
+  „Automatisch: aus“, „Monitor 2 zeigt gerade etwas – „Wann: Immer“ wählen“, Leerlauf in Sekunden).
+- Ehrlich: in der CI läuft das nur in virtuellen Maschinen ohne echtes Mikrofon; ob die Leistungswerte auf deinem
+  PC genau zum Task-Manager bzw. KDE-Systemmonitor passen, konnte ich nicht vergleichen.
 
 ### Neu in Version 0.83.0
 - **Ganz normal sprechen** statt fester Befehle: „Alu PC, mach mal den Bildschirm schwarz“, „… Licht auf blau“,

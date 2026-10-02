@@ -52,11 +52,11 @@ class Feature:
 
 
 FEATURES = [
+    Feature("bildschirmschoner", ("bildschirmschoner", "schoner", "screensaver", "bildschirmschutz"),
+            "Bildschirmschoner"),
     Feature("schwarz", ("schwarz", "sichtschutz", "dunkel", "verdecken", "verdeck", "blackout", "abdunkeln",
                         "schwarzbild"), "Schwarz"),
     Feature("standbild", ("standbild", "einfrieren", "eingefroren", "freeze", "festhalten"), "Standbild"),
-    Feature("bildschirmschoner", ("bildschirmschoner", "schoner", "screensaver", "bildschirmschutz"),
-            "Bildschirmschoner"),
     Feature("overlays", ("overlays", "overlay", "einblendung", "einblendungen"), "Overlays"),
     Feature("bild_in_bild", ("bild in bild", "minivorschau", "mini vorschau", "vorschau"), "Bild-in-Bild"),
     Feature("rgb", ("rgb", "licht", "lichter", "beleuchtung", "led", "leds", "lampe", "lampen", "leuchten"),
@@ -128,7 +128,7 @@ def _like(word: str, key: str) -> bool:
         return True
     if len(key) <= 4:  # kurze Wörter nur genau („aus“ ≠ „haus“)
         return False
-    if len(key) >= 6 and word.startswith(key):  # „bildschirmschoners“
+    if len(key) >= 6 and (word.startswith(key) or word.endswith(key)):  # „bildschirmschoners“, „schwarzschoner“
         return True
     if abs(len(word) - len(key)) > 2:  # „frage“ ≠ „umfrage“
         return False
@@ -258,7 +258,7 @@ def understand(words: list[str], scenes: list[str] | None = None,
             return "vorherige_szene", "Vorherige Szene"
     state = switch(words)
     # 5) Licht / RGB: Farben, heller, dunkler, „wie der Bildschirm“
-    light = any_of(words, FEATURES[5].words)
+    light = any_of(words, next(f for f in FEATURES if f.key == "rgb").words)
     color = next((COLORS[c] for w in words for c in COLORS if w == c or (
         w.startswith(c) and w[len(c):] in ("e", "es", "er", "en", "em", "m", "n"))), None)  # „blaues“, „Blaum“
     if light or (color and not any_of(words, ("szene", "whiteboard", "hintergrund"))):

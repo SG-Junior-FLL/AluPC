@@ -1348,8 +1348,8 @@ class SetupPage(QWidget):
             self.spk_label.setText("Stimmerkennung ✓" if spk else
                                    f"Stimmerkennung fehlt – einmal herunterladen (ca. {voice.SPK_SIZE_MB} MB)")
             self.spk_dl.setVisible(ok and not spk)
-            self.voice_add.setEnabled(ok and spk and vc.state == "hört zu")
-            self.voice_add.setToolTip("" if vc.state == "hört zu" else "Erst Sprachbefehle einschalten")
+            self.voice_add.setEnabled(ok and ready)  # der Dialog lädt Stimmerkennung und startet das Zuhören selbst
+            self.voice_add.setToolTip("" if ready else "Erst das Sprachmodell herunterladen")
             if not ok:
                 self.voice_model.setText("Spracherkennung (Vosk) fehlt in dieser AluPC-Version.")
             elif ready:

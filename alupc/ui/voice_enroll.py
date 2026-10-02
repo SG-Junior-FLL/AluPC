@@ -50,6 +50,14 @@ class VoiceEnrollDialog(QDialog):
         self.hint.setObjectName("Muted")
         self.hint.setWordWrap(True)
         lay.addWidget(self.hint)
+        self.heard = QLabel()  # was AluPC gerade hört – zeigt, dass das Mikrofon geht
+        self.heard.setObjectName("Muted")
+        self.heard.setWordWrap(True)
+        lay.addWidget(self.heard)
+        self.dl_btn = button("Stimmerkennung herunterladen (ca. 13 MB)", "download", primary=True)
+        self.dl_btn.clicked.connect(self._download)
+        self.dl_btn.hide()
+        lay.addWidget(self.dl_btn)
         buttons = QHBoxLayout()
         cancel = button("Abbrechen", "x")
         cancel.clicked.connect(self.reject)
@@ -62,15 +70,70 @@ class VoiceEnrollDialog(QDialog):
         self.name.textChanged.connect(lambda _t: self.save_btn.setEnabled(len(self.vectors) >= 3
                                                                           and bool(self.name.text().strip())))
         self.voice.sample.connect(self._sample)
+        self.voice.state_changed.connect(self._state)
+        self.voice.heard.connect(self._heard)
         self.voice.enrolling = True
+        self._started_here = False
+        self._prepare()
         self._update()
+
+    # ------------------------------------------------------------ vorbereiten: Stimmerkennung + Zuhören
+    def _prepare(self):
+        """Alles Nötige selbst erledigen: Stimmerkennung fehlt → Download anbieten; Zuhören aus → kurz starten;
+        Stimmerkennung erst nach dem Start geladen → neu starten."""
+        from ..voice import spk_ready
+
+        if self.voice.has_spk and self.voice.state == "hört zu":
+            return  # läuft schon mit Stimmerkennung
+        if not spk_ready():
+            self.dl_btn.show()
+            return
+        self.dl_btn.hide()
+        v = self.voice
+        if v.running() and not v.has_spk:
+            v.stop()
+        if not v.running() and v.state != "lädt":
+            self._started_here = not v.settings().get("on") and not v.direct
+            v.start()
+
+    def _download(self):
+        from .. import voice
+        from .util import error_box, run_async
+
+        self.dl_btn.setEnabled(False)
+        self.dl_btn.setText("Lädt …")
+
+        def done(_p):
+            self.dl_btn.setEnabled(True)
+            self._prepare()
+            self._update()
+
+        def failed(e):
+            self.dl_btn.setEnabled(True)
+            self.dl_btn.setText("Stimmerkennung herunterladen (ca. 13 MB)")
+            error_box(self, f"Stimmerkennung konnte nicht geladen werden: {e}")
+
+        run_async(lambda: voice.download_model(url=voice.SPK_URL, target=voice.spk_dir(), ready=voice.spk_ready),
+                  done, failed)
+
+    def _state(self, _state):
+        self._update()
+
+    def _heard(self, text: str):
+        self.heard.setText(f"Gehört: {text}")
 
     def _update(self):
         n = len(self.vectors)
         self.bar.setValue(n)
+        from ..voice import spk_ready
+
         ready = self.voice.state == "hört zu" and self.voice.has_spk
-        if not ready:
-            self.sentence.setText("Erst Sprachbefehle einschalten und die Stimmerkennung herunterladen")
+        if not ready and not spk_ready():
+            self.sentence.setText("Einmal die Stimmerkennung herunterladen – dann geht's los")
+        elif not ready:
+            state = self.voice.state
+            self.sentence.setText("Einen Moment – AluPC startet das Zuhören …" if state in ("lädt", "aus", "hört zu")
+                                  else f"Problem: {state}")
         elif n < len(SENTENCES):
             self.sentence.setText(f"„{SENTENCES[n]}“")
         else:
@@ -104,9 +167,13 @@ class VoiceEnrollDialog(QDialog):
         self.accept()
 
     def done(self, result):
-        self.voice.enrolling = False
-        try:
-            self.voice.sample.disconnect(self._sample)
-        except (RuntimeError, TypeError):
-            pass
+        v = self.voice
+        v.enrolling = False
+        for sig, slot in ((v.sample, self._sample), (v.state_changed, self._state), (v.heard, self._heard)):
+            try:
+                sig.disconnect(slot)
+            except (RuntimeError, TypeError):
+                pass
+        if self._started_here and not v.settings().get("on") and not v.direct:
+            v.stop()  # nur fürs Anlernen gestartet
         super().done(result)

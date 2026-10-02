@@ -317,3 +317,18 @@ def test_real_ci_transcripts():
         span = voice.wake_span(words)
         assert span is not None, heard
         assert understand(words[:span[0]] + words[span[1]:], [], [])[0] == command, heard
+
+
+def test_convert_audio_from_device_format():
+    """Mikrofone, die kein 16 kHz/mono können: 48 kHz Stereo Float → 16 kHz mono 16 Bit."""
+    import numpy as np
+
+    t = np.arange(48000) / 48000
+    tone = (0.5 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    stereo = np.stack([tone, tone], axis=1).ravel().tobytes()
+    out = voice.convert_audio(stereo, 48000, 2, "Float")
+    pcm = np.frombuffer(out, dtype=np.int16)
+    assert abs(len(pcm) - 16000) <= 1
+    assert 15000 < np.abs(pcm).max() < 17000  # Lautstärke bleibt (0,5 × 32767)
+    same = (np.zeros(160, np.int16)).tobytes()
+    assert voice.convert_audio(same, 16000, 1, "Int16") == same

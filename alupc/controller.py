@@ -1306,6 +1306,10 @@ class Controller(QObject):
             "whiteboard": self.show_whiteboard,
             "wetter": self.show_weather,
             "system": lambda: self.show_source({"type": "system"}),
+            # gab es bisher nur für das Handy – per Sprache kam „Unbekannter Befehl“
+            "kamera": self.start_camera,
+            "airplay": self.start_airplay,
+            "qr": self.start_cast,
             "gluecksrad": self.show_wheel,
             "gluecksrad_drehen": self.spin_wheel,
             "umfrage_zeigen": lambda: self.show_source({"type": "umfrage"}, remember=False),

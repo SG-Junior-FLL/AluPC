@@ -506,7 +506,10 @@ class SystemMonitor(QObject):
     def release(self, user) -> None:
         self._users.discard(user if isinstance(user, int) else id(user))
         if not self._users:
-            self._timer.stop()
+            try:
+                self._timer.stop()
+            except RuntimeError:  # beim Beenden ist der Zeitgeber schon weg
+                pass
 
     @property
     def running(self) -> bool:

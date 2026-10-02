@@ -458,6 +458,30 @@ class ScreensaverManager(QObject):
             return c.mode == "desktop"
         return True
 
+    def status(self) -> str:
+        """Klartext: läuft er, startet er von selbst – und wenn nicht, warum nicht?"""
+        cfg, c = self.settings(), self.controller
+        if self.active:
+            return "Läuft gerade" + (" (von Hand gestartet – aus mit Kachel, Tastenkürzel oder „Bildschirmschoner aus“)"
+                                     if self.manual else " – Maus oder Tastatur beendet ihn.")
+        if c.output_screen() is None:
+            return "Geht gerade nicht: kein zweiter Monitor gefunden."
+        if c.screens_overlap():
+            return "Geht gerade nicht: das System spiegelt die Monitore – in AluPC „Spiegeln“ nutzen."
+        if not cfg.get("enabled"):
+            return "Automatisch: aus (Häkchen oben setzen). Von Hand geht er immer: Kachel, Tastenkürzel, Sprache."
+        if c.privacy:
+            return "Wartet: Schwarz ist an."
+        if cfg.get("when", "desktop") == "desktop" and c.mode != "desktop":
+            return ("Wartet: Monitor 2 zeigt gerade etwas von AluPC – bei „Nur wenn nichts läuft“ startet er dann "
+                    "nicht. „Wann: Immer“ wählen, wenn er trotzdem kommen soll.")
+        idle = self.idle_seconds()
+        need = max(1, float(cfg.get("minutes", 10))) * 60
+        source = {"windows": "Windows", "freedesktop": "KDE", "gnome": "GNOME", "xprintidle": "xprintidle"}.get(
+            self.idle.method, "nur Bedienung von AluPC + Maus")
+        return (f"Startet nach {int(need // 60)} min ohne Eingabe – gerade {int(idle)} s ohne Eingabe "
+                f"(gemessen über {source}).")
+
     def keep_awake_wanted(self) -> bool:
         """System-Abdunkeln verhindern, solange AluPC Monitor 2 braucht: Bildschirmschoner an (sonst dunkelt das
         System ab, bevor er kommt) oder AluPC zeigt gerade etwas auf Monitor 2."""

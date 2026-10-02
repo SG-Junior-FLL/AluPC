@@ -131,40 +131,60 @@ class Assistant:
 
     # ------------------------------------------------------------ Befehl → Antwort
     def handle(self, command: str, label: str, text: str = "") -> str:
-        """Ausführen und die gesprochene Antwort zurückgeben (wird auch gleich gesagt)."""
+        """Ausführen und die gesprochene Antwort zurückgeben (wird auch gleich gesagt). Geht etwas schief, sagt
+        AluPC das – mit Grund statt stiller oder „unbekannter“ Fehler."""
         c = self.c
-        reply = ""
-        if command.startswith("frage:"):
-            reply = self.answer(command[6:])
-        else:
-            base, _, state = command.rpartition("_")
-            if state in ("an", "aus") and base in FLAG_TEXT:
-                want = state == "an"
-                before = self.flag(base)
-                if before == want:
-                    reply = FLAG_TEXT[base][2 if want else 3]
-                else:
-                    c.run_command(command)
-                    reply = f"{self.ack()} {FLAG_TEXT[base][0 if want else 1]}"
-            elif command in FLAG_TEXT:  # nur umschalten
-                before = self.flag(command)
-                c.run_command(command)
-                reply = f"{self.ack()} {FLAG_TEXT[command][1 if before else 0]}"
-            elif command in ("zuhoeren_an", "zuhoeren_aus"):
-                c.run_command(command)
-                if command == "zuhoeren_an":
-                    reply = "Ich höre zu – du brauchst kein Startwort."
-                else:
-                    reply = "Okay, ich höre nur noch auf das Startwort." if c.config["voice"].get("on") else \
-                        "Mikrofon ist aus."
-            else:
-                c.run_command(command)
-                reply = self.done_text(command, label)
+        messages: list[str] = []
+        catch = messages.append
+        c.message.connect(catch)  # Meldungen während des Befehls („Kein zweiter Monitor“ …) mitlesen
+        try:
+            reply = self._run(command, label)
+        except Exception as exc:  # noqa: BLE001 – ein Sprachbefehl darf AluPC nie stören
+            c.voice._note_error(exc)
+            reply = "Das hat leider nicht geklappt."
+            c.message.emit(f"🎤 Fehler bei „{label}“: {type(exc).__name__}: {exc}")
+        finally:
+            try:
+                c.message.disconnect(catch)
+            except (RuntimeError, TypeError):
+                pass
+        problem = next((m for m in messages if any(w in m.lower() for w in ("kein", "nicht", "fehl", "geht nicht"))),
+                       "")
+        if problem and not command.startswith("frage:"):
+            reply = f"Das ging nicht: {problem.rstrip('.')}."
         if reply:
             c.speaker.say(reply)
         if command != "zuhoeren_aus":
             c.voice.listen_on()
         return reply
+
+    def _run(self, command: str, label: str) -> str:
+        c = self.c
+        if command.startswith("frage:"):
+            return self.answer(command[6:])
+        base, _, state = command.rpartition("_")
+        if state in ("an", "aus") and base in FLAG_TEXT:
+            want = state == "an"
+            if self.flag(base) == want:
+                return FLAG_TEXT[base][2 if want else 3]
+            c.run_command(command)
+            if base != "rgb" and self.flag(base) != want:  # hat nicht geklappt (Grund kommt als Meldung)
+                return f"{FLAG_TEXT[base][0 if want else 1].rstrip('.')} – das ging gerade nicht."
+            return f"{self.ack()} {FLAG_TEXT[base][0 if want else 1]}"
+        if command in FLAG_TEXT:  # nur umschalten
+            before = self.flag(command)
+            c.run_command(command)
+            if command != "rgb" and self.flag(command) == before:
+                return "Das ging gerade nicht."
+            return f"{self.ack()} {FLAG_TEXT[command][1 if before else 0]}"
+        if command in ("zuhoeren_an", "zuhoeren_aus"):
+            c.run_command(command)
+            if command == "zuhoeren_an":
+                return "Ich höre zu – du brauchst kein Startwort." if c.voice.direct else ""
+            return "Okay, ich höre nur noch auf das Startwort." if c.config["voice"].get("on") else \
+                "Mikrofon ist aus."
+        c.run_command(command)
+        return self.done_text(command, label)
 
     def done_text(self, command: str, label: str) -> str:
         if command in SHOW_TEXT:

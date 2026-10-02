@@ -86,6 +86,7 @@ class Pdh:
             return []
         size, count = wintypes.DWORD(0), wintypes.DWORD(0)
         rc = self.dll.PdhGetFormattedCounterArrayW(h, fmt, ctypes.byref(size), ctypes.byref(count), None)
+        rc &= 0xFFFFFFFF  # ctypes liefert int mit Vorzeichen – PDH_MORE_DATA (0x800007D2) wäre sonst negativ
         if rc not in (PDH_MORE_DATA, ERROR_SUCCESS) or size.value == 0:
             return []
         buf = (ctypes.c_byte * size.value)()

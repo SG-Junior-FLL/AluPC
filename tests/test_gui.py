@@ -4167,10 +4167,11 @@ def test_voice_reply_custom_and_video_resume(env, monkeypatch):
     real_run = controller.run_command
     monkeypatch.setattr(controller, "run_command", lambda c: ran.append(c))
     controller._voice_command("schwarz", "Schwarz an/aus", "alu pc bildschirm schwarz")
-    assert ran == ["schwarz"] and controller.speaker.spoken[-1].endswith("Monitor 2 ist jetzt schwarz.")
+    # run_command ist hier ersetzt → nichts passiert wirklich: AluPC sagt ehrlich, dass es nicht ging
+    assert ran == ["schwarz"] and controller.speaker.spoken[-1] == "Das ging gerade nicht."
     controller.config["voice"] = {**controller.config["voice"], "speak": False}
     controller._voice_command("wetter", "Wetter & Uhr", "monitor wetter")
-    assert controller.speaker.spoken[-1].endswith("Monitor 2 ist jetzt schwarz.")  # aus → nichts gesagt
+    assert controller.speaker.spoken[-1] == "Das ging gerade nicht."  # aus → nichts gesagt
     controller.start_games()
     hub = controller.cast.games
     hub.join("Lena")
@@ -4360,3 +4361,65 @@ def test_mic_switch_button(env, monkeypatch):
     controller.run_command("zuhoeren")  # Tastenkürzel / Kachel: umschalten
     pump()
     assert not controller.voice.direct and not window.mic_button.isChecked()
+
+
+def test_enroll_dialog_prepares_itself(env, monkeypatch):
+    """„Stimme anlernen“ geht auch, wenn Sprachbefehle aus sind oder die Stimmerkennung fehlt."""
+    controller, window, _ = env
+    from alupc import voice
+    from alupc.ui.voice_enroll import VoiceEnrollDialog
+
+    vc = controller.voice
+    started, stopped = [], []
+    monkeypatch.setattr(vc, "start", lambda: started.append(1))
+    monkeypatch.setattr(vc, "stop", lambda: stopped.append(1))
+    monkeypatch.setattr(vc, "running", lambda: False)
+    monkeypatch.setattr(voice, "spk_ready", lambda *a: False)
+    dlg = VoiceEnrollDialog(controller, window)
+    assert not dlg.dl_btn.isHidden() and not started  # erst Stimmerkennung laden
+    assert "herunterladen" in dlg.sentence.text()
+    dlg.reject()
+    monkeypatch.setattr(voice, "spk_ready", lambda *a: True)
+    dlg = VoiceEnrollDialog(controller, window)
+    assert dlg.dl_btn.isHidden() and started == [1]  # Zuhören nur fürs Anlernen gestartet
+    assert vc.enrolling
+    vc.state, vc.has_spk = "hört zu", True
+    dlg._update()
+    assert dlg.sentence.text().startswith("„")  # erster Satz zum Vorlesen
+    for i in range(3):
+        dlg._sample([1.0, 0.5, float(i)], 120, "satz")
+    dlg.name.setText("Lena")
+    assert dlg.save_btn.isEnabled()
+    dlg.save()
+    assert not vc.enrolling and stopped == [1]  # wieder aus, weil Sprachbefehle aus sind
+    assert [v["name"] for v in controller.config["voice"]["voices"]] == ["Lena"]
+    vc.state, vc.has_spk = "aus", False
+
+
+def test_screensaver_status_explains_why(env):
+    controller, window, _ = env
+    s = controller.screensaver
+    controller.config["screensaver"] = {**controller.config["screensaver"], "enabled": False}
+    assert "Automatisch: aus" in s.status()
+    controller.config["screensaver"] = {**controller.config["screensaver"], "enabled": True, "when": "desktop"}
+    controller.show_source({"type": "color"}, remember=False)
+    assert "zeigt gerade etwas" in s.status()
+    controller.config["screensaver"] = {**controller.config["screensaver"], "when": "immer"}
+    assert s.status().startswith("Startet nach")
+    controller.toggle_screensaver()
+    assert s.active and s.status().startswith("Läuft gerade")
+    controller._voice_command("bildschirmschoner_aus", "Bildschirmschoner aus", "")
+    assert not s.active and controller.speaker.spoken[-1].endswith("Der Bildschirmschoner ist aus.")
+
+
+def test_voice_camera_airplay_qr_are_known_commands(env, monkeypatch):
+    """„Alu PC, Kamera“ gab bis 0.84 „Unbekannter Befehl“ (gab es nur fürs Handy)."""
+    controller, window, _ = env
+    called, msgs = [], []
+    controller.message.connect(msgs.append)
+    for name in ("start_camera", "start_airplay", "start_cast"):
+        monkeypatch.setattr(controller, name, lambda n=name: called.append(n))
+    for cmd in ("kamera", "airplay", "qr"):
+        controller.run_command(cmd)
+    assert called == ["start_camera", "start_airplay", "start_cast"]
+    assert not any("Unbekannter Befehl" in m for m in msgs)

@@ -89,7 +89,7 @@ def main() -> int:
     vc.not_understood.connect(lambda t: got.append(f"?{t}"))
     heard: list[str] = []
     vc.heard.connect(heard.append)
-    ok_whisper = ok_vosk = ok_wake = 0
+    ok_whisper = ok_vosk = ok_wake = ok_both = 0
     for sentence, expected in SENTENCES:
         t1 = time.time()
         wav = speech.synthesize(piper_voice, sentence)
@@ -104,24 +104,28 @@ def main() -> int:
         vc._handle(text, None, 0, pcm)
         vosk_cmd = got[-1] if got else "-"
         ok_vosk += vosk_cmd == expected
-        # mit Whisper (Mikrofon-Schalter an, damit nur das Verstehen zählt – das Startwort prüft „wake“)
         vc.stt = stt_saved
-        vc.direct = True
-        got.clear()
-        heard.clear()
+        # Whisper allein (zum Vergleich): genau mitschreiben und verstehen
         t2 = time.time()
-        vc._handle(text or "?", None, 0, pcm)
+        exact = vc.stt.transcribe(pcm)
         whisper_s = time.time() - t2
-        vc.direct = False
-        whisper_cmd = got[-1] if got else "-"
+        w2 = voice.fold(exact).split()
+        s2 = voice.wake_span(w2) or (0, 0)
+        hit, _empty = vc._interpret(w2, s2)
+        whisper_cmd = hit[0] if hit else "-"
         ok_whisper += whisper_cmd == expected
-        exact = next((h for h in heard if "(genau)" in h), "")
-        note(f"„{sentence}“ → Vosk: „{text}“ (Startwort {'ja' if wake else 'NEIN'}) = {vosk_cmd} · Whisper: {exact} = {whisper_cmd} "
-             f"(erwartet {expected}; Stimme {tts_s:.1f} s, Whisper {whisper_s:.1f} s)")
+        # so arbeitet AluPC: Vosk zuerst, Whisper nur, wenn Vosk nichts verstanden hat
+        got.clear()
+        vc._handle(text, None, 0, pcm)
+        both_cmd = got[-1] if got else "-"
+        ok_both += both_cmd == expected
+        note(f"„{sentence}“ → Vosk: „{text}“ (Startwort {'ja' if wake else 'NEIN'}) = {vosk_cmd} · Whisper: „{exact}“ = "
+             f"{whisper_cmd} · AluPC: {both_cmd} (erwartet {expected}; Stimme {tts_s:.1f} s, Whisper {whisper_s:.1f} s)")
     n = len(SENTENCES)
-    note(f"Richtig verstanden: mit Whisper {ok_whisper}/{n}, nur Vosk {ok_vosk}/{n} · Startwort von Vosk gehört {ok_wake}/{n}")
-    if ok_whisper < len(SENTENCES) - 1:
-        print(f"::error title=Sprache echt::Whisper hat nur {ok_whisper}/{len(SENTENCES)} richtig", flush=True)
+    note(f"Richtig verstanden: AluPC (Vosk + Whisper als zweite Meinung) {ok_both}/{n} · nur Vosk {ok_vosk}/{n} · "
+         f"nur Whisper {ok_whisper}/{n} · Startwort von Vosk gehört {ok_wake}/{n}")
+    if ok_both < n - 1 or ok_wake < n - 1:
+        print(f"::error title=Sprache echt::AluPC hat nur {ok_both}/{n} richtig (Startwort {ok_wake}/{n})", flush=True)
         return 1
     return 0
 

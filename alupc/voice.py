@@ -291,6 +291,37 @@ def download_model(progress=None, url: str = MODEL_URL, target: Path | None = No
     return target
 
 
+# --------------------------------------------------------------------------- Ton umrechnen
+def convert_audio(data: bytes, rate: int, channels: int, sample_format) -> bytes:
+    """Ton im Format des Mikrofons → 16 kHz, mono, 16 Bit (was Vosk und Whisper brauchen)."""
+    if rate == RATE and channels == 1 and (sample_format is None or _fmt_name(sample_format) == "Int16"):
+        return data
+    import numpy as np
+
+    kind = _fmt_name(sample_format)
+    if kind == "Float":
+        a = np.frombuffer(data[: len(data) // 4 * 4], dtype=np.float32)
+    elif kind == "Int32":
+        a = np.frombuffer(data[: len(data) // 4 * 4], dtype=np.int32).astype(np.float32) / 2**31
+    elif kind == "UInt8":
+        a = (np.frombuffer(data, dtype=np.uint8).astype(np.float32) - 128) / 128
+    else:
+        a = np.frombuffer(data[: len(data) // 2 * 2], dtype=np.int16).astype(np.float32) / 32768
+    if channels > 1:
+        a = a[: len(a) // channels * channels].reshape(-1, channels).mean(axis=1)
+    if rate != RATE and a.size:
+        n = int(round(a.size * RATE / rate))
+        a = np.interp(np.linspace(0, a.size, n, endpoint=False), np.arange(a.size), a)
+    return (np.clip(a, -1, 1) * 32767).astype(np.int16).tobytes()
+
+
+def _fmt_name(sample_format) -> str:
+    if sample_format is None:
+        return "Int16"
+    name = getattr(sample_format, "name", None) or str(sample_format)
+    return str(name).rsplit(".", 1)[-1]
+
+
 # --------------------------------------------------------------------------- Zuhören
 class VoiceControl(QObject):
     """Mikrofon → Vosk (im Hintergrund) → Befehl. Signale kommen im GUI-Thread an."""
@@ -325,6 +356,13 @@ class VoiceControl(QObject):
         self._reset = False
         self.stt = None  # genaue Erkennung (Whisper), falls eingeschaltet und heruntergeladen
         self.stt_error = ""
+        self._watchdog = None
+        self._mic_lost = False
+        self._last_audio = 0.0
+        self._in_format = (RATE, 1, None)
+        self._device_name = ""
+        self.mic_restarts = 0  # wie oft das Mikrofon neu geöffnet werden musste (Diagnose)
+        self.errors: list[str] = []  # letzte Fehler beim Zuhören (Diagnose, Fehlerbericht)
 
     def settings(self) -> dict:
         return self.config["voice"]
@@ -422,19 +460,26 @@ class VoiceControl(QObject):
         if isinstance(rec, Exception):
             self._set_state(f"Fehler: {rec}")
             return
-        if not self.settings().get("on") and not self.direct and self.recognizer_factory is None:
+        if not self.settings().get("on") and not self.direct and not self.enrolling \
+                and self.recognizer_factory is None:
             self._set_state("aus")  # in der Zwischenzeit ausgeschaltet
             return
         self._stop.clear()
         self._worker = threading.Thread(target=self._listen, args=(rec,), name="sprache", daemon=True)
         self._worker.start()
         if self.recognizer_factory is None:
-            self._open_microphone()
+            if not self._open_microphone():
+                return  # Grund steht im Status; der Wächter versucht es weiter
+            self._start_watchdog()
         self._set_state("hört zu")
 
-    def _open_microphone(self) -> None:
-        from PySide6.QtMultimedia import QAudioFormat, QAudioSource, QMediaDevices
+    # ------------------------------------------------------------ Mikrofon (robust)
+    def _open_microphone(self) -> bool:
+        """Mikrofon öffnen. Kann es kein 16 kHz/mono/16 Bit, nimmt AluPC das Format des Geräts und rechnet um
+        (viele Mikrofone unter Windows liefern nur 44,1/48 kHz – vorher kam dann Stille oder ein Fehler)."""
+        from PySide6.QtMultimedia import QAudio, QAudioFormat, QAudioSource, QMediaDevices
 
+        self._close_microphone()
         fmt = QAudioFormat()
         fmt.setSampleRate(RATE)
         fmt.setChannelCount(1)
@@ -445,21 +490,77 @@ class VoiceControl(QObject):
             if wanted and bytes(dev.id()).decode(errors="replace") == wanted:
                 device = dev
         if device.isNull():
-            self._set_state("Kein Mikrofon gefunden")
-            return
+            self._set_state("Kein Mikrofon gefunden – Mikrofon anstecken, AluPC versucht es weiter")
+            return False
+        if not device.isFormatSupported(fmt):
+            fmt = device.preferredFormat()
+        self._in_format = (fmt.sampleRate(), fmt.channelCount(), fmt.sampleFormat())
         self._audio = QAudioSource(device, fmt, self)
+        self._audio.stateChanged.connect(self._audio_state)
         self._io = self._audio.start()
-        if self._io is None:
-            self._set_state("Mikrofon lässt sich nicht öffnen")
-            return
+        if self._io is None or self._audio.error() != QAudio.Error.NoError:
+            self._set_state(f"Mikrofon „{device.description()}“ lässt sich nicht öffnen – AluPC versucht es weiter")
+            self._close_microphone()
+            return False
+        self._device_name = device.description()
+        self._last_audio = time.monotonic()
         self._io.readyRead.connect(self._read_audio)
+        return True
+
+    def _close_microphone(self) -> None:
+        if self._audio is not None:
+            try:
+                self._audio.stateChanged.disconnect(self._audio_state)
+            except (RuntimeError, TypeError):
+                pass
+            try:
+                self._audio.stop()
+            except RuntimeError:
+                pass
+            self._audio.deleteLater()
+        self._audio = None
+        self._io = None
+
+    def _audio_state(self, _state) -> None:
+        from PySide6.QtMultimedia import QAudio
+
+        if self._audio is not None and self._audio.error() not in (QAudio.Error.NoError,):
+            self._mic_lost = True  # Wächter öffnet neu
+
+    def _start_watchdog(self) -> None:
+        from PySide6.QtCore import QTimer
+
+        if self._watchdog is None:
+            self._watchdog = QTimer(self, interval=3000)
+            self._watchdog.timeout.connect(self._check_microphone)
+            try:
+                from PySide6.QtMultimedia import QMediaDevices
+
+                self._devices = QMediaDevices(self)
+                self._devices.audioInputsChanged.connect(lambda: setattr(self, "_mic_lost", True))
+            except Exception:  # noqa: BLE001
+                pass
+        self._watchdog.start()
+
+    def _check_microphone(self) -> None:
+        """Alle 3 s: kommt noch Ton? Nach Energiesparen, Abstecken oder Gerätewechsel bleibt das Mikrofon sonst
+        stumm – dann neu öffnen."""
+        if not self.running() or self.recognizer_factory is not None:
+            return
+        silent = time.monotonic() - self._last_audio > 6
+        if self._audio is None or self._mic_lost or silent:
+            self._mic_lost = False
+            if self._open_microphone():
+                self.mic_restarts += 1
+                self._set_state("hört zu")
 
     def _read_audio(self) -> None:
         if self._io is None:
             return
         data = bytes(self._io.readAll())
         if data:
-            self.feed(data)
+            self._last_audio = time.monotonic()
+            self.feed(convert_audio(data, *self._in_format))
 
     def feed(self, data: bytes) -> None:
         """Ton (16 kHz, mono, 16 Bit) an die Erkennung geben – vom Mikrofon oder in Tests."""
@@ -502,11 +603,13 @@ class VoiceControl(QObject):
                     audio.clear()
                     if text:
                         self._handle(text, res.get("spk"), int(res.get("spk_frames", 0) or 0), said)
-            except Exception:  # noqa: BLE001 – ein kaputter Block darf das Zuhören nicht beenden
+            except Exception as exc:  # noqa: BLE001 – ein kaputter Block darf das Zuhören nicht beenden
+                self._note_error(exc)
                 continue
 
     def _handle(self, text: str, spk=None, frames: int = 0, audio: bytes = b"") -> None:
         if self.enrolling:
+            self.heard.emit(f"„{text}“" + ("" if spk else " – ohne Stimmabdruck"))
             if spk:
                 self.sample.emit(list(spk), frames, text)
             return
@@ -523,11 +626,14 @@ class VoiceControl(QObject):
         span = wake_span(words, wakes)
         if span is None and not self.open_ear():
             return  # nicht an AluPC gerichtet
-        # Genau hinhören: denselben Satz noch einmal mit Whisper
-        if self.stt is not None and audio:
+        found, empty = self._interpret(words, span)
+        # Vosk hat nichts verstanden → Whisper als zweite Meinung (in der CI war Vosk bei klaren Sätzen
+        # zuverlässiger, Whisper hilft bei Sätzen, die das kleine Modell nicht kennt)
+        if found is None and not empty and self.stt is not None and audio:
             try:
                 better = self.stt.transcribe(audio)
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001 – dann gilt, was Vosk gehört hat
+                self._note_error(exc)
                 better = ""
             if better:
                 self.heard.emit(f"„{better}“ (genau)" + (f" – {who}" if who else ""))
@@ -535,20 +641,13 @@ class VoiceControl(QObject):
                 s2 = wake_span(w2, wakes)
                 if s2 is None and span is not None:
                     s2 = (0, 0)  # Vosk hörte das Startwort, Whisper schreibt es anders – ganzen Satz nehmen
-                text, words, span = better, w2, s2
-        rest = words[:span[0]] + words[span[1]:] if span else words
-        rest = [w for w in rest if w not in TARGET_WORDS or len(rest) > 1]
-        meaningful = [w for w in rest if w not in FILLERS and w not in ("hey", "hallo", "ok", "okay")]
-        if not meaningful:
+                found2, _empty2 = self._interpret(w2, s2)
+                if found2 is not None:
+                    found, text = found2, better
+        if empty:
             if span is not None:
                 self.command.emit("frage:ja", "Ja?", text)  # nur das Startwort: „Ja?“ und zuhören
             return
-        try:
-            from .intents import understand
-
-            found = understand(rest, self.scenes(), cfg.get("custom") or [])
-        except Exception:  # noqa: BLE001
-            found = None
         if not found:
             if span is not None or self.direct:
                 self.not_understood.emit(text)
@@ -566,16 +665,37 @@ class VoiceControl(QObject):
             return
         self.command.emit(found[0], found[1], text)
 
+    def _interpret(self, words: list[str], span) -> tuple[tuple[str, str] | None, bool]:
+        """(Befehl oder None, nur Startwort/Füllwörter?) für einen gehörten Satz."""
+        rest = words[:span[0]] + words[span[1]:] if span else words
+        rest = [w for w in rest if w not in TARGET_WORDS or len(rest) > 1]
+        meaningful = [w for w in rest if w not in FILLERS and w not in ("hey", "hallo", "ok", "okay")]
+        if not meaningful:
+            return None, True
+        try:
+            from .intents import understand
+
+            return understand(rest, self.scenes(), self.settings().get("custom") or []), False
+        except Exception as exc:  # noqa: BLE001
+            self._note_error(exc)
+            return None, False
+
+    def _note_error(self, exc: BaseException) -> None:
+        """Fehler beim Zuhören nicht verschlucken: ins Fehlerprotokoll (Fehlerbericht) und in die Diagnose."""
+        self.errors.append(f"{time.strftime('%H:%M:%S')} {type(exc).__name__}: {exc}")
+        del self.errors[:-20]
+        try:
+            from .bug_report import log_exception
+
+            log_exception(type(exc), exc, exc.__traceback__)
+        except Exception:  # noqa: BLE001
+            pass
+
     def stop(self) -> None:
         self._stop.set()
-        if self._audio is not None:
-            try:
-                self._audio.stop()
-            except RuntimeError:
-                pass
-            self._audio.deleteLater()
-            self._audio = None
-            self._io = None
+        if self._watchdog is not None:
+            self._watchdog.stop()
+        self._close_microphone()
         worker, self._worker = self._worker, None
         if worker is not None:
             worker.join(timeout=2)

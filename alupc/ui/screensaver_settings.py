@@ -122,6 +122,17 @@ class ScreensaverSettings(QGroupBox):
             form.addRow("Nach:", minutes)
             form.addRow("Wann:", when)
             form.addRow("", awake)
+            # Live-Zustand mit Grund – „funktioniert nicht“ ist meist „wartet, weil …“
+            self.status = QLabel()
+            self.status.setObjectName("Muted")
+            self.status.setWordWrap(True)
+            form.addRow("Zustand:", self.status)
+            from PySide6.QtCore import QTimer
+
+            self._status_timer = QTimer(self, interval=2000)
+            self._status_timer.timeout.connect(self._show_status)
+            self._status_timer.start()
+            self._show_status()
         form.addRow("Stil:", style)
         added = set()
         for items in rows.values():
@@ -185,6 +196,12 @@ class ScreensaverSettings(QGroupBox):
         self.style_combo = style
         update_rows()
 
+
+    def _show_status(self):
+        try:
+            self.status.setText(self.controller.screensaver.status())
+        except Exception as exc:  # noqa: BLE001
+            self.status.setText(f"Zustand unbekannt: {exc}")
     def _test(self):
         saver = self.controller.screensaver
         if self.tile_mode:
