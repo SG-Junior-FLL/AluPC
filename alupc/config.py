@@ -82,10 +82,13 @@ DEFAULTS: dict = {
     "finger_shortcuts": {"on": False, "map": {}},
     # Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter zu drücken (wie unter Windows)
     "fingerprint": {"auto_unlock": True},
+    # Videos: zuletzt geschaute Stelle (Pfad → {pos, dur, t}) fürs Weiterschauen
+    "video_positions": {},
     # Sprachbefehle am PC (offline, Startwort „Monitor“)
     # wake: Startwörter („monitor“, „alupc“); only_voices: nur angelernte Stimmen (voices: [{name, vec}])
+    # speak: Antwort per Stimme; custom: eigene Sätze [{say, do}]
     "voice": {"on": False, "device": "", "wake": ["monitor", "alupc"], "only_voices": False, "voices": [],
-              "strict": "normal"},
+              "strict": "normal", "speak": True, "speak_voice": "", "custom": []},
     # Begrüßung nach der Anmeldung mit dem Finger (Seite Fingerabdruck → Begrüßung): Stil, eigener Text, eigene Namen je Person
     "welcome": {"on": True, "style": "aurora", "text": "", "sound": True, "names": {}, "birthdays": {}},
     # Timer (Countdown/Stoppuhr): Voreinstellung für Kachel und Befehle

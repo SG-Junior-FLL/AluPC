@@ -28,6 +28,7 @@ class Controller(QObject):
     settings_imported = Signal(list)  # Dual-Boot: Einstellungen vom anderen System übernommen
     sync_status = Signal(str)
     games_changed = Signal()  # Minispiele: Spieler/Phase geändert (Steuerfenster)
+    video_resume = Signal(str, int)  # Video schon mal geschaut: (Titel, Position ms) → „Weiterschauen?“
     presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
 
     def __init__(self, config: Config):
@@ -51,6 +52,9 @@ class Controller(QObject):
         from .voice import VoiceControl
 
         self.voice = VoiceControl(config, scenes=config.scene_names, parent=self)
+        from .speech import Speaker
+
+        self.speaker = Speaker(config)
         self.voice.command.connect(self._voice_command)
         if config["voice"].get("on"):
             from PySide6.QtCore import QTimer as _VT
@@ -71,6 +75,14 @@ class Controller(QObject):
         self._welcome = None  # laufende Begrüßung (Fenster)
         self._games_timer = None
         self._games_version = -1
+        self.resume_offer: dict | None = None  # {"path", "pos", "title", "until"} – Frage „Weiterschauen?“ offen
+        from PySide6.QtCore import QTimer as _RT
+
+        self._video_timer = _RT(self, interval=5000)  # Videoposition merken (fürs Weiterschauen)
+        self._video_timer.timeout.connect(self._remember_video_positions)
+        self._video_timer.start()
+        self._resume_timer = _RT(self, singleShot=True)
+        self._resume_timer.timeout.connect(lambda: self.video_resume_choice("weiter"))
         self.game_sounds = None  # Töne der Minispiele (games_sounds.GameSounds), beim ersten Start angelegt
 
         self.mode = "desktop"  # "content" = AluPC zeigt etwas, "desktop" = normaler zweiter Desktop
@@ -347,7 +359,11 @@ class Controller(QObject):
         self._stop_handy_window()
         window_settings["restore_minimized"] = bool(self.config["program"].get("restore_minimized", True))
         self._sync_camera_settings()
+        self._remember_video_positions()  # bevor das alte Video verschwindet
+        self.resume_offer = None
+        self._resume_timer.stop()
         self.output.set_content(create_source(cfg, self.config.get_scene), self.transition_for(cfg))
+        self._offer_resume()
         if cfg.get("type") == "airplay":
             self._follow_airplay_window()
         if remember:
@@ -643,6 +659,72 @@ class Controller(QObject):
             self.extend()
         self.message.emit("AluCast beendet – Handys können nichts mehr senden.")
 
+    # ------------------------------------------------------------ Videos: weiterschauen oder von vorn
+    RESUME_MIN_LENGTH = 120_000  # nur bei Videos ab 2 Minuten
+    RESUME_MARGIN = 30_000  # nicht, wenn erst 30 s geschaut oder fast zu Ende
+    RESUME_WAIT = 15_000  # so lange wartet die Frage, dann geht es von selbst weiter
+
+    def _remember_video_positions(self) -> None:
+        import time as _time
+
+        from .sources import video_sources
+
+        if self.mode != "content":
+            return
+        saved = dict(self.config.data.get("video_positions") or {})
+        changed = False
+        for v in video_sources(self.output.content):
+            path = getattr(v, "path", "")
+            if not path or (self.resume_offer and self.resume_offer.get("path") == path):
+                continue  # während die Frage offen ist, nichts überschreiben
+            pos, dur = v.position(), v.duration()
+            if dur < self.RESUME_MIN_LENGTH:
+                continue
+            if self.RESUME_MARGIN <= pos <= dur - self.RESUME_MARGIN:
+                saved[path] = {"pos": pos, "dur": dur, "t": int(_time.time())}
+                changed = True
+            elif path in saved and pos > dur - self.RESUME_MARGIN:  # zu Ende geschaut → beim nächsten Mal von vorn
+                saved.pop(path)
+                changed = True
+        if changed:
+            newest = sorted(saved.items(), key=lambda kv: -kv[1].get("t", 0))[:50]
+            self.config["video_positions"] = dict(newest)
+
+    def _offer_resume(self) -> None:
+        from pathlib import Path
+
+        from .sources import video_sources
+
+        saved = self.config.data.get("video_positions") or {}
+        for v in video_sources(self.output.content):
+            entry = saved.get(getattr(v, "path", ""))
+            if not entry:
+                continue
+            v.player.pause()  # warten, bis entschieden ist
+            title = Path(v.path).stem
+            self.resume_offer = {"path": v.path, "pos": int(entry["pos"]), "title": title}
+            self._resume_timer.start(self.RESUME_WAIT)
+            self.video_resume.emit(title, int(entry["pos"]))
+            return
+
+    def video_resume_choice(self, choice: str) -> None:
+        """„weiter“ = ab der gemerkten Stelle, „neu“ = von vorn."""
+        from .sources import video_sources
+
+        offer, self.resume_offer = self.resume_offer, None
+        self._resume_timer.stop()
+        if not offer:
+            return
+        for v in video_sources(self.output.content) if self.mode == "content" else []:
+            if getattr(v, "path", "") == offer["path"]:
+                v.seek_when_ready(offer["pos"] if choice == "weiter" else 0)
+                break
+        if choice == "neu":
+            saved = dict(self.config.data.get("video_positions") or {})
+            saved.pop(offer["path"], None)
+            self.config["video_positions"] = saved
+        self.changed.emit()
+
     def _cast_snapshot(self) -> None:
         from .sources import video_sources
         from .timer import clock
@@ -657,6 +739,8 @@ class Controller(QObject):
             "volume": int((state or {}).get("volume", 100)),
             "sound": state is not None,
             "video": bool(video_sources(self.output.content)) if self.mode == "content" else False,
+            "resume": ({"title": self.resume_offer["title"], "pos": self.resume_offer["pos"] // 1000}
+                       if self.resume_offer else None),
             "timer": clock.text(),
             "keys": __import__("alupc.platform.keys", fromlist=["available"]).available(),
             "allow": {k: self.cast.allowed(k) for k in ("senden", "steuern", "live", "laser")},
@@ -824,7 +908,7 @@ class Controller(QObject):
                 self.set_media_volume(volume=max(0, min(100, int(cmd.split(":", 1)[1]))), muted=False)
             elif cmd.startswith("whiteboard:"):  # Whiteboard mit Hintergrund (vom Handy)
                 self.show_whiteboard(cmd.split(":", 1)[1], draw=False)
-            elif cmd.startswith("video_"):
+            elif cmd in ("video_pause", "video_vor", "video_zurueck"):
                 if videos:
                     {"video_pause": videos[0].toggle_play, "video_vor": lambda: videos[0].skip(10_000),
                      "video_zurueck": lambda: videos[0].skip(-10_000)}[cmd]()
@@ -1169,6 +1253,9 @@ class Controller(QObject):
         if command.startswith("kachel:"):
             self.run_tile(command[7:])
             return
+        if command.startswith("spiel:"):
+            self.game_action(command)
+            return
         actions = {
             "standbild": self.toggle_freeze,
             "schwarz": self.toggle_privacy,
@@ -1217,6 +1304,13 @@ class Controller(QObject):
             "spiele": self.start_games,
             "spiel_start": lambda: self.game_action("start"),
             "spiel_bestenliste": lambda: self.game_action("bestenliste"),
+            "video_weiterschauen": lambda: self.video_resume_choice("weiter"),
+            "video_von_vorn": lambda: self.video_resume_choice("neu"),
+            "spiel_weiter": lambda: self.game_action("weiter"),
+            "spiel_ende": lambda: self.game_action("ende"),
+            "spiel_lobby": lambda: self.game_action("lobby"),
+            "spiel_teams": lambda: self.game_action("teams"),
+            "spiel_toene": lambda: self.game_action("toene"),
         }
         action = actions.get(command)
         if action:
@@ -1506,7 +1600,13 @@ class Controller(QObject):
         self.changed.emit()
 
     def _voice_command(self, command: str, label: str, text: str) -> None:
+        hub = self.cast.games
+        if command == "naechste_szene" and hub is not None and hub.phase == "running":
+            command, label = "spiel_weiter", "Minispiel: weiter"  # „Alu PC, weiter“ im Spiel = nächste Frage
         self.message.emit(f"🎤 {label}")
+        from .speech import spoken_label
+
+        self.speaker.say(f"Okay. {spoken_label(label)}")
         self.run_command(command)
 
     def start_games(self, key: str | None = None) -> None:
@@ -1591,6 +1691,11 @@ class Controller(QObject):
             hub.finish()
         elif action == "lobby":
             hub.to_lobby()
+        elif action == "teams":
+            if hub.phase != "running":
+                hub.shuffle_teams()
+        elif action == "toene":
+            self.config["games"] = {**self.config["games"], "sound": not self.config["games"].get("sound", True)}
         elif action == "bestenliste":
             hub.show_board()
             if not (self.mode == "content" and (self.content or {}).get("type") == "spiel"):

@@ -1077,6 +1077,82 @@ class SetupPage(QWidget):
         model_row.addWidget(self.voice_bar)
         model_row.addWidget(self.voice_dl)
         lay.addLayout(model_row)
+        # ---- Antwort per Stimme
+        speak_row = QHBoxLayout()
+        self.speak_on = QCheckBox("Antwort per Stimme („Okay. Schwarz“)")
+        self.speak_on.setChecked(bool(cfg.get("speak", True)))
+        speak_voice = QComboBox()
+        speak_voice.addItem("Standard-Stimme", "")
+        for name in self.controller.speaker.voices():
+            speak_voice.addItem(name, name)
+        speak_voice.setCurrentIndex(max(0, speak_voice.findData(cfg.get("speak_voice", ""))))
+        test_say = button("Probehören", "sound")
+        speak_row.addWidget(self.speak_on)
+        speak_row.addStretch(1)
+        speak_row.addWidget(speak_voice)
+        speak_row.addWidget(test_say)
+        lay.addLayout(speak_row)
+        if not self.controller.speaker.available():
+            no_tts = QLabel("Keine Sprachausgabe gefunden – unter Linux: sudo apt install speech-dispatcher espeak-ng")
+            no_tts.setObjectName("Muted")
+            no_tts.setWordWrap(True)
+            lay.addWidget(no_tts)
+
+        def save_speak(*_):
+            self.config["voice"] = {**self.config["voice"], "speak": self.speak_on.isChecked(),
+                                    "speak_voice": speak_voice.currentData()}
+            self.controller.speaker.reload()
+
+        self.speak_on.toggled.connect(save_speak)
+        speak_voice.currentIndexChanged.connect(save_speak)
+        test_say.clicked.connect(lambda: self.controller.speaker.say("Okay. Bildschirm schwarz.", force=True))
+
+        # ---- eigene Befehle
+        custom_box = QGroupBox("Eigene Befehle")
+        cl = QVBoxLayout(custom_box)
+        self.custom_list = QListWidget()
+        self.custom_list.setMaximumHeight(120)
+        cl.addWidget(self.custom_list)
+        crow = QHBoxLayout()
+        custom_add = button("Befehl hinzufügen …", "plus")
+        custom_del = button("Entfernen", "trash")
+        crow.addWidget(custom_add)
+        crow.addWidget(custom_del)
+        crow.addStretch(1)
+        cl.addLayout(crow)
+        lay.addWidget(custom_box)
+
+        def fill_custom():
+            from .voice_custom import describe_action
+
+            self.custom_list.clear()
+            for c in self.config["voice"].get("custom") or []:
+                item = QListWidgetItem(f"„{c['say']}“  →  {describe_action(self.config, c['do'])}")
+                item.setData(Qt.UserRole, c["say"])
+                self.custom_list.addItem(item)
+            if not self.custom_list.count():
+                self.custom_list.addItem("(noch keine – z. B. „Pause machen“ → Szene Pause)")
+                self.custom_list.item(0).setFlags(Qt.NoItemFlags)
+
+        def add_custom():
+            from .voice_custom import VoiceCustomDialog
+
+            VoiceCustomDialog(self.controller, self).exec()
+            fill_custom()
+
+        def del_custom():
+            item = self.custom_list.currentItem()
+            if item is None or not item.data(Qt.UserRole):
+                return
+            cfg_v = self.config["voice"]
+            self.config["voice"] = {**cfg_v, "custom": [c for c in cfg_v.get("custom") or []
+                                                        if c.get("say") != item.data(Qt.UserRole)]}
+            fill_custom()
+
+        custom_add.clicked.connect(add_custom)
+        custom_del.clicked.connect(del_custom)
+        fill_custom()
+
         # ---- nur bestimmte Stimmen
         voices_box = QGroupBox("Nur auf bestimmte Stimmen hören")
         vl = QVBoxLayout(voices_box)
@@ -1115,7 +1191,7 @@ class SetupPage(QWidget):
 
         cmds = QLabel("<b>Befehle</b> (immer mit Startwort davor, z. B. „Alu PC, …“):<br>" + "<br>".join(
             f"„{variants[0].capitalize()}“ – {label.replace('&', '&amp;')}" for variants, _cmd, label in voice.COMMANDS)
-            + "<br>„Szene <i>Name</i>“ – eigene Szene zeigen")
+            + "<br>„Szene <i>Name</i>“ – eigene Szene zeigen<br>„Spiel <i>Name</i>“ – Minispiel wählen (z. B. „Spiel Pong“)")
         cmds.setObjectName("Muted")
         cmds.setWordWrap(True)
         lay.addWidget(cmds)

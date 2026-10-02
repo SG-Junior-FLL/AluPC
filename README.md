@@ -158,6 +158,10 @@ Außerdem:
     5: 3, 6: 2, danach 1; Teams: Sieger 6, Verlierer 2, unentschieden 4). Taste B zeigt sie mit Animation auf
     Monitor 2; die Lobby zeigt die ersten drei. Ein „Abend“ geht bis 6 Uhr früh, danach beginnt eine neue Liste
     (oder „Bestenliste zurücksetzen“).
+  - **Avatare** (neu in 0.81): beim Beitreten ein Tier/Symbol wählen – erscheint auf Monitor 2 in Lobby, Punkten,
+    Siegertreppchen und Bestenliste.
+  - **Vibration** (neu in 0.81): das Handy vibriert bei „raus“, falsch, Treffer, Tor, geplatztem Ballon, Sieg …
+    (nur Android-Browser – iPhones erlauben das im Browser nicht).
   - **Töne** (neu in 0.79): 3-2-1, Los, richtig/falsch, raus, Plopp, Treffer, Tor, Sieger-Fanfare und die
     Simon-Töne – über die Lautsprecher am PC (Lautstärke und Ausgabe wie unter Setup → Töne).
 
@@ -180,8 +184,17 @@ Außerdem:
     vorlesen), dann „Befehle nur von angelernten Stimmen annehmen“. Mehrere Stimmen möglich, Genauigkeit
     streng/normal/locker. Das ist ein Filter gegen Zurufe aus dem Raum – **kein Schutz** (eine Aufnahme oder eine
     sehr ähnliche Stimme kann ihn täuschen).
+  - **Antwort per Stimme** (neu in 0.81): AluPC sagt kurz „Okay. Schwarz“ – offline über die Sprachausgabe des
+    Systems (Linux: `speech-dispatcher` + `espeak-ng`). Abschaltbar, Stimme wählbar.
+  - **Eigene Sprachbefehle** (neu in 0.81): Satz → Aktion (jeder Befehl, jede Szene, jede eigene Kachel), z. B.
+    „Alu PC, Pause machen“ → Szene „Pause“.
+  - **Minispiele per Sprache** (neu in 0.81): „Alu PC, Spiel Pong“, „… nächste Frage“, „… Ergebnis zeigen“,
+    „… Lobby“, „… Teams mischen“, „… Töne aus“. „Weiter“ heißt im laufenden Spiel „nächste Frage/Runde“.
 - **Whiteboard vom Handy** (neu in 0.79): Handy-Steuerung → *Zeichnen* → Hintergrund antippen (Weiß, Kariert,
   Tafel …) – Monitor 2 zeigt das Whiteboard, gezeichnet wird oben im Live-Bild.
+- **Videos weiterschauen** (neu in 0.81): AluPC merkt sich bei Videos ab 2 Minuten, wo man aufgehört hat. Beim
+  nächsten Öffnen fragt es am PC (und in der Handy-Steuerung): **Weiterschauen** oder **Von vorn** – ohne
+  Antwort geht es nach 15 Sekunden an der gemerkten Stelle weiter.
 - **Fehlerbericht per Knopf** (neu in 0.68): Setup → *Fehlerbericht …* speichert eine ZIP-Datei auf dem Desktop:
   Beschreibung, Diagnose, Einstellungen (Codes/PINs geschwärzt), Fehler- und Absturzprotokoll, AirPlay-Protokoll,
   auf Wunsch ein Bild vom AluPC-Fenster.

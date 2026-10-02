@@ -38,7 +38,8 @@ ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirm
                     "rgb_farbe", "rgb_monitor2", "rgb_aus", "zeichnung_zurueck", "kamera", "airplay", "qr",
                     "timer_stopp", "ablauf_weiter", "ablauf_zurueck",
                     "musik_zeigen", "musik_pause", "musik_weiter", "musik_zurueck", "overlays", "gluecksrad", "gluecksrad_drehen", "wetter",
-                    "umfrage_zeigen", "umfrage_ende", "spiele", "whiteboard"}  # Minispiele starten nur am PC
+                    "umfrage_zeigen", "umfrage_ende", "spiele", "whiteboard",
+                    "video_weiterschauen", "video_von_vorn"}  # Minispiele starten nur am PC
 MAX_FAILS = 10
 BLOCK_SECONDS = 60
 
@@ -426,12 +427,13 @@ def _make_handler(server: CastServer):
                 return
             action, pid = data.get("action"), str(data.get("p", ""))
             if action == "join":
-                player = hub.join(str(data.get("name", "")))
+                player = hub.join(str(data.get("name", "")), str(data.get("avatar", "")))
                 if player is None:
                     self._json(423, {"error": "Spielrunde ist voll"})
                     return
                 server.request.emit({"kind": "spiel"})
-                self._json(200, {"p": player.pid, "color": player.color, "name": player.name})
+                self._json(200, {"p": player.pid, "color": player.color, "name": player.name,
+                                 "avatar": player.avatar})
             elif action == "input":  # starten können Handys nicht – nur der PC
                 inp = {k: v for k, v in data.items() if k not in ("u", "p", "action")}
                 self._json(200 if hub.input(pid, inp) else 404, {})

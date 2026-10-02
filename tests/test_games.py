@@ -477,3 +477,32 @@ def test_game_sound_files_are_generated(tmp_path, monkeypatch):
         path = sounds.builtin_path(f"spiel-{kind}")
         with wave.open(str(path)) as w:
             assert w.getframerate() == sounds.RATE and 0.03 < w.getnframes() / w.getframerate() < 2.5, kind
+
+
+def test_avatars_and_vibration():
+    from alupc.games import AVATARS
+
+    clock = Clock()
+    hub = GameHub("ballon", clock, random.Random(3))
+    a = hub.join("Lena", "🦊")
+    b = hub.join("Noah", "<script>")  # nur Avatare aus der Liste
+    assert a.avatar == "🦊" and AVATARS[0] == "🦊" and b.avatar == ""
+    assert hub.state_for(a.pid)["avatar"] == "🦊" and hub.state_for(a.pid)["buzz"] is None
+    hub.start()
+    clock.t = hub.intro_until
+    hub.tick()
+    g = hub.game
+    g.limit = 2
+    for i in range(3):
+        hub.input(b.pid, {"pump": 1})
+        clock.t += 0.2
+    hub.tick()  # Ballon von Noah geplatzt → nur Noahs Handy vibriert
+    nb = hub.state_for(b.pid)["buzz"]
+    assert nb[1] == [300] and hub.state_for(a.pid)["buzz"] is None
+    hub.input(a.pid, {"pump": 1})
+    hub.input(a.pid, {"stop": 1})
+    hub.tick()
+    assert hub.state_for(a.pid)["buzz"][1] == [40, 60, 40]
+    first = hub.state_for(a.pid)["buzz"][0]
+    hub.finish()  # Sieger (Lena) bekommt eine lange Vibration
+    assert hub.state_for(a.pid)["buzz"][0] > first and hub.state_for(a.pid)["buzz"][1][-1] == 300

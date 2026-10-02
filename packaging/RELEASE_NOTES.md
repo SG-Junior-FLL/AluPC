@@ -8,7 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.80.0)
+### Neu in dieser Version (0.81.0)
+- **Antwort per Stimme:** Nach einem Sprachbefehl sagt AluPC kurz „Okay. Schwarz“ (offline, Sprachausgabe des
+  Systems; Linux braucht `speech-dispatcher` und `espeak-ng`). Setup → Sprache: an/aus, Stimme, „Probehören“.
+- **Eigene Sprachbefehle:** Setup → Sprache → „Befehl hinzufügen …“ – Satz eintippen, Aktion wählen (alle
+  Befehle, Szenen, eigene Kacheln). Eigene Sätze gehen vor den eingebauten.
+- **Minispiele per Sprache:** „Alu PC, Spiel Pong“ (Spiel wählen), „… nächste Frage“, „… Ergebnis zeigen“,
+  „… Lobby“, „… Teams mischen“, „… Töne aus“. „Alu PC, weiter“ im laufenden Spiel = nächste Frage/Runde.
+- **Minispiele: Avatare** – beim Beitreten ein Tier oder Symbol wählen, es erscheint auf Monitor 2.
+- **Minispiele: Vibration** bei „raus“, falsch, Treffer, Tor, Plopp, Sieg … – nur Android (iPhones können das im
+  Browser nicht).
+- **Videos weiterschauen oder von vorn:** Bei Videos ab 2 Minuten merkt sich AluPC die Stelle. Beim nächsten
+  Öffnen kommt die Frage am PC und in der Handy-Steuerung; ohne Antwort geht es nach 15 s weiter.
+- Ehrlich: Sprachausgabe und Vibration habe ich hier nicht hören bzw. fühlen können (kein Lautsprecher, kein
+  echtes Handy) – getestet sind die Abläufe dahinter.
+
+### Neu in Version 0.80.0
 - **Neues Startwort „Alu PC“:** „Alu PC, Bildschirm schwarz“, „Alu PC, nächste Szene“ … „Monitor“ geht weiter;
   beide lassen sich im Setup → *Sprache* einzeln an- und ausschalten. „Bildschirm“/„Monitor“ nach dem Startwort
   darf man sagen, muss man aber nicht.

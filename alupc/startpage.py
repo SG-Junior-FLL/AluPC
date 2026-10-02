@@ -96,6 +96,13 @@ COMMANDS = {
     "spiele": "Minispiele zeigen (Lobby)",
     "spiel_start": "Minispiel starten",
     "spiel_bestenliste": "Minispiele: Bestenliste zeigen",
+    "video_weiterschauen": "Video: weiterschauen",
+    "video_von_vorn": "Video: von vorn",
+    "spiel_weiter": "Minispiel: weiter (nächste Frage/Runde)",
+    "spiel_ende": "Minispiel: Ergebnis zeigen",
+    "spiel_lobby": "Minispiele: zurück zur Lobby",
+    "spiel_teams": "Minispiele: Teams mischen",
+    "spiel_toene": "Minispiele: Töne an/aus",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann

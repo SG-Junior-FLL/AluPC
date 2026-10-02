@@ -76,7 +76,22 @@ COMMANDS: list[tuple[tuple[str, ...], str, str]] = [
     (("spiel starten", "start", "los"), "spiel_start", "Minispiel starten"),
     (("bestenliste", "rangliste", "punkte"), "spiel_bestenliste", "Bestenliste zeigen"),
     (("airplay", "iphone", "ipad"), "airplay", "AirPlay"),
+    # Minispiele (dazu „Spiel Pong“, „Spiel Schätzen“ … zum Auswählen)
+    (("spiel weiter", "nächste frage", "nächste runde", "nächstes bild"), "spiel_weiter", "Minispiel: weiter"),
+    (("ergebnis zeigen", "spiel ende", "spiel beenden", "spielende"), "spiel_ende", "Minispiel: Ergebnis"),
+    (("lobby", "zur lobby", "zurück zur lobby"), "spiel_lobby", "Minispiele: Lobby"),
+    (("teams mischen", "neue teams"), "spiel_teams", "Teams mischen"),
+    (("töne an", "töne aus", "spiel töne"), "spiel_toene", "Spiel-Töne an/aus"),
 ]
+
+# „Spiel Pong“ → Spiel auswählen (gesprochene Namen der Spiele)
+GAME_NAMES = {
+    "schaetzen": ("schätzen", "schätz spiel"), "malen": ("malen", "malen und raten", "zeichnen"),
+    "stroop": ("farb chaos", "farbchaos", "farben"), "simon": ("simon", "simon sagt"),
+    "tauziehen": ("tauziehen", "tau ziehen"), "pong": ("pong", "ping pong"), "ballon": ("ballon", "luftballon"),
+    "schlangen": ("schlangen", "schlange", "snake"), "reaktion": ("schnellster finger", "reaktion"),
+    "rennen": ("tipp rennen", "rennen", "wettrennen"),
+}
 
 
 def fold(text: str) -> str:
@@ -109,7 +124,15 @@ def wake_end(words: list[str], wakes=("monitor", "alupc")) -> int | None:
     return end
 
 
-def match(text: str, scenes: list[str] | None = None, wakes=("monitor", "alupc")) -> tuple[str, str] | None:
+def _similar(said: str, phrase: str) -> float:
+    phrase = fold(phrase)
+    if len(phrase) <= 5:  # kurze Wörter nur genau (sonst wird aus „Haus“ schnell „aus“)
+        return 1.0 if said == phrase else 0.0
+    return difflib.SequenceMatcher(None, said, phrase).ratio()
+
+
+def match(text: str, scenes: list[str] | None = None, wakes=("monitor", "alupc"),
+          custom: list[dict] | None = None) -> tuple[str, str] | None:
     """Gehörten Satz → (Befehl, Anzeige) oder None. Nur mit einem Startwort davor."""
     words = fold(text).split()
     idx = wake_end(words, wakes)
@@ -122,6 +145,22 @@ def match(text: str, scenes: list[str] | None = None, wakes=("monitor", "alupc")
     if not rest:
         return None
     said = " ".join(rest)
+    # eigene Sätze zuerst (die dürfen auch eingebaute überschreiben)
+    best_custom = max(((_similar(said, c.get("say", "")), c) for c in custom or [] if c.get("say") and c.get("do")),
+                      key=lambda t: t[0], default=(0.0, None))
+    if best_custom[0] >= 0.8:
+        return best_custom[1]["do"], f"„{best_custom[1]['say']}“"
+    # Minispiel per Name: „Alu PC, Spiel Pong“
+    if rest[0] in ("spiel", "spielen") and len(rest) > 1 and rest[1] not in ("starten", "start", "weiter", "ende",
+                                                                          "beenden", "toene"):
+        wanted = " ".join(rest[1:])
+        scores = [(max(difflib.SequenceMatcher(None, wanted, fold(n)).ratio() for n in names), key)
+                  for key, names in GAME_NAMES.items()]
+        score, key = max(scores)
+        if score >= 0.7:
+            from .games import GAMES
+
+            return f"spiel:{key}", f"Minispiel: {GAMES[key].title}"
     # Szene per Name: „Monitor Szene Pause“
     if rest[0] in ("szene", "szenen", "seene") and len(rest) > 1 and scenes:
         wanted = " ".join(rest[1:])
@@ -134,11 +173,7 @@ def match(text: str, scenes: list[str] | None = None, wakes=("monitor", "alupc")
     best, best_score = None, 0.0
     for variants, command, label in COMMANDS:
         for v in variants:
-            v = fold(v)
-            if len(v) <= 5:  # kurze Wörter nur genau (sonst wird aus „Haus“ schnell „aus“)
-                score = 1.0 if said == v else 0.0
-            else:
-                score = difflib.SequenceMatcher(None, said, v).ratio()
+            score = _similar(said, v)
             if score > best_score:
                 best, best_score = (command, label), score
     return best if best_score >= MIN_SCORE else None
@@ -397,7 +432,7 @@ class VoiceControl(QObject):
             who = f"{name} ({dist:.2f})".replace(".", ",") if dist <= limit else f"fremde Stimme ({dist:.2f})".replace(".", ",")
         self.heard.emit(f"„{text}“" + (f" – {who}" if who else ""))
         try:
-            found = match(text, self.scenes(), tuple(cfg.get("wake") or ("monitor", "alupc")))
+            found = match(text, self.scenes(), tuple(cfg.get("wake") or ("monitor", "alupc")), cfg.get("custom") or [])
         except Exception:  # noqa: BLE001
             found = None
         if not found:

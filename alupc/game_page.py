@@ -77,12 +77,17 @@ canvas { width: 100%; background: #fff; border-radius: 14px; touch-action: none;
 .pump { background: var(--c); } .stop { background: #1e293b; border: 2px solid #4ade80 !important; color: #4ade80; }
 #area { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; min-height: 0; }
 .bbox { height: 34vh; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; }
+.avatars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; width: 100%; max-width: 380px; }
+.avatars button { font-size: 26px; padding: 6px 0; border-radius: 12px; background: #1e293b; border: 2px solid transparent; }
+.avatars button.sel { border-color: var(--c); background: #334155; }
+#ava { font-size: 22px; line-height: 1; }
 .hidden { display: none !important; }
 </style></head><body>
-<header><div class="dot" id="dot"></div><b id="who">AluPC-Spiel</b><span id="count"></span><i id="net"></i></header>
+<header><div class="dot" id="dot"></div><span id="ava"></span><b id="who">AluPC-Spiel</b><span id="count"></span><i id="net"></i></header>
 <main id="join">
   <h1 id="jtitle">Mitspielen</h1><p id="jhelp"></p>
   <input id="name" maxlength="16" placeholder="Dein Name" autocomplete="off">
+  <div class="avatars" id="avatars"></div>
   <button class="primary" id="joinbtn">Mitspielen</button><p id="jerr"></p>
 </main>
 <main id="play" class="hidden"><div class="status" id="status"></div><div id="area"></div></main>
@@ -131,7 +136,7 @@ async function join() {
   const name = $("name").value.trim() || "Spieler";
   $("joinbtn").disabled = true;
   try {
-    const r = await post({action: "join", name});
+    const r = await post({action: "join", name, avatar});
     const d = await r.json();
     if (!r.ok) { $("jerr").textContent = d.error || "Geht gerade nicht"; return; }
     pid = d.p; try { sessionStorage.setItem(KEY, pid); } catch (e) {}
@@ -140,6 +145,24 @@ async function join() {
   finally { $("joinbtn").disabled = false; }
 }
 $("joinbtn").onclick = join;
+// Avatar wählen (zufällig vorausgewählt)
+const AVATARS = ["🦊","🐼","🐸","🐯","🦁","🐨","🐷","🐵","🐙","🦄","🐲","🐧","🦉","🐝","🐢","🐬","🦖","🐱","🐶","🐰","🦀","🦋","🐻","🐮","🤖","👾","🚀","⚽"];
+let avatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
+try { avatar = localStorage.getItem("alupc-avatar") || avatar; } catch (e) {}
+for (const a of AVATARS) {
+  const b = el("button", a === avatar ? "sel" : "", a);
+  b.onclick = () => { avatar = a; try { localStorage.setItem("alupc-avatar", a); } catch (e) {}
+    for (const x of $("avatars").children) x.classList.toggle("sel", x === b); };
+  $("avatars").append(b);
+}
+// Vibration (nur Android – iPhones können das im Browser nicht)
+let lastBuzz = null;
+function buzz(d) {
+  const n = d.buzz ? d.buzz[0] : 0;
+  if (lastBuzz === null) { lastBuzz = n; return; }  // erster Stand nach dem Laden: nichts nachholen
+  if (n !== lastBuzz && d.buzz) vibrate(d.buzz[1]);
+  lastBuzz = n;
+}
 $("name").addEventListener("keydown", e => { if (e.key === "Enter") join(); });
 function show(playing) { $("join").classList.toggle("hidden", playing); $("play").classList.toggle("hidden", !playing); }
 // ---------------------------------------------------------------- Anzeige
@@ -147,6 +170,9 @@ function render(d) {
   state = d;
   document.documentElement.style.setProperty("--c", d.color || "#3b82f6");
   $("who").textContent = d.joined ? d.name : "AluPC-Spiel";
+  $("ava").textContent = d.joined ? (d.avatar || "") : "";
+  $("dot").classList.toggle("hidden", !!(d.joined && d.avatar));
+  if (d.joined) buzz(d);
   $("count").textContent = d.players + " dabei";
   $("jtitle").textContent = d.title || "Mitspielen"; $("jhelp").textContent = d.help || "";
   if (!d.joined) {

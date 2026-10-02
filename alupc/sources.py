@@ -1156,6 +1156,7 @@ class VideoSource(SinkView):
         if cfg.get("loop", True):
             self.player.setLoops(QMediaPlayer.Infinite)
         self.title = Path(cfg.get("path", "")).stem or "Video"
+        self.path = str(cfg.get("path", ""))
         self.player.setSource(QUrl.fromLocalFile(cfg.get("path", "")))
         self.player.play()
 
@@ -1187,6 +1188,26 @@ class VideoSource(SinkView):
 
     def skip(self, ms: int) -> None:
         self.seek_to(self.position() + ms)
+
+    def seek_when_ready(self, ms: int, play: bool = True) -> None:
+        """Springen – auch wenn das Video noch lädt (dann sobald es bereit ist)."""
+        ready = (QMediaPlayer.LoadedMedia, QMediaPlayer.BufferingMedia, QMediaPlayer.BufferedMedia)
+
+        def go():
+            self.player.setPosition(max(0, int(ms)))
+            if play:
+                self.player.play()
+
+        if self.player.mediaStatus() in ready:
+            go()
+            return
+
+        def on_status(status):
+            if status in ready:
+                self.player.mediaStatusChanged.disconnect(on_status)
+                go()
+
+        self.player.mediaStatusChanged.connect(on_status)
 
     def stop(self):
         self.player.stop()

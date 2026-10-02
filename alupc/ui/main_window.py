@@ -300,7 +300,8 @@ class MainWindow(QMainWindow):
         self.toast = Toast(self)
         self._build_tray()
         controller.changed.connect(self.refresh)
-        controller.games_changed.connect(self.refresh)  # Kachel „Minispiele“: LOBBY/LÄUFT/ERGEBNIS
+        controller.games_changed.connect(self.refresh)
+        controller.video_resume.connect(self.ask_video_resume)  # Kachel „Minispiele“: LOBBY/LÄUFT/ERGEBNIS
         controller.message.connect(self.show_message)
         controller.presenter_requested.connect(self.open_presenter)
         controller.settings_imported.connect(self._settings_imported)
@@ -946,6 +947,19 @@ class MainWindow(QMainWindow):
             menu.addAction(icons.icon("play", col, 18), "Weiter abstimmen", lambda: c.poll_action("weiter"))
         menu.addAction(icons.icon("refresh", col, 18), "Stimmen löschen", lambda: c.poll_action("neu"))
         menu.addAction(icons.icon("x", col, 18), "Abstimmung schließen", lambda: c.poll_action("aus"))
+
+    def ask_video_resume(self, title: str, pos_ms: int):
+        """„Video schon mal geschaut – weiterschauen oder von vorn?“ (geht nach 15 s von selbst weiter)."""
+        from .video_resume import VideoResumeDialog
+
+        old = getattr(self, "_resume_dialog", None)
+        if old is not None:
+            try:
+                old.close()
+            except RuntimeError:  # schon zu (löscht sich beim Schließen selbst)
+                pass
+        self._resume_dialog = VideoResumeDialog(self.controller, title, pos_ms, self)
+        self._resume_dialog.show()
 
     def open_games_window(self):
         """Steuerfenster der Minispiele (zeigt auch gleich die Lobby auf Monitor 2)."""

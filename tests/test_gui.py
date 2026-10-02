@@ -4152,3 +4152,108 @@ def test_voice_enroll_dialog_and_setup(env):
     setup.only_voices.setChecked(True)
     assert controller.config["voice"]["only_voices"] is True
     setup.deleteLater()
+
+
+def test_voice_reply_custom_and_video_resume(env, monkeypatch):
+    """Sprachbefehl → Antwort per Stimme; „weiter“ im laufenden Minispiel = nächste Frage; eigener Befehl im
+    Setup; Video: Stelle merken, beim erneuten Öffnen fragen (PC + Handy), Entscheidung springt."""
+    import json
+
+    from alupc import controller as ctl
+    from alupc.ui.voice_custom import VoiceCustomDialog, action_choices
+
+    controller, window, _ = env
+    ran = []
+    real_run = controller.run_command
+    monkeypatch.setattr(controller, "run_command", lambda c: ran.append(c))
+    controller._voice_command("schwarz", "Schwarz an/aus", "alu pc bildschirm schwarz")
+    assert ran == ["schwarz"] and controller.speaker.spoken[-1] == "Okay. Schwarz"
+    controller.config["voice"] = {**controller.config["voice"], "speak": False}
+    controller._voice_command("wetter", "Wetter & Uhr", "monitor wetter")
+    assert controller.speaker.spoken[-1] == "Okay. Schwarz"  # aus → nichts gesagt
+    controller.start_games()
+    hub = controller.cast.games
+    hub.join("Lena")
+    controller.game_action("start")
+    controller._voice_command("naechste_szene", "Nächste Szene", "alu pc weiter")
+    assert ran[-1] == "spiel_weiter"
+    monkeypatch.setattr(controller, "run_command", real_run)
+    controller.game_action("aus")
+    # eigener Befehl
+    assert ("schwarz", "Schwarz (Sichtschutz) an/aus") in action_choices(controller.config) or \
+        any(k == "schwarz" for k, _ in action_choices(controller.config))
+    d = VoiceCustomDialog(controller, window)
+    d.say.setText("  Pause   machen ")
+    d.action.setCurrentIndex(d.action.findData("wetter"))
+    d.save()
+    assert controller.config["voice"]["custom"] == [{"say": "Pause machen", "do": "wetter"}]
+
+    # ---- Video weiterschauen
+    class FakePlayer:
+        def __init__(self):
+            self.paused = False
+
+        def pause(self):
+            self.paused = True
+
+    class FakeVideo:
+        def __init__(self, path, pos, dur):
+            self.path, self.pos, self.dur, self.player, self.seeked = path, pos, dur, FakePlayer(), None
+
+        def position(self):
+            return self.pos
+
+        def duration(self):
+            return self.dur
+
+        def seek_when_ready(self, ms, play=True):
+            self.seeked = ms
+
+    videos = []
+    monkeypatch.setattr("alupc.sources.video_sources", lambda _w: list(videos))
+    controller.mode = "content"
+    videos.append(FakeVideo("/filme/robot.mp4", 754_000, 3_600_000))
+    controller._remember_video_positions()
+    assert controller.config["video_positions"]["/filme/robot.mp4"]["pos"] == 754_000
+    videos[0].pos = 10_000  # zu kurz geschaut → bleibt bei der alten Stelle
+    controller._remember_video_positions()
+    assert controller.config["video_positions"]["/filme/robot.mp4"]["pos"] == 754_000
+    videos.clear()
+    offers = []
+    controller.video_resume.connect(lambda title, pos: offers.append((title, pos)))
+    videos.append(FakeVideo("/filme/robot.mp4", 0, 3_600_000))
+    controller._offer_resume()
+    assert offers == [("robot", 754_000)] and videos[0].player.paused
+    assert window._resume_dialog is not None and "12:34" in window._resume_dialog.resume.text()
+    controller._cast_snapshot()
+    assert controller.cast.snapshot["resume"] == {"title": "robot", "pos": 754}
+    # Handy: „Weiterschauen“
+    port = _free_tcp_port()
+    controller.config["cast"] = {**controller.config["cast"], "port": port, "code": "123456"}
+    controller.cast.start()
+    base = f"http://127.0.0.1:{controller.cast.port}"
+    status, _ = _http("POST", base + "/api/cmd", json.dumps({"cmd": "video_weiterschauen"}).encode(),
+                      {"Content-Type": "application/json", "X-AluPC-Code": "123456"})
+    assert status == 200
+    _until(lambda: videos[0].seeked == 754_000)
+    assert controller.resume_offer is None
+    import shiboken6
+
+    _until(lambda: not shiboken6.isValid(window._resume_dialog))
+    assert not shiboken6.isValid(window._resume_dialog)  # Fenster hat sich von selbst geschlossen
+    # nochmal öffnen → „Von vorn“ vergisst die Stelle
+    controller._offer_resume()
+    controller.video_resume_choice("neu")
+    assert videos[0].seeked == 0 and "/filme/robot.mp4" not in controller.config["video_positions"]
+    # zu Ende geschaut → vergessen; kurze Videos werden nie gemerkt
+    videos[0].pos = 3_590_000
+    controller.config["video_positions"] = {"/filme/robot.mp4": {"pos": 5, "dur": 3_600_000, "t": 1}}
+    controller._remember_video_positions()
+    assert controller.config["video_positions"] == {}
+    videos[:] = [FakeVideo("/clip.mp4", 50_000, 90_000)]
+    controller._remember_video_positions()
+    assert controller.config["video_positions"] == {}
+    assert ctl.Controller.RESUME_WAIT == 15_000
+    status, body = _http("GET", base + "/")
+    assert "video_weiterschauen" in body.decode()
+    controller.cast.stop()

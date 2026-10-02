@@ -76,6 +76,12 @@ GAMES: dict[str, GameSpec] = {
 COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ec4899", "#06b6d4", "#f97316", "#84cc16",
           "#eab308", "#14b8a6", "#e11d48", "#6366f1", "#10b981", "#f43f5e", "#0ea5e9"]
 MAX_PLAYERS = len(COLORS)
+AVATARS = ["🦊", "🐼", "🐸", "🐯", "🦁", "🐨", "🐷", "🐵", "🐙", "🦄", "🐲", "🐧", "🦉", "🐝", "🐢", "🐬",
+           "🦖", "🐱", "🐶", "🐰", "🦀", "🦋", "🐻", "🐮", "🤖", "👾", "🚀", "⚽"]
+# Vibration aufs Handy (Muster in ms: an, aus, an …) – nur Android-Browser können das, iPhones nicht
+BUZZ = {"out": [200, 100, 200], "wrong": [150], "crash": [150], "early": [150], "hit": [30],
+        "correct": [40, 60, 40], "bank": [40, 60, 40], "finish": [40, 60, 40], "burst": [300],
+        "goal": [60, 40, 60], "win": [100, 60, 100, 60, 300], "go": [60]}
 NAME_RE = re.compile(r"[^\w .\-!?äöüÄÖÜß]", re.UNICODE)
 
 
@@ -90,6 +96,8 @@ class Player:
         self.seen = now
         self.joined = now
         self.team = 0
+        self.avatar = ""
+        self.buzz: tuple[int, list[int]] | None = None  # (Nummer, Muster) – das Handy vibriert bei neuer Nummer
 
     def public(self) -> dict:
         return {"name": self.name, "color": self.color}
@@ -121,6 +129,8 @@ class GameHub:
         self.board_games = 0
         self.last_award: dict[str, int] = {}
         self.board_at = 0.0
+        self._buzz_n = 0
+        self._buzz_seen: tuple[int, int] = (0, 0)  # (Spiel-ID, letzte Ereignisnummer)
 
     @property
     def spec(self) -> GameSpec:
@@ -130,7 +140,7 @@ class GameHub:
         self.version += 1
 
     # ---- Spieler
-    def join(self, name: str) -> Player | None:
+    def join(self, name: str, avatar: str = "") -> Player | None:
         name = NAME_RE.sub("", " ".join(str(name).split()))[:16].strip() or "Spieler"
         with self.lock:
             now = self.clock()
@@ -144,6 +154,7 @@ class GameHub:
             used = {p.color for p in self.players.values()}
             color = next(c for c in COLORS if c not in used)
             player = Player(secrets.token_urlsafe(8), name, color, now)
+            player.avatar = avatar if avatar in AVATARS else ""
             player.team = self._smaller_team()
             self.players[player.pid] = player
             if self.phase == "running" and self.game is not None:
@@ -274,13 +285,50 @@ class GameHub:
             self._prune(now)
             if self.phase == "running" and self.game is not None and now >= self.intro_until:
                 self.game.update(now)
+                self._buzz_events()
                 if self.game.over:
                     scores = self.game.scores()
                     self.ranking = sorted(scores.items(), key=lambda kv: -kv[1])
                     self.phase = "over"
                     self.over_at = now
                     self._award()
+                    self._buzz_winners()
                     self._changed()
+
+    # ---- Vibration
+    def buzz(self, pid: str, kind: str) -> None:
+        pl = self.players.get(pid)
+        if pl is not None and kind in BUZZ:
+            self._buzz_n += 1
+            pl.buzz = (self._buzz_n, BUZZ[kind])
+
+    def _buzz_events(self) -> None:
+        game = self.game
+        gid, last = self._buzz_seen
+        if gid != id(game):
+            last = 0
+        for n, _t, kind, data in game.events:
+            if n <= last:
+                continue
+            if "pid" in data:
+                self.buzz(data["pid"], kind)
+            elif kind == "goal":  # Tor: das Team, das getroffen hat
+                for pid, pl in self.players.items():
+                    if pl.team == data.get("team"):
+                        self.buzz(pid, "goal")
+            elif kind == "go":  # Reaktion: GRÜN
+                for pid in self.players:
+                    self.buzz(pid, "go")
+        self._buzz_seen = (id(game), game.event_n)
+
+    def _buzz_winners(self) -> None:
+        if self.spec.cls.teams:
+            win = self.team_result()
+            winners = [pid for pid, pl in self.players.items() if win is not None and pl.team == win]
+        else:
+            winners = [pid for pid, _s in self.ranking if self.place_of(pid) == 1]
+        for pid in winners:
+            self.buzz(pid, "win")
 
     # ---- Bestenliste über den Abend
     PLACE_POINTS = [10, 7, 5, 4, 3, 2]  # ab Platz 7: 1 Punkt fürs Mitmachen
@@ -335,6 +383,9 @@ class GameHub:
     def color_of_name(self, name: str) -> str:
         return next((p.color for p in self.players.values() if p.name == name), "#64748b")
 
+    def avatar_of_name(self, name: str) -> str:
+        return next((p.avatar for p in self.players.values() if p.name == name), "")
+
     def place_of(self, pid: str) -> int | None:
         """Platz 1, 2, … (Gleichstand = gleicher Platz)."""
         scores = dict(self.ranking)
@@ -358,7 +409,7 @@ class GameHub:
             color = p.color
             if spec.cls.teams and self.phase != "lobby":
                 color = TEAM_COLORS[p.team]
-            data.update(name=p.name, color=color)
+            data.update(name=p.name, color=color, avatar=p.avatar, buzz=list(p.buzz) if p.buzz else None)
             board_line = ""
             if self.board.get(p.name):
                 place = next((pl for n, _pts, pl in self.board_ranking() if n == p.name), None)
@@ -393,6 +444,6 @@ class GameHub:
             return data
 
 
-__all__ = ["GAMES", "GameHub", "Player", "MAX_PLAYERS", "COLORS", "TEAM_COLORS", "TEAM_NAMES", "format_number",
+__all__ = ["AVATARS", "GAMES", "GameHub", "Player", "MAX_PLAYERS", "COLORS", "TEAM_COLORS", "TEAM_NAMES", "format_number",
            "option_choices", "SnakeGame", "ReactionGame", "RaceGame", "EstimateGame", "DrawGame", "StroopGame",
            "SimonGame", "TugGame", "PongGame", "BalloonGame"]

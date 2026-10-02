@@ -182,3 +182,26 @@ def test_download_speaker_model(tmp_path):
     target = tmp_path / "sprache" / voice.SPK_NAME
     voice.download_model(url=src.as_uri(), target=target, ready=voice.spk_ready)
     assert voice.spk_ready(target)
+
+
+def test_custom_and_game_commands():
+    custom = [{"say": "pause machen", "do": "szene:Pause"}, {"say": "schwarz", "do": "kachel:abc"}]
+    assert voice.match("alu pc pause machen", [], custom=custom) == ("szene:Pause", "„pause machen“")
+    assert voice.match("monitor pause machn", [], custom=custom)[0] == "szene:Pause"  # kleine Hörfehler
+    assert voice.match("monitor schwarz", [], custom=custom)[0] == "kachel:abc"  # eigene vor eingebauten
+    assert voice.match("alu pc spiel pong", [])[0] == "spiel:pong"
+    assert voice.match("alu pc spiel schätzen", [])[0] == "spiel:schaetzen"
+    assert voice.match("monitor spiel malen und raten", [])[0] == "spiel:malen"
+    assert voice.match("alu pc spiel starten", [])[0] == "spiel_start"  # kein Spielname
+    assert voice.match("alu pc nächste frage", [])[0] == "spiel_weiter"
+    assert voice.match("alu pc ergebnis zeigen", [])[0] == "spiel_ende"
+    assert voice.match("monitor lobby", [])[0] == "spiel_lobby"
+    assert voice.match("monitor spiel quatschkram", []) is None
+
+
+def test_spoken_label():
+    from alupc.speech import spoken_label
+
+    assert spoken_label("Schwarz an/aus") == "Schwarz"
+    assert spoken_label("Wetter & Uhr") == "Wetter und Uhr"
+    assert spoken_label("Schwarz an/aus · Lena") == "Schwarz"

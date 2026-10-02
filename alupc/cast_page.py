@@ -253,6 +253,14 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
     </div>
     <div class="scenes" id="scenes"></div>
   </div>
+  <div class="card hide" id="c-resume">
+    <h2>Video weiterschauen?</h2>
+    <p id="resume-text" style="margin:0 0 10px"></p>
+    <div class="row">
+      <button onclick="cmd('video_von_vorn')">Von vorn</button>
+      <button class="primary" onclick="cmd('video_weiterschauen')">Weiterschauen</button>
+    </div>
+  </div>
   <div class="card" id="c-video">
     <h2>Video</h2>
     <div class="row">
@@ -535,6 +543,9 @@ async function refresh() {
     for (const [id, on] of [["b-schwarz", f.schwarz], ["b-standbild", f.standbild], ["b-spiegeln", f.spiegeln],
                             ["b-erweitern", f.erweitern], ["b-schoner", f.schoner]]) $(id).classList.toggle("on", !!on);
     $("c-video").classList.toggle("hide", !s.video);
+    $("c-resume").classList.toggle("hide", !s.resume);
+    if (s.resume) { const t = s.resume.pos; $("resume-text").textContent = s.resume.title + " – geschaut bis " +
+      Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); }
     $("c-ablauf").classList.toggle("hide", !s.ablauf);
     $("punkt").textContent = s.punkt || "";
     $("c-vol").classList.toggle("hide", !s.sound);

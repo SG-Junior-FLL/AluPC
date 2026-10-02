@@ -74,14 +74,20 @@ def tag(c, x, y, w, label: str, color="#a5b4fc") -> None:
     c.p.drawText(QRectF(x, y, w, c.h * 0.045), Qt.AlignLeft | Qt.AlignVCenter, label)
 
 
-def chip(p, rect: QRectF, name: str, color: str, extra: str = "", dim: float = 1.0, mark: str = "") -> None:
+def chip(p, rect: QRectF, name: str, color: str, extra: str = "", dim: float = 1.0, mark: str = "",
+         avatar: str = "") -> None:
     p.setPen(Qt.NoPen)
     p.setBrush(QColor(255, 255, 255, int(18 * dim)))
     r = rect.height() / 2
     p.drawRoundedRect(rect, r, r)
-    d = rect.height() * 0.5
-    p.setBrush(qc(color, dim))
-    p.drawEllipse(QRectF(rect.x() + rect.height() * 0.25, rect.center().y() - d / 2, d, d))
+    d = rect.height() * (0.82 if avatar else 0.5)
+    dot = QRectF(rect.x() + rect.height() * (0.1 if avatar else 0.25), rect.center().y() - d / 2, d, d)
+    p.setBrush(qc(color, dim * (0.55 if avatar else 1)))
+    p.drawEllipse(dot)
+    if avatar:  # Emoji im farbigen Kreis
+        p.setOpacity(dim)
+        text(p, dot, avatar, d * 0.74)
+        p.setOpacity(1.0)
     inner = rect.adjusted(rect.height() * 0.95, 0, -rect.height() * 0.35, 0)
     tail = extra or mark
     tail_w = 0.0
@@ -110,7 +116,7 @@ def scoreboard(c, rect: QRectF, scores: dict, fmt=str, limit: int = 10, marks: d
         y += (y_target - y) * 0.25
         c.fx.vals[key] = y
         chip(c.p, QRectF(rect.x(), y, rect.width(), row_h * 0.84), pl.name, pl.color, fmt(score),
-             mark=(marks or {}).get(pid, ""))
+             mark=(marks or {}).get(pid, ""), avatar=pl.avatar)
 
 
 def time_bar(c, rect: QRectF, part: float) -> None:
@@ -244,6 +250,11 @@ def color_of(c, pid) -> str:
     return pl.color if pl else "#64748b"
 
 
+def avatar_of(c, pid) -> str:
+    pl = c.hub.players.get(pid)
+    return pl.avatar if pl else ""
+
+
 # =========================================================================== Lobby, 3-2-1, Ergebnis
 def lobby(c) -> None:
     p, w, h, hub = c.p, c.w, c.h, c.hub
@@ -300,7 +311,8 @@ def _lobby_chip(c, rect, pl):
     c.p.translate(rect.center())
     c.p.scale(s, s)
     c.p.translate(-rect.center())
-    chip(c.p, rect.translated(0, math.sin(c.now * 2 + pl.joined) * c.h * 0.003), pl.name, pl.color)
+    chip(c.p, rect.translated(0, math.sin(c.now * 2 + pl.joined) * c.h * 0.003), pl.name, pl.color,
+         avatar=pl.avatar)
     c.p.restore()
 
 
@@ -365,6 +377,9 @@ def podium(c) -> None:
              rect.width() * 0.32, medal.get(place, TEXT), True)
         text(p, QRectF(rect.x() - col_w * 0.05, rect.y() - h * 0.08, col_w * 1.1, h * 0.07), pl.name, h * 0.055,
              "#ffffff", True)
+        if pl.avatar:  # Avatar über dem Namen, hüpft ein bisschen
+            hop = abs(math.sin((c.now - hub.over_at) * 4 + idx)) * h * 0.012
+            text(p, QRectF(rect.x(), rect.y() - h * 0.17 - hop, rect.width(), h * 0.09), pl.avatar, h * 0.07)
         text(p, QRectF(rect.x(), rect.bottom() - h * 0.07, rect.width(), h * 0.06), score_label(key, score),
              h * 0.032, "#ffffff")
         gain = hub.last_award.get(pl.name)
@@ -448,7 +463,9 @@ def board(c) -> None:
         p.setBrush(g)
         p.drawRoundedRect(bar, bar.height() / 2, bar.height() / 2)
         inner = bar.adjusted(row_h * 0.3, 0, -row_h * 0.3, 0)
-        text(p, inner, name, row_h * 0.4, qc("#ffffff", k), True, Qt.AlignLeft | Qt.AlignVCenter)
+        avatar = hub.avatar_of_name(name)
+        text(p, inner, f"{avatar}  {name}" if avatar else name, row_h * 0.4, qc("#ffffff", k), True,
+             Qt.AlignLeft | Qt.AlignVCenter)
         text(p, inner, str(int(pts * k)), row_h * 0.42, qc("#ffffff", k), True, Qt.AlignRight | Qt.AlignVCenter)
         if place == 1 and k >= 1 and ("crown", name) not in c.fx.born:
             c.fx.born[("crown", name)] = c.now
@@ -546,7 +563,7 @@ def schaetzen(c, g, events) -> None:
             p.translate(rect.center())
             p.scale(s, s)
             p.translate(-rect.center())
-            chip(p, rect, name_of(c, pid), color_of(c, pid), mark="✓" if done else "…", dim=1.0 if done else 0.45)
+            chip(p, rect, name_of(c, pid), color_of(c, pid), avatar=avatar_of(c, pid), mark="✓" if done else "…", dim=1.0 if done else 0.45)
             p.restore()
         return
     # ---- Auflösung: Zahlenstrahl
@@ -689,7 +706,7 @@ def _alive_strip(c, g, top, m, answered=None, progress=None, seq_len=0) -> None:
         if not out and progress is not None:
             mark = "✓" if pid in getattr(g, "done", ()) else ("✗" if pid in getattr(g, "failed", ()) else
                                                                f"{progress.get(pid, 0)}/{seq_len}")
-        chip(p, rect.translated(shake, 0), name_of(c, pid), color_of(c, pid), mark=mark, dim=0.35 if out else 1.0)
+        chip(p, rect.translated(shake, 0), name_of(c, pid), color_of(c, pid), avatar=avatar_of(c, pid), mark=mark, dim=0.35 if out else 1.0)
 
 
 # =========================================================================== Simon sagt
@@ -768,7 +785,7 @@ def simon(c, g, events) -> None:
             mark = "✓" if pid in g.done else "✗" if pid in g.failed else f"{g.progress.get(pid, 0)}/{len(g.seq)}"
         else:
             mark = ""
-        chip(p, rect.translated(shake, 0), name_of(c, pid), color_of(c, pid), mark=mark, dim=0.35 if out else 1)
+        chip(p, rect.translated(shake, 0), name_of(c, pid), color_of(c, pid), avatar=avatar_of(c, pid), mark=mark, dim=0.35 if out else 1)
         if g.phase == "eingabe" and not out and pid not in g.done:  # Fortschritt
             part = g.progress.get(pid, 0) / max(1, len(g.seq))
             p.setPen(Qt.NoPen)
