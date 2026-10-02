@@ -43,8 +43,19 @@ SENTENCES = [
 ]
 
 
-def note(text: str) -> None:
-    print(f"::notice title=Sprache echt::{text}", flush=True)
+GROUPS: dict[str, list[str]] = {}
+
+
+def note(text: str, group: str = "Ablauf") -> None:
+    """Sammeln statt sofort melden: GitHub zeigt je Schritt nur 10 Hinweise – sonst fehlen die wichtigen."""
+    print(text, flush=True)
+    GROUPS.setdefault(group, []).append(text)
+
+
+def flush() -> None:
+    for group, lines in GROUPS.items():
+        print(f"::notice title=Sprache echt – {group}::" + " ‖ ".join(lines), flush=True)
+    GROUPS.clear()
 
 
 def to_16k(wav_bytes: bytes) -> bytes:
@@ -74,7 +85,7 @@ def mic_check(piper_voice) -> bool:
         return True
     from PySide6.QtMultimedia import QMediaDevices
 
-    note("Mikrofone: " + ", ".join(d.description() for d in QMediaDevices.audioInputs()))
+    note(group="Mikrofon", text="Geräte: " + ", ".join(d.description() for d in QMediaDevices.audioInputs()))
     config = Config(Path(tmp) / "mic.json")
     config["voice"] = {**config["voice"], "on": True, "stt": "vosk"}
     vc = voice.VoiceControl(config)
@@ -110,9 +121,9 @@ def mic_check(piper_voice) -> bool:
         player.wait(timeout=10)
         cmd = got[-1] if got else "-"
         ok += cmd == expected
-        note(f"Mikrofon: „{sentence}“ → gehört {heard[-1] if heard else '(nichts)'} = {cmd} (erwartet {expected})")
+        note(group="Mikrofon", text=f"„{sentence}“ → gehört {heard[-1] if heard else '(nichts)'} = {cmd} (erwartet {expected})")
     vc.stop()
-    note(f"Mikrofon echt: {ok}/4 richtig · Mikrofon neu geöffnet: {vc.mic_restarts}×")
+    note(group="Mikrofon", text=f"ERGEBNIS {ok}/4 richtig · Mikrofon neu geöffnet: {vc.mic_restarts}×")
     if ok < 3:
         print(f"::error title=Mikrofon echt::nur {ok}/4 über das (virtuelle) Mikrofon verstanden", flush=True)
         return False
@@ -173,10 +184,10 @@ def main() -> int:
         vc._handle(text, None, 0, pcm)
         both_cmd = got[-1] if got else "-"
         ok_both += both_cmd == expected
-        note(f"„{sentence}“ → Vosk: „{text}“ (Startwort {'ja' if wake else 'NEIN'}) = {vosk_cmd} · Whisper: „{exact}“ = "
+        note(group="Sätze", text=f"„{sentence}“ → Vosk: „{text}“ (Startwort {'ja' if wake else 'NEIN'}) = {vosk_cmd} · Whisper: „{exact}“ = "
              f"{whisper_cmd} · AluPC: {both_cmd} (erwartet {expected}; Stimme {tts_s:.1f} s, Whisper {whisper_s:.1f} s)")
     n = len(SENTENCES)
-    note(f"Richtig verstanden: AluPC (Vosk + Whisper als zweite Meinung) {ok_both}/{n} · nur Vosk {ok_vosk}/{n} · "
+    note(group="Ergebnis", text=f"Richtig verstanden: AluPC (Vosk + Whisper als zweite Meinung) {ok_both}/{n} · nur Vosk {ok_vosk}/{n} · "
          f"nur Whisper {ok_whisper}/{n} · Startwort von Vosk gehört {ok_wake}/{n}")
     if not mic_check(piper_voice):
         return 1
@@ -188,10 +199,13 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        sys.exit(main())
+        code = main()
+        flush()
+        sys.exit(code)
     except Exception:  # noqa: BLE001 – Grund als Hinweis im CI-Lauf sichtbar machen
         import traceback
 
         for line in traceback.format_exc().strip().splitlines()[-12:]:
             print(f"::error title=Sprache echt::{line.strip()}", flush=True)
+        flush()
         sys.exit(1)
