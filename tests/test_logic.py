@@ -298,9 +298,9 @@ def test_new_builtin_tiles_appear_after_update():
     old_saved = {"tiles": ["timer", "mirror"], "custom": []}  # Einstellungen von vor dem Update
     import sys
 
-    # neu: „text“ 0.30, „nowplaying“ 0.46, „overlays“ 0.47, „whiteboard“ 0.61, „wetter“/„umfrage“/„zufall“ 0.68, „spiele“ 0.76
+    # neu: „text“ 0.30, „nowplaying“ 0.46, „overlays“ 0.47, „whiteboard“ 0.61, „wetter“/„umfrage“/„zufall“ 0.68, „spiele“ 0.76, „system“ 0.82
     expected = ["timer", "mirror", "text", "nowplaying", "airplay", "handy_remote", "overlays", "whiteboard",
-                "wetter", "umfrage", "zufall", "spiele"]
+                "wetter", "system", "umfrage", "zufall", "spiele"]
     assert ordered_keys(old_saved) == expected, sys.platform
     from alupc.startpage import DEFAULT_ORDER
 
@@ -1185,3 +1185,48 @@ def test_uxplay_gets_monitor_2_size():
     assert screen_size_option(helptext, (2560, 1600)) == ["-s", "1728x1080"]
     assert screen_size_option("", (1280, 720)) == []  # Version ohne -s
     assert screen_size_option(helptext, None) == []
+
+
+# ---------------------------------------------------------------- 0.82: Systemstatus
+def test_sysinfo_helpers(tmp_path):
+    from alupc import sysinfo
+    from alupc.platform.fans import Chip
+
+    assert sysinfo.fmt_bytes(512) == "512 B"
+    assert sysinfo.fmt_bytes(1536 * 2**20) == "1,5 GB"
+    assert sysinfo.fmt_bytes(500 * 2**30) == "500 GB"
+    assert sysinfo.fmt_uptime(3 * 86400 + 7200) == "3 T. 2 Std."
+    assert sysinfo.fmt_uptime(125 * 60) == "2 Std. 5 Min."
+    assert sysinfo.clean_cpu_name("AMD Ryzen 7 5800X 8-Core Processor") == "AMD Ryzen 7 5800X"
+    assert sysinfo.clean_cpu_name("Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz") == "Intel Core i7-9700K"
+    gpu = sysinfo.parse_nvidia("NVIDIA GeForce RTX 3070, 37, 61, 2048, 8192, 45, 120.5\n")
+    assert gpu.name == "GeForce RTX 3070" and gpu.load == 37 and gpu.temp == 61 and gpu.mem_total == 8192
+    assert gpu.fan == 45 and gpu.power == 120.5
+    gpu = sysinfo.parse_nvidia("NVIDIA GeForce GTX 1050, 5, 40, 100, 2048, [N/A], [N/A]")
+    assert gpu.fan is None and gpu.power is None
+    assert sysinfo.parse_nvidia("") is None
+    chips = [Chip("Mainboard (nct6798)", "nct6798", temps=[("SYSTIN", 30.0)]),
+             Chip("AMD-Prozessor", "k10temp", temps=[("Tccd1", 50.0), ("Tctl", 55.5)])]
+    assert sysinfo.pick_cpu_temp(chips) == 55.5
+    assert sysinfo.pick_cpu_temp([Chip("x", "nvme", temps=[("Composite", 40.0)])]) is None
+    # AMD-Grafikkarte aus sysfs
+    dev = tmp_path / "card0" / "device"
+    (dev / "hwmon" / "hwmon3").mkdir(parents=True)
+    (dev / "gpu_busy_percent").write_text("42\n")
+    (dev / "mem_info_vram_used").write_text(str(2 * 2**30))
+    (dev / "mem_info_vram_total").write_text(str(8 * 2**30))
+    (dev / "hwmon" / "hwmon3" / "temp1_input").write_text("63000")
+    gpu = sysinfo.amd_gpu(tmp_path)
+    assert gpu.load == 42 and gpu.mem_total == 8192 and gpu.temp == 63
+    # Ein-/Ausschalten: feste Befehle je System
+    assert sysinfo.power_command("aus", "linux") == ["systemctl", "poweroff"]
+    assert sysinfo.power_command("neustart", "win32") == ["shutdown", "/r", "/t", "0"]
+    assert sysinfo.power_command("energiesparen", "win32")[0] == "rundll32.exe"
+    assert sysinfo.power_command("quatsch", "linux") is None
+
+
+def test_system_voice_command():
+    from alupc.voice import match
+
+    assert match("monitor system", [])[0] == "system"
+    assert match("monitor systemstatus", [])[0] == "system"

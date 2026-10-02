@@ -48,5 +48,15 @@ done
 dpkg --configure -a >/dev/null 2>&1 || true
 apt-get -o DPkg::Lock::Timeout=600 install -y "./$deb" && echo && echo "✔ AluPC ist installiert – im Startmenü unter „AluPC“."
 status=$?
+# RGB & Lüfter: Sensoren (lm-sensors) und OpenRGB – OpenRGB gibt es erst ab Ubuntu 25.04 in den Paketquellen
+if [ $status -eq 0 ]; then
+    apt-get -o DPkg::Lock::Timeout=600 install -y lm-sensors i2c-tools >/dev/null 2>&1 && echo "✔ Sensoren (lm-sensors) installiert"
+    if apt-get -o DPkg::Lock::Timeout=600 install -y openrgb >/dev/null 2>&1; then
+        echo "✔ OpenRGB installiert (RGB-Beleuchtung)"
+    else
+        echo "ℹ OpenRGB ist für diese Ubuntu-Version nicht in den Paketquellen – bei Bedarf von https://openrgb.org laden"
+        echo "  (AluPC → RGB & Lüfter → „OpenRGB installieren“ öffnet die Seite)."
+    fi
+fi
 if ! [ -t 0 ]; then sleep 4; fi
 exit $status

@@ -1566,6 +1566,10 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             from .weather import WeatherSource
 
             return WeatherSource(cfg, parent)
+        if t == "system":
+            from .sysinfo_draw import SystemSource
+
+            return SystemSource(cfg, parent)
         if t in ("image", "video", "slideshow"):  # Dual-Boot: Pfad vom anderen System hier finden
             from .platform.shared_paths import resolve_cfg
 

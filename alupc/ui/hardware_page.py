@@ -169,10 +169,13 @@ class HardwarePage(QWidget):
         self.connect_btn.clicked.connect(lambda: self.rgb.connect_async(start_if_needed=True))
         self.start_btn = button("OpenRGB starten", "play")
         self.start_btn.clicked.connect(self._start_openrgb)
+        self.install_btn = button("OpenRGB installieren", "download")
+        self.install_btn.clicked.connect(self._install_openrgb)
         self.auto = QCheckBox("Beim Start von AluPC verbinden")
         self.auto.toggled.connect(lambda on: self.config.__setitem__("rgb", {**self.config["rgb"], "enabled": on}))
         row.addWidget(self.connect_btn)
         row.addWidget(self.start_btn)
+        row.addWidget(self.install_btn)
         row.addWidget(self.auto)
         row.addStretch(1)
         col.addLayout(row)
@@ -252,6 +255,32 @@ class HardwarePage(QWidget):
         start_openrgb(path)
         QTimer.singleShot(4000, lambda: self.rgb.connect_async())
 
+    def _install_openrgb(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        from ..rgb import OPENRGB_WEB, install_command, install_openrgb
+
+        if install_command() is None:
+            QDesktopServices.openUrl(QUrl(OPENRGB_WEB))
+            return
+        self.install_btn.setEnabled(False)
+        self.install_btn.setText("Wird installiert …")
+
+        def done(_r):
+            self.install_btn.setEnabled(True)
+            self.install_btn.setText("OpenRGB installieren")
+            self.refresh_rgb()
+            self.rgb.connect_async(start_if_needed=True)
+
+        def failed(e):
+            self.install_btn.setEnabled(True)
+            self.install_btn.setText("OpenRGB installieren")
+            error_box(self, f"{e}\n\nDie Download-Seite von OpenRGB öffnet sich.")
+            QDesktopServices.openUrl(QUrl(OPENRGB_WEB))
+
+        run_async(install_openrgb, done, failed)
+
     def refresh_rgb(self):
         s = self.rgb.settings()
         connected = self.rgb.connected
@@ -260,6 +289,7 @@ class HardwarePage(QWidget):
             text += "\nOpenRGB ist auf diesem PC nicht installiert."
         self.rgb_status.set(text, "ok" if connected else ("busy" if "Verbinde" in text else "info"))
         self.start_btn.setVisible(not connected and bool(find_openrgb(s["openrgb_path"])))
+        self.install_btn.setVisible(not connected and not find_openrgb(s["openrgb_path"]))
         self.connect_btn.setText("Neu verbinden" if connected else "Verbinden")
         self.auto.blockSignals(True)
         self.auto.setChecked(bool(s["enabled"]))

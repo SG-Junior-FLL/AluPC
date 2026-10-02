@@ -8,7 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.81.0)
+### Neu in dieser Version (0.82.0)
+- **Neue Seite „System“** (links): Prozessor, Arbeitsspeicher, Grafikkarte und Temperatur als animierte
+  Ringe mit 60-s-Kurven, dazu alle Prozessorkerne, Netzwerk (↓/↑, IP), Laufwerke, Akku, Temperaturen &
+  Lüfter und die Programme mit der meisten Last (mit „Beenden“).
+- **Steuerung:** Sperren, Energie sparen, Neu starten, Herunterfahren (mit Rückfrage), RGB an/aus und
+  Farbe, „RGB & Lüfter …“, Systemüberwachung öffnen.
+- **System-Dashboard auf Monitor 2:** Knopf „Auf Monitor 2“, neue Kachel „System“ und Sprachbefehl
+  „Alu PC, System“.
+- **Installer mit RGB & Lüftern:** Windows-Installer bietet OpenRGB (vorausgewählt) und FanControl
+  (abgewählt) über winget an. Das .deb empfiehlt lm-sensors, i2c-tools, openrgb und lädt `i2c-dev`.
+  Neuer Knopf „OpenRGB installieren“ auf der Seite „RGB & Lüfter“.
+- Ehrlich: Windows meldet ohne Hersteller-Programm keine CPU-Temperatur und keine Lüfter (NVIDIA-Werte
+  gehen). Getestet nur in einer VM ohne Grafikkarte/Sensoren; Neustart/Herunterfahren, die winget-
+  Installation und OpenRGB in Ubuntu 24.04 (dort nicht in den Paketquellen) nicht echt ausprobiert.
+
+### Neu in Version 0.81.0
 - **Antwort per Stimme:** Nach einem Sprachbefehl sagt AluPC kurz „Okay. Schwarz“ (offline, Sprachausgabe des
   Systems; Linux braucht `speech-dispatcher` und `espeak-ng`). Setup → Sprache: an/aus, Stimme, „Probehören“.
 - **Eigene Sprachbefehle:** Setup → Sprache → „Befehl hinzufügen …“ – Satz eintippen, Aktion wählen (alle

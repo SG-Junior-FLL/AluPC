@@ -27,6 +27,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "overlays": ("layers", "Overlays", "Über Monitor 2", "#d946ef", "schnell"),
     "whiteboard": ("board", "Whiteboard", "Tafel zum Zeichnen", "#0d9488", "schnell"),
     "wetter": ("weather", "Wetter & Uhr", "Monitor 2", "#0ea5e9", "anzeigen"),
+    "system": ("gauge", "System", "Status live", "#06b6d4", "anzeigen"),
     "umfrage": ("poll", "Abstimmung", "Per Handy", "#22c55e", "handy"),
     "zufall": ("wheel", "Glücksrad", "Wer ist dran?", "#f59e0b", "schnell"),
     "spiele": ("gamepad", "Minispiele", "Handy = Controller", "#f43f5e", "handy"),
@@ -89,6 +90,7 @@ COMMANDS = {
     "overlays_aus": "Overlays aus",
     "whiteboard": "Whiteboard zeigen",
     "wetter": "Wetter & Uhr zeigen",
+    "system": "Systemstatus zeigen",
     "gluecksrad": "Glücksrad zeigen",
     "gluecksrad_drehen": "Glücksrad drehen",
     "umfrage_zeigen": "Abstimmung zeigen",
@@ -113,7 +115,7 @@ TILE_ICONS = {
     "eye_off": "Sichtschutz", "moon": "Bildschirmschoner", "mirror": "Spiegeln", "extend": "Erweitern",
     "pip": "Bild-in-Bild", "home": "Haus", "lock": "Schloss", "power": "Ein/Aus", "sun": "Sonne",
     "music": "Musik", "layers": "Ebenen", "board": "Whiteboard", "weather": "Wetter", "poll": "Abstimmung",
-    "wheel": "Glücksrad", "gamepad": "Spiel",
+    "wheel": "Glücksrad", "gamepad": "Spiel", "gauge": "Tacho",
 }
 
 TILE_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#64748b"]

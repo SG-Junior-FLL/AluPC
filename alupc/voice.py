@@ -55,6 +55,7 @@ COMMANDS: list[tuple[tuple[str, ...], str, str]] = [
     (("erweitern", "erweitert", "desktop"), "erweitern", "Erweitern"),
     (("kamera",), "kamera", "Kamera zeigen"),
     (("wetter", "uhr", "wetter und uhr"), "wetter", "Wetter & Uhr"),
+    (("system", "systemstatus", "status", "computer status"), "system", "Systemstatus"),
     (("whiteboard", "tafel", "weiße tafel"), "whiteboard", "Whiteboard"),
     (("glücksrad", "rad", "zufall"), "gluecksrad", "Glücksrad zeigen"),
     (("drehen", "rad drehen", "glücksrad drehen"), "gluecksrad_drehen", "Glücksrad drehen"),

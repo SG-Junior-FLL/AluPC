@@ -1297,6 +1297,7 @@ class Controller(QObject):
             "overlays_aus": lambda: self.set_overlays(False),
             "whiteboard": self.show_whiteboard,
             "wetter": self.show_weather,
+            "system": lambda: self.show_source({"type": "system"}),
             "gluecksrad": self.show_wheel,
             "gluecksrad_drehen": self.spin_wheel,
             "umfrage_zeigen": lambda: self.show_source({"type": "umfrage"}, remember=False),

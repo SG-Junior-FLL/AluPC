@@ -4257,3 +4257,55 @@ def test_voice_reply_custom_and_video_resume(env, monkeypatch):
     status, body = _http("GET", base + "/")
     assert "video_weiterschauen" in body.decode()
     controller.cast.stop()
+
+
+# ---------------------------------------------------------------- 0.82: Seite „System“
+def test_system_page_and_source(env):
+    controller, window, tmp = env
+    pytest.importorskip("psutil")
+    from alupc import sysinfo
+
+    index = next(i for i, b in enumerate(window.nav_group.buttons()) if b.toolTip() == "System")
+    window._go(window.nav_group.id(window.nav_group.buttons()[index]))
+    pump(10)
+    page = window.system_page
+    mon = sysinfo.monitor()
+    assert mon.running
+    assert _until(lambda: mon.snapshot.ram_total > 0)
+    _until(lambda: not page.gauges["ram"].anim.isActive(), 3)
+    assert page.gauges["ram"].data[1] is not None and page.gauges["ram"].data[1] > 0
+    assert page.subtitle.text().startswith(mon.host)
+    assert any(r.isVisible() for r in page.proc_rows)
+    window.grab().save(str(tmp / "system_page.png"))
+    # Steuerung fragt immer nach – „Nein“ führt nichts aus
+    from PySide6.QtWidgets import QMessageBox
+
+    called = []
+    sysinfo_power = sysinfo.power_action
+    sysinfo.power_action = lambda a: called.append(a)
+    try:
+        orig = QMessageBox.question
+        QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.No)
+        page.power("aus")
+        QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.Yes)
+        page.power("neustart")
+    finally:
+        QMessageBox.question = orig
+        sysinfo.power_action = sysinfo_power
+    assert called == ["neustart"]
+    # Seite verlassen → Messung stoppt (sofern niemand sonst zuschaut)
+    window._go(0)
+    pump(5)
+    assert not mon.running
+    # Dashboard auf Monitor 2
+    controller.show_source({"type": "system"}, remember=False)
+    pump(5)
+    assert type(controller.output.content).__name__ == "SystemSource"
+    assert mon.running
+    assert _until(lambda: mon.snapshot.ram_total > 0)
+    for _ in range(60):
+        controller.output.content._animate()
+    controller.output.content.grab().save(str(tmp / "system_source.png"))
+    controller.show_source({"type": "color"}, remember=False)
+    pump(5)
+    assert not mon.running

@@ -45,6 +45,12 @@ OBS-Studio-Fenster.
 
 Außerdem:
 
+- **System** (eigene Seite links): **Live-Status** mit animierten Ringen und 60-s-Kurven – Prozessor
+  (auch jeder Kern einzeln), Arbeitsspeicher, Grafikkarte (NVIDIA über `nvidia-smi`, AMD unter Linux),
+  Temperaturen und Lüfter, Laufwerke, Netzwerk (↓/↑, IP), Akku und die Programme mit der meisten Last
+  (mit „Beenden“). **Steuerung:** Sperren, Energie sparen, Neu starten, Herunterfahren (jeweils mit
+  Rückfrage), RGB an/aus und Farbe, Systemüberwachung öffnen. **„Auf Monitor 2“** zeigt ein großes
+  System-Dashboard – auch über die Kachel „System“ oder per Sprache („Alu PC, System“).
 - **RGB & Lüfter** (eigene Seite links): **RGB-Beleuchtung** aller Geräte, die das kostenlose
   **OpenRGB** kennt (Mainboard, RAM, Grafikkarte, Lüfter-LEDs, Tastatur …) – Farbe wählen, Helligkeit,
   aus, oder **„Farbe folgt Monitor 2“** (die LEDs leuchten in der Farbe dessen, was gerade gezeigt wird).
@@ -259,6 +265,11 @@ Fertige Pakete gibt es unter **[Releases](https://github.com/SG-Junior-FLL/AluPC
 Für den Fingerabdruck unter Linux braucht es `fprintd` und `libpam-fprintd` – das .deb empfiehlt sie,
 und „Fingerabdruck → Automatisch einrichten“ installiert sie bei Bedarf selbst (Passwortabfrage).
 
+**RGB & Lüfter:** Der Windows-Installer bietet **OpenRGB** (vorausgewählt) und **FanControl** (abgewählt)
+zum Mitinstallieren über winget an. Das .deb empfiehlt `lm-sensors`, `i2c-tools` und `openrgb` und lädt das
+Modul `i2c-dev` (für Mainboard-/RAM-LEDs). OpenRGB ist in Ubuntu 24.04 **nicht** in den Paketquellen – dann
+auf der Seite „RGB & Lüfter“ auf **„OpenRGB installieren“** tippen (öffnet sonst openrgb.org).
+
 Die portable Linux-Version trägt sich beim ersten Start selbst ins Startmenü ein (mit Logo).
 
 **Aus dem Quellcode (Kubuntu):**
@@ -370,6 +381,11 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   jeder, der den QR-Code auf Monitor 2 sieht, kann senden („Neuer Code“ im Einrichten-Dialog). In
   Gäste-/Schul-WLANs, die Geräte voneinander trennen, erreichen Handys den PC nicht. Windows fragt beim
   ersten Start nach der Firewall-Freigabe. Live-Kamerabild vom Handy geht nicht (bräuchte https).
+- **System-Seite:** Windows meldet ohne Hersteller-Programm **keine Prozessor-Temperatur und keine Lüfter** –
+  dort zeigt AluPC nur NVIDIA-Grafikkarten-Werte (über `nvidia-smi`). Intel-Grafik: keine Auslastung.
+  Gemessen und angezeigt ist hier nur in einer virtuellen Maschine getestet; Energie sparen/Neustart/
+  Herunterfahren sind nicht wirklich ausgelöst worden (nur der Befehl dahinter geprüft). „Energie sparen“
+  unter Windows schickt den PC in den Ruhezustand, wenn dort Ruhezustand eingeschaltet ist.
 - **RGB** geht nur mit installiertem **OpenRGB** (openrgb.org) und nur für Geräte, die OpenRGB kennt.
   Hersteller-Programme (iCUE, Armoury Crate, Mystic Light …) vorher beenden. AluPCs OpenRGB-Anbindung
   ist nach der offiziellen Protokollbeschreibung gebaut und gegen einen nachgebauten Server getestet –

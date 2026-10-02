@@ -267,6 +267,42 @@ def find_openrgb(configured: str = "") -> str | None:
     return None
 
 
+OPENRGB_WINGET = "OpenRGB.OpenRGB"
+OPENRGB_WEB = "https://openrgb.org/releases.html"
+
+
+def install_command() -> list[str] | None:
+    """Befehl, der OpenRGB installiert (Windows: winget, Kubuntu: apt per pkexec) – None = geht hier nicht."""
+    import sys
+
+    if sys.platform.startswith("win"):
+        if shutil.which("winget"):
+            return ["winget", "install", "--id", OPENRGB_WINGET, "-e", "--silent", "--accept-source-agreements",
+                    "--accept-package-agreements"]
+        return None
+    if shutil.which("pkexec") and shutil.which("apt-get"):
+        return ["pkexec", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "-o", "DPkg::Lock::Timeout=600",
+                "install", "-y", "openrgb"]
+    return None
+
+
+def install_openrgb(timeout: int = 900) -> None:
+    """OpenRGB installieren. Fehler → RGBError mit verständlicher Meldung (z. B. nicht in den Paketquellen)."""
+    import subprocess
+
+    cmd = install_command()
+    if cmd is None:
+        raise RGBError("Automatisch installieren geht hier nicht")
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if proc.returncode in (126, 127) and cmd[0] == "pkexec":
+        raise RGBError("Abgebrochen (Passwort nicht bestätigt)")
+    if proc.returncode != 0:
+        out = (proc.stdout + proc.stderr).lower()
+        if "unable to locate" in out or "kein paket" in out or "konnte nicht gefunden" in out:
+            raise RGBError("OpenRGB ist für diese Ubuntu-Version nicht in den Paketquellen")
+        raise RGBError((proc.stderr or proc.stdout or "Installation fehlgeschlagen").strip().splitlines()[-1])
+
+
 def start_openrgb(path: str) -> None:
     """OpenRGB im Hintergrund mit SDK-Server starten."""
     flags = 0x08000000 if sys.platform.startswith("win") else 0

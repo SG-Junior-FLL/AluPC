@@ -74,6 +74,7 @@ SOURCE_COLORS = {
     "cast": "#8b5cf6",
     "design": "#6366f1",
     "nowplaying": "#1db954",
+    "system": "#06b6d4",
 }
 
 _current: Theme | None = None

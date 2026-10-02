@@ -547,6 +547,14 @@ def _draw(name: str, p: QPainter, color: QColor):
         path.lineTo(4.4, 17.4)
         path.lineTo(8.6, 16.4)
         p.drawPath(path)
+    elif name == "gauge":  # Tacho: Bogen, Skalenstriche, Zeiger
+        p.drawArc(QRectF(3, 4, 18, 18), -25 * 16, 230 * 16)
+        for deg in (150, 90, 30):
+            a = math.radians(deg)
+            p.drawLine(QPointF(12 + 5.6 * math.cos(a), 13 - 5.6 * math.sin(a)),
+                       QPointF(12 + 7.2 * math.cos(a), 13 - 7.2 * math.sin(a)))
+        p.drawLine(QPointF(12, 13), QPointF(15.6, 8.6))
+        p.drawEllipse(QPointF(12, 13), 1.5, 1.5)
     elif name == "fan":  # Lüfter: Rahmen, drei Flügel, Nabe
         p.drawRoundedRect(QRectF(2.5, 2.5, 19, 19), 4.5, 4.5)
         soft = QColor(fill)
@@ -664,7 +672,7 @@ SOURCE_ICONS = {
     "camera": "camera", "window": "window", "screen": "monitor", "website": "globe", "image": "image",
     "video": "video", "slideshow": "slides", "text": "text", "clock": "clock", "countdown": "timer",
     "color": "palette", "scene": "scenes", "airplay": "phone", "cast": "qr", "design": "star",
-    "nowplaying": "music", "zufall": "wheel", "wetter": "weather", "umfrage": "poll", "spiel": "gamepad", "whiteboard": "board",
+    "nowplaying": "music", "zufall": "wheel", "wetter": "weather", "system": "gauge", "umfrage": "poll", "spiel": "gamepad", "whiteboard": "board",
 }
 
 

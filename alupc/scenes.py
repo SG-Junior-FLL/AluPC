@@ -137,6 +137,8 @@ def describe_source(cfg: dict | None) -> str:
         return "Glücksrad"
     if t == "wetter":
         return "Wetter & Uhr"
+    if t == "system":
+        return "Systemstatus"
     if t == "umfrage":
         return "Abstimmung"
     if t == "spiel":

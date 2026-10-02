@@ -2,7 +2,7 @@
 ; Wird von GitHub Actions gebaut (siehe .github/workflows/build.yml).
 
 #ifndef AppVersion
-  #define AppVersion "0.81.0"
+  #define AppVersion "0.82.0"
 #endif
 
 [Setup]
@@ -29,6 +29,8 @@ Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Symbol auf dem Desktop anlegen"; Flags: unchecked
 Name: "handy"; Description: "AirPlay-Empfang mitinstallieren: uxplay-windows (Community-Paket mit UxPlay) und Bonjour – aus dem Internet über winget"; GroupDescription: "iPhone auf Monitor 2:"
+Name: "rgb"; Description: "RGB-Beleuchtung: OpenRGB mitinstallieren (freies Programm für Mainboard-, RAM-, Grafikkarten- und Lüfter-RGB) – über winget"; GroupDescription: "RGB && Lüfter:"
+Name: "luefter"; Description: "Lüftersteuerung: FanControl mitinstallieren (eigenes Programm – AluPC zeigt Lüfter unter Windows nur an, wenn das System sie meldet)"; GroupDescription: "RGB && Lüfter:"; Flags: unchecked
 
 [Files]
 Source: "..\..\dist\AluPC\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
@@ -41,6 +43,8 @@ Name: "{autodesktop}\AluPC"; Filename: "{app}\AluPC.exe"; Tasks: desktopicon
 [Run]
 Filename: "{cmd}"; Parameters: "/C winget install --id Apple.Bonjour -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "Bonjour (AirPlay) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: handy
 Filename: "{cmd}"; Parameters: "/C winget install --id leapbtw.uxplay -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "AirPlay-Empfänger (uxplay-windows) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: handy
+Filename: "{cmd}"; Parameters: "/C winget install --id OpenRGB.OpenRGB -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "OpenRGB (RGB-Beleuchtung) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: rgb
+Filename: "{cmd}"; Parameters: "/C winget install --id Rem0o.FanControl -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "FanControl (Lüfter) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: luefter
 ; Firewall: Handy-Steuerung (8765…8774) und AirPlay – nur private Netzwerke (braucht Adminrechte, sonst übersprungen)
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AluPC Handy"" dir=in action=allow protocol=TCP localport=8765-8774 profile=private,domain"; StatusMsg: "Firewall wird eingerichtet …"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AluPC AirPlay"" dir=in action=allow protocol=TCP localport=7000,7001,7100 profile=any"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode

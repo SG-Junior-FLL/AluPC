@@ -292,6 +292,7 @@ class MainWindow(QMainWindow):
             # Setup und Fingerabdruck erst beim ersten Öffnen bauen (spart ~40 % der Startzeit)
             LazyPage(lambda: _padded(self._setup_page())),
             LazyPage(lambda: _padded(self._finger_page(), scroll=True)),
+            LazyPage(lambda: _padded(self._system_page(), scroll=True)),
         ]
         for page in self.pages:
             self.stack.addWidget(page)
@@ -341,7 +342,8 @@ class MainWindow(QMainWindow):
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
         # (Seiten-Nummer, Symbol, Text) – Reihenfolge in der Leiste, Nummer = Seite im Stapel
-        for i, icon_name, text in [(0, "home", "Start"), (1, "scenes", "Szenen"), (2, "sliders", "Setup"),
+        for i, icon_name, text in [(0, "home", "Start"), (1, "scenes", "Szenen"), (4, "gauge", "System"),
+                                   (2, "sliders", "Setup"),
                                    (3, "fingerprint", "Fingerabdruck")]:
             b = NavButton(icon_name, text)
             b.setToolTip(text)
@@ -414,6 +416,13 @@ class MainWindow(QMainWindow):
         self.nav_group.button(index).setChecked(True)
         if changed:
             fade_in(self.stack.currentWidget(), 200)  # Seitenwechsel: weich einblenden
+
+    # ================================================================ System
+    def _system_page(self):
+        from .system_page import SystemPage
+
+        self.system_page = SystemPage(self.controller)
+        return self.system_page
 
     # ================================================================ Start
     def _start_page(self):
@@ -531,6 +540,15 @@ class MainWindow(QMainWindow):
         weather_menu = QMenu(self)
         weather_menu.aboutToShow.connect(lambda: self._fill_weather_menu(weather_menu))
         self.t_weather.set_menu(weather_menu, split=True)
+        # System: Klick = Dashboard auf Monitor 2, Pfeil = Seite „System“
+        self.t_system = self.tiles["system"]
+        self.t_system.activated.connect(lambda: c.show_source({"type": "system"}))
+        system_menu = QMenu(self)
+        system_menu.addAction(icons.icon("monitor", theme.current().text, 18), "Auf Monitor 2 zeigen",
+                              lambda: c.show_source({"type": "system"}))
+        system_menu.addAction(icons.icon("gauge", theme.current().text, 18), "Seite „System“ öffnen",
+                              lambda: self._go(4))
+        self.t_system.set_menu(system_menu, split=True)
         self.t_poll = self.tiles["umfrage"]
         self.t_poll.activated.connect(self._poll_clicked)
         poll_menu = QMenu(self)
@@ -1671,6 +1689,7 @@ class MainWindow(QMainWindow):
             (self.t_music, typ == "nowplaying"),
             (self.t_board, typ == "whiteboard"),
             (self.t_weather, typ == "wetter"),
+            (self.t_system, typ == "system"),
             (self.t_wheel, typ == "zufall"),
             (self.t_media, typ in ("image", "video", "slideshow")),
             (self.t_scenes, typ == "scene"),
