@@ -28,6 +28,11 @@ from alupc import speech, stt, voice  # noqa: E402
 from alupc.config import Config  # noqa: E402
 
 app = QCoreApplication([])
+for stream in (sys.stdout, sys.stderr):  # Windows-Konsole: sonst scheitern „“ und Umlaute
+    try:
+        stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
 SENTENCES = [
     ("Alu PC, mach bitte den Bildschirm schwarz.", "schwarz_an"),
     ("Alu PC, Licht auf blau.", "rgb_farbe:#0000ff"),
@@ -122,4 +127,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception:  # noqa: BLE001 – Grund als Hinweis im CI-Lauf sichtbar machen
+        import traceback
+
+        for line in traceback.format_exc().strip().splitlines()[-12:]:
+            print(f"::error title=Sprache echt::{line.strip()}", flush=True)
+        sys.exit(1)

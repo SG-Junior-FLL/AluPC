@@ -1695,7 +1695,7 @@ def test_airplay_source_shows_stream(env, tmp_path):
     view = controller.output.content
     assert controller.content == {"type": "airplay"} and view.mode == "stream"
     assert "Beamer" in view._message
-    assert _until(log.exists, 5)
+    assert _until(lambda: log.exists() and "-pin" in log.read_text(), 8)  # Datei kann kurz leer sein
     assert "-vrtp" in log.read_text() and "-pin" in log.read_text()
     assert _until(lambda: view._had_frames, 20), "Kein Bild vom (simulierten) iPhone"
     assert _until(lambda: view._image is not None and not view._image.isNull(), 5)
