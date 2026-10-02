@@ -4167,10 +4167,10 @@ def test_voice_reply_custom_and_video_resume(env, monkeypatch):
     real_run = controller.run_command
     monkeypatch.setattr(controller, "run_command", lambda c: ran.append(c))
     controller._voice_command("schwarz", "Schwarz an/aus", "alu pc bildschirm schwarz")
-    assert ran == ["schwarz"] and controller.speaker.spoken[-1] == "Okay. Schwarz"
+    assert ran == ["schwarz"] and controller.speaker.spoken[-1].endswith("Monitor 2 ist jetzt schwarz.")
     controller.config["voice"] = {**controller.config["voice"], "speak": False}
     controller._voice_command("wetter", "Wetter & Uhr", "monitor wetter")
-    assert controller.speaker.spoken[-1] == "Okay. Schwarz"  # aus → nichts gesagt
+    assert controller.speaker.spoken[-1].endswith("Monitor 2 ist jetzt schwarz.")  # aus → nichts gesagt
     controller.start_games()
     hub = controller.cast.games
     hub.join("Lena")
@@ -4309,3 +4309,54 @@ def test_system_page_and_source(env):
     controller.show_source({"type": "color"}, remember=False)
     pump(5)
     assert not mon.running
+
+
+# ---------------------------------------------------------------- 0.83: Sprachassistent
+def test_assistant_replies_follow_state(env):
+    controller, window, _ = env
+    a = controller.assistant
+    spoken = controller.speaker.spoken
+    controller._voice_command("schwarz_an", "Schwarz", "mach den bildschirm schwarz")
+    assert controller.privacy and spoken[-1].endswith("Monitor 2 ist jetzt schwarz.")
+    controller._voice_command("schwarz_an", "Schwarz", "")
+    assert controller.privacy and spoken[-1] == "Monitor 2 ist schon schwarz."
+    controller._voice_command("schwarz", "Schwarz", "")  # nur „schwarz“ = umschalten
+    assert not controller.privacy and spoken[-1].endswith("Das Bild ist wieder da.")
+    controller._voice_command("schwarz_aus", "Schwarz aus", "")
+    assert spoken[-1] == "Monitor 2 ist gar nicht schwarz."
+    assert controller.voice.follow_until > 0  # Nachfragen ohne Startwort
+    controller._voice_command("timer_set:90", "Timer", "")
+    from alupc.timer import clock
+
+    assert clock.running and "eine Minute und 30 Sekunden" in spoken[-1]
+    controller._voice_command("timer_pause", "Timer Pause", "")
+    assert not clock.running
+    controller._voice_command("rgb_farbe:#0000ff", "Licht blau", "")
+    assert controller.rgb.settings()["color"] == "#0000ff" and "blau" in spoken[-1]
+    assert a.answer("uhrzeit").startswith("Es ist")
+    assert a.answer("datum").startswith("Heute ist")
+    assert "Prozent" in a.answer("system") or "messen" in a.answer("system")
+    assert a.answer("wetter").startswith("Für das Wetter brauche ich erst einen Ort")
+    controller._voice_not_understood("blabla")
+    assert spoken[-1] in ("Das habe ich nicht verstanden.", "Wie bitte?", "Sag das bitte noch mal anders.")
+
+
+def test_mic_switch_button(env, monkeypatch):
+    controller, window, _ = env
+    from alupc import voice
+
+    monkeypatch.setattr(voice, "model_ready", lambda *a: False)
+    window.mic_button.click()  # ohne Sprachmodell: Hinweis statt Zuhören
+    assert not controller.voice.direct
+    started = []
+    monkeypatch.setattr(voice, "model_ready", lambda *a: True)
+    monkeypatch.setattr(voice, "vosk_available", lambda: True)
+    monkeypatch.setattr(controller.voice, "start", lambda: started.append(1))
+    monkeypatch.setattr(controller.voice, "running", lambda: False)
+    window.mic_button.click()
+    pump()
+    assert controller.voice.direct and started and window.mic_button.isChecked()
+    assert window.mic_button.text_ == "Hört zu …"
+    controller.run_command("zuhoeren")  # Tastenkürzel / Kachel: umschalten
+    pump()
+    assert not controller.voice.direct and not window.mic_button.isChecked()

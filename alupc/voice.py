@@ -21,6 +21,7 @@ import json
 import queue
 import shutil
 import threading
+import time
 import unicodedata
 import zipfile
 from pathlib import Path
@@ -45,6 +46,7 @@ TARGET_WORDS = {"bildschirm", "monitor", "monitore", "zwei", "2"}  # „Alu PC, 
 STRICTNESS = {"streng": 0.40, "normal": 0.55, "locker": 0.70}  # höchster Kosinus-Abstand zur angelernten Stimme
 MIN_SPK_FRAMES = 30  # kürzere Äußerungen haben einen zu ungenauen Stimmabdruck
 MIN_SCORE = 0.72
+FOLLOW_SECONDS = 8  # so lange nach einer Antwort geht es ohne Startwort weiter („Nachfragen“)
 FILLERS = {"bitte", "mal", "jetzt", "danke", "kurz", "doch", "noch", "aeh", "aehm", "ja", "nun"}
 
 # (gesprochene Varianten, Befehl, Anzeige) – Varianten ohne „Monitor“, Umlaute erlaubt
@@ -111,18 +113,25 @@ def _is_alupc(joined: str) -> bool:
     return max(difflib.SequenceMatcher(None, joined, form).ratio() for form in ALUPC_FORMS) >= 0.82
 
 
-def wake_end(words: list[str], wakes=("monitor", "alupc")) -> int | None:
-    """Position direkt nach dem LETZTEN Startwort im Satz (oder None, wenn keins vorkommt)."""
-    end = None
+def wake_span(words: list[str], wakes=("monitor", "alupc")) -> tuple[int, int] | None:
+    """(Anfang, Ende) des LETZTEN Startworts im Satz – oder None, wenn keins vorkommt."""
+    span = None
     for i, w in enumerate(words):
         if "monitor" in wakes and w in WAKE_WORDS:
-            end = i + 1
+            span = (i, i + 1)
         if "alupc" in wakes:
             for k in (3, 2, 1):  # „alu pe ze“, „alu pc“, „alupc“
                 if i + k <= len(words) and _is_alupc("".join(words[i:i + k])):
-                    end = max(end or 0, i + k)
+                    if span is None or i + k > span[1]:
+                        span = (i, i + k)
                     break
-    return end
+    return span
+
+
+def wake_end(words: list[str], wakes=("monitor", "alupc")) -> int | None:
+    """Position direkt nach dem LETZTEN Startwort im Satz (oder None, wenn keins vorkommt)."""
+    span = wake_span(words, wakes)
+    return span[1] if span else None
 
 
 def _similar(said: str, phrase: str) -> float:
@@ -282,6 +291,8 @@ class VoiceControl(QObject):
     """Mikrofon → Vosk (im Hintergrund) → Befehl. Signale kommen im GUI-Thread an."""
 
     command = Signal(str, str, str)  # Befehl, Anzeige, gehörter Text
+    not_understood = Signal(str)  # an AluPC gerichtet, aber nicht verstanden
+    direct_changed = Signal(bool)  # Mikrofon-Schalter: hört ohne Startwort zu
     heard = Signal(str)  # alles Gehörte (für die Anzeige im Setup), mit erkannter Stimme
     rejected = Signal(str, str)  # Befehl kam von einer fremden Stimme: (gehörter Text, Grund)
     sample = Signal(object, int, str)  # beim Anlernen: Stimmabdruck, Länge (Frames), gehörter Text
@@ -302,6 +313,13 @@ class VoiceControl(QObject):
         self._worker: threading.Thread | None = None
         self._stop = threading.Event()
         self._loaded.connect(self._start_audio)
+        self.direct = False  # Mikrofon-Schalter an: jeder Satz zählt, kein Startwort nötig
+        self._temporary = False  # nur für den Mikrofon-Schalter gestartet (Sprachbefehle sonst aus)
+        self.follow_until = 0.0  # bis dahin geht es ohne Startwort (nach einer Antwort)
+        self._mute_until = 0.0  # Echo-Sperre: solange AluPC spricht, nichts auswerten
+        self._reset = False
+        self.stt = None  # genaue Erkennung (Whisper), falls eingeschaltet und heruntergeladen
+        self.stt_error = ""
 
     def settings(self) -> dict:
         return self.config["voice"]
@@ -311,10 +329,39 @@ class VoiceControl(QObject):
         self.state_changed.emit(state)
 
     def apply(self) -> None:
-        if self.settings().get("on"):
+        if self.settings().get("on") or self.direct:
             self.start()
         else:
             self.stop()
+
+    # ------------------------------------------------------------ Mikrofon-Schalter, Nachfragen, Echo-Sperre
+    def set_direct(self, on: bool) -> None:
+        """Mikrofon-Schalter: an = jeder Satz ist ein Befehl (ohne Startwort), aus = wieder nur mit Startwort."""
+        on = bool(on)
+        if on == self.direct:
+            return
+        self.direct = on
+        if on and not self.running():
+            self._temporary = not self.settings().get("on")
+            self.start()
+        elif not on and self._temporary:
+            self._temporary = False
+            self.stop()
+        self.follow_until = 0.0
+        self.direct_changed.emit(on)
+
+    def listen_on(self, seconds: float = FOLLOW_SECONDS) -> None:
+        """Nach einer Antwort kurz ohne Startwort weiterhören (ab dem Ende der gesprochenen Antwort)."""
+        if self.settings().get("follow_up", True):
+            self.follow_until = max(self.follow_until, max(self._mute_until, time.monotonic()) + seconds)
+
+    def mute(self, seconds: float) -> None:
+        """Echo-Sperre: AluPC spricht gerade – das Mikrofon hört sonst die eigene Antwort als Befehl."""
+        self._mute_until = max(self._mute_until, time.monotonic() + max(0.0, seconds) + 0.35)
+        self._reset = True
+
+    def open_ear(self) -> bool:
+        return self.direct or time.monotonic() < self.follow_until
 
     def running(self) -> bool:
         return self._worker is not None and self._worker.is_alive()
@@ -345,17 +392,32 @@ class VoiceControl(QObject):
                     if spk_ready():  # Stimmen unterscheiden (nur wenn heruntergeladen)
                         rec.SetSpkModel(vosk.SpkModel(str(spk_dir())))
                         self.has_spk = True
+                self.load_stt()
                 self._loaded.emit(rec)
             except Exception as exc:  # noqa: BLE001
                 self._loaded.emit(exc)
 
         threading.Thread(target=load, name="sprache-laden", daemon=True).start()
 
+    def load_stt(self) -> None:
+        """Whisper laden (falls gewählt und heruntergeladen) – dauert ein paar Sekunden, nur im Hintergrund."""
+        from . import stt
+
+        name = self.settings().get("stt", "vosk")
+        if self.stt is not None and getattr(self.stt, "name", "") == name:
+            return
+        self.stt, self.stt_error = None, ""
+        if name in stt.MODELS and stt.available() and stt.ready(name):
+            try:
+                self.stt = stt.WhisperSTT(name)
+            except Exception as exc:  # noqa: BLE001 – dann eben nur Vosk
+                self.stt_error = str(exc)
+
     def _start_audio(self, rec) -> None:
         if isinstance(rec, Exception):
             self._set_state(f"Fehler: {rec}")
             return
-        if not self.settings().get("on") and self.recognizer_factory is None:
+        if not self.settings().get("on") and not self.direct and self.recognizer_factory is None:
             self._set_state("aus")  # in der Zwischenzeit ausgeschaltet
             return
         self._stop.clear()
@@ -396,6 +458,8 @@ class VoiceControl(QObject):
 
     def feed(self, data: bytes) -> None:
         """Ton (16 kHz, mono, 16 Bit) an die Erkennung geben – vom Mikrofon oder in Tests."""
+        if time.monotonic() < self._mute_until:  # AluPC spricht gerade selbst
+            return
         try:
             self._queue.put_nowait(data)
         except queue.Full:  # Erkennung kommt nicht hinterher → altes wegwerfen
@@ -405,21 +469,38 @@ class VoiceControl(QObject):
                 pass
 
     def _listen(self, rec) -> None:
+        audio = bytearray()  # Ton des laufenden Satzes (für die genaue Erkennung)
         while not self._stop.is_set():
             try:
                 data = self._queue.get(timeout=0.3)
             except queue.Empty:
                 continue
+            if self._reset:  # nach eigener Antwort: halb Gehörtes verwerfen
+                self._reset = False
+                audio.clear()
+                if hasattr(rec, "Reset"):
+                    rec.Reset()
+                while not self._queue.empty():
+                    try:
+                        self._queue.get_nowait()
+                    except queue.Empty:
+                        break
+                continue
+            audio += data
+            if len(audio) > RATE * 2 * 30:  # höchstens 30 s
+                del audio[:len(audio) - RATE * 2 * 30]
             try:
                 if rec.AcceptWaveform(data):
                     res = json.loads(rec.Result())
                     text = res.get("text", "")
+                    said = bytes(audio)
+                    audio.clear()
                     if text:
-                        self._handle(text, res.get("spk"), int(res.get("spk_frames", 0) or 0))
+                        self._handle(text, res.get("spk"), int(res.get("spk_frames", 0) or 0), said)
             except Exception:  # noqa: BLE001 – ein kaputter Block darf das Zuhören nicht beenden
                 continue
 
-    def _handle(self, text: str, spk=None, frames: int = 0) -> None:
+    def _handle(self, text: str, spk=None, frames: int = 0, audio: bytes = b"") -> None:
         if self.enrolling:
             if spk:
                 self.sample.emit(list(spk), frames, text)
@@ -432,11 +513,40 @@ class VoiceControl(QObject):
             limit = STRICTNESS.get(cfg.get("strict", "normal"), STRICTNESS["normal"])
             who = f"{name} ({dist:.2f})".replace(".", ",") if dist <= limit else f"fremde Stimme ({dist:.2f})".replace(".", ",")
         self.heard.emit(f"„{text}“" + (f" – {who}" if who else ""))
+        wakes = tuple(cfg.get("wake") or ("monitor", "alupc"))
+        words = fold(text).split()
+        span = wake_span(words, wakes)
+        if span is None and not self.open_ear():
+            return  # nicht an AluPC gerichtet
+        # Genau hinhören: denselben Satz noch einmal mit Whisper
+        if self.stt is not None and audio:
+            try:
+                better = self.stt.transcribe(audio)
+            except Exception:  # noqa: BLE001
+                better = ""
+            if better:
+                self.heard.emit(f"„{better}“ (genau)" + (f" – {who}" if who else ""))
+                w2 = fold(better).split()
+                s2 = wake_span(w2, wakes)
+                if s2 is None and span is not None:
+                    s2 = (0, 0)  # Vosk hörte das Startwort, Whisper schreibt es anders – ganzen Satz nehmen
+                text, words, span = better, w2, s2
+        rest = words[:span[0]] + words[span[1]:] if span else words
+        rest = [w for w in rest if w not in TARGET_WORDS or len(rest) > 1]
+        meaningful = [w for w in rest if w not in FILLERS and w not in ("hey", "hallo", "ok", "okay")]
+        if not meaningful:
+            if span is not None:
+                self.command.emit("frage:ja", "Ja?", text)  # nur das Startwort: „Ja?“ und zuhören
+            return
         try:
-            found = match(text, self.scenes(), tuple(cfg.get("wake") or ("monitor", "alupc")), cfg.get("custom") or [])
+            from .intents import understand
+
+            found = understand(rest, self.scenes(), cfg.get("custom") or [])
         except Exception:  # noqa: BLE001
             found = None
         if not found:
+            if span is not None or self.direct:
+                self.not_understood.emit(text)
             return
         if cfg.get("only_voices") and voices:
             if not spk or frames < MIN_SPK_FRAMES:
@@ -464,5 +574,8 @@ class VoiceControl(QObject):
         worker, self._worker = self._worker, None
         if worker is not None:
             worker.join(timeout=2)
+        if self.direct and not self._temporary:
+            self.direct = False
+            self.direct_changed.emit(False)
         if self.state != "aus":
             self._set_state("aus")

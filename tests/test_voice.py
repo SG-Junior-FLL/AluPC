@@ -89,7 +89,7 @@ def test_listen_with_fake_recognizer(qtbot_free_app):
     for text in ("hallo zusammen", "monitor schwarz", "monitor szene pause"):
         vc.feed(text.encode())
     assert qtbot_free_app.wait(lambda: len(got) == 2)
-    assert got == [("schwarz", "Schwarz an/aus"), ("szene:Pause", "Szene „Pause“")]
+    assert got == [("schwarz", "Schwarz"), ("szene:Pause", "Szene „Pause“")]
     assert heard == ["„hallo zusammen“", "„monitor schwarz“", "„monitor szene pause“"]
     vc.stop()
     assert not vc.running() and vc.state == "aus"
@@ -162,7 +162,7 @@ def test_only_enrolled_voices_and_enrollment(qtbot_free_app):
     vc.feed(b"alu pc bildschirm schwarz|noah|120")  # fremde Stimme
     vc.feed(b"monitor schwarz|kurz|5")  # zu kurz für einen sicheren Abdruck
     assert qtbot_free_app.wait(lambda: len(got) + len(rejected) == 3)
-    assert got == [("schwarz", "Schwarz an/aus · Lena")]
+    assert got == [("schwarz_an", "Schwarz · Lena")]  # „Bildschirm schwarz“ = schwarz machen
     assert rejected[0].startswith("fremde Stimme") and rejected[1].startswith("Stimme nicht erkannt")
     config["voice"]["only_voices"] = False  # Filter aus → jeder darf
     vc.feed(b"monitor schwarz|noah|120")
@@ -205,3 +205,97 @@ def test_spoken_label():
     assert spoken_label("Schwarz an/aus") == "Schwarz"
     assert spoken_label("Wetter & Uhr") == "Wetter und Uhr"
     assert spoken_label("Schwarz an/aus · Lena") == "Schwarz"
+
+
+# ---------------------------------------------------------------- 0.83: ganz normale Sätze, Mikrofon-Schalter
+@pytest.mark.parametrize("said,command", [
+    ("mach mal bitte den bildschirm schwarz", "schwarz_an"),
+    ("bildschirm aus", "schwarz_an"),
+    ("bild wieder an", "schwarz_aus"),
+    ("nicht mehr schwarz", "schwarz_aus"),
+    ("kannst du die kamera zeigen", "kamera"),
+    ("licht auf blau", "rgb_farbe:#0000ff"),
+    ("mach das licht aus", "rgb_aus"),
+    ("licht an", "rgb_an"),
+    ("timer auf fünf minuten", "timer_set:300"),
+    ("stell einen timer für 30 sekunden", "timer_set:30"),
+    ("timer auf zwei minuten dreißig", "timer_set:150"),
+    ("timer pause", "timer_pause"),
+    ("schalte den bildschirmschoner ein", "bildschirmschoner_an"),
+    ("bildschirmschoner aus", "bildschirmschoner_aus"),
+    ("kein standbild mehr", "standbild_aus"),
+    ("wie spät ist es", "frage:uhrzeit"),
+    ("welcher tag ist heute", "frage:datum"),
+    ("wie warm ist der prozessor", "frage:temperatur"),
+    ("wie wird das wetter", "frage:wetter"),
+    ("zeig das wetter", "wetter"),
+    ("wie geht es dem computer", "frage:system"),
+    ("erzähl mir einen witz", "frage:witz"),
+    ("lass uns pong spielen", "spiel:pong"),
+    ("nächste frage", "spiel_weiter"),
+    ("nächstes lied", "musik_weiter"),
+    ("hör auf zuzuhören", "zuhoeren_aus"),
+    ("hör mir zu", "zuhoeren_an"),
+    ("licht wie der bildschirm", "rgb_monitor2"),
+    ("szene pause", "szene:Pause"),
+    ("blabla irgendwas", None),
+])
+def test_understand_normal_sentences(said, command):
+    from alupc.intents import understand
+
+    hit = understand(voice.fold(said).split(), ["Pause"], [])
+    assert (hit[0] if hit else None) == command
+
+
+def test_parse_duration():
+    from alupc.intents import parse_duration
+
+    assert parse_duration("eine halbe stunde".split()) == 1800
+    assert parse_duration("fuenfundzwanzig minuten".split()) == 1500
+    assert parse_duration("1 stunde 5 minuten".split()) == 3900
+    assert parse_duration("ohne zahl".split()) is None
+
+
+def test_direct_mode_follow_up_and_echo_mute(qtbot_free_app, tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from alupc.config import Config
+
+    class FakeRec:
+        def __init__(self):
+            self.text = ""
+
+        def AcceptWaveform(self, data):
+            self.text = data.decode()
+            return True
+
+        def Result(self):
+            return json.dumps({"text": self.text})
+
+    config = Config(tmp_path / "c.json")
+    config["voice"] = {**config["voice"], "on": True}
+    vc = voice.VoiceControl(config, recognizer_factory=FakeRec)
+    got, ears = [], []
+    vc.command.connect(lambda c, label, t: got.append(c))
+    vc.not_understood.connect(ears.append)
+    vc.start()
+    assert qtbot_free_app.wait(lambda: vc.state == "hört zu")
+    vc.feed(b"mach das licht aus")  # ohne Startwort: nichts
+    vc.feed(b"alu pc")  # nur das Startwort: „Ja?“
+    assert qtbot_free_app.wait(lambda: got == ["frage:ja"])
+    vc.listen_on(5)  # nach der Antwort: Nachfragen ohne Startwort
+    vc.feed(b"mach das licht aus")
+    assert qtbot_free_app.wait(lambda: got == ["frage:ja", "rgb_aus"])
+    vc.follow_until = 0
+    vc.feed(b"licht an")  # Fenster zu: wieder nichts
+    qtbot_free_app.wait(lambda: vc._queue.empty() and False, 0.4)
+    assert "rgb_an" not in got
+    vc.set_direct(True)  # Mikrofon-Schalter
+    vc.feed(b"licht an")
+    vc.feed(b"quatsch mit sosse")
+    assert qtbot_free_app.wait(lambda: got[-1:] == ["rgb_an"] and ears == ["quatsch mit sosse"])
+    vc.set_direct(False)
+    vc.mute(5)  # AluPC spricht: alles verwerfen
+    vc.feed(b"alu pc licht an")
+    qtbot_free_app.wait(lambda: False, 0.3)
+    assert got.count("rgb_an") == 1
+    vc.stop()

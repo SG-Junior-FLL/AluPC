@@ -391,6 +391,12 @@ class MainWindow(QMainWindow):
         self.wheel_row.hide()
         lay.addWidget(self.wheel_row)
         lay.addSpacing(6)
+        # Mikrofon-Schalter: solange an, hört AluPC ohne Startwort zu (Strg+Alt+H)
+        mic = NavButton("mic", "Zuhören")
+        mic.setToolTip("Mikrofon-Schalter: an = ohne Startwort sprechen, aus = nur mit „Alu PC …“ (Strg+Alt+H)")
+        mic.clicked.connect(lambda: self.controller.toggle_listening())
+        self.mic_button = mic
+        lay.addWidget(mic)
         lock = NavButton("lock", "Computer sperren")
         lock.setToolTip("Wie Win+L – Monitor 2 zeigt weiter, was gerade läuft")
         lock.setCheckable(False)
@@ -1624,6 +1630,10 @@ class MainWindow(QMainWindow):
 
     def refresh(self):
         c = self.controller
+        listening = bool(c.voice.direct)
+        self.mic_button.setChecked(listening)
+        self.mic_button.text_ = "Hört zu …" if listening else "Zuhören"
+        self.mic_button.update()
         t = theme.current()
         out = c.output_screen()
         pip_on = bool(c.pip and c.pip.isVisible())
@@ -1777,7 +1787,7 @@ class MainWindow(QMainWindow):
         for w in (*self.brand_texts, self.version_label):
             w.setVisible(not compact)
         self.brand_layout.setContentsMargins(19 if compact else 14, 0, 8, 18)
-        for b in (*self.nav_group.buttons(), self.lock_button):
+        for b in (*self.nav_group.buttons(), self.lock_button, self.mic_button):
             b.set_compact(compact)
         self.side_monitor.set_compact(compact)
         self.step_text.setVisible(not compact)

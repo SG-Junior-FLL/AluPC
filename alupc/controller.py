@@ -54,8 +54,14 @@ class Controller(QObject):
         self.voice = VoiceControl(config, scenes=config.scene_names, parent=self)
         from .speech import Speaker
 
-        self.speaker = Speaker(config)
+        self.speaker = Speaker(config, self)
+        from .assistant import Assistant
+
+        self.assistant = Assistant(self)
         self.voice.command.connect(self._voice_command)
+        self.voice.not_understood.connect(self._voice_not_understood)
+        self.voice.direct_changed.connect(lambda _on: self.changed.emit())
+        self.speaker.speaking.connect(self.voice.mute)  # Echo-Sperre: eigene Antwort nicht als Befehl hören
         if config["voice"].get("on"):
             from PySide6.QtCore import QTimer as _VT
 
@@ -1256,6 +1262,8 @@ class Controller(QObject):
         if command.startswith("spiel:"):
             self.game_action(command)
             return
+        if self._run_switch(command):
+            return
         actions = {
             "standbild": self.toggle_freeze,
             "schwarz": self.toggle_privacy,
@@ -1600,15 +1608,86 @@ class Controller(QObject):
         self.show_source({"type": "umfrage"}, remember=False)
         self.changed.emit()
 
+    # ------------------------------------------------------------ Schalter mit festem Ziel (an/aus statt umschalten)
+    def _run_switch(self, command: str) -> bool:
+        """„schwarz_an“, „standbild_aus“, „rgb_farbe:#ff0000“, „timer_set:300“ … – True, wenn erledigt."""
+        if command.startswith("rgb_farbe:"):
+            color = command[10:]
+            if len(color) == 7 and color.startswith("#"):
+                self.rgb.update_settings(color=color, mode="farbe")
+                if not self.rgb.connected:
+                    self.rgb.connect_async(start_if_needed=True)
+            return True
+        if command.startswith("timer_set:"):
+            from .timer import clock
+
+            try:
+                seconds = max(1, min(24 * 3600, int(command[10:])))
+            except ValueError:
+                return True
+            clock.set(seconds, "countdown", self.config["timer"].get("finished_text", ""))
+            self.show_source(self.timer_source())
+            clock.start()
+            self.sounds.play_event("timer_start")
+            self.changed.emit()
+            return True
+        if command in ("timer_start", "timer_pause"):
+            from .timer import clock
+
+            if clock.running != (command == "timer_start"):
+                self.timer_action("toggle")
+            return True
+        if command == "musik_play":
+            self.media_control("play_pause")
+            return True
+        if command in ("rgb_heller", "rgb_dunkler"):
+            s = self.rgb.settings()
+            step = 25 if command == "rgb_heller" else -25
+            self.rgb.update_settings(brightness=max(10, min(100, int(s.get("brightness", 100)) + step)),
+                                     mode="farbe" if s["mode"] == "aus" else s["mode"])
+            return True
+        if command in ("rgb", "rgb_an"):
+            mode = self.rgb.settings()["mode"]
+            self.rgb.set_mode("farbe" if mode == "aus" else ("aus" if command == "rgb" else mode))
+            return True
+        if command in ("zuhoeren_an", "zuhoeren_aus", "zuhoeren"):
+            self.toggle_listening(None if command == "zuhoeren" else command == "zuhoeren_an")
+            return True
+        base, _, state = command.rpartition("_")
+        toggles = {"schwarz": (lambda: self.privacy, self.toggle_privacy),
+                   "standbild": (lambda: self.frozen, self.toggle_freeze),
+                   "bildschirmschoner": (lambda: self.screensaver.active, self.toggle_screensaver),
+                   "bild_in_bild": (lambda: self.pip is not None and self.pip.isVisible(), self.toggle_pip)}
+        if state in ("an", "aus") and base in toggles:
+            is_on, toggle = toggles[base]
+            if bool(is_on()) != (state == "an"):
+                toggle()
+            return True
+        return False
+
     def _voice_command(self, command: str, label: str, text: str) -> None:
         hub = self.cast.games
         if command == "naechste_szene" and hub is not None and hub.phase == "running":
             command, label = "spiel_weiter", "Minispiel: weiter"  # „Alu PC, weiter“ im Spiel = nächste Frage
-        self.message.emit(f"🎤 {label}")
-        from .speech import spoken_label
+        if command != "frage:ja":
+            self.message.emit(f"🎤 {label}")
+        self.assistant.handle(command, label, text)
 
-        self.speaker.say(f"Okay. {spoken_label(label)}")
-        self.run_command(command)
+    def _voice_not_understood(self, text: str) -> None:
+        self.message.emit(f"🎤 Nicht verstanden: „{text}“")
+        self.assistant.not_understood(text)
+
+    def toggle_listening(self, on: bool | None = None) -> None:
+        """Mikrofon-Schalter: an = AluPC hört ohne Startwort zu, aus = wieder nur mit Startwort (bzw. ganz aus)."""
+        from .voice import model_ready, vosk_available
+
+        on = (not self.voice.direct) if on is None else bool(on)
+        if on and not (vosk_available() and model_ready()):
+            self.message.emit("Mikrofon: erst im Setup → Sprache das Sprachmodell herunterladen.")
+            return
+        self.voice.set_direct(on)
+        self.message.emit("🎤 Ich höre zu – ohne Startwort" if on else "🎤 Mikrofon-Schalter aus")
+        self.changed.emit()
 
     def start_games(self, key: str | None = None) -> None:
         """Minispiele: Lobby mit QR-Code auf Monitor 2 (eine laufende Runde bleibt erhalten).
@@ -1754,6 +1833,7 @@ class Controller(QObject):
         self.finger_shortcuts.stop()
         self.finger_unlock.stop()
         self.voice.stop()
+        self.speaker.shutdown()
         self._stop_handy_window()
         self.laser.close()
         self.overlay_window.shutdown()

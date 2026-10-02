@@ -249,6 +249,15 @@ def self_test(log_path: str) -> int:
         import vosk
 
         lines.append(f"Spracherkennung: vosk {getattr(vosk, '__version__', '')} ok")
+        # Natürliche Stimme (Piper samt espeak-ng-Daten) und genaue Erkennung (Whisper) im Paket?
+        from piper.phonemize_espeak import EspeakPhonemizer
+
+        phonemes = EspeakPhonemizer().phonemize("de", "Alles klar.")
+        if not phonemes or not phonemes[0]:
+            raise RuntimeError("Piper/espeak-ng liefert keine Lautschrift")
+        from faster_whisper import WhisperModel  # noqa: F401  (lädt ctranslate2, tokenizers, av)
+
+        lines.append(f"Stimme (Piper) und Whisper: ok · Lautschrift „{''.join(phonemes[0])[:20]}“")
         from .game_sounds import GameSounds
 
         GameSounds(config).play("tick")  # Spiel-Töne lassen sich erzeugen

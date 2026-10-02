@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alupc"
-version = "0.82.0"
+version = "0.83.0"
 description = "AluPC – zweiten Monitor steuern: Spiegeln, Erweitern, Kamera, Programme, Websites, eigene Szenen, Standbild, Bild-in-Bild, Fingerabdruck"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,6 +17,9 @@ dependencies = [
     "psutil>=5.9",
     # Sprachbefehle (offline): Vosk – Modell wird erst bei Bedarf heruntergeladen
     "vosk>=0.3.45",
+    # Natürliche Stimme (Piper, offline) und genaue Erkennung (Whisper, offline) – Modelle erst bei Bedarf laden
+    "piper-tts>=1.3",
+    "faster-whisper>=1.1",
     # Windows: „Läuft gerade“ (globale Mediensteuerung – was Spotify, Browser … abspielen)
     "winrt-runtime>=2; sys_platform == 'win32'",
     "winrt-Windows.Foundation>=2; sys_platform == 'win32'",

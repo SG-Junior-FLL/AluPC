@@ -28,6 +28,7 @@ DEFAULT_HOTKEYS = {
     "rgb_farbe": "",
     "rgb_monitor2": "",
     "rgb_aus": "",
+    "zuhoeren": "Ctrl+Alt+H",
 }
 
 HOTKEY_LABELS = {
@@ -52,6 +53,7 @@ HOTKEY_LABELS = {
     "rgb_farbe": "RGB: gewählte Farbe",
     "rgb_monitor2": "RGB: Farbe folgt Monitor 2",
     "rgb_aus": "RGB aus",
+    "zuhoeren": "Mikrofon-Schalter (zuhören ohne Startwort)",
 }
 
 DEFAULTS: dict = {
@@ -88,7 +90,9 @@ DEFAULTS: dict = {
     # wake: Startwörter („monitor“, „alupc“); only_voices: nur angelernte Stimmen (voices: [{name, vec}])
     # speak: Antwort per Stimme; custom: eigene Sätze [{say, do}]
     "voice": {"on": False, "device": "", "wake": ["monitor", "alupc"], "only_voices": False, "voices": [],
-              "strict": "normal", "speak": True, "speak_voice": "", "custom": []},
+              "strict": "normal", "speak": True, "speak_voice": "", "custom": [],
+              # tts: Piper-Stimme (speech.PIPER_VOICES) oder "system"; stt: "vosk" oder Whisper ("base"/"small")
+              "tts": "thorsten", "speak_rate": "normal", "stt": "vosk", "follow_up": True},
     # Begrüßung nach der Anmeldung mit dem Finger (Seite Fingerabdruck → Begrüßung): Stil, eigener Text, eigene Namen je Person
     "welcome": {"on": True, "style": "aurora", "text": "", "sound": True, "names": {}, "birthdays": {}},
     # Timer (Countdown/Stoppuhr): Voreinstellung für Kachel und Befehle

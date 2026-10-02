@@ -34,6 +34,8 @@ jobs:
             grep -E "^(FAILED|E   |ERROR)|Fatal Python|File \"/home/runner/work" tests.log | head -40 | sed 's/^/::error::/'
             grep -B2 -A30 "Fatal Python" tests.log | grep -E "File|Fatal|line" | head -30 | sed 's/^/::warning::/'
             exit 1; }
+      - name: Sprache echt – Piper spricht, Vosk/Whisper hören, AluPC versteht
+        run: python tests/voice_real_check.py || python tests/voice_real_check.py
 
   build-linux:
     # Ubuntu 22.04 als Basis: das Paket läuft damit auf Kubuntu 22.04, 24.04 und neuer
@@ -63,6 +65,9 @@ jobs:
           --collect-submodules serial
           --collect-submodules segno
           --collect-all vosk
+          --collect-all piper
+          --collect-all faster_whisper
+          --collect-all ctranslate2
           --collect-data alupc
           packaging/pyinstaller_entry.py
       - name: Fertiges Programm starten (Selbsttest)
@@ -194,6 +199,8 @@ jobs:
               Select-Object -Last 25 | ForEach-Object { Write-Output ("::warning::" + $_.Trim()) }
             exit 1
           }
+      - name: Sprache echt – Piper spricht, Vosk/Whisper hören, AluPC versteht
+        run: python tests/voice_real_check.py
       - name: AluPC.exe bauen (PyInstaller)
         run: >
           pyinstaller --noconfirm --windowed --name AluPC
@@ -203,6 +210,9 @@ jobs:
           --collect-submodules serial
           --collect-submodules segno
           --collect-all vosk
+          --collect-all piper
+          --collect-all faster_whisper
+          --collect-all ctranslate2
           --collect-all winrt
           --collect-data alupc
           packaging/pyinstaller_entry.py

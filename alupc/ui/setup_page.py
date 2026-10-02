@@ -1034,8 +1034,9 @@ class SetupPage(QWidget):
 
         box = QGroupBox("Sprachbefehle")
         lay = QVBoxLayout(box)
-        intro = QLabel("Startwort sagen, dann den Befehl – z. B. „Alu PC, Bildschirm schwarz“ oder „Monitor nächste "
-                       "Szene“. Läuft komplett auf dem PC (offline), es geht kein Ton ins Internet.")
+        intro = QLabel("Ganz normal sprechen – mit Startwort davor: „Alu PC, mach den Bildschirm schwarz“, „Alu PC, "
+                       "Licht auf blau“, „Alu PC, wie spät ist es?“. Läuft komplett auf dem PC (offline), es geht kein "
+                       "Ton ins Internet.")
         intro.setWordWrap(True)
         lay.addWidget(intro)
         cfg = self.config["voice"]
@@ -1077,35 +1078,163 @@ class SetupPage(QWidget):
         model_row.addWidget(self.voice_bar)
         model_row.addWidget(self.voice_dl)
         lay.addLayout(model_row)
-        # ---- Antwort per Stimme
-        speak_row = QHBoxLayout()
-        self.speak_on = QCheckBox("Antwort per Stimme („Okay. Schwarz“)")
-        self.speak_on.setChecked(bool(cfg.get("speak", True)))
+        # ---- Erkennung, Stimme, Gespräch
+        from .. import speech, stt
+
+        talk = QGroupBox("Erkennung & Stimme")
+        tf = QFormLayout(talk)
+        stt_row = QHBoxLayout()
+        stt_box = QComboBox()
+        stt_box.addItem("Standard (Vosk, schnell)", "vosk")
+        for key, (_repo, label, size) in stt.MODELS.items():
+            stt_box.addItem(f"{label} – ca. {size} MB", key)
+        stt_box.setCurrentIndex(max(0, stt_box.findData(cfg.get("stt", "vosk"))))
+        stt_dl = button("Herunterladen", "download")
+        stt_bar = QProgressBar()
+        stt_bar.setMaximumWidth(160)
+        stt_bar.hide()
+        stt_row.addWidget(stt_box, 1)
+        stt_row.addWidget(stt_bar)
+        stt_row.addWidget(stt_dl)
+        tf.addRow("Erkennung:", stt_row)
+        stt_note = QLabel()
+        stt_note.setObjectName("Muted")
+        stt_note.setWordWrap(True)
+        tf.addRow("", stt_note)
+        tts_row = QHBoxLayout()
+        tts_box = QComboBox()
+        for key, (_file, label, size) in speech.PIPER_VOICES.items():
+            tts_box.addItem(f"{label} – ca. {size} MB", key)
+        tts_box.addItem("System-Stimme (Windows / espeak)", "system")
+        tts_box.setCurrentIndex(max(0, tts_box.findData(cfg.get("tts", "thorsten"))))
+        tts_dl = button("Herunterladen", "download")
+        tts_bar = QProgressBar()
+        tts_bar.setMaximumWidth(160)
+        tts_bar.hide()
+        tts_row.addWidget(tts_box, 1)
+        tts_row.addWidget(tts_bar)
+        tts_row.addWidget(tts_dl)
+        tf.addRow("Stimme:", tts_row)
+        sys_row = QHBoxLayout()
         speak_voice = QComboBox()
-        speak_voice.addItem("Standard-Stimme", "")
+        speak_voice.addItem("Standard-System-Stimme", "")
         for name in self.controller.speaker.voices():
             speak_voice.addItem(name, name)
         speak_voice.setCurrentIndex(max(0, speak_voice.findData(cfg.get("speak_voice", ""))))
+        sys_row.addWidget(speak_voice, 1)
+        tf.addRow("System-Stimme:", sys_row)
+        rate_box = QComboBox()
+        for key in speech.RATES:
+            rate_box.addItem(key.capitalize(), key)
+        rate_box.setCurrentIndex(max(0, rate_box.findData(cfg.get("speak_rate", "normal"))))
         test_say = button("Probehören", "sound")
-        speak_row.addWidget(self.speak_on)
-        speak_row.addStretch(1)
-        speak_row.addWidget(speak_voice)
-        speak_row.addWidget(test_say)
-        lay.addLayout(speak_row)
-        if not self.controller.speaker.available():
-            no_tts = QLabel("Keine Sprachausgabe gefunden – unter Linux: sudo apt install speech-dispatcher espeak-ng")
-            no_tts.setObjectName("Muted")
-            no_tts.setWordWrap(True)
-            lay.addWidget(no_tts)
+        rate_row = QHBoxLayout()
+        rate_row.addWidget(rate_box)
+        rate_row.addStretch(1)
+        rate_row.addWidget(test_say)
+        tf.addRow("Tempo:", rate_row)
+        tts_note = QLabel()
+        tts_note.setObjectName("Muted")
+        tts_note.setWordWrap(True)
+        tf.addRow("", tts_note)
+        self.speak_on = QCheckBox("Antworten per Stimme")
+        self.speak_on.setChecked(bool(cfg.get("speak", True)))
+        tf.addRow("", self.speak_on)
+        follow = QCheckBox(f"Nachfragen ohne Startwort ({voice.FOLLOW_SECONDS} s nach jeder Antwort)")
+        follow.setChecked(bool(cfg.get("follow_up", True)))
+        tf.addRow("", follow)
+        mic_hint = QLabel("Mikrofon-Schalter: Knopf „Zuhören“ links oder Strg+Alt+H – solange an, zählt jeder Satz "
+                          "(kein Startwort nötig). Nochmal drücken oder „Hör auf zuzuhören“ = aus.")
+        mic_hint.setObjectName("Muted")
+        mic_hint.setWordWrap(True)
+        tf.addRow("", mic_hint)
+        lay.addWidget(talk)
+
+        def refresh_talk():
+            key = stt_box.currentData()
+            if key == "vosk":
+                stt_note.setText("Hört das Startwort und kurze Befehle. Für ganze Sätze lieber Whisper.")
+                stt_dl.hide()
+            elif not stt.available():
+                stt_note.setText("Whisper fehlt in dieser AluPC-Version.")
+                stt_dl.hide()
+            elif stt.ready(key):
+                stt_note.setText("✓ Heruntergeladen. Whisper schreibt jeden Satz an AluPC noch einmal genau mit "
+                                 "(offline; braucht pro Satz kurz Rechenzeit).")
+                stt_dl.hide()
+            else:
+                stt_note.setText("Noch nicht heruntergeladen – bis dahin hört AluPC mit Vosk.")
+                stt_dl.setVisible(True)
+            tkey = tts_box.currentData()
+            speak_voice.setEnabled(tkey == "system")
+            if tkey == "system":
+                tts_note.setText("" if self.controller.speaker.available() else
+                                 "Keine System-Stimme gefunden – Linux: sudo apt install speech-dispatcher espeak-ng")
+                tts_dl.hide()
+            elif not speech.piper_available():
+                tts_note.setText("Natürliche Stimmen (Piper) fehlen in dieser AluPC-Version – es spricht die "
+                                 "System-Stimme.")
+                tts_dl.hide()
+            elif speech.voice_ready(tkey):
+                tts_note.setText("✓ Natürliche Stimme (offline).")
+                tts_dl.hide()
+            else:
+                tts_note.setText("Noch nicht heruntergeladen – bis dahin spricht die System-Stimme.")
+                tts_dl.setVisible(True)
 
         def save_speak(*_):
             self.config["voice"] = {**self.config["voice"], "speak": self.speak_on.isChecked(),
-                                    "speak_voice": speak_voice.currentData()}
+                                    "speak_voice": speak_voice.currentData(), "tts": tts_box.currentData(),
+                                    "speak_rate": rate_box.currentData(), "stt": stt_box.currentData(),
+                                    "follow_up": follow.isChecked()}
             self.controller.speaker.reload()
+            refresh_talk()
 
+        def save_stt(*_):
+            save_speak()
+            if self.controller.voice.running():  # Whisper im Hintergrund (neu) laden
+                import threading
+
+                threading.Thread(target=self.controller.voice.load_stt, daemon=True).start()
+
+        def fetch(bar, btn, work, what):
+            btn.setEnabled(False)
+            bar.show()
+            bar.setRange(0, 0)
+
+            def run(status):
+                return work(lambda d, t: status("", d, t))
+
+            def progress(_text, d, t):
+                if t:
+                    bar.setRange(0, 100)
+                    bar.setValue(int(100 * d / t))
+
+            def done(_r):
+                bar.hide()
+                btn.setEnabled(True)
+                save_stt()
+
+            def failed(e):
+                bar.hide()
+                btn.setEnabled(True)
+                error_box(self, f"{what} konnte nicht geladen werden: {e}")
+
+            run_async(run, done, failed, progress)
+
+        stt_dl.clicked.connect(lambda: fetch(stt_bar, stt_dl, lambda p: stt.download(stt_box.currentData(), p),
+                                             "Whisper"))
+        tts_dl.clicked.connect(lambda: fetch(tts_bar, tts_dl,
+                                             lambda p: speech.download_voice(tts_box.currentData(), p), "Die Stimme"))
         self.speak_on.toggled.connect(save_speak)
         speak_voice.currentIndexChanged.connect(save_speak)
-        test_say.clicked.connect(lambda: self.controller.speaker.say("Okay. Bildschirm schwarz.", force=True))
+        tts_box.currentIndexChanged.connect(save_speak)
+        rate_box.currentIndexChanged.connect(save_speak)
+        follow.toggled.connect(save_speak)
+        stt_box.currentIndexChanged.connect(save_stt)
+        test_say.clicked.connect(lambda: self.controller.speaker.say(
+            "Alles klar, Monitor 2 ist jetzt schwarz. Sag einfach, was ich tun soll.", force=True))
+        refresh_talk()
 
         # ---- eigene Befehle
         custom_box = QGroupBox("Eigene Befehle")
@@ -1189,9 +1318,16 @@ class SetupPage(QWidget):
         vl.addWidget(note)
         lay.addWidget(voices_box)
 
-        cmds = QLabel("<b>Befehle</b> (immer mit Startwort davor, z. B. „Alu PC, …“):<br>" + "<br>".join(
-            f"„{variants[0].capitalize()}“ – {label.replace('&', '&amp;')}" for variants, _cmd, label in voice.COMMANDS)
-            + "<br>„Szene <i>Name</i>“ – eigene Szene zeigen<br>„Spiel <i>Name</i>“ – Minispiel wählen (z. B. „Spiel Pong“)")
+        cmds = QLabel("<b>Beispiele</b> (Startwort davor, z. B. „Alu PC, …“ – oder Mikrofon-Schalter an):<br>"
+                      "„Mach den Bildschirm schwarz“ · „Bild wieder an“ · „Kein Standbild mehr“<br>"
+                      "„Zeig die Kamera / das Wetter / den Systemstatus / das Whiteboard“<br>"
+                      "„Licht aus“ · „Licht auf blau“ · „Licht wie der Bildschirm“ · „Licht heller“<br>"
+                      "„Timer auf fünf Minuten“ · „Timer Pause“ · „Bildschirmschoner an“ · „Overlays aus“<br>"
+                      "„Nächste Szene“ · „Szene <i>Name</i>“ · „Lass uns Pong spielen“ · „Nächste Frage“<br>"
+                      "„Nächstes Lied“ · „Musik Pause“ · „Dreh das Glücksrad“ · „Computer sperren“<br>"
+                      "Fragen: „Wie spät ist es?“ · „Welcher Tag ist heute?“ · „Wie wird das Wetter?“ · "
+                      "„Wie warm ist der Prozessor?“ · „Wie geht es dem Computer?“ · „Was kannst du?“ · "
+                      "„Erzähl einen Witz“<br>Nur „Alu PC“ sagen → „Ja?“ – dann den Satz ohne Startwort.")
         cmds.setObjectName("Muted")
         cmds.setWordWrap(True)
         lay.addWidget(cmds)

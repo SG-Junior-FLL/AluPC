@@ -8,7 +8,20 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.82.0)
+### Neu in dieser Version (0.83.0)
+- **Ganz normal sprechen** statt fester Befehle: „Alu PC, mach mal den Bildschirm schwarz“, „… Licht auf blau“,
+  „… Timer auf fünf Minuten“, „… kein Standbild mehr“, „… zeig mir die Kamera“. An und aus gehen gezielt.
+- **Bessere Antworten:** passend zum Zustand („Monitor 2 ist schon schwarz“), echte Antworten auf Fragen
+  (Uhrzeit, Datum, Wetter, Prozessor-Temperatur, Auslastung, was läuft, „Was kannst du?“, Witz).
+- **Gespräch:** Nur „Alu PC“ → „Ja?“. Nach jeder Antwort 8 s ohne Startwort nachfragen.
+- **Mikrofon-Schalter:** Knopf „Zuhören“ links oder Strg+Alt+H – solange an, kein Startwort nötig.
+- **Genauere Erkennung (optional):** Whisper Base (ca. 145 MB) oder Small (ca. 485 MB), offline.
+- **Natürliche Stimme (optional):** Piper-Stimmen Thorsten, Kerstin, Ramona, Eva – offline, Tempo wählbar.
+  Echo-Sperre, damit AluPC sich nicht selbst hört.
+- Ehrlich: In der CI geprüft mit synthetischer Stimme (Piper → Vosk/Whisper), nicht mit echtem Mikrofon im Raum.
+  Das Verstehen ist regelbasiert, keine Online-KI. Das Programm wird durch Piper/Whisper deutlich größer.
+
+### Neu in Version 0.82.0
 - **Neue Seite „System“** (links): Prozessor, Arbeitsspeicher, Grafikkarte und Temperatur als animierte
   Ringe mit 60-s-Kurven, dazu alle Prozessorkerne, Netzwerk (↓/↑, IP), Laufwerke, Akku, Temperaturen &
   Lüfter und die Programme mit der meisten Last (mit „Beenden“).

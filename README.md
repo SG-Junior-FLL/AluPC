@@ -185,7 +185,20 @@ Außerdem:
   „Alu PC, Glücksrad drehen“. Startwörter „Monitor“ und „Alu PC“ einzeln an-/abschaltbar.
   Läuft **offline** mit [Vosk](https://alphacephei.com/vosk/): Setup → *Sprache* → Sprachmodell einmal
   herunterladen (ca. 45 MB), einschalten, Mikrofon wählen. Es geht kein Ton ins Internet; ohne Startwort passiert
-  nie etwas. Die ganze Befehlsliste steht im Setup.
+  nie etwas. Beispiele stehen im Setup.
+  - **Ganz normal sprechen** (neu in 0.83): keine festen Befehle mehr – „Alu PC, mach mal den Bildschirm schwarz“,
+    „… kein Standbild mehr“, „… Licht auf blau“, „… Licht aus“, „… Timer auf fünf Minuten“, „… zeig mir die
+    Kamera“. **An und aus** gehen gezielt („Bildschirmschoner aus“), AluPC antwortet passend zum Zustand („Monitor 2
+    ist schon schwarz“). **Fragen:** Uhrzeit, Datum, Wetter, Prozessor-Temperatur, Auslastung, was gerade läuft,
+    „Was kannst du?“, Witz. Nur „Alu PC“ → „Ja?“; nach jeder Antwort 8 s **ohne Startwort** nachfragen.
+  - **Mikrofon-Schalter** (neu in 0.83): Knopf **„Zuhören“** links oder `Strg+Alt+H` – solange an, braucht es
+    **kein Startwort**, jeder Satz zählt. Nochmal drücken oder „Hör auf zuzuhören“ = aus.
+  - **Genauere Erkennung** (neu in 0.83): Setup → *Sprache* → *Erkennung* „Whisper Base“ (ca. 145 MB) oder
+    „Whisper Small“ (ca. 485 MB). Vosk hört weiter das Startwort, Whisper schreibt den Satz dann noch einmal genau
+    mit – offline, kostet pro Satz etwas Rechenzeit (je nach Prozessor ca. 0,5–3 s).
+  - **Natürliche Stimme** (neu in 0.83): Piper-Stimmen (Thorsten, Kerstin, Ramona, Eva; 20–109 MB) statt der
+    Roboter-Stimme, Tempo wählbar. Offline. Ohne Download spricht weiter die System-Stimme. Echo-Sperre: während
+    AluPC spricht, wertet es das Mikrofon nicht aus.
   - **Nur bestimmte Stimmen:** Stimmerkennung herunterladen (ca. 13 MB), „Stimme anlernen …“ (ein paar Sätze
     vorlesen), dann „Befehle nur von angelernten Stimmen annehmen“. Mehrere Stimmen möglich, Genauigkeit
     streng/normal/locker. Das ist ein Filter gegen Zurufe aus dem Raum – **kein Schutz** (eine Aufnahme oder eine
@@ -381,6 +394,9 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   jeder, der den QR-Code auf Monitor 2 sieht, kann senden („Neuer Code“ im Einrichten-Dialog). In
   Gäste-/Schul-WLANs, die Geräte voneinander trennen, erreichen Handys den PC nicht. Windows fragt beim
   ersten Start nach der Firewall-Freigabe. Live-Kamerabild vom Handy geht nicht (bräuchte https).
+- **Sprache:** Echt geprüft wird in der CI nur mit synthetischer Stimme (Piper spricht, Vosk/Whisper hören) –
+  nicht mit echtem Mikrofon, Raumhall oder Dialekt. Das Verstehen ist regelbasiert (Stichwörter, an/aus, Zahlen),
+  keine Online-KI: ungewöhnliche Sätze versteht AluPC nicht und sagt das dann.
 - **System-Seite:** Windows meldet ohne Hersteller-Programm **keine Prozessor-Temperatur und keine Lüfter** –
   dort zeigt AluPC nur NVIDIA-Grafikkarten-Werte (über `nvidia-smi`). Intel-Grafik: keine Auslastung.
   Gemessen und angezeigt ist hier nur in einer virtuellen Maschine getestet; Energie sparen/Neustart/

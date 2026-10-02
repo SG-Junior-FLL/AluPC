@@ -105,6 +105,14 @@ COMMANDS = {
     "spiel_lobby": "Minispiele: zurück zur Lobby",
     "spiel_teams": "Minispiele: Teams mischen",
     "spiel_toene": "Minispiele: Töne an/aus",
+    "zuhoeren": "Mikrofon-Schalter (zuhören ohne Startwort)",
+    "schwarz_an": "Schwarz an",
+    "schwarz_aus": "Schwarz aus",
+    "standbild_an": "Standbild an",
+    "standbild_aus": "Standbild aus",
+    "bildschirmschoner_an": "Bildschirmschoner an",
+    "bildschirmschoner_aus": "Bildschirmschoner aus",
+    "rgb": "RGB an/aus",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann
