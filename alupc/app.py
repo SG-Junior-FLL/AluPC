@@ -242,6 +242,16 @@ def self_test(log_path: str) -> int:
         controller.toggle_screensaver()
         controller.toggle_screensaver()
         lines.append(f"Leerlaufzeit: {controller.screensaver.idle.method}")
+        from .voice import vosk_available
+
+        if not vosk_available():  # Sprachbefehle: Vosk samt Bibliothek (libvosk) im Paket?
+            raise RuntimeError("Spracherkennung (vosk) fehlt im Paket")
+        import vosk
+
+        lines.append(f"Spracherkennung: vosk {getattr(vosk, '__version__', '')} ok")
+        from .game_sounds import GameSounds
+
+        GameSounds(config).play("tick")  # Spiel-Töne lassen sich erzeugen
         from .platform.zw_fingerprint import HAVE_SERIAL, candidate_ports
 
         lines.append(f"Serielle Fingerabdruckmodule: pyserial {'da' if HAVE_SERIAL else 'FEHLT'}, "

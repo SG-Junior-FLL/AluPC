@@ -120,6 +120,8 @@ input[type=range] { width:100%; accent-color:#8b5cf6; height:30px; }
 .chips button { flex:1 1 auto; padding:9px 6px; font-size:13.5px; border-radius:12px; }
 .big { font-size:30px; letter-spacing:8px; text-align:center; }
 /* Zeichnen */
+.wbg { display:flex; flex-wrap:wrap; gap:8px; }
+.wbg button { flex:1 1 30%; min-width:96px; padding:12px 8px; font-size:14px; }
 .tools { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
 .tools button { flex-direction:column; gap:4px; padding:10px 4px; font-size:12.5px; }
 .colors { display:flex; gap:10px; justify-content:space-between; margin-top:12px; }
@@ -325,6 +327,22 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
       <button onclick="cmd('zeichnungen_loeschen')"><svg class="i"><use href="#i-trash"/></svg>Alles löschen</button>
     </div>
     <div class="hint">Mit dem Finger auf das Bild zeichnen – erscheint sofort auf Monitor 2.</div>
+  </div>
+  <div class="card">
+    <h2>Whiteboard</h2>
+    <div class="wbg">
+      <button onclick="cmd('whiteboard:weiss')">Weiß</button>
+      <button onclick="cmd('whiteboard:kariert')">Kariert</button>
+      <button onclick="cmd('whiteboard:liniert')">Liniert</button>
+      <button onclick="cmd('whiteboard:punkte')">Punkteraster</button>
+      <button onclick="cmd('whiteboard:millimeter')">Millimeterpapier</button>
+      <button onclick="cmd('whiteboard:koordinaten')">Koordinatensystem</button>
+      <button onclick="cmd('whiteboard:noten')">Notenlinien</button>
+      <button onclick="cmd('whiteboard:tafel')">Tafel (grün)</button>
+      <button onclick="cmd('whiteboard:schwarz')">Tafel (schwarz)</button>
+      <button onclick="cmd('whiteboard:blaupause')">Blaupause</button>
+    </div>
+    <div class="hint">Tippen zeigt das Whiteboard mit diesem Hintergrund – dann oben draufzeichnen.</div>
   </div>
 </div>
 

@@ -85,7 +85,10 @@ class GamesWindow(QWidget):
         self.b_lobby = button("Lobby   L", "home")
         self.b_teams = button("Teams mischen   T", "refresh")
         self.b_show = button("Monitor 2   M", "monitor")
-        for i, b in enumerate((self.b_start, self.b_next, self.b_end, self.b_lobby, self.b_teams, self.b_show)):
+        self.b_board = button("Bestenliste   B", "star")
+        self.b_sound = button("Töne an   S", "sound")
+        for i, b in enumerate((self.b_start, self.b_next, self.b_end, self.b_lobby, self.b_teams, self.b_show,
+                               self.b_board, self.b_sound)):
             b.setFocusPolicy(Qt.NoFocus)
             b.setMinimumHeight(44 if i else 54)
             if i == 0:
@@ -99,6 +102,8 @@ class GamesWindow(QWidget):
         self.b_lobby.clicked.connect(lambda: self.controller.game_action("lobby"))
         self.b_teams.clicked.connect(self.shuffle_teams)
         self.b_show.clicked.connect(lambda: self.controller.start_games())
+        self.b_board.clicked.connect(lambda: self.controller.game_action("bestenliste"))
+        self.b_sound.clicked.connect(self.toggle_sound)
         self.players_label = QLabel()
         self.players_label.setObjectName("SectionLabel")
         right.addWidget(self.players_label)
@@ -126,7 +131,11 @@ class GamesWindow(QWidget):
         stop = button("Minispiele beenden", "x", danger=True)
         stop.setFocusPolicy(Qt.NoFocus)
         stop.clicked.connect(self.stop_games)
+        reset = button("Bestenliste zurücksetzen", "trash")
+        reset.setFocusPolicy(Qt.NoFocus)
+        reset.clicked.connect(self.reset_board)
         bottom.addWidget(copy)
+        bottom.addWidget(reset)
         bottom.addStretch(1)
         bottom.addWidget(stop)
         root.addLayout(bottom)
@@ -134,7 +143,8 @@ class GamesWindow(QWidget):
         for seq, fn in ((Qt.Key_Space, self.start), (Qt.Key_N, lambda: self.controller.game_action("weiter")),
                         (Qt.Key_E, lambda: self.controller.game_action("ende")),
                         (Qt.Key_L, lambda: self.controller.game_action("lobby")), (Qt.Key_T, self.shuffle_teams),
-                        (Qt.Key_M, lambda: self.controller.start_games()), (Qt.Key_Delete, self.kick)):
+                        (Qt.Key_M, lambda: self.controller.start_games()), (Qt.Key_Delete, self.kick),
+                        (Qt.Key_B, lambda: self.controller.game_action("bestenliste")), (Qt.Key_S, self.toggle_sound)):
             QShortcut(QKeySequence(seq), self, activated=fn)
         for i, key in enumerate(list(self.cards)[:len(KEYS)]):
             QShortcut(QKeySequence(KEYS[i]), self, activated=lambda k=key: self.choose(k))
@@ -192,6 +202,20 @@ class GamesWindow(QWidget):
             hub.set_team(pid, 1 - hub.players[pid].team)
             self.controller.games_changed.emit()
 
+    def toggle_sound(self) -> None:
+        cfg = self.controller.config["games"]
+        self.controller.config["games"] = {**cfg, "sound": not cfg.get("sound", True)}
+        self.refresh(force=True)
+
+    def reset_board(self) -> None:
+        from PySide6.QtWidgets import QMessageBox
+
+        hub = self.hub()
+        if hub is None or not hub.board:
+            return
+        if QMessageBox.question(self, "Bestenliste", "Bestenliste des Abends löschen?") == QMessageBox.Yes:
+            self.controller.game_action("bestenliste_neu")
+
     def stop_games(self) -> None:
         self.controller.game_action("aus")
         self.close()
@@ -217,6 +241,8 @@ class GamesWindow(QWidget):
                 text = f"Lobby · {n} dabei" if n else "Lobby · noch niemand dabei"
             elif hub.phase == "over":
                 text = "Ergebnis auf Monitor 2"
+            elif hub.phase == "board":
+                text = f"Bestenliste auf Monitor 2 · {hub.board_games} Spiele"
             elif now < hub.intro_until:
                 text = f"{hub.spec.title} startet …"
             else:
@@ -262,7 +288,8 @@ class GamesWindow(QWidget):
             self.opts_row.addWidget(combo)
         self.opts_row.addStretch(1)
         running = hub.phase == "running"
-        pill = {"lobby": ("LOBBY", t.accent), "running": ("LÄUFT", t.success), "over": ("ERGEBNIS", t.warning)}
+        pill = {"lobby": ("LOBBY", t.accent), "running": ("LÄUFT", t.success), "over": ("ERGEBNIS", t.warning),
+                "board": ("BESTENLISTE", t.warning)}
         label, color = pill[hub.phase]
         self.pill.setText(label)
         self.pill.setStyleSheet(f"background: {color}; color: white; border-radius: 12px; padding: 6px 12px;"
@@ -272,6 +299,9 @@ class GamesWindow(QWidget):
         self.b_next.setEnabled(running)
         self.b_end.setEnabled(running)
         self.b_lobby.setEnabled(hub.phase != "lobby")
+        self.b_board.setEnabled(not running)
+        sound_on = bool(self.controller.config["games"].get("sound", True))
+        self.b_sound.setText("Töne an   S" if sound_on else "Töne aus   S")
         teams = spec.cls.teams
         self.b_teams.setEnabled(teams and not running)
         self.b_team.setEnabled(teams and not running)
@@ -289,8 +319,10 @@ class GamesWindow(QWidget):
             parts = [pl.name]
             if teams:
                 parts.append(TEAM_NAMES[pl.team])
-            if pl.pid in scores and hub.phase != "lobby":
+            if pl.pid in scores and hub.phase not in ("lobby", "board"):
                 parts.append(f"{int(scores[pl.pid]) % 1000 if teams else int(scores[pl.pid])}")
+            if hub.board.get(pl.name):
+                parts.append(f"gesamt {hub.board[pl.name]}")
             item = QListWidgetItem(icons.dot_icon(pl.color), "   ·   ".join(parts))
             item.setData(Qt.UserRole, pl.pid)
             self.players.addItem(item)

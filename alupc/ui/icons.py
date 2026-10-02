@@ -436,6 +436,11 @@ def _draw(name: str, p: QPainter, color: QColor):
         p.drawPath(path)
         p.drawArc(QRectF(10, 8, 7, 8), -60 * 16, 120 * 16)
         p.drawArc(QRectF(9, 4.5, 12, 15), -60 * 16, 120 * 16)
+    elif name == "mic":  # Mikrofon
+        p.drawRoundedRect(QRectF(9, 3, 6, 11), 3, 3)
+        p.drawArc(QRectF(5.5, 6, 13, 12), 200 * 16, 140 * 16)
+        p.drawLine(QPointF(12, 18), QPointF(12, 21))
+        p.drawLine(QPointF(8.5, 21), QPointF(15.5, 21))
     elif name == "phone":
         p.drawRoundedRect(QRectF(7, 2.5, 10, 19), 2.4, 2.4)
         p.drawLine(QPointF(10.5, 5), QPointF(13.5, 5))

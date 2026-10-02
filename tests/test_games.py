@@ -397,3 +397,83 @@ def test_hub_full_and_every_game_runs():
             assert ui["ui"] in ("msg", "tap", "pad", "buttons", "number", "text", "draw", "paddle", "balloon"), key
         hub.finish()
         assert hub.phase == "over" and len(hub.ranking) == 3, key
+
+
+# --------------------------------------------------------------------------- Bestenliste / Töne
+def test_board_over_the_evening():
+    clock = Clock()
+    hub = GameHub("reaktion", clock, random.Random(1))
+    a, b, c = (hub.join(n) for n in ("Lena", "Noah", "Mia"))
+    assert hub.board_ranking() == [] and hub.board_games == 0
+    hub.start()
+    clock.t = hub.intro_until
+    hub.tick()
+    hub.game.score = {a.pid: 5, b.pid: 5, c.pid: 1}  # Gleichstand auf Platz 1
+    hub.finish()
+    assert hub.last_award == {"Lena": 10, "Noah": 10, "Mia": 5} and hub.board_games == 1
+    # Team-Spiel: Sieger 6, Verlierer 2
+    hub.set_game("tauziehen")
+    a.team, b.team, c.team = 0, 1, 0
+    hub.start()
+    clock.t = hub.intro_until
+    hub.tick()
+    hub.game.pos = -1.0
+    hub.tick()
+    assert hub.phase == "over" and hub.last_award == {"Lena": 6, "Noah": 2, "Mia": 6}
+    assert hub.board == {"Lena": 16, "Noah": 12, "Mia": 11} and hub.board_games == 2
+    assert hub.board_ranking() == [("Lena", 16, 1), ("Noah", 12, 2), ("Mia", 11, 3)]
+    assert "Gesamt: Platz 2 · 12 Punkte" in hub.state_for(b.pid)["ui"]["status"]
+    hub.show_board()
+    assert hub.phase == "board" and hub.state_for(a.pid)["ui"]["big"] == "Platz 1"
+    assert "nach 2 Spielen" in hub.state_for(a.pid)["ui"]["status"]
+    hub.start()
+    assert hub.phase == "running"
+    hub.show_board()  # läuft ein Spiel, bleibt es beim Spiel
+    assert hub.phase == "running"
+    hub.reset_board()
+    assert hub.board == {} and hub.board_games == 0
+
+
+def test_game_sounds_follow_the_game():
+    from alupc.game_sounds import GameSounds
+
+    clock = Clock()
+    hub = GameHub("simon", clock, random.Random(2))
+    config = {"games": {"sound": False}, "sounds": {"volume": 50}}  # aus: nichts abspielen, aber mitzählen
+    gs = GameSounds(config)
+    gs.update(hub)
+    p1 = hub.join("Lena")
+    hub.join("Noah")
+    gs.update(hub)
+    assert gs.played[-1] == "blip"  # jemand ist beigetreten
+    hub.start()
+    for k in range(30):  # 3-2-1 → drei Ticks, dann „los“
+        clock.t += 0.1
+        gs.update(hub)
+    assert gs.played.count("tick") == 3 and gs.played[-1] == "los"
+    g = hub.game
+    clock.t = g.show_start + 0.01
+    hub.tick()
+    gs.update(hub)
+    assert gs.played[-1] == f"simon{g.seq[0]}"  # Simon: Ton zur leuchtenden Farbe
+    clock.t = g.until + 0.01
+    hub.tick()
+    hub.input(p1.pid, {"btn": (g.seq[0] + 1) % 4})
+    gs.update(hub)
+    assert "falsch" in gs.played[-2:]
+    hub.finish()
+    gs.update(hub)
+    assert gs.played[-1] == "sieg"
+
+
+def test_game_sound_files_are_generated(tmp_path, monkeypatch):
+    import wave
+
+    from alupc import sounds
+
+    monkeypatch.setattr(sounds, "sounds_dir", lambda: tmp_path)
+    for kind in ("tick", "los", "blip", "richtig", "falsch", "raus", "plopp", "treffer", "tor", "sieg", "simon0",
+                 "simon3"):
+        path = sounds.builtin_path(f"spiel-{kind}")
+        with wave.open(str(path)) as w:
+            assert w.getframerate() == sounds.RATE and 0.03 < w.getnframes() / w.getframerate() < 2.5, kind

@@ -62,6 +62,7 @@ jobs:
           --collect-submodules alupc
           --collect-submodules serial
           --collect-submodules segno
+          --collect-all vosk
           --collect-data alupc
           packaging/pyinstaller_entry.py
       - name: Fertiges Programm starten (Selbsttest)
@@ -201,6 +202,7 @@ jobs:
           --collect-submodules alupc
           --collect-submodules serial
           --collect-submodules segno
+          --collect-all vosk
           --collect-all winrt
           --collect-data alupc
           packaging/pyinstaller_entry.py

@@ -152,8 +152,14 @@ Außerdem:
   - **Schnelle Steuerung:** Die Handys sind per WebSocket verbunden – Eingaben gehen ohne Umweg raus. Klappt das
     nicht, fällt die Seite automatisch auf normale Abfragen zurück (grüner Punkt oben rechts = schnelle Verbindung).
   - **Steuerfenster mit Tasten:** Leertaste = Start, N = Weiter, E = Ergebnis, L = Lobby, T = Teams mischen,
-    M = Monitor 2, Entf = Spieler entfernen, 1 … 0 = Spiel wählen. Dazu Einstellungen je Spiel (Fragen, Thema,
-    Dauer, Runden, Tempo …).
+    M = Monitor 2, Entf = Spieler entfernen, 1 … 0 = Spiel wählen, B = Bestenliste, S = Töne an/aus.
+    Dazu Einstellungen je Spiel (Fragen, Thema, Dauer, Runden, Tempo …).
+  - **Bestenliste des Abends** (neu in 0.79): Jedes Spiel bringt Punkte (Platz 1: 10, Platz 2: 7, 3: 5, 4: 4,
+    5: 3, 6: 2, danach 1; Teams: Sieger 6, Verlierer 2, unentschieden 4). Taste B zeigt sie mit Animation auf
+    Monitor 2; die Lobby zeigt die ersten drei. Ein „Abend“ geht bis 6 Uhr früh, danach beginnt eine neue Liste
+    (oder „Bestenliste zurücksetzen“).
+  - **Töne** (neu in 0.79): 3-2-1, Los, richtig/falsch, raus, Plopp, Treffer, Tor, Sieger-Fanfare und die
+    Simon-Töne – über die Lautsprecher am PC (Lautstärke und Ausgabe wie unter Setup → Töne).
 
   | Lobby | Schätzen | Malen & Raten |
   |---|---|---|
@@ -164,6 +170,13 @@ Außerdem:
   ![Steuerfenster](docs/spiele-steuerung.png)
 
   ![Handy als Controller](docs/spiele-handy.png)
+- **Sprachbefehle** (neu in 0.79): „Monitor“ sagen, dann den Befehl – z. B. „Monitor schwarz“, „Monitor
+  spiegeln“, „Monitor nächste Szene“, „Monitor Szene Pause“, „Monitor Glücksrad drehen“, „Monitor Spiel starten“.
+  Läuft **offline** mit [Vosk](https://alphacephei.com/vosk/): Setup → *Sprache* → Sprachmodell einmal
+  herunterladen (ca. 45 MB), einschalten, Mikrofon wählen. Es geht kein Ton ins Internet; ohne „Monitor“ passiert
+  nie etwas. Die ganze Befehlsliste steht im Setup.
+- **Whiteboard vom Handy** (neu in 0.79): Handy-Steuerung → *Zeichnen* → Hintergrund antippen (Weiß, Kariert,
+  Tafel …) – Monitor 2 zeigt das Whiteboard, gezeichnet wird oben im Live-Bild.
 - **Fehlerbericht per Knopf** (neu in 0.68): Setup → *Fehlerbericht …* speichert eine ZIP-Datei auf dem Desktop:
   Beschreibung, Diagnose, Einstellungen (Codes/PINs geschwärzt), Fehler- und Absturzprotokoll, AirPlay-Protokoll,
   auf Wunsch ein Bild vom AluPC-Fenster.

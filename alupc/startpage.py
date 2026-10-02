@@ -95,6 +95,7 @@ COMMANDS = {
     "umfrage_ende": "Abstimmung beenden (Ergebnis)",
     "spiele": "Minispiele zeigen (Lobby)",
     "spiel_start": "Minispiel starten",
+    "spiel_bestenliste": "Minispiele: Bestenliste zeigen",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann

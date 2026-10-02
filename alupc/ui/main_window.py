@@ -990,6 +990,8 @@ class MainWindow(QMainWindow):
         if running:
             menu.addAction(icons.icon("forward", col, 18), "Weiter", lambda: c.game_action("weiter"))
             menu.addAction(icons.icon("check", col, 18), "Ergebnis zeigen", lambda: c.game_action("ende"))
+        if not running:
+            menu.addAction(icons.icon("star", col, 18), "Bestenliste zeigen", lambda: c.game_action("bestenliste"))
         if hub.phase != "lobby":
             menu.addAction(icons.icon("refresh", col, 18), "Zurück zur Lobby", lambda: c.game_action("lobby"))
         menu.addAction(icons.icon("x", col, 18), "Minispiele beenden", lambda: c.game_action("aus"))
@@ -1663,7 +1665,8 @@ class MainWindow(QMainWindow):
             tile.set_state(on, badge="AKTIV" if on else "")
         hub = c.cast.games
         self.t_games.set_state(hub is not None,
-                               badge="" if hub is None else {"lobby": "LOBBY", "running": "LÄUFT"}.get(hub.phase, "ERGEBNIS"))
+                               badge="" if hub is None else {"lobby": "LOBBY", "running": "LÄUFT",
+                                                              "board": "BESTENLISTE"}.get(hub.phase, "ERGEBNIS"))
         poll = c.cast.poll
         self.t_poll.set_state(poll is not None, badge="" if poll is None else ("LÄUFT" if poll.open else "ERGEBNIS"))
         remote_on = c.cast.running()  # Handy-Steuerung: „LÄUFT“, solange Handys verbinden können

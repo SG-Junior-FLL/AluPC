@@ -8,7 +8,21 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.78.0)
+### Neu in dieser Version (0.79.0)
+- **Sprachbefehle am PC (offline):** „Monitor schwarz“, „Monitor spiegeln“, „Monitor nächste Szene“,
+  „Monitor Szene Pause“, „Monitor Glücksrad drehen“, „Monitor Spiel starten“ … Setup → *Sprache*: Sprachmodell
+  einmal herunterladen (ca. 45 MB), einschalten, Mikrofon wählen. Alles bleibt auf dem PC (Vosk). Ohne das Wort
+  „Monitor“ passiert nichts; „Monitor zwei …“ geht auch.
+- **Bestenliste des Abends** für die Minispiele: Punkte aus allen Spielen, Taste **B** im Steuerfenster zeigt sie
+  animiert auf Monitor 2, Lobby und Handys zeigen den Stand. Bleibt bis 6 Uhr früh erhalten (auch nach Neustart).
+- **Töne für die Minispiele:** 3-2-1, Los, richtig/falsch, raus, Plopp, Treffer, Tor, Fanfare, Simon-Töne.
+  An/aus mit Taste **S** im Steuerfenster.
+- **Whiteboard vom Handy:** im Tab *Zeichnen* Hintergrund antippen → Whiteboard auf Monitor 2.
+- Ehrlich: Die Spracherkennung habe ich nur mit nachgebauter Erkennung getestet – das echte Sprachmodell und ein
+  echtes Mikrofon konnte ich hier nicht ausprobieren. Wie gut sie dich versteht, zeigt sich erst bei dir
+  (unter Setup → Sprache steht, was AluPC gehört hat).
+
+### Neu in Version 0.78.0
 - **Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter** – wie unter Windows. Bisher musste man am
   KDE-Sperrbildschirm erst Enter drücken, dann den Finger auflegen. Jetzt wacht AluPC, solange gesperrt ist, und
   entsperrt bei einem eigenen Anmelde-Finger direkt (über logind, klappt mit Plasma 5 und 6).

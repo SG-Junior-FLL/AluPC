@@ -75,7 +75,51 @@ def _synth(name: str) -> list[float]:
         for _ in range(4):
             seq += _tone([(880, 0.7)], 0.18, 4) + _tone([(660, 0.7)], 0.18, 4)
         return seq
+    if name.startswith("spiel-"):
+        return _game_sound(name[6:])
     return _tone([(880, 0.6)], 0.3, 8)
+
+
+SIMON_FREQ = [415.3, 310.0, 252.0, 209.0]  # grün, rot, gelb, blau – die Töne des alten Simon-Spiels
+
+
+def _noise(duration, decay=18.0, volume=0.6, seed=7):
+    import random
+
+    rnd = random.Random(seed)
+    n = int(RATE * duration)
+    return [rnd.uniform(-1, 1) * math.exp(-decay * i / RATE) * volume for i in range(n)]
+
+
+def _game_sound(kind: str) -> list[float]:
+    """Klänge für die Minispiele (kurz, damit sie bei schnellen Spielen nicht stören)."""
+    if kind == "tick":
+        return _tone([(880, 0.6)], 0.09, 14)
+    if kind == "los":
+        return _tone([(1320, 0.6), (2640, 0.15)], 0.35, 6)
+    if kind == "blip":
+        return _tone([(1568, 0.4)], 0.05, 40)
+    if kind == "richtig":
+        return _tone([(988, 0.5)], 0.08, 14) + _tone([(1319, 0.55)], 0.22, 9)
+    if kind == "falsch":
+        return _tone([(196, 0.5), (207.7, 0.4)], 0.35, 5)
+    if kind == "raus":
+        return _tone([(523, 0.5)], 0.12, 10) + _tone([(392, 0.5)], 0.12, 10) + _tone([(262, 0.55)], 0.35, 6)
+    if kind == "plopp":
+        return _noise(0.25, 20, 0.8)
+    if kind == "treffer":
+        return _tone([(660, 0.5), (1320, 0.2)], 0.06, 30)
+    if kind == "tor":
+        return _noise(0.12, 25, 0.4) + _tone([(784, 0.5)], 0.1, 10) + _tone([(1047, 0.55)], 0.3, 6)
+    if kind == "sieg":
+        notes = [(523.3, 0.12), (659.3, 0.12), (784.0, 0.12), (1046.5, 0.45)]
+        out = []
+        for f, d in notes:
+            out += _tone([(f, 0.5), (f * 2, 0.12)], d, 3 if d > 0.3 else 8)
+        return out
+    if kind.startswith("simon") and kind[5:].isdigit():
+        return _tone([(SIMON_FREQ[int(kind[5:]) % 4], 0.6), (SIMON_FREQ[int(kind[5:]) % 4] * 2, 0.15)], 0.32, 4)
+    return _tone([(880, 0.6)], 0.1, 10)
 
 
 def sounds_dir() -> Path:

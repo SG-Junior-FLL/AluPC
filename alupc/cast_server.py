@@ -38,7 +38,7 @@ ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirm
                     "rgb_farbe", "rgb_monitor2", "rgb_aus", "zeichnung_zurueck", "kamera", "airplay", "qr",
                     "timer_stopp", "ablauf_weiter", "ablauf_zurueck",
                     "musik_zeigen", "musik_pause", "musik_weiter", "musik_zurueck", "overlays", "gluecksrad", "gluecksrad_drehen", "wetter",
-                    "umfrage_zeigen", "umfrage_ende", "spiele"}  # Minispiele starten nur am PC
+                    "umfrage_zeigen", "umfrage_ende", "spiele", "whiteboard"}  # Minispiele starten nur am PC
 MAX_FAILS = 10
 BLOCK_SECONDS = 60
 
@@ -529,6 +529,7 @@ def _make_handler(server: CastServer):
                 elif u.path == "/api/cmd":
                     cmd = str(data.get("cmd", ""))
                     if not (cmd in ALLOWED_COMMANDS or cmd.startswith("szene:")
+                            or re.fullmatch(r"whiteboard:[a-z]{2,20}", cmd)
                             or re.fullmatch(r"lautstaerke:\d{1,3}", cmd) or re.fullmatch(r"timer:\d{1,5}", cmd)
                             or re.fullmatch(r"taste:(weiter|zurueck|rechts|links|start|ende|schwarz|leer)", cmd)):
                         self._json(400, {"error": "Unbekannter Befehl"})

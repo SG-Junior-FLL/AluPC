@@ -281,6 +281,10 @@ def lobby(c) -> None:
             _lobby_chip(c, QRectF(m + col * (cw + gap), top + h * 0.075 + r * (chip_h + gap), cw, chip_h), pl)
     text(p, QRectF(m, h - m - h * 0.05, left_w, h * 0.05), "Gestartet wird am PC", h * 0.028, MUTED,
          align=Qt.AlignLeft | Qt.AlignVCenter)
+    line = board_line(hub)
+    if line:
+        text(p, QRectF(m, h - m - h * 0.1, left_w, h * 0.05), line, h * 0.03, "#fbbf24", True,
+             Qt.AlignLeft | Qt.AlignVCenter)
     qx, qy = w - m - qr_side, (h - qr_side) / 2 - h * 0.03
     bob = math.sin(c.now * 1.6) * h * 0.006
     qr_card(c, qx, qy + bob, qr_side)
@@ -363,11 +367,92 @@ def podium(c) -> None:
              "#ffffff", True)
         text(p, QRectF(rect.x(), rect.bottom() - h * 0.07, rect.width(), h * 0.06), score_label(key, score),
              h * 0.032, "#ffffff")
+        gain = hub.last_award.get(pl.name)
+        if gain:
+            a = ease_out((c.now - hub.over_at - 1.2) / 0.5)
+            text(p, QRectF(rect.x(), rect.y() + h * 0.15, rect.width(), h * 0.05), f"+{gain} gesamt", h * 0.03,
+                 qc("#fbbf24", a), True)
     rest = ranking[3:10]
     if rest:
         line = "   ".join(f"{places[i + 3]}. {hub.players[pid].name}" for i, (pid, _s) in enumerate(rest))
         text(p, QRectF(m, base_y + h * 0.03, w - 2 * m, h * 0.05), line, h * 0.028, MUTED)
+    _board_footer(c, m)
+
+
+def board_line(hub, top: int = 3) -> str:
+    rows = hub.board_ranking()[:top]
+    if not rows:
+        return ""
+    return "Bestenliste: " + "  ·  ".join(f"{place}. {name} {pts}" for name, pts, place in rows)
+
+
+def _board_footer(c, m):
+    p, w, h = c.p, c.w, c.h
+    line = board_line(c.hub)
+    if line:
+        text(p, QRectF(m, h - m - h * 0.1, w - 2 * m, h * 0.05), line, h * 0.03, "#fbbf24", True)
     text(p, QRectF(m, h - m - h * 0.05, w - 2 * m, h * 0.05), "Das nächste Spiel startet am PC", h * 0.028, MUTED)
+
+
+def board(c) -> None:
+    """Bestenliste über den ganzen Abend: Balken wachsen nacheinander, die ersten drei mit Medaille."""
+    p, w, h, hub = c.p, c.w, c.h, c.hub
+    m = max(14, int(min(w, h) * 0.05))
+    t = c.now - hub.board_at
+    if not c.fx.born.get("confetti") and hub.board:
+        c.fx.born["confetti"] = c.now
+        confetti(c.fx, w, h, c.now, n=120)
+    tag(c, m, m, w - 2 * m, "BESTENLISTE DES ABENDS", "#fbbf24")
+    games = hub.board_games
+    s = ease_back(t / 0.5)
+    p.save()
+    p.translate(w / 2, m + h * 0.1)
+    p.scale(s, s)
+    text(p, QRectF(-w * 0.45, -h * 0.05, w * 0.9, h * 0.1),
+         f"nach {games} {'Spiel' if games == 1 else 'Spielen'}" if games else "Noch keine Punkte", h * 0.06,
+         "#ffffff", True)
+    p.restore()
+    rows = hub.board_ranking()[:16]
+    if not rows:
+        text(p, QRectF(0, h * 0.4, w, h * 0.1), "Erst ein Spiel spielen – dann gibt es hier Punkte", h * 0.04, MUTED)
+        return
+    cols = 1 if len(rows) <= 8 else 2
+    per_col = math.ceil(len(rows) / cols)
+    top = m + h * 0.2
+    row_h = min(h * 0.085, (h - top - m) / per_col)
+    col_w = (w - 2 * m - (cols - 1) * m) / cols
+    best = max(pts for _n, pts, _pl in rows) or 1
+    medal = {1: "#fbbf24", 2: "#cbd5e1", 3: "#d97706"}
+    # von unten nach oben aufbauen: Platz 1 kommt zuletzt (Spannung)
+    for i, (name, pts, place) in enumerate(rows):
+        col, r = divmod(i, per_col)
+        x = m + col * (col_w + m)
+        y = top + r * row_h
+        delay = (len(rows) - 1 - i) * 0.18
+        k = ease_out((t - 0.4 - delay) / 0.6)
+        if k <= 0:
+            continue
+        circle = row_h * 0.7
+        p.setPen(Qt.NoPen)
+        p.setBrush(qc(medal.get(place, "#334155"), k))
+        p.drawEllipse(QRectF(x, y + (row_h - circle) / 2, circle, circle))
+        text(p, QRectF(x, y + (row_h - circle) / 2, circle, circle), str(place), circle * 0.5,
+             qc("#0b1020" if place in medal else TEXT, k), True)
+        bar_x = x + circle + row_h * 0.25
+        bar_w = (col_w - circle - row_h * 0.25) * (0.35 + 0.65 * pts / best) * k
+        bar = QRectF(bar_x, y + row_h * 0.14, bar_w, row_h * 0.72)
+        color = QColor(hub.color_of_name(name))
+        g = QLinearGradient(bar.topLeft(), bar.topRight())
+        g.setColorAt(0, qc(color.darker(150).name(), 0.9 * k))
+        g.setColorAt(1, qc(color.name(), 0.9 * k))
+        p.setBrush(g)
+        p.drawRoundedRect(bar, bar.height() / 2, bar.height() / 2)
+        inner = bar.adjusted(row_h * 0.3, 0, -row_h * 0.3, 0)
+        text(p, inner, name, row_h * 0.4, qc("#ffffff", k), True, Qt.AlignLeft | Qt.AlignVCenter)
+        text(p, inner, str(int(pts * k)), row_h * 0.42, qc("#ffffff", k), True, Qt.AlignRight | Qt.AlignVCenter)
+        if place == 1 and k >= 1 and ("crown", name) not in c.fx.born:
+            c.fx.born[("crown", name)] = c.now
+            burst(c.fx, bar.right(), bar.center().y(), "#fbbf24", c.now, n=40, speed=380)
 
 
 def score_label(key: str, score) -> str:
@@ -413,7 +498,7 @@ def _team_result(c, m, t):
                 continue
             chip(p, QRectF(x - (1 - appear) * 30, y0 + h * 0.065 + i * h * 0.062, col_w, h * 0.054),
                  hub.players[pid].name, hub.players[pid].color, f"{int(scores[pid] % 1000)} {unit}", dim=appear)
-    text(p, QRectF(m, h - m - h * 0.05, w - 2 * m, h * 0.05), "Das nächste Spiel startet am PC", h * 0.028, MUTED)
+    _board_footer(c, m)
 
 
 # =========================================================================== Schätzen

@@ -4040,3 +4040,82 @@ def test_birthday_without_fingerprint(env, monkeypatch):
     again = welcome_settings.WelcomeSettings(controller, window)  # bleibt beim nächsten Öffnen stehen
     assert again.birthday_edits["Mia"].text() == "03.07." and again.try_name.findText("Mia") >= 0
     again.reject()
+
+
+def test_board_sounds_and_voice_in_app(env, monkeypatch):
+    """Bestenliste: wird pro Abend gespeichert, Taste B zeigt sie auf Monitor 2; Spiel-Töne laufen mit;
+    Sprachbefehl → Befehl + Meldung; Setup-Bereich „Sprache“; Whiteboard vom Handy mit Hintergrund."""
+    import json
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    from alupc import controller as ctl
+    from alupc.game_source import GameSource
+
+    controller, window, _ = env
+    port = _free_tcp_port()
+    controller.config["cast"] = {**controller.config["cast"], "port": port, "code": "123456"}
+    window.open_games_window()
+    pump()
+    hub = controller.cast.games
+    gw = window.games_window
+    lena, noah = hub.join("Lena"), hub.join("Noah")
+    controller.game_action("start")
+    hub.intro_until = hub.clock()
+    controller._games_tick()
+    hub.game.score = {lena.pid: 3, noah.pid: 1}
+    controller.game_action("ende")
+    controller._games_tick()
+    saved = controller.config["games"]["board"]
+    assert saved == {"abend": ctl.evening_key(), "punkte": {"Lena": 10, "Noah": 7}, "spiele": 1}
+    assert controller.game_sounds is not None and "sieg" in controller.game_sounds.played
+    gw.activateWindow()
+    QTest.keyClick(gw, Qt.Key_B)
+    assert hub.phase == "board" and isinstance(controller.output.content, GameSource)
+    assert not controller.output.content.grab().isNull()
+    _until(lambda: window.t_games.badge == "BESTENLISTE")
+    gw.refresh(force=True)
+    assert "gesamt 10" in gw.players.item(0).text()
+    sound_before = controller.config["games"]["sound"]
+    QTest.keyClick(gw, Qt.Key_S)
+    assert controller.config["games"]["sound"] is (not sound_before)
+    # gleicher Abend: neue Spielrunde übernimmt die Bestenliste, anderer Abend nicht
+    controller.game_action("aus")
+    controller.start_games()
+    assert controller.cast.games.board == {"Lena": 10, "Noah": 7}
+    controller.game_action("aus")
+    controller.config["games"] = {**controller.config["games"], "board": {**saved, "abend": "2000-01-01"}}
+    controller.start_games()
+    assert controller.cast.games.board == {}
+    controller.game_action("aus")
+    # Sprachbefehl → Befehl ausführen + Meldung
+    ran, msgs = [], []
+    monkeypatch.setattr(controller, "run_command", ran.append)
+    controller.message.connect(msgs.append)
+    controller.voice.command.emit("schwarz", "Schwarz an/aus", "monitor schwarz")
+    pump()
+    assert ran == ["schwarz"] and msgs[-1] == "🎤 Schwarz an/aus"
+    monkeypatch.undo()
+    # Setup: Bereich „Sprache“ vorhanden
+    from alupc.ui.setup_page import SetupPage
+
+    setup = SetupPage(controller, window.hotkeys)
+    setup.show_section("Sprache")
+    assert "Sprachmodell" in setup.voice_model.text() or "Vosk" in setup.voice_model.text()
+    assert setup.voice_state.text().startswith("Status:")
+    setup.deleteLater()
+    # Whiteboard vom Handy: Hintergrund per Befehl
+    controller.cast.start()
+    base = f"http://127.0.0.1:{controller.cast.port}"
+    status, _ = _http("POST", base + "/api/cmd", json.dumps({"cmd": "whiteboard:tafel"}).encode(),
+                      {"Content-Type": "application/json", "X-AluPC-Code": "123456"})
+    assert status == 200
+    _until(lambda: (controller.content or {}).get("type") == "whiteboard")
+    assert controller.content["background"] == "tafel"
+    status, _ = _http("POST", base + "/api/cmd", json.dumps({"cmd": "whiteboard:../x"}).encode(),
+                      {"Content-Type": "application/json", "X-AluPC-Code": "123456"})
+    assert status == 400
+    status, body = _http("GET", base + "/")
+    assert "whiteboard:kariert" in body.decode()
+    controller.cast.stop()

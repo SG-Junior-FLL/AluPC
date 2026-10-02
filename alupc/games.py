@@ -107,7 +107,7 @@ class GameHub:
         self.rng = rng or random.Random()
         self.token = secrets.token_urlsafe(6)
         self.players: dict[str, Player] = {}
-        self.phase = "lobby"  # lobby | running | over
+        self.phase = "lobby"  # lobby | running | over | board (Bestenliste)
         self.game: Game | None = None
         self.ranking: list[tuple[str, float]] = []
         self.intro_until = 0.0
@@ -116,6 +116,11 @@ class GameHub:
         self.memory: dict[str, set] = {}  # pro Spiel: was in dieser Sitzung schon dran war (Fragen, Wörter)
         self.lock = threading.RLock()
         self.version = 0  # zählt bei Änderungen (Steuerfenster aktualisiert sich dann)
+        # Bestenliste über den ganzen Abend: Name → Punkte (Name, weil Handys auch mal neu beitreten)
+        self.board: dict[str, int] = {}
+        self.board_games = 0
+        self.last_award: dict[str, int] = {}
+        self.board_at = 0.0
 
     @property
     def spec(self) -> GameSpec:
@@ -274,7 +279,61 @@ class GameHub:
                     self.ranking = sorted(scores.items(), key=lambda kv: -kv[1])
                     self.phase = "over"
                     self.over_at = now
+                    self._award()
                     self._changed()
+
+    # ---- Bestenliste über den Abend
+    PLACE_POINTS = [10, 7, 5, 4, 3, 2]  # ab Platz 7: 1 Punkt fürs Mitmachen
+    TEAM_POINTS = {"win": 6, "lose": 2, "tie": 4}
+
+    def award_for(self) -> dict[str, int]:
+        """Punkte für die Bestenliste aus dem gerade beendeten Spiel (Name → Punkte)."""
+        out: dict[str, int] = {}
+        if self.spec.cls.teams:
+            win = self.team_result()
+            for pid, _score in self.ranking:
+                pl = self.players.get(pid)
+                if pl is None:
+                    continue
+                kind = "tie" if win is None else ("win" if pl.team == win else "lose")
+                out[pl.name] = self.TEAM_POINTS[kind]
+            return out
+        for pid, _score in self.ranking:
+            pl = self.players.get(pid)
+            place = self.place_of(pid)
+            if pl is None or place is None:
+                continue
+            out[pl.name] = self.PLACE_POINTS[place - 1] if place <= len(self.PLACE_POINTS) else 1
+        return out
+
+    def _award(self) -> None:
+        self.last_award = self.award_for()
+        for name, pts in self.last_award.items():
+            self.board[name] = self.board.get(name, 0) + pts
+        if self.last_award:
+            self.board_games += 1
+
+    def board_ranking(self) -> list[tuple[str, int, int]]:
+        """[(Name, Punkte, Platz)] – gleiche Punkte = gleicher Platz."""
+        rows = sorted(self.board.items(), key=lambda kv: (-kv[1], kv[0].lower()))
+        return [(name, pts, 1 + sum(1 for v in self.board.values() if v > pts)) for name, pts in rows]
+
+    def show_board(self) -> None:
+        """Bestenliste auf Monitor 2 (bricht ein laufendes Spiel nicht ab – erst „Ergebnis“ oder „Lobby“)."""
+        with self.lock:
+            if self.phase == "running":
+                return
+            self.phase, self.game = "board", None
+            self.board_at = self.clock()
+            self._changed()
+
+    def reset_board(self) -> None:
+        with self.lock:
+            self.board, self.board_games, self.last_award = {}, 0, {}
+            self._changed()
+
+    def color_of_name(self, name: str) -> str:
+        return next((p.color for p in self.players.values() if p.name == name), "#64748b")
 
     def place_of(self, pid: str) -> int | None:
         """Platz 1, 2, … (Gleichstand = gleicher Platz)."""
@@ -300,7 +359,17 @@ class GameHub:
             if spec.cls.teams and self.phase != "lobby":
                 color = TEAM_COLORS[p.team]
             data.update(name=p.name, color=color)
-            if self.phase == "lobby":
+            board_line = ""
+            if self.board.get(p.name):
+                place = next((pl for n, _pts, pl in self.board_ranking() if n == p.name), None)
+                board_line = f"Gesamt: Platz {place} · {self.board[p.name]} Punkte"
+            if self.phase == "board":
+                place = next((pl for n, _pts, pl in self.board_ranking() if n == p.name), None)
+                data["ui"] = {"ui": "msg", "big": f"Platz {place}" if place else "–",
+                              "tone": "good" if place == 1 else "",
+                              "status": f"Bestenliste · {self.board.get(p.name, 0)} Punkte nach {self.board_games} "
+                                        f"{'Spiel' if self.board_games == 1 else 'Spielen'}"}
+            elif self.phase == "lobby":
                 team = f" · {TEAM_NAMES[p.team]}" if spec.cls.teams else ""
                 data["ui"] = {"ui": "msg", "big": "Du bist dabei!", "status": f"Warte auf den Start am PC{team}"}
             elif self.phase == "running" and now < self.intro_until:
@@ -316,11 +385,11 @@ class GameHub:
                     win = self.team_result()
                     big = "Unentschieden" if win is None else ("Gewonnen!" if win == p.team else "Verloren")
                     data["ui"] = {"ui": "msg", "big": big, "tone": "good" if win == p.team else "",
-                                  "status": TEAM_NAMES[p.team]}
+                                  "status": TEAM_NAMES[p.team] + (f" · {board_line}" if board_line else "")}
                 else:
                     data["ui"] = {"ui": "msg", "big": f"Platz {place}" if place else "–",
                                   "tone": "good" if place == 1 else "",
-                                  "status": f"von {len(self.ranking)} · nächstes Spiel startet am PC"}
+                                  "status": f"von {len(self.ranking)}" + (f" · {board_line}" if board_line else "")}
             return data
 
 

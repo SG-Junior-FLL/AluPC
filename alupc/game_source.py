@@ -61,7 +61,7 @@ class GameSource(QWidget):
             c.now = hub.clock()
             key = self._fx_key(hub)
             if key != self._fx_for:  # neues Spiel / neue Phase → Effekte neu
-                keep = self.fx.parts if hub.phase == "over" else []
+                keep = self.fx.parts if hub.phase in ("over", "board") else []
                 self.fx = c.fx = gd.new_fx()
                 self.fx.parts = keep
                 self.fx.ev = hub.game.event_n if hub.game is not None and hub.phase == "over" else 0
@@ -71,6 +71,8 @@ class GameSource(QWidget):
                 gd.lobby(c)
             elif hub.phase == "over":
                 gd.podium(c)
+            elif hub.phase == "board":
+                gd.board(c)
             elif hub.game is not None and c.now < hub.intro_until:
                 gd.intro(c)
             elif hub.game is not None:

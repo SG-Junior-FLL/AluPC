@@ -15,6 +15,13 @@ from .sources import create_source, media_sources, window_settings
 HANDY_NOTES = ("iPhone/iPad",)  # Monitor 2 zeigt ein Handy-Fenster (AirPlay)
 
 
+def evening_key() -> str:
+    """Ein „Abend“ geht bis 6 Uhr früh – so zählt ein Spieleabend über Mitternacht als einer."""
+    import datetime
+
+    return (datetime.datetime.now() - datetime.timedelta(hours=6)).date().isoformat()
+
+
 class Controller(QObject):
     changed = Signal()
     message = Signal(str)
@@ -40,6 +47,15 @@ class Controller(QObject):
 
         self.finger_unlock = FingerUnlock(config, self)
         self.finger_unlock.apply()
+        # Sprachbefehle („Monitor schwarz“) – offline mit Vosk, nur wenn eingeschaltet
+        from .voice import VoiceControl
+
+        self.voice = VoiceControl(config, scenes=config.scene_names, parent=self)
+        self.voice.command.connect(self._voice_command)
+        if config["voice"].get("on"):
+            from PySide6.QtCore import QTimer as _VT
+
+            _VT.singleShot(1500, self.voice.apply)  # nach dem Start, damit AluPC nicht langsamer startet
         from .weather import service as weather_service
 
         self.weather = weather_service(config)
@@ -55,6 +71,7 @@ class Controller(QObject):
         self._welcome = None  # laufende Begrüßung (Fenster)
         self._games_timer = None
         self._games_version = -1
+        self.game_sounds = None  # Töne der Minispiele (games_sounds.GameSounds), beim ersten Start angelegt
 
         self.mode = "desktop"  # "content" = AluPC zeigt etwas, "desktop" = normaler zweiter Desktop
         self.content: dict | None = None
@@ -805,6 +822,8 @@ class Controller(QObject):
                 self.start_cast()
             elif cmd.startswith("lautstaerke:"):
                 self.set_media_volume(volume=max(0, min(100, int(cmd.split(":", 1)[1]))), muted=False)
+            elif cmd.startswith("whiteboard:"):  # Whiteboard mit Hintergrund (vom Handy)
+                self.show_whiteboard(cmd.split(":", 1)[1], draw=False)
             elif cmd.startswith("video_"):
                 if videos:
                     {"video_pause": videos[0].toggle_play, "video_vor": lambda: videos[0].skip(10_000),
@@ -1197,6 +1216,7 @@ class Controller(QObject):
             "umfrage_ende": lambda: self.poll_action("ende"),
             "spiele": self.start_games,
             "spiel_start": lambda: self.game_action("start"),
+            "spiel_bestenliste": lambda: self.game_action("bestenliste"),
         }
         action = actions.get(command)
         if action:
@@ -1485,6 +1505,10 @@ class Controller(QObject):
         self.show_source({"type": "umfrage"}, remember=False)
         self.changed.emit()
 
+    def _voice_command(self, command: str, label: str, text: str) -> None:
+        self.message.emit(f"🎤 {label}")
+        self.run_command(command)
+
     def start_games(self, key: str | None = None) -> None:
         """Minispiele: Lobby mit QR-Code auf Monitor 2 (eine laufende Runde bleibt erhalten).
         Gestartet wird nur am PC (Steuerfenster, Kachel-Menü, eigene Kachel/Finger-Befehl „spiel_start“)."""
@@ -1498,6 +1522,10 @@ class Controller(QObject):
                 for opt, value in (opts or {}).items():
                     if game in GAMES:
                         hub.set_option(opt, value, game)
+            board = cfg.get("board") or {}
+            if board.get("abend") == evening_key():  # Bestenliste vom selben Abend weiterführen
+                hub.board = {str(k): int(v) for k, v in (board.get("punkte") or {}).items()}
+                hub.board_games = int(board.get("spiele", 0))
             self.cast.games = hub
         elif key:
             self.cast.games.set_game(key)
@@ -1508,6 +1536,9 @@ class Controller(QObject):
 
             self._games_timer = QTimer(self, interval=33)  # Spiel-Uhr – läuft auch, wenn Monitor 2 etwas anderes zeigt
             self._games_timer.timeout.connect(self._games_tick)
+            from .game_sounds import GameSounds
+
+            self.game_sounds = GameSounds(self.config, self.sounds)
         self._games_timer.start()
         if not (self.mode == "content" and (self.content or {}).get("type") == "spiel"):
             self.show_source({"type": "spiel"}, remember=False)
@@ -1519,9 +1550,17 @@ class Controller(QObject):
             self._games_timer.stop()
             return
         hub.tick()
+        if self.game_sounds is not None:
+            self.game_sounds.update(hub)
         if hub.version != self._games_version:
             self._games_version = hub.version
+            self._save_board(hub)
             self.games_changed.emit()
+
+    def _save_board(self, hub) -> None:
+        board = {"abend": evening_key(), "punkte": dict(hub.board), "spiele": hub.board_games}
+        if self.config["games"].get("board") != board:
+            self.config["games"] = {**self.config["games"], "board": board}
 
     def save_game_options(self) -> None:
         hub = self.cast.games
@@ -1552,6 +1591,13 @@ class Controller(QObject):
             hub.finish()
         elif action == "lobby":
             hub.to_lobby()
+        elif action == "bestenliste":
+            hub.show_board()
+            if not (self.mode == "content" and (self.content or {}).get("type") == "spiel"):
+                self.show_source({"type": "spiel"}, remember=False)
+        elif action == "bestenliste_neu":
+            hub.reset_board()
+            self._save_board(hub)
         elif action == "aus":
             self.save_game_options()
             self.cast.games = None
@@ -1601,6 +1647,7 @@ class Controller(QObject):
             self._games_timer.stop()
         self.finger_shortcuts.stop()
         self.finger_unlock.stop()
+        self.voice.stop()
         self._stop_handy_window()
         self.laser.close()
         self.overlay_window.shutdown()

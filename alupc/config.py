@@ -77,11 +77,13 @@ DEFAULTS: dict = {
     # Abstimmung: zuletzt gestellte Frage (zum schnellen Wiederholen)
     "poll": {"question": "", "options": []},
     # Minispiele: zuletzt gewähltes Spiel
-    "games": {"last": "schaetzen", "options": {}},
+    "games": {"last": "schaetzen", "options": {}, "sound": True, "board": {}},
     # Finger als Schnelltaste (Modul am USB-Seriell-Adapter): Platz → Befehl
     "finger_shortcuts": {"on": False, "map": {}},
     # Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter zu drücken (wie unter Windows)
     "fingerprint": {"auto_unlock": True},
+    # Sprachbefehle am PC (offline, Startwort „Monitor“)
+    "voice": {"on": False, "device": ""},
     # Begrüßung nach der Anmeldung mit dem Finger (Seite Fingerabdruck → Begrüßung): Stil, eigener Text, eigene Namen je Person
     "welcome": {"on": True, "style": "aurora", "text": "", "sound": True, "names": {}, "birthdays": {}},
     # Timer (Countdown/Stoppuhr): Voreinstellung für Kachel und Befehle

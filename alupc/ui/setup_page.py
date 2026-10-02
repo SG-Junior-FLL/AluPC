@@ -211,6 +211,7 @@ class SetupPage(QWidget):
         ("timer", "Timer", "Dauer · Warnfarben"),
         ("sound", "Töne", "Bei Aktionen"),
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
+        ("mic", "Sprache", "„Monitor schwarz“ …"),
         ("sync", "Sichern & Sync", "Export · Dual-Boot"),
         ("fan", "RGB & Lüfter", "OpenRGB · Temperaturen"),
         ("phone", "Handy & Kamera", "Rechte · Kamera"),
@@ -231,6 +232,7 @@ class SetupPage(QWidget):
             "Timer": [self._timer_group],
             "Töne": [self._sound_group],
             "Tastenkürzel": [self._hotkey_group],
+            "Sprache": [self._voice_group],
             "Sichern & Sync": [lambda: sync_group(self), lambda: backup_group(self)],
             "RGB & Lüfter": [self._hardware_group],
             "Handy & Kamera": [self._phone_group, self._camera_group],  # AirPlay: ohne Einstellungen
@@ -1021,6 +1023,110 @@ class SetupPage(QWidget):
         more.setObjectName("Muted")
         more.setWordWrap(True)
         form.addRow(more)
+        return box
+
+    # ================================================================ Sprache
+    def _voice_group(self):
+        from PySide6.QtMultimedia import QMediaDevices
+        from PySide6.QtWidgets import QProgressBar
+
+        from .. import voice
+
+        box = QGroupBox("Sprachbefehle")
+        lay = QVBoxLayout(box)
+        intro = QLabel("„Monitor“ sagen, dann den Befehl – z. B. „Monitor schwarz“ oder „Monitor nächste Szene“. "
+                       "Läuft komplett auf dem PC (offline), es geht kein Ton ins Internet.")
+        intro.setWordWrap(True)
+        lay.addWidget(intro)
+        cfg = self.config["voice"]
+        self.voice_on = QCheckBox("Sprachbefehle an")
+        self.voice_on.setChecked(bool(cfg.get("on")))
+        lay.addWidget(self.voice_on)
+        form = QFormLayout()
+        mic = QComboBox()
+        mic.addItem("Standard-Mikrofon des Systems", "")
+        for dev in QMediaDevices.audioInputs():
+            mic.addItem(dev.description(), bytes(dev.id()).decode(errors="replace"))
+        mic.setCurrentIndex(max(0, mic.findData(cfg.get("device", ""))))
+        form.addRow("Mikrofon:", mic)
+        lay.addLayout(form)
+        self.voice_state = QLabel()
+        self.voice_state.setObjectName("Muted")
+        self.voice_heard = QLabel()
+        self.voice_heard.setObjectName("Muted")
+        self.voice_heard.setWordWrap(True)
+        lay.addWidget(self.voice_state)
+        lay.addWidget(self.voice_heard)
+        model_row = QHBoxLayout()
+        self.voice_model = QLabel()
+        self.voice_model.setWordWrap(True)
+        self.voice_dl = button("Herunterladen", "download")
+        self.voice_bar = QProgressBar()
+        self.voice_bar.setMaximumWidth(220)
+        self.voice_bar.hide()
+        model_row.addWidget(self.voice_model, 1)
+        model_row.addWidget(self.voice_bar)
+        model_row.addWidget(self.voice_dl)
+        lay.addLayout(model_row)
+        cmds = QLabel("<b>Befehle</b> (immer mit „Monitor“ davor):<br>" + "<br>".join(
+            f"„{variants[0].capitalize()}“ – {label.replace('&', '&amp;')}" for variants, _cmd, label in voice.COMMANDS)
+            + "<br>„Szene <i>Name</i>“ – eigene Szene zeigen")
+        cmds.setObjectName("Muted")
+        cmds.setWordWrap(True)
+        lay.addWidget(cmds)
+        vc = self.controller.voice
+
+        def refresh():
+            ok = voice.vosk_available()
+            ready = voice.model_ready()
+            if not ok:
+                self.voice_model.setText("Spracherkennung (Vosk) fehlt in dieser AluPC-Version.")
+            elif ready:
+                self.voice_model.setText("Sprachmodell: Deutsch (klein) ✓")
+            else:
+                self.voice_model.setText(f"Sprachmodell fehlt – einmal herunterladen (ca. {voice.MODEL_SIZE_MB} MB)")
+            self.voice_dl.setVisible(ok and not ready)
+            self.voice_on.setEnabled(ok and ready)
+            self.voice_state.setText(f"Status: {vc.state}")
+
+        def save(*_):
+            self.config["voice"] = {**self.config["voice"], "on": self.voice_on.isChecked(),
+                                    "device": mic.currentData()}
+            vc.stop()
+            vc.apply()
+            refresh()
+
+        def download():
+            self.voice_dl.setEnabled(False)
+            self.voice_bar.show()
+            self.voice_bar.setRange(0, 0)
+
+            def work(status):
+                return voice.download_model(lambda done, total: status(f"{done // 1_000_000} MB", done, total))
+
+            def progress(_text, done, total):
+                if total:
+                    self.voice_bar.setRange(0, 100)
+                    self.voice_bar.setValue(int(100 * done / total))
+
+            def done(_path):
+                self.voice_bar.hide()
+                self.voice_dl.setEnabled(True)
+                refresh()
+
+            def failed(e):
+                self.voice_bar.hide()
+                self.voice_dl.setEnabled(True)
+                error_box(self, f"Sprachmodell konnte nicht geladen werden: {e}")
+
+            run_async(work, done, failed, progress)
+
+        self.voice_on.toggled.connect(save)
+        mic.currentIndexChanged.connect(save)
+        self.voice_dl.clicked.connect(download)
+        vc.state_changed.connect(lambda _s: refresh())
+        vc.heard.connect(lambda text: self.voice_heard.setText(f"Zuletzt gehört: „{text}“"))
+        refresh()
         return box
 
     # ================================================================ Tastenkürzel
