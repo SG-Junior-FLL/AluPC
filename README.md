@@ -289,8 +289,11 @@ kennen sie nicht – AluPC steuert sie direkt. Steckt so ein Modul, nimmt AluPC 
 - **Kubuntu:** „Automatisch einrichten“ findet das Modul, lernt den Finger an, testet und schaltet die
   Anmeldung ein. Blockiert der Dienst **brltty** den CH340-Adapter (bekanntes Ubuntu-Problem), bietet
   AluPC an, ihn zu entfernen. Beim Anmelden/Entsperren/sudo hat man ca. 6 Sekunden, um den Finger
-  aufzulegen – sonst geht es mit dem Passwort weiter (das Passwort funktioniert immer). Am
-  Sperrbildschirm startet die Prüfung je nach Plasma-Version erst nach Enter.
+  aufzulegen – sonst geht es mit dem Passwort weiter (das Passwort funktioniert immer).
+  **Sperrbildschirm ohne Enter** (neu in 0.78, wie unter Windows): Solange der Bildschirm gesperrt ist,
+  wacht AluPC am Modul – eigener Finger auflegen genügt, AluPC entsperrt die Sitzung über logind
+  (`loginctl unlock-session`). Abschaltbar auf der Fingerabdruck-Seite. Beim **Anmelden nach dem Einschalten**
+  geht das nicht (dort läuft AluPC noch nicht): da wie bisher Enter drücken, dann Finger.
 - **Sicherheit:** Der PC vertraut der Antwort des Moduls („passt“), und das Modul hat keinen
   Zugriffsschutz: Wer den Adapter öffnen darf, kann Finger in beliebige Speicherplätze schreiben.
   Gibt es **mehrere Benutzerkonten**, warnt AluPC deshalb vor dem Einschalten und schaltet die Anmeldung

@@ -80,6 +80,8 @@ DEFAULTS: dict = {
     "games": {"last": "schaetzen", "options": {}},
     # Finger als Schnelltaste (Modul am USB-Seriell-Adapter): Platz → Befehl
     "finger_shortcuts": {"on": False, "map": {}},
+    # Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter zu drücken (wie unter Windows)
+    "fingerprint": {"auto_unlock": True},
     # Begrüßung nach der Anmeldung mit dem Finger (Seite Fingerabdruck → Begrüßung): Stil, eigener Text, eigene Namen je Person
     "welcome": {"on": True, "style": "aurora", "text": "", "sound": True, "names": {}, "birthdays": {}},
     # Timer (Countdown/Stoppuhr): Voreinstellung für Kachel und Befehle

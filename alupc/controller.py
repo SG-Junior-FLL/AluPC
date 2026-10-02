@@ -35,6 +35,11 @@ class Controller(QObject):
         self.finger_shortcuts = FingerShortcuts(config, self)
         self.finger_shortcuts.triggered.connect(self.run_command)
         self.finger_shortcuts.apply()
+        # Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter (wie unter Windows)
+        from .finger_unlock import FingerUnlock
+
+        self.finger_unlock = FingerUnlock(config, self)
+        self.finger_unlock.apply()
         from .weather import service as weather_service
 
         self.weather = weather_service(config)
@@ -1595,6 +1600,7 @@ class Controller(QObject):
         if self._games_timer is not None:
             self._games_timer.stop()
         self.finger_shortcuts.stop()
+        self.finger_unlock.stop()
         self._stop_handy_window()
         self.laser.close()
         self.overlay_window.shutdown()

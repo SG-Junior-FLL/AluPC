@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QFormLayout,
@@ -191,6 +192,15 @@ class FingerprintPage(QWidget):
         self.login_btn.clicked.connect(self.toggle_login)
         ll.addWidget(self.login_label)
         ll.addWidget(self.login_btn, 0, Qt.AlignLeft)
+        # Linux: der Sperrbildschirm fragt den Finger sonst erst nach Enter
+        self.auto_unlock = QCheckBox("Sperrbildschirm: Finger auflegen genügt (ohne Enter)")
+        self.auto_unlock.setToolTip("AluPC wacht, solange der Bildschirm gesperrt ist, und entsperrt bei deinem "
+                                    "Finger. Beim Anmelden nach dem Einschalten geht das nicht (dort läuft AluPC "
+                                    "noch nicht) – da wie bisher Enter, dann Finger.")
+        self.auto_unlock.setChecked(bool(controller.config["fingerprint"].get("auto_unlock", True)))
+        self.auto_unlock.toggled.connect(self._auto_unlock_toggled)
+        self.auto_unlock.hide()
+        ll.addWidget(self.auto_unlock)
         lay.addWidget(self.login_box)
         self.win_box = QGroupBox("Anmelden mit Fingerabdruck")
         wl = QVBoxLayout(self.win_box)
@@ -428,6 +438,11 @@ class FingerprintPage(QWidget):
             self.login_label.setText("Ausgeschaltet: Anmelden nur mit Passwort.")
             self.login_btn.setText("Einschalten")
         self._login_state = state
+        self.auto_unlock.setVisible(not IS_WINDOWS and bool(state) and self.controller.finger_unlock.supported())
+
+    def _auto_unlock_toggled(self, on: bool):
+        self.controller.config["fingerprint"] = {**self.controller.config["fingerprint"], "auto_unlock": bool(on)}
+        self.controller.finger_unlock.apply()
 
     def _toggle_windows_login(self, enable: bool):
         """Windows + Modul: Passwort abfragen (wird geprüft und verschlüsselt gespeichert), dann einmal

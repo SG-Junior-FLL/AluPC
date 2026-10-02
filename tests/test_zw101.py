@@ -610,3 +610,93 @@ def test_finger_shortcuts(fake):
     config["finger_shortcuts"]["on"] = False
     fs.apply()
     assert not fs.running()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="nur Linux")
+def test_finger_unlock_without_enter(fake, tmp_path, monkeypatch):
+    """Linux-Sperrbildschirm: Finger auflegen genügt – nur eigene Anmelde-Finger, nur wenn gesperrt, nicht wenn
+    der Finger beim Sperren schon drauf lag; „Willkommen“ wird gemerkt; Ausschalten stoppt den Wächter."""
+    import time
+
+    from PySide6.QtCore import QCoreApplication
+
+    from alupc import finger_unlock, welcome
+    from alupc.finger_unlock import FingerUnlock
+
+    app = QCoreApplication.instance() or QCoreApplication([])
+    fake.library = {3: "noah", 4: "lena", 9: "fremd"}
+    config = {"fingerprint": {"auto_unlock": True}}
+    state = {"locked": False}
+    unlocks, recorded, got = [], [], []
+
+    def unlock():
+        unlocks.append(1)
+        state["locked"] = False
+        return True
+
+    monkeypatch.setattr(welcome, "record_login", lambda user, slot: recorded.append(slot))
+    fu = FingerUnlock(config, locked=lambda: state["locked"], port=lambda: (fake.port, 57600), unlock=unlock,
+                      slots=lambda: {3, 4}, poll=0.05)
+    fu.unlocked.connect(got.append)
+
+    def pause(seconds):
+        end = time.time() + seconds
+        while time.time() < end:
+            app.processEvents()
+            time.sleep(0.02)
+
+    def wait(cond, seconds=4):
+        end = time.time() + seconds
+        while not cond() and time.time() < end:
+            pause(0.05)
+        return cond()
+
+    fu.apply()
+    assert fu.running()
+    fake.finger = "noah"  # entsperrt → nichts
+    pause(0.5)
+    assert unlocks == []
+    state["locked"] = True  # Finger lag beim Sperren schon drauf → nichts
+    pause(0.6)
+    assert unlocks == []
+    fake.finger = None
+    pause(0.4)
+    fake.finger = "fremd"  # Platz eines anderen Benutzers → bleibt gesperrt
+    pause(0.8)
+    assert unlocks == [] and state["locked"]
+    fake.finger = None
+    pause(0.4)
+    fake.finger = "lena"
+    assert wait(lambda: got == [4])
+    assert unlocks == [1] and recorded == [4] and not state["locked"]
+    # Anmelden mit Fingerabdruck aus → keine Plätze → nichts
+    fu.slots = lambda: set()
+    fake.finger = None
+    state["locked"] = True
+    pause(0.4)
+    fake.finger = "noah"
+    pause(0.6)
+    assert unlocks == [1]
+    config["fingerprint"]["auto_unlock"] = False
+    fu.apply()
+    assert not fu.running()
+    # Standard-Plätze: wie bei PAM (aus /etc bzw. der eigenen Plätze-Datei)
+    monkeypatch.setattr("alupc.platform.linux_serial_login.read_login", lambda: {"users": {"ich": [3]}})
+    monkeypatch.setattr(zw, "user_slots_from_home", lambda user: None)
+    assert finger_unlock.login_slots("ich") == {3} and finger_unlock.login_slots("andere") == set()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="nur Linux")
+def test_port_is_exclusive_between_programs(fake):
+    """Zwei Programme (AluPC und die PAM-Prüfung) lesen das Modul nie gleichzeitig: wer zuerst kommt, hat es;
+    der andere wartet kurz und bekommt dann eine klare Meldung."""
+    import serial
+
+    other = serial.Serial(fake.port, 57600, exclusive=True)  # „anderes Programm“
+    try:
+        with pytest.raises(zw.SensorError, match="anderen Programm"):
+            zw.ZWSensor(fake.port).open(busy_wait=0.3)
+    finally:
+        other.close()
+    with zw.ZWSensor(fake.port) as s:
+        assert s.handshake()

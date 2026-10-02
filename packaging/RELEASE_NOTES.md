@@ -8,7 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.77.0)
+### Neu in dieser Version (0.78.0)
+- **Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter** – wie unter Windows. Bisher musste man am
+  KDE-Sperrbildschirm erst Enter drücken, dann den Finger auflegen. Jetzt wacht AluPC, solange gesperrt ist, und
+  entsperrt bei einem eigenen Anmelde-Finger direkt (über logind, klappt mit Plasma 5 und 6).
+  - Nur, wenn „Anmelden mit Fingerabdruck“ für dich an ist, und nur mit deinen Fingern.
+  - Lag der Finger beim Sperren schon drauf, passiert nichts – erst neu auflegen.
+  - Abschaltbar: Fingerabdruck → „Sperrbildschirm: Finger auflegen genügt (ohne Enter)“.
+  - Nicht beim Anmelden nach dem Einschalten (dort läuft AluPC noch nicht) – da wie bisher Enter, dann Finger.
+- AluPC und die Anmelde-Prüfung lesen das Modul nie mehr gleichzeitig (Linux: exklusiver Zugriff, kurzes Warten).
+- Ehrlich: getestet mit einem nachgebauten Modul; mit dem echten ZW101 am echten KDE-Sperrbildschirm konnte ich
+  es hier nicht ausprobieren.
+
+### Neu in Version 0.77.0
 - **7 neue Minispiele** (jetzt 10):
   - **Schätzen** – knapp 300 Fragen in 8 Themen, Thema und Anzahl wählbar; Auflösung auf einem Zahlenstrahl.
   - **Malen & Raten** – einer malt auf dem Handy (live auf Monitor 2), die anderen raten.

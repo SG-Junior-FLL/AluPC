@@ -133,10 +133,17 @@ class ZWSensor:
         try:
             while True:
                 try:
-                    self.ser = serial.Serial(self.port, self.baud, timeout=self.timeout, write_timeout=self.timeout)
+                    extra = {} if sys.platform.startswith("win") else {"exclusive": True}
+                    self.ser = serial.Serial(self.port, self.baud, timeout=self.timeout, write_timeout=self.timeout,
+                                             **extra)
                     break
                 except serial.SerialException as exc:
                     text = str(exc)
+                    if "exclusively lock" in text:  # Linux: gerade liest ein anderes Programm (PAM, AluPC)
+                        if time.monotonic() < deadline:
+                            time.sleep(0.15)
+                            continue
+                        raise SensorError(f"{self.port} wird gerade von einem anderen Programm gelesen") from exc
                     denied = "ermission" in text or "Zugriff" in text or "Access" in text or "verweigert" in text
                     if denied and sys.platform.startswith("win") and time.monotonic() < deadline:
                         time.sleep(0.3)  # gerade belegt (z. B. kurz von der Anmeldekachel) → kurz warten
