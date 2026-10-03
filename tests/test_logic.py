@@ -1276,3 +1276,39 @@ def test_windows_pdh_counters_real():
     assert load is None or 0 <= load <= 100
     print("PDH", total, len(cores), load, win_pdh.gpu_name_and_memory())
     pdh.close()
+
+
+# ---------------------------------------------------------------- 0.87: Mainboard-RGB (ASUS Aura USB)
+def test_openrgb_resizable_zones_and_late_devices():
+    """ASUS-AM5-Mainboards: ARGB-Anschlüsse stehen in OpenRGB oft auf 0 LEDs; das Mainboard taucht erst nach
+    Maus/Tastatur auf. AluPC muss beides können."""
+    from fake_openrgb import FakeOpenRGB
+
+    from alupc.rgb import OpenRGB
+
+    fake = FakeOpenRGB(4)
+    fake.devices = [("Logitech Maus", 6, [("Logo", 1, False, 0)])]
+    try:
+        client = OpenRGB(port=fake.port)
+        assert [d.name for d in client.connect()] == ["Logitech Maus"]
+        # Mainboard kommt später (OpenRGB-Erkennung über USB dauert)
+        fake.devices.append(("ASUS TUF GAMING B650-PLUS WIFI", 0,
+                             [("Aura Mainboard", 1, False, 0), ("Aura Addressable 1", 0, False, 0, 120)]))
+        devs = client.refresh()
+        board = devs[1]
+        assert board.type == 0 and board.num_leds == 1
+        z = board.zone_info[1]
+        assert z.resizable and z.count == 0 and z.leds_max == 120
+        assert not board.zone_info[0].resizable
+        client.resize_zone(1, 1, 30)
+        board = client.refresh()[1]
+        assert board.zone_info[1].count == 30 and board.num_leds == 31
+        client.set_color((0, 0, 255))
+        import time
+
+        time.sleep(0.2)
+        assert fake.leds(1) == [(0, 0, 255)] * 31
+        assert (1, 1100, b"") in fake.received  # vorher auf „Direkt“ geschaltet
+        client.close()
+    finally:
+        fake.close()

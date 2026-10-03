@@ -21,8 +21,9 @@ def mode(name: str, version: int, colors=0) -> bytes:
     return out + struct.pack("<H", colors) + b"\x01\x02\x03\x00" * colors
 
 
-def zone(name: str, leds: int, version: int, matrix=False, segments=0) -> bytes:
-    out = s(name) + struct.pack("<iIII", 1, leds, leds, leds)
+def zone(name: str, leds: int, version: int, matrix=False, segments=0, leds_max=None) -> bytes:
+    lo, hi = (0, leds_max) if leds_max is not None else (leds, leds)  # leds_max: ARGB-Anschluss (einstellbar)
+    out = s(name) + struct.pack("<iIII", 1, lo, hi, leds)
     if matrix:
         h, w = 2, leds // 2
         data = struct.pack("<II", h, w) + b"".join(struct.pack("<I", i) for i in range(h * w))
@@ -44,8 +45,9 @@ def device(name: str, dtype: int, zones: list[tuple[str, int, bool, int]], versi
     body += struct.pack("<Hi", 3, 0) + mode("Direct", version) + mode("Static", version, 1) + mode("Rainbow", version)
     body += struct.pack("<H", len(zones))
     total = 0
-    for zname, leds, matrix, segs in zones:
-        body += zone(zname, leds, version, matrix, segs)
+    for z in zones:
+        zname, leds, matrix, segs = z[:4]
+        body += zone(zname, leds, version, matrix, segs, z[4] if len(z) > 4 else None)
         total += leds
     body += struct.pack("<H", total) + b"".join(s(f"LED {i}") + struct.pack("<I", i) for i in range(total))
     body += struct.pack("<H", total) + b"\0\0\0\0" * total
@@ -102,6 +104,14 @@ class FakeOpenRGB:
                 elif pid == 0:
                     send(0, 100)  # dazwischen eine unaufgeforderte Meldung (muss übersprungen werden)
                     send(0, 0, struct.pack("<I", len(self.devices)))
+                elif pid == 1000:  # Anschluss vergrößern (wie „Resize“ in OpenRGB)
+                    zi, size = struct.unpack("<ii", body)
+                    name, dtype, zones = self.devices[dev]
+                    z = list(zones[zi])
+                    z[1] = size
+                    zones = list(zones)
+                    zones[zi] = tuple(z)
+                    self.devices[dev] = (name, dtype, zones)
                 elif pid == 1:
                     ver = struct.unpack("<I", body)[0] if body else 0
                     self.used_version = ver

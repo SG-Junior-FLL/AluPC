@@ -4423,3 +4423,48 @@ def test_voice_camera_airplay_qr_are_known_commands(env, monkeypatch):
         controller.run_command(cmd)
     assert called == ["start_camera", "start_airplay", "start_cast"]
     assert not any("Unbekannter Befehl" in m for m in msgs)
+
+
+def test_rgb_late_mainboard_and_argb_header(env):
+    """ASUS B650: Mainboard taucht in OpenRGB erst später auf, ARGB-Anschluss steht auf 0 LEDs – AluPC holt das
+    Mainboard per „Geräte neu suchen“ nach, zeigt den Anschluss mit LED-Anzahl und merkt sie sich."""
+    import sys
+    import time
+
+    sys.path.insert(0, str(HERE))
+    from fake_openrgb import FakeOpenRGB
+
+    from alupc.ui.hardware_page import HardwarePage
+
+    controller, window, _ = env
+    fake = FakeOpenRGB(4)
+    fake.devices = [("Logitech Maus", 6, [("Logo", 1, False, 0)])]
+    controller.config["rgb"] = {**controller.config["rgb"], "port": fake.port, "start_openrgb": False,
+                                "color": "#ff0000", "mode": "farbe"}
+    page = HardwarePage(controller)
+    controller.rgb.connect_async()
+    assert _until(lambda: controller.rgb.connected, 5)
+    pump()
+    assert "Kein Mainboard" in page.board_hint.text()
+    fake.devices.append(("ASUS TUF GAMING B650-PLUS WIFI", 0,
+                         [("Aura Mainboard", 1, False, 0), ("Aura Addressable 1", 0, False, 0, 120)]))
+    controller.rgb.rescan(quiet=False)
+    assert _until(lambda: len(controller.rgb.devices) == 2, 5)
+    pump()
+    assert page.board_hint.isHidden()
+    assert "ohne LEDs" not in controller.rgb.text.lower()  # Mainboard selbst hat 1 LED
+    time.sleep(0.2)
+    assert fake.leds(1) == [(255, 0, 0)]  # neues Gerät bekommt gleich die Farbe
+    controller.rgb.set_zone_size("ASUS TUF GAMING B650-PLUS WIFI", "Aura Addressable 1", 24)
+    time.sleep(0.2)
+    assert fake.leds(1) == [(255, 0, 0)] * 25
+    assert controller.config["rgb"]["zone_sizes"] == {"ASUS TUF GAMING B650-PLUS WIFI|Aura Addressable 1": 24}
+    pump()
+    from PySide6.QtCore import QEvent
+    from PySide6.QtWidgets import QSpinBox
+
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)  # alte Zeilen wirklich weg
+    spins = page.devices_box.findChildren(QSpinBox)
+    assert [s.value() for s in spins] == [24]
+    controller.rgb.shutdown()
+    fake.close()

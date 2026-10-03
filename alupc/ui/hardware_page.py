@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSlider,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -231,6 +232,17 @@ class HardwarePage(QWidget):
         self.devices_lay = QGridLayout(self.devices_box)
         self.devices_lay.setContentsMargins(0, 4, 0, 0)
         col.addWidget(self.devices_box)
+        rescan_row = QHBoxLayout()
+        self.rescan_btn = button("Geräte neu suchen", "refresh")
+        self.rescan_btn.setToolTip("OpenRGB findet manche Geräte (Mainboard, RAM) erst nach ein paar Sekunden")
+        self.rescan_btn.clicked.connect(lambda: self.rgb.rescan(quiet=False))
+        rescan_row.addWidget(self.rescan_btn)
+        rescan_row.addStretch(1)
+        col.addLayout(rescan_row)
+        self.board_hint = QLabel()
+        self.board_hint.setObjectName("Muted")
+        self.board_hint.setWordWrap(True)
+        col.addWidget(self.board_hint)
         help_text = QLabel(
             "Braucht <b>OpenRGB</b> · Hersteller-Programme (iCUE, Armoury Crate …) beenden")
         help_text.setWordWrap(True)
@@ -310,12 +322,32 @@ class HardwarePage(QWidget):
             if w:
                 w.deleteLater()
         skip = set(s["skip"])
-        for i, dev in enumerate(self.rgb.devices):
+        row = 0
+        for dev in self.rgb.devices:
             cb = QCheckBox(f"{dev.name}  ·  {dev.kind}, {dev.num_leds} LEDs")
             cb.setChecked(dev.name not in skip)
             cb.toggled.connect(lambda on, n=dev.name: self._toggle_device(n, on))
-            self.devices_lay.addWidget(cb, i // 2, i % 2)
+            self.devices_lay.addWidget(cb, row, 0, 1, 2)
+            row += 1
+            # ARGB-Anschlüsse (ASUS Aura „Addressable“ …): LED-Anzahl einstellbar – steht oft auf 0, dann leuchtet nichts
+            for zone in dev.zone_info:
+                if not zone.resizable:
+                    continue
+                label = QLabel(f"    {zone.name}: LEDs" + ("  ⚠ steht auf 0" if zone.count == 0 else ""))
+                spin = QSpinBox()
+                spin.setRange(zone.leds_min, zone.leds_max)
+                spin.setValue(zone.count)
+                spin.setToolTip("Anzahl der LEDs am Anschluss (Streifen, Lüfter …). Bei 0 leuchtet dort nichts.")
+                spin.editingFinished.connect(lambda d=dev.name, z=zone.name, sp=spin: self.rgb.set_zone_size(
+                    d, z, sp.value()))
+                self.devices_lay.addWidget(label, row, 0)
+                self.devices_lay.addWidget(spin, row, 1)
+                row += 1
         self.devices_box.setVisible(bool(self.rgb.devices))
+        self.rescan_btn.setVisible(connected)
+        hint = self.rgb.mainboard_hint()
+        self.board_hint.setText(hint)
+        self.board_hint.setVisible(bool(hint))
 
     def _toggle_device(self, name: str, on: bool):
         skip = [n for n in self.rgb.settings()["skip"] if n != name] + ([] if on else [name])

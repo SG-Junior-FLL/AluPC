@@ -8,7 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.86.0)
+### Neu in dieser Version (0.87.0)
+- **Mainboard-RGB (z. B. ASUS TUF B650):**
+  - AluPC holt spät erkannte Geräte nach. OpenRGB findet Maus/Tastatur sofort, das Mainboard („ASUS Aura USB“)
+    erst nach ein paar Sekunden – AluPC hatte die Liste aber schon beim Verbinden übernommen. Jetzt schaut es nach
+    3, 8, 15 und 30 s nochmal nach; dazu Knopf „Geräte neu suchen“.
+  - ARGB-Anschlüsse (Streifen, Lüfter am Mainboard) stehen in OpenRGB oft auf **0 LEDs** – dann leuchtet nichts.
+    Die LED-Anzahl lässt sich jetzt direkt in AluPC einstellen (RGB & Lüfter → unter dem Gerät) und wird gemerkt.
+  - Fehlt das Mainboard ganz, steht ein Hinweis da, woran es meist liegt (Windows: Armoury Crate/„LightingService“;
+    Linux: udev-Regeln von OpenRGB; OpenRGB 1.0 oder neuer für AM5-Boards).
+- Ehrlich: Getestet gegen einen nachgebauten OpenRGB-Server, nicht mit deinem Board. Ob OpenRGB selbst dein
+  TUF B650-PLUS WIFI erkennt, hängt von der OpenRGB-Version ab – das kann AluPC nicht ändern.
+
+### Neu in Version 0.86.0
 - **Mikrofon wird wieder erkannt – bei jedem Mikrofon.** Fehler aus 0.84/0.85: PySide 6.11 meldet den
   Mikrofon-Zustand mit einem anderen Aufzählungstyp (QtAudio statt QAudio); „kein Fehler“ war dadurch nie gleich
   „kein Fehler“ und AluPC hielt jedes Mikrofon für defekt („lässt sich nicht öffnen“). Behoben.

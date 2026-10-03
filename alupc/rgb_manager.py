@@ -7,7 +7,11 @@ from PySide6.QtCore import QObject, QSize, QTimer, Signal
 from .rgb import OpenRGB, RGBError, find_openrgb, hex_to_rgb, start_openrgb, vivid
 
 RGB_DEFAULTS = {"enabled": False, "port": 6742, "mode": "farbe", "color": "#3b82f6", "brightness": 100,
-                "skip": [], "openrgb_path": "", "start_openrgb": True}
+                "skip": [], "openrgb_path": "", "start_openrgb": True,
+                # LED-Anzahl je ARGB-Anschluss („Gerät|Anschluss“ → Anzahl), z. B. ASUS-Mainboards
+                "zone_sizes": {}}
+# Nach dem Verbinden noch einmal nachsehen: OpenRGB findet Maus/Tastatur sofort, Mainboard/RAM erst nach Sekunden
+RESCAN_MS = (3000, 8000, 15000, 30000)
 MODES = {"farbe": "Farbe", "monitor2": "Farbe folgt Monitor 2", "aus": "Aus"}
 
 
@@ -81,15 +85,99 @@ class RgbManager(QObject):
             self._busy = False
             self.disconnect()
             self.client = c
-            n = len(c.devices)
-            self._set_status(f"Verbunden mit OpenRGB – {n} Gerät{'e' if n != 1 else ''}.")
+            self._apply_zone_sizes()
+            self._set_status(self._status_text())
             self.apply()
+            for ms in RESCAN_MS:  # spät gefundene Geräte (Mainboard!) noch übernehmen
+                QTimer.singleShot(ms, self.rescan)
 
         def failed(text):
             self._busy = False
             self._set_status(text)
 
         run_async(work, done, failed)
+
+    def _status_text(self) -> str:
+        devs = self.devices
+        n = len(devs)
+        text = f"Verbunden mit OpenRGB – {n} Gerät{'e' if n != 1 else ''}."
+        empty = [d.name for d in devs if d.num_leds == 0]
+        if empty:
+            text += " Ohne LEDs (Anschlüsse auf 0 gestellt?): " + ", ".join(empty) + "."
+        return text
+
+    def rescan(self, quiet: bool = True) -> None:
+        """Geräteliste neu von OpenRGB holen (im Hintergrund). Neue Geräte bekommen gleich die aktuelle Farbe."""
+        from .ui.util import run_async
+
+        client = self.client
+        if client is None or self._busy:
+            return
+        before = [d.name for d in client.devices]
+
+        def done(devices):
+            if self.client is not client:
+                return
+            if [d.name for d in devices] != before or not quiet:
+                self._apply_zone_sizes()
+                self._set_status(self._status_text())
+                self.apply()
+
+        def failed(text):
+            if not quiet:
+                self._set_status(text)
+
+        run_async(client.refresh, done, failed)
+
+    def zone_key(self, dev, zone) -> str:
+        return f"{dev.name}|{zone.name}"
+
+    def _apply_zone_sizes(self) -> None:
+        """Gespeicherte LED-Anzahlen der ARGB-Anschlüsse an OpenRGB geben (OpenRGB vergisst sie sonst nicht, aber
+        nach Neuinstallation oder auf dem anderen System stehen sie wieder auf 0)."""
+        if not self.connected:
+            return
+        sizes = self.settings().get("zone_sizes") or {}
+        changed = False
+        for dev in self.devices:
+            for zi, zone in enumerate(dev.zone_info):
+                want = sizes.get(self.zone_key(dev, zone))
+                if zone.resizable and want is not None and int(want) != zone.count:
+                    try:
+                        self.client.resize_zone(dev.index, zi, max(zone.leds_min, min(zone.leds_max, int(want))))
+                        changed = True
+                    except RGBError:
+                        return
+        if changed:
+            try:
+                self.client.refresh()
+            except RGBError:
+                pass
+
+    def set_zone_size(self, dev_name: str, zone_name: str, size: int) -> None:
+        sizes = dict(self.settings().get("zone_sizes") or {})
+        sizes[f"{dev_name}|{zone_name}"] = int(size)
+        self.controller.config["rgb"] = {**self.controller.config["rgb"], "zone_sizes": sizes}
+        self._apply_zone_sizes()
+        self._set_status(self._status_text())
+        self.apply()
+
+    def mainboard_hint(self) -> str:
+        """Warum fehlt das Mainboard? Konkreter Hinweis je System (leer, wenn ein Mainboard da ist)."""
+        if not self.connected or any(d.type == 0 for d in self.devices):
+            return ""
+        import sys as _sys
+
+        if _sys.platform == "win32":
+            return ("Kein Mainboard in OpenRGB. Häufigster Grund: Armoury Crate bzw. der Dienst „LightingService“ "
+                    "(ASUS Aura) hält die Beleuchtung fest – Armoury Crate beenden/deinstallieren oder den Dienst "
+                    "„LightingService“ beenden, dann „Geräte neu suchen“. Neuere AM5-Boards brauchen OpenRGB 1.0 "
+                    "oder neuer. In OpenRGB unter „Einstellungen → Unterstützte Geräte“ muss „ASUS Aura USB“ an sein.")
+        return ("Kein Mainboard in OpenRGB. ASUS-AM5-Boards (z. B. B650) steuert OpenRGB über USB („ASUS Aura USB“): "
+                "OpenRGB braucht dafür seine udev-Regeln (60-openrgb.rules) – beim .deb/AppImage von openrgb.org "
+                "dabei, danach einmal neu starten. Ältere OpenRGB-Versionen (0.9) kennen manche neuen Boards noch "
+                "nicht – OpenRGB 1.0 oder neuer nehmen. In OpenRGB unter „Settings → Supported Devices“ muss "
+                "„ASUS Aura USB“ an sein.")
 
     def disconnect(self) -> None:
         self._ambient.stop()

@@ -13,6 +13,7 @@ import socket
 import struct
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -23,6 +24,7 @@ REQUEST_CONTROLLER_DATA = 1
 REQUEST_PROTOCOL_VERSION = 40
 SET_CLIENT_NAME = 50
 DEVICE_LIST_UPDATED = 100
+RESIZE_ZONE = 1000
 UPDATE_LEDS = 1050
 SET_CUSTOM_MODE = 1100
 
@@ -37,6 +39,19 @@ class RGBError(Exception):
 
 
 @dataclass
+class Zone:
+    name: str
+    count: int
+    leds_min: int = 0
+    leds_max: int = 0
+
+    @property
+    def resizable(self) -> bool:
+        """ARGB-Anschlüsse (z. B. ASUS Aura „Addressable“): LED-Anzahl muss man einstellen, oft steht sie auf 0."""
+        return self.leds_max > self.leds_min
+
+
+@dataclass
 class Device:
     index: int
     name: str
@@ -45,6 +60,7 @@ class Device:
     num_leds: int = 0
     zones: list[tuple[str, int]] = field(default_factory=list)
     modes: list[str] = field(default_factory=list)
+    zone_info: list[Zone] = field(default_factory=list)
 
     @property
     def kind(self) -> str:
@@ -111,8 +127,8 @@ def parse_device(index: int, data: bytes, version: int) -> Device:
     for _ in range(r.u16()):  # Zonen
         name = r.string()
         r.i32()  # type
-        r.u32()  # leds_min
-        r.u32()  # leds_max
+        leds_min = r.u32()
+        leds_max = r.u32()
         count = r.u32()
         r.take(r.u16())  # Matrix (Höhe, Breite, Daten) – brauchen wir nicht
         if version >= 4:
@@ -120,6 +136,7 @@ def parse_device(index: int, data: bytes, version: int) -> Device:
                 r.string()
                 r.take(12)
         dev.zones.append((name, count))
+        dev.zone_info.append(Zone(name, count, leds_min, leds_max))
     num_leds = r.u16()
     for _ in range(num_leds):
         r.string()
@@ -133,6 +150,7 @@ class OpenRGB:
     def __init__(self, host: str = "127.0.0.1", port: int = 6742, timeout: float = 2.0):
         self.host, self.port, self.timeout = host, port, timeout
         self.sock: socket.socket | None = None
+        self.lock = threading.RLock()  # Farben (GUI) und Neu-Einlesen (Hintergrund) teilen sich eine Verbindung
         self.version = 0
         self.devices: list[Device] = []
         self._custom: set[int] = set()
@@ -156,6 +174,10 @@ class OpenRGB:
         return self.refresh()
 
     def refresh(self) -> list[Device]:
+        with self.lock:
+            return self._refresh()
+
+    def _refresh(self) -> list[Device]:
         self._send(header(0, REQUEST_CONTROLLER_COUNT, 0))
         count = struct.unpack("<I", self._recv(REQUEST_CONTROLLER_COUNT)[:4])[0]
         devices = []
@@ -219,7 +241,17 @@ class OpenRGB:
                 self.sock.settimeout(self.timeout)
 
     # ---- Farben
+    def resize_zone(self, dev: int, zone: int, size: int) -> None:
+        """LED-Anzahl eines Anschlusses einstellen (wie „Resize“ in OpenRGB) – danach refresh()."""
+        with self.lock:
+            self._send(header(dev, RESIZE_ZONE, 8) + struct.pack("<ii", zone, size))
+            self._custom.discard(dev)
+
     def set_color(self, rgb: tuple[int, int, int], devices: list[int] | None = None) -> None:
+        with self.lock:
+            self._set_color(rgb, devices)
+
+    def _set_color(self, rgb: tuple[int, int, int], devices: list[int] | None = None) -> None:
         for dev in self.devices:
             if devices is not None and dev.index not in devices or dev.num_leds == 0:
                 continue
