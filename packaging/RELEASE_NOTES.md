@@ -8,7 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.89.0)
+### Neu in dieser Version (0.90.0)
+- **Linux: Entsperren mit EINMAL Finger auflegen.** Vorher kam beim ersten Auflegen oft nur der Knopf „Entsperren“
+  (der Sperrbildschirm nahm das erste Signal nur zum Aufwachen), erst das zweite Auflegen entsperrte. Jetzt weckt
+  AluPC den Sperrbildschirm zuerst, entsperrt, prüft nach und wiederholt automatisch (bis zu 4×). Auch nach der
+  Prüfung am Sperrbildschirm selbst (nach Enter) entsperrt AluPC zusätzlich – kein „Entsperren“-Knopf mehr.
+- **Design & Prüfung:** alle Seiten in Hell/Dunkel und im kleinen Fenster durchgesehen und korrigiert:
+  - RGB-Seite wurde rechts abgeschnitten; Farbfelder und Modus-Knöpfe brechen jetzt um.
+  - Setup → Allgemein: Hilfe-Knöpfe und „Alle Daten löschen“ abgeschnitten – behoben.
+  - Lange Auswahllisten (z. B. Stimme) verbreitern das Fenster nicht mehr.
+  - Sprache: „Schritt 1: Sprachmodell herunterladen“ steht jetzt oben und ist hervorgehoben (ohne Modell ließen
+    sich die Sprachbefehle gar nicht einschalten – stand vorher weiter unten).
+  - Überschrift „Erkennung & Stimme“ zeigte einen Unterstrich statt „&“.
+  - Systemseite: kleine Werte (z. B. 4 %) zeigten einen Farbklecks am Ring.
+- Ehrlich: Das Entsperren konnte ich ohne echten KDE-Sperrbildschirm nur mit nachgebautem Ablauf testen.
+
+### Neu in Version 0.89.0
 - **„Sprache testen …“** (Setup → Sprache): prüft jeden Schritt live und zeigt mit ✓/✗, wo es hängt –
   Spracherkennung im Programm, Sprachmodell, Zuhören, welches Mikrofon, ob Ton ankommt (Pegelanzeige), was erkannt
   wird (live mitgeschrieben), ob das Startwort erkannt wurde, welcher Befehl ausgeführt würde. Im Test wird nichts

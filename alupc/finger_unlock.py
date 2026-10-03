@@ -42,6 +42,19 @@ def login_slots(user: str | None = None) -> set[int]:
     return set(own) if own is not None else {int(s) for s in allowed}
 
 
+def wake_screen() -> None:
+    """Sperrbildschirm „aufwecken“ (wie eine Mausbewegung). Ist der Bildschirm aus oder zeigt KDE nur die Uhr, nimmt
+    der Sperrbildschirm das Entsperren sonst erst beim zweiten Mal an – genau das „zweimal auflegen“."""
+    try:
+        from .platform import dbus_util
+
+        with dbus_util.connect("SESSION") as conn:
+            dbus_util.call(conn, "org.freedesktop.ScreenSaver", "/ScreenSaver", "org.freedesktop.ScreenSaver",
+                           "SimulateUserActivity", timeout=2)
+    except Exception:  # noqa: BLE001 – ohne D-Bus eben ohne Aufwecken
+        pass
+
+
 def unlock_session() -> bool:
     """Eigene Sitzung entsperren (logind). KDE (Plasma 5 und 6) reagiert darauf und schließt den Sperrbildschirm."""
     loginctl = shutil.which("loginctl")
@@ -63,10 +76,12 @@ class FingerUnlock(QObject):
     unlocked = Signal(int)
 
     def __init__(self, config, parent=None, locked=session_locked, port=_port_and_baud, unlock=unlock_session,
-                 slots=login_slots, poll: float = POLL):
+                 slots=login_slots, poll: float = POLL, wake=wake_screen, retry_wait: float = 0.8):
         super().__init__(parent)
         self.config = config
         self.locked, self.port, self.unlock, self.slots, self.poll = locked, port, unlock, slots, poll
+        self.wake, self.retry_wait = wake, retry_wait
+        self.attempts = 0  # Entsperr-Versuche beim letzten Finger (Diagnose/Tests)
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self.last_error = ""
@@ -132,6 +147,22 @@ class FingerUnlock(QObject):
                 lock.release()
             self._stop.wait(self.poll)
 
+    def unlock_now(self, tries: int = 4) -> bool:
+        """Aufwecken, entsperren, nachsehen – und bis zu `tries`-mal wiederholen, solange noch gesperrt ist.
+        So reicht EIN Auflegen, auch wenn der Sperrbildschirm das erste Signal nur zum Aufwachen nutzt."""
+        self.attempts = 0
+        self.wake()
+        self._stop.wait(0.3)
+        ok = False
+        for _ in range(tries):
+            self.attempts += 1
+            ok = self.unlock() or ok
+            self._stop.wait(self.retry_wait)
+            if not self.locked():
+                return True
+            self.wake()
+        return ok and not self.locked()
+
     def _poll_once(self, zw, port: str, baud: int, armed: bool, allowed: set[int]) -> bool:
         with zw.ZWSensor(port, baud, timeout=0.5) as s:
             if not s.handshake():
@@ -154,7 +185,7 @@ class FingerUnlock(QObject):
                     record_login(current_user(), hit[0])  # für „Willkommen, Lena!“
                 except Exception:  # noqa: BLE001
                     pass
-                if self.unlock():
+                if self.unlock_now():
                     self.unlocked.emit(hit[0])
             # erst wieder prüfen, wenn der Finger einmal weg war – den Anschluss aber gleich wieder freigeben
             # (drückt jemand Enter, wartet die PAM-Prüfung sonst unnötig)

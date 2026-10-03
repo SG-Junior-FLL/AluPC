@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QGroupBox, QHBoxLayout, QLabel, QMessageBox, \
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QGroupBox, QLabel, QMessageBox, \
     QVBoxLayout
 
 from .. import reset
@@ -100,11 +101,11 @@ def reset_all(page) -> None:
 
 def reset_group(page) -> QGroupBox:
     box = QGroupBox("Zurücksetzen")
-    lay = QHBoxLayout(box)
+    lay = QVBoxLayout(box)  # untereinander: im kleinen Fenster wurde der Knopf rechts abgeschnitten
     text = QLabel("Alle Daten von AluPC löschen – wie frisch installiert")
     text.setWordWrap(True)
     btn = button("Alle Daten löschen …", "trash", danger=True)
     btn.clicked.connect(lambda: reset_all(page))
-    lay.addWidget(text, 1)
-    lay.addWidget(btn)
+    lay.addWidget(text)
+    lay.addWidget(btn, 0, Qt.AlignLeft)
     return box

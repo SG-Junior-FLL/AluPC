@@ -26,7 +26,7 @@ from ..rgb import find_openrgb, hex_to_rgb, start_openrgb
 from ..rgb_manager import MODES
 from . import theme
 from .util import ColorButton, error_box, run_async
-from .widgets import Banner, button, font, rounded
+from .widgets import Banner, FlowLayout, button, font, rounded
 
 PRESETS = ["#ef4444", "#f97316", "#facc15", "#22c55e", "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#ffffff"]
 
@@ -177,13 +177,12 @@ class HardwarePage(QWidget):
         row.addWidget(self.connect_btn)
         row.addWidget(self.start_btn)
         row.addWidget(self.install_btn)
-        row.addWidget(self.auto)
         row.addStretch(1)
         col.addLayout(row)
+        col.addWidget(self.auto)  # eigene Zeile – in einer Reihe mit den Knöpfen wurde die Karte rechts abgeschnitten
 
         # Modus als Umschalter
-        mode_row = QHBoxLayout()
-        mode_row.setSpacing(6)
+        mode_row = FlowLayout(spacing=6)  # bricht im kleinen Fenster um statt abzuschneiden
         self.mode_group = QButtonGroup(self)
         self.mode_btns = {}
         for key, label in MODES.items():
@@ -195,12 +194,10 @@ class HardwarePage(QWidget):
             self.mode_group.addButton(b)
             self.mode_btns[key] = b
             mode_row.addWidget(b)
-        mode_row.addStretch(1)
         col.addLayout(mode_row)
 
         # Farbfelder + eigene Farbe + Helligkeit
-        sw_row = QHBoxLayout()
-        sw_row.setSpacing(6)
+        sw_row = FlowLayout(spacing=6)  # Farbfelder brechen im kleinen Fenster um
         self.swatches = []
         for c in PRESETS:
             s = Swatch(c)
@@ -210,9 +207,7 @@ class HardwarePage(QWidget):
         self.custom = ColorButton(self.rgb.settings()["color"])
         self.custom.setToolTip("Eigene Farbe wählen")
         self.custom.changed.connect(self._pick_color)
-        sw_row.addSpacing(8)
         sw_row.addWidget(self.custom)
-        sw_row.addStretch(1)
         col.addLayout(sw_row)
         bright_row = QHBoxLayout()
         bright_row.addWidget(QLabel("Helligkeit"))

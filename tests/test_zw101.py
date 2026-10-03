@@ -636,7 +636,7 @@ def test_finger_unlock_without_enter(fake, tmp_path, monkeypatch):
 
     monkeypatch.setattr(welcome, "record_login", lambda user, slot: recorded.append(slot))
     fu = FingerUnlock(config, locked=lambda: state["locked"], port=lambda: (fake.port, 57600), unlock=unlock,
-                      slots=lambda: {3, 4}, poll=0.05)
+                      slots=lambda: {3, 4}, poll=0.05, wake=lambda: None, retry_wait=0.05)
     fu.unlocked.connect(got.append)
 
     def pause(seconds):
@@ -700,3 +700,44 @@ def test_port_is_exclusive_between_programs(fake):
         other.close()
     with zw.ZWSensor(fake.port) as s:
         assert s.handshake()
+
+
+
+def test_one_touch_unlocks_even_if_first_signal_only_wakes_lockscreen():
+    """KDE nimmt das erste Entsperren manchmal nur zum Aufwachen (dann „Entsperren“-Knopf). AluPC weckt vorher,
+    prüft danach und wiederholt – EIN Auflegen reicht."""
+    from alupc.finger_unlock import FingerUnlock
+
+    state = {"locked": True, "calls": 0, "woken": 0}
+
+    def unlock():
+        state["calls"] += 1
+        if state["calls"] >= 2:  # erst das zweite Signal entsperrt wirklich
+            state["locked"] = False
+        return True
+
+    fu = FingerUnlock({"fingerprint": {}}, locked=lambda: state["locked"], unlock=unlock,
+                      wake=lambda: state.__setitem__("woken", state["woken"] + 1), retry_wait=0.01)
+    assert fu.unlock_now() is True
+    assert state["calls"] == 2 and fu.attempts == 2 and state["woken"] >= 2 and not state["locked"]
+    # bleibt gesperrt (z. B. logind lehnt ab) → nach 4 Versuchen aufgeben, kein Dauerschleife
+    state.update(locked=True, calls=-100)
+    assert fu.unlock_now() is False and fu.attempts == 4
+
+
+def test_pam_success_on_kde_lockscreen_also_unlocks(monkeypatch):
+    """Nach erfolgreicher PAM-Prüfung am KDE-Sperrbildschirm zusätzlich entsperren (kein „Entsperren“-Knopf mehr);
+    bei sudo & Co. nicht."""
+    from alupc.platform import zw_fingerprint as zw
+
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/loginctl" if name == "loginctl" else None)
+    started = []
+    spawn = lambda cmd, **kw: started.append((cmd, kw))  # noqa: E731
+    if not sys.platform.startswith("linux"):
+        assert not zw.after_kde_unlock({"PAM_SERVICE": "kde"}, spawn)
+        return
+    assert zw.after_kde_unlock({"PAM_SERVICE": "kde"}, spawn)
+    assert "unlock-session" in started[0][0][2] and started[0][1]["start_new_session"]
+    assert not zw.after_kde_unlock({"PAM_SERVICE": "sudo"}, spawn)
+    assert not zw.after_kde_unlock({}, spawn)
+    assert len(started) == 1

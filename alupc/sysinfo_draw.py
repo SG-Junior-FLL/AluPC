@@ -51,7 +51,7 @@ def paint_ring(p: QPainter, rect: QRectF, fraction: float, colors: tuple[str, st
     g.setColorAt(max(0.0, 1.0 - fraction), QColor(colors[1]))
     g.setColorAt(1.0, QColor(colors[0]))
     span = -int(360 * 16 * fraction)
-    if glow:
+    if glow and fraction >= 0.06:  # bei kleinen Werten sähe der Schein wie ein Klecks aus
         halo = QColor(colors[1])
         halo.setAlphaF(0.18)
         p.setPen(QPen(halo, width * 2.0, Qt.SolidLine, Qt.RoundCap))
@@ -59,6 +59,8 @@ def paint_ring(p: QPainter, rect: QRectF, fraction: float, colors: tuple[str, st
     p.setPen(QPen(g, width, Qt.SolidLine, Qt.RoundCap))
     p.drawArc(r, 90 * 16, span)
     # leuchtender Punkt am Ende
+    if fraction < 0.06:
+        return
     a = math.radians(90 - 360 * fraction)
     end = QPointF(r.center().x() + math.cos(a) * r.width() / 2, r.center().y() - math.sin(a) * r.height() / 2)
     p.setPen(Qt.NoPen)

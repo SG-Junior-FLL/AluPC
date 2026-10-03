@@ -817,6 +817,30 @@ def user_slots_from_home(user: str, home: str | None = None) -> set[int] | None:
 
 
 # --------------------------------------------------------------------------- Anmelde-Prüfung (PAM)
+KDE_SERVICES = ("kde", "kde-fingerprint", "kde-smartcard", "kscreensaver", "kscreenlocker")
+
+
+def after_kde_unlock(env, spawn=None) -> bool:
+    """Plasma zeigt nach einer Anmeldung ohne Passwort manchmal noch den Knopf „Entsperren“. Nach erfolgreicher
+    Prüfung am KDE-Sperrbildschirm deshalb im Hintergrund zusätzlich logind bitten, die Sitzung zu entsperren
+    (harmlos, wenn sie schon offen ist). Nur für den Sperrbildschirm, nicht für sudo & Co."""
+    if not sys.platform.startswith("linux") or env.get("PAM_SERVICE", "") not in KDE_SERVICES:
+        return False
+    import shutil
+    import subprocess
+
+    loginctl = shutil.which("loginctl")
+    if not loginctl:
+        return False
+    script = f"sleep 1; {loginctl} unlock-session; sleep 1.5; {loginctl} unlock-session"
+    try:
+        (spawn or subprocess.Popen)(["/bin/sh", "-c", script], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL, start_new_session=True)
+        return True
+    except OSError:
+        return False
+
+
 def pam_check(env=None, login_file: Path = LOGIN_FILE, out=None, record=None) -> int:
     """Wird von pam_exec aufgerufen (Befehl `alupc --fingerabdruck-pam`). 0 = Finger passt zum Benutzer.
     record(Benutzer, Platz): erkannten Platz merken (für „Willkommen, Lena!“) – beim echten Aufruf automatisch."""
@@ -870,6 +894,7 @@ def pam_check(env=None, login_file: Path = LOGIN_FILE, out=None, record=None) ->
                         if hit is not None and hit[0] in allowed:
                             if record is not None:
                                 record(user, hit[0])
+                            after_kde_unlock(env)
                             return 0
                         print("Nicht erkannt.", file=out, flush=True)
                         time.sleep(0.4)

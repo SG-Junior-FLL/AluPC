@@ -37,7 +37,7 @@ from .util import error_box, run_async
 from .hotkey_edit import HotkeyButton
 from .reset_page import reset_group
 from .sync_page import backup_group, sync_group
-from .widgets import button, font, rounded
+from .widgets import button, flow_row, font, rounded
 
 SIDES = [("right", "rechts vom Hauptmonitor"), ("left", "links vom Hauptmonitor"),
          ("above", "über dem Hauptmonitor"), ("below", "unter dem Hauptmonitor"),
@@ -211,7 +211,7 @@ class SetupPage(QWidget):
         ("timer", "Timer", "Dauer · Warnfarben"),
         ("sound", "Töne", "Bei Aktionen"),
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
-        ("mic", "Sprache", "„Monitor schwarz“ …"),
+        ("mic", "Sprache", "Sprechen · Stimme · Test"),
         ("sync", "Sichern & Sync", "Export · Dual-Boot"),
         ("fan", "RGB & Lüfter", "OpenRGB · Temperaturen"),
         ("phone", "Handy & Kamera", "Rechte · Kamera"),
@@ -258,6 +258,9 @@ class SetupPage(QWidget):
             lay.setSpacing(6)
             for build in builders[title]:
                 lay.addWidget(build())
+            for combo in inner.findChildren(QComboBox):  # lange Einträge dürfen das Fenster nicht verbreitern
+                combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+                combo.setMinimumContentsLength(10)
             lay.addStretch(1)
             area.setWidget(inner)
             self.stack.addWidget(area)
@@ -786,22 +789,17 @@ class SetupPage(QWidget):
         form.addRow("Beim Start zeigen:", self.start_combo)
         form.addRow("", auto)
         form.addRow("", minimized)
-        diag_row = QHBoxLayout()
         diag = button("Diagnose kopieren", "copy")
         diag.setToolTip("Prüft Monitore, Spiegeln, AirPlay, RGB … und kopiert das Ergebnis – "
                         "zum Weitergeben, wenn etwas nicht geht")
         diag.clicked.connect(self._diagnose)
-        diag_row.addWidget(diag)
         report = button("Fehlerbericht …", "alert")
         report.setToolTip("Speichert eine Datei mit Diagnose und Fehlerprotokollen – zum Weiterschicken")
         report.clicked.connect(self._bug_report)
-        diag_row.addWidget(report)
         again = button("Ersteinrichtung starten", "sync")
         again.setToolTip("Prüft Monitore und Spiegeln, installiert Handy-Programme – wie beim ersten Start")
         again.clicked.connect(lambda: self.window().open_first_run())
-        diag_row.addWidget(again)
-        diag_row.addStretch(1)
-        form.addRow("Hilfe:", diag_row)
+        form.addRow("Hilfe:", flow_row(diag, report, again))  # bricht im kleinen Fenster um
         return box
 
     def _bug_report(self):
@@ -1088,11 +1086,11 @@ class SetupPage(QWidget):
         model_row.addWidget(self.voice_model, 1)
         model_row.addWidget(self.voice_bar)
         model_row.addWidget(self.voice_dl)
-        lay.addLayout(model_row)
+        lay.insertLayout(1, model_row)  # Schritt 1 ganz oben: ohne Sprachmodell geht nichts
         # ---- Erkennung, Stimme, Gespräch
         from .. import speech, stt
 
-        talk = QGroupBox("Erkennung & Stimme")
+        talk = QGroupBox("Erkennung && Stimme")
         tf = QFormLayout(talk)
         stt_row = QHBoxLayout()
         stt_box = QComboBox()
@@ -1364,9 +1362,15 @@ class SetupPage(QWidget):
             if not ok:
                 self.voice_model.setText("Spracherkennung (Vosk) fehlt in dieser AluPC-Version.")
             elif ready:
-                self.voice_model.setText("Sprachmodell: Deutsch (klein) ✓")
+                self.voice_model.setText("Sprachmodell: Deutsch ✓")
             else:
-                self.voice_model.setText(f"Sprachmodell fehlt – einmal herunterladen (ca. {voice.MODEL_SIZE_MB} MB)")
+                self.voice_model.setText(f"<b>Schritt 1:</b> Sprachmodell herunterladen (ca. {voice.MODEL_SIZE_MB} MB) – "
+                                         "erst dann lassen sich die Sprachbefehle einschalten.")
+            t = theme.current()
+            self.voice_model.setStyleSheet("" if ready or not ok else f"color: {t.warning};")
+            self.voice_dl.setProperty("primary", not ready)
+            self.voice_dl.style().unpolish(self.voice_dl)
+            self.voice_dl.style().polish(self.voice_dl)
             self.voice_dl.setVisible(ok and not ready)
             self.voice_on.setEnabled(ok and ready)
             self.voice_state.setText(f"Status: {vc.state}")
