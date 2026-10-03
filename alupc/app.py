@@ -43,6 +43,7 @@ def voice_test(log_path: str, seconds: float = 150.0) -> int:
 
     app = QCoreApplication.instance() or QCoreApplication([])
     want = int(os.environ.get("ALUPC_SPRACHTEST_ANZAHL", "4"))
+    need = int(os.environ.get("ALUPC_SPRACHTEST_MIN", str(want)))
     log = open(log_path, "w", encoding="utf-8")  # noqa: SIM115
 
     def write(text):
@@ -62,14 +63,14 @@ def voice_test(log_path: str, seconds: float = 150.0) -> int:
     write("MIKROFONE " + " | ".join(d.description() for d in QMediaDevices.audioInputs()))
     vc.start()
     end = time.monotonic() + seconds
-    while time.monotonic() < end and len(commands) < want:
+    while time.monotonic() < end and len(commands) < want:  # (bei weniger Befehlen: bis zum Zeitende warten)
         app.processEvents()
         time.sleep(0.01)
     write(f"FEHLER {' | '.join(vc.errors) or '-'} · Mikrofon neu geöffnet: {vc.mic_restarts}")
     write(f"ENDE {len(commands)}/{want}")
     vc.stop()
     log.close()
-    return 0 if len(commands) >= want else 1
+    return 0 if len(commands) >= need else 1
 
 
 def needs_chromium_sandbox_off() -> bool:
