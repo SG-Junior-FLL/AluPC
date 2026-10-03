@@ -22,6 +22,8 @@ def parse_args(argv):
     parser.add_argument("--selbsttest", metavar="LOGDATEI", help=argparse.SUPPRESS)
     # Sprachtest des fertigen Programms: echtes Mikrofon → Vosk → Verstehen, Ergebnis in LOGDATEI
     parser.add_argument("--sprachtest", metavar="LOGDATEI", help=argparse.SUPPRESS)
+    # Nur das Mikrofon: kommt Ton an? (Gerät, Format, Pegel) – ohne Sprachmodell
+    parser.add_argument("--mikrofontest", metavar="LOGDATEI", help=argparse.SUPPRESS)
     # Anmelde-Prüfung für PAM (Fingerabdruckmodul am seriellen Anschluss) – ohne Oberfläche
     parser.add_argument("--fingerabdruck-pam", action="store_true", help=argparse.SUPPRESS)
     # Windows: Anmeldung mit Modul einrichten (mit Administratorrechten gestartet, siehe windows_serial_login)
@@ -73,6 +75,21 @@ def voice_test(log_path: str, seconds: float = 150.0) -> int:
     return 0 if len(commands) >= need else 1
 
 
+def mic_test(log_path: str, seconds: float = 5.0) -> int:
+    """Mikrofon öffnen wie im Betrieb und `seconds` lang messen. Exit 0, wenn Ton ankam."""
+    from PySide6.QtCore import QCoreApplication
+
+    from .config import Config
+    from .voice import VoiceControl
+
+    app = QCoreApplication.instance() or QCoreApplication([])
+    report = VoiceControl(Config()).probe_microphone(seconds, app.processEvents)
+    with open(log_path, "w", encoding="utf-8") as f:
+        for key, value in report.items():
+            f.write(f"{key}: {value}\n")
+    return 0 if report.get("sekunden_ton", 0) > seconds * 0.3 else 1
+
+
 def needs_chromium_sandbox_off() -> bool:
     """Muss die Sandbox der Website-Engine (Chromium) aus sein, damit Websites überhaupt laufen?
 
@@ -120,6 +137,8 @@ def main(argv=None) -> int:
         return self_test(args.selbsttest)
     if args.sprachtest:
         return voice_test(args.sprachtest)
+    if args.mikrofontest:
+        return mic_test(args.mikrofontest)
 
     if needs_chromium_sandbox_off():
         os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")

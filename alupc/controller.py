@@ -1678,6 +1678,8 @@ class Controller(QObject):
         self.assistant.handle(command, label, text)
 
     def _voice_not_understood(self, text: str) -> None:
+        if self.voice.dry_run:  # „Sprache testen“ zeigt das selbst an
+            return
         self.message.emit(f"🎤 Nicht verstanden: „{text}“")
         self.assistant.not_understood(text)
 

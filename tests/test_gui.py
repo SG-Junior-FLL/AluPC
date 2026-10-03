@@ -4468,3 +4468,53 @@ def test_rgb_late_mainboard_and_argb_header(env):
     assert [s.value() for s in spins] == [24]
     controller.rgb.shutdown()
     fake.close()
+
+
+def test_voice_test_dialog_shows_each_step(env, monkeypatch):
+    """„Sprache testen“: zeigt je Schritt ✓/✗ und führt im Test nichts aus."""
+    import json
+
+    from alupc import voice
+    from alupc.ui.voice_test import VoiceTestDialog
+
+    controller, window, _ = env
+    vc = controller.voice
+
+    class FakeRec:
+        def __init__(self):
+            self.text = ""
+
+        def AcceptWaveform(self, data):
+            self.text = data.decode()
+            return not self.text.startswith("~")
+
+        def Result(self):
+            return json.dumps({"text": self.text})
+
+        def PartialResult(self):
+            return json.dumps({"partial": self.text[1:]})
+
+    vc.recognizer_factory = FakeRec
+    monkeypatch.setattr(voice, "vosk_available", lambda: True)
+    monkeypatch.setattr(voice, "model_ready", lambda *a: True)
+    ran = []
+    monkeypatch.setattr(controller, "run_command", lambda c: ran.append(c))
+    dlg = VoiceTestDialog(controller, window)
+    assert _until(lambda: vc.state == "hört zu", 5)  # startet das Zuhören auch ohne „Sprachbefehle an“
+    assert vc.dry_run and vc.show_partial
+    vc.feed(b"~alu pc licht")  # mitten im Satz
+    assert _until(lambda: "alu pc licht" in dlg.live.text(), 3)
+    vc.feed(b"alu pc licht auf blau")
+    assert _until(lambda: dlg.status["command"][0] == "✓", 3)
+    assert dlg.status["wake"][0] == "✓" and "Licht blau" in dlg.status["command"][1]
+    vc.feed(b"licht auf rot")  # ohne Startwort
+    assert _until(lambda: dlg.status["wake"][0] == "✗", 3)
+    dlg._level(0.4)
+    dlg._refresh()
+    assert dlg.status["sound"][0] == "✓" and dlg.status["model"][0] == "✓" and dlg.status["running"][0] == "✓"
+    report = dlg.report()
+    assert "Startwort erkannt" in report and "Pegel max: 40 %" in report
+    dlg.accept()
+    assert ran == [] and not vc.dry_run  # im Test nichts ausgeführt
+    assert _until(lambda: vc.state == "aus", 3)  # nur für den Test gestartet → wieder aus
+    vc.recognizer_factory = None

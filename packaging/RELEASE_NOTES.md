@@ -8,7 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.88.0)
+### Neu in dieser Version (0.89.0)
+- **„Sprache testen …“** (Setup → Sprache): prüft jeden Schritt live und zeigt mit ✓/✗, wo es hängt –
+  Spracherkennung im Programm, Sprachmodell, Zuhören, welches Mikrofon, ob Ton ankommt (Pegelanzeige), was erkannt
+  wird (live mitgeschrieben), ob das Startwort erkannt wurde, welcher Befehl ausgeführt würde. Im Test wird nichts
+  ausgeführt; startet das Zuhören auch, wenn Sprachbefehle aus sind. „Bericht kopieren“ für die Fehlersuche.
+  Warnt, wenn „Nur angelernte Stimmen“ an ist, die Stimmerkennung aber fehlt (dann würde alles abgelehnt).
+- Geprüft: Das fertige Linux-Programm (PyInstaller) empfängt Mikrofon-Ton auch unter **PipeWire** (wie Kubuntu)
+  sauber – vorher war nur PulseAudio im fertigen Programm geprüft.
+- Ehrlich: Warum die Sprache bei dir unter Linux nicht geht, weiß ich noch nicht – Mikrofon, Erkennung und
+  Verstehen funktionieren in allen Tests (auch im installierten .deb). Der neue Test zeigt, an welcher Stelle es
+  bei dir hängt.
+
+### Neu in Version 0.88.0
 - **Grafikkarte unter Linux:**
   - NVIDIA: `nvidia-smi` läuft jetzt dauerhaft im Hintergrund und liefert jede Sekunde Werte. Vorher wurde es jede
     Sekunde neu gestartet – das dauert ohne „nvidia-persistenced“ oft länger als die erlaubten 2 s, dann kamen nie

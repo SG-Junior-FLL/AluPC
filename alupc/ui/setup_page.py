@@ -1026,6 +1026,11 @@ class SetupPage(QWidget):
         return box
 
     # ================================================================ Sprache
+    def _open_voice_test(self):
+        from .voice_test import VoiceTestDialog
+
+        VoiceTestDialog(self.controller, self).exec()
+
     def _voice_group(self):
         from PySide6.QtMultimedia import QMediaDevices
         from PySide6.QtWidgets import QProgressBar
@@ -1065,7 +1070,13 @@ class SetupPage(QWidget):
         self.voice_heard = QLabel()
         self.voice_heard.setObjectName("Muted")
         self.voice_heard.setWordWrap(True)
-        lay.addWidget(self.voice_state)
+        state_row = QHBoxLayout()
+        state_row.addWidget(self.voice_state, 1)
+        test_btn = button("Sprache testen …", "mic", primary=True)
+        test_btn.setToolTip("Prüft Schritt für Schritt: Modell, Mikrofon, Pegel, was erkannt wird, Startwort, Befehl")
+        test_btn.clicked.connect(self._open_voice_test)
+        state_row.addWidget(test_btn)
+        lay.addLayout(state_row)
         lay.addWidget(self.voice_heard)
         model_row = QHBoxLayout()
         self.voice_model = QLabel()

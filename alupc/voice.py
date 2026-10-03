@@ -340,6 +340,9 @@ class VoiceControl(QObject):
     command = Signal(str, str, str)  # Befehl, Anzeige, gehörter Text
     not_understood = Signal(str)  # an AluPC gerichtet, aber nicht verstanden
     direct_changed = Signal(bool)  # Mikrofon-Schalter: hört ohne Startwort zu
+    level = Signal(float)  # Pegel 0..1 (etwa 10× pro Sekunde) – für die Anzeige „Sprache testen“
+    partial = Signal(str)  # was gerade gehört wird (vor dem Satzende) – nur, wenn show_partial an ist
+    dry_command = Signal(str, str, str)  # im Testmodus: das WÜRDE ausgeführt
     heard = Signal(str)  # alles Gehörte (für die Anzeige im Setup), mit erkannter Stimme
     rejected = Signal(str, str)  # Befehl kam von einer fremden Stimme: (gehörter Text, Grund)
     sample = Signal(object, int, str)  # beim Anlernen: Stimmabdruck, Länge (Frames), gehörter Text
@@ -373,6 +376,10 @@ class VoiceControl(QObject):
         self._in_format = (RATE, 1, None)
         self._device_name = ""
         self.mic_restarts = 0  # wie oft das Mikrofon neu geöffnet werden musste (Diagnose)
+        self.dry_run = False  # „Sprache testen“: nichts ausführen, nur melden
+        self._force_start = False  # „Sprache testen“: auch starten, wenn Sprachbefehle aus sind
+        self.show_partial = False
+        self._level_at = 0.0
         self.errors: list[str] = []  # letzte Fehler beim Zuhören (Diagnose, Fehlerbericht)
 
     def settings(self) -> dict:
@@ -471,7 +478,7 @@ class VoiceControl(QObject):
         if isinstance(rec, Exception):
             self._set_state(f"Fehler: {rec}")
             return
-        if not self.settings().get("on") and not self.direct and not self.enrolling \
+        if not self.settings().get("on") and not self.direct and not self.enrolling and not self._force_start \
                 and self.recognizer_factory is None:
             self._set_state("aus")  # in der Zwischenzeit ausgeschaltet
             return
@@ -564,7 +571,14 @@ class VoiceControl(QObject):
         data = bytes(self._io.readAll())
         if data:
             self._last_audio = time.monotonic()
-            self.feed(convert_audio(data, *self._in_format))
+            pcm = convert_audio(data, *self._in_format)
+            if self._last_audio - self._level_at > 0.1 and len(pcm) >= 2:
+                self._level_at = self._last_audio
+                import numpy as np
+
+                arr = np.frombuffer(pcm[: len(pcm) // 2 * 2], dtype=np.int16)
+                self.level.emit(float(np.abs(arr).max()) / 32767 if arr.size else 0.0)
+            self.feed(pcm)
 
     def feed(self, data: bytes) -> None:
         """Ton (16 kHz, mono, 16 Bit) an die Erkennung geben – vom Mikrofon oder in Tests."""
@@ -607,6 +621,10 @@ class VoiceControl(QObject):
                     audio.clear()
                     if text:
                         self._handle(text, res.get("spk"), int(res.get("spk_frames", 0) or 0), said)
+                elif self.show_partial and hasattr(rec, "PartialResult"):
+                    part = json.loads(rec.PartialResult()).get("partial", "")
+                    if part:
+                        self.partial.emit(part)
             except Exception as exc:  # noqa: BLE001 – ein kaputter Block darf das Zuhören nicht beenden
                 self._note_error(exc)
                 continue
@@ -663,7 +681,7 @@ class VoiceControl(QObject):
                     found, text = found2, better
         if empty:
             if span is not None:
-                self.command.emit("frage:ja", "Ja?", text)  # nur das Startwort: „Ja?“ und zuhören
+                self._emit_command("frage:ja", "Ja?", text)  # nur das Startwort: „Ja?“ und zuhören
             return
         if not found:
             if span is not None or self.direct:
@@ -678,9 +696,12 @@ class VoiceControl(QObject):
             if dist > limit:
                 self.rejected.emit(text, f"fremde Stimme (Abstand {dist:.2f})".replace(".", ","))
                 return
-            self.command.emit(found[0], f"{found[1]} · {name}", text)
+            self._emit_command(found[0], f"{found[1]} · {name}", text)
             return
-        self.command.emit(found[0], found[1], text)
+        self._emit_command(found[0], found[1], text)
+
+    def _emit_command(self, command: str, label: str, text: str) -> None:
+        (self.dry_command if self.dry_run else self.command).emit(command, label, text)
 
     def _interpret(self, words: list[str], span) -> tuple[tuple[str, str] | None, bool]:
         """(Befehl oder None, nur Startwort/Füllwörter?) für einen gehörten Satz."""
@@ -696,6 +717,43 @@ class VoiceControl(QObject):
         except Exception as exc:  # noqa: BLE001
             self._note_error(exc)
             return None, False
+
+    def probe_microphone(self, seconds: float = 3.0, pump=None) -> dict:
+        """Mikrofon kurz öffnen und messen (ohne Erkennung): Gerät, Format, wie viel Ton, wie laut.
+        Für die Diagnose im Setup und den Mikrofontest der fertigen Version."""
+        from PySide6.QtMultimedia import QMediaDevices
+
+        report = {"geraete": " | ".join(d.description() for d in QMediaDevices.audioInputs()) or "(keine)",
+                  "standard": QMediaDevices.defaultAudioInput().description() or "(keins)"}
+        chunks: list[bytes] = []
+        saved_feed, saved_worker = self.feed, self._worker
+        self.feed = chunks.append  # nur messen, nichts erkennen
+        self._worker = type("Probe", (), {"is_alive": staticmethod(lambda: True)})()
+        try:
+            opened = self._open_microphone()
+            report["geoeffnet"] = "ja" if opened else f"nein – {self.state}"
+            report["geraet"] = self._device_name or "-"
+            report["format_geraet"] = f"{self._in_format[0]} Hz, {self._in_format[1]} Kanal/Kanäle, " \
+                                      f"{_fmt_name(self._in_format[2])}"
+            end = time.monotonic() + seconds
+            while opened and time.monotonic() < end:
+                if pump:
+                    pump()
+                time.sleep(0.01)
+        finally:
+            self._close_microphone()
+            self.feed, self._worker = saved_feed, saved_worker
+        data = b"".join(chunks)
+        report["sekunden_ton"] = round(len(data) / (RATE * 2), 2)
+        peak = 0
+        if data:
+            import numpy as np
+
+            pcm = np.frombuffer(data[: len(data) // 2 * 2], dtype=np.int16)
+            peak = int(np.abs(pcm).max()) if pcm.size else 0
+        report["pegel_max"] = f"{peak} von 32767 ({round(peak * 100 / 32767)} %)"
+        report["fehler"] = " | ".join(self.errors) or "-"
+        return report
 
     def _note_error(self, exc: BaseException) -> None:
         """Fehler beim Zuhören nicht verschlucken: ins Fehlerprotokoll (Fehlerbericht) und in die Diagnose."""
