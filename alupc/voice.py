@@ -647,6 +647,11 @@ class VoiceControl(QObject):
         wakes = tuple(cfg.get("wake") or ("monitor", "alupc"))
         words = fold(text).split()
         span = wake_span(words, wakes)
+        if span is None and not self.open_ear() and words[:2] == ["am", "pc"] and len(words) > 2:
+            # „am pc …“ am SATZANFANG: so hört Vosk „Alu PC“ oft (CI 0.88–0.90). Zählt nur, wenn danach ein
+            # Befehl kommt – „am PC sitzen …“ löst so nichts aus
+            if self._interpret(words, (0, 2))[0] is not None:
+                span = (0, 2)
         if span is None and not self.open_ear():
             # Vosk hat das Startwort vielleicht verhört („am pc“ …) – Whisper (falls an) fragt nach
             if not (self.stt is not None and audio and any(w in ("pc", "pe", "monitor") for w in words[:4])):

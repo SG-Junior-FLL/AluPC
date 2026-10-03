@@ -8,7 +8,13 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.90.0)
+### Neu in dieser Version (0.91.0)
+- **Startwort noch zuverlässiger** – aus den echten Sprachtests der installierten Linux-Version:
+  - „Alopezie …“ (so hörte das Sprachmodell „Alu PC“) zählt als Startwort.
+  - „Am PC …“ am Satzanfang zählt, wenn danach ein Befehl kommt („Am PC sitzen …“ löst nichts aus).
+  - „… spät ist es?“ allein wird als Frage nach der Uhrzeit verstanden.
+
+### Neu in Version 0.90.0
 - **Linux: Entsperren mit EINMAL Finger auflegen.** Vorher kam beim ersten Auflegen oft nur der Knopf „Entsperren“
   (der Sperrbildschirm nahm das erste Signal nur zum Aufwachen), erst das zweite Auflegen entsperrte. Jetzt weckt
   AluPC den Sperrbildschirm zuerst, entsperrt, prüft nach und wiederholt automatisch (bis zu 4×). Auch nach der

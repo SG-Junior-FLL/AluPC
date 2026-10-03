@@ -354,12 +354,12 @@ def test_whisper_confirms_misheard_wake_word(qtbot_free_app, tmp_path, monkeypat
         def transcribe(self, _audio):
             return self.text
 
-    vc._handle("am pc schaltet den bildschirmschoner aus", None, 0, b"")  # ohne Whisper/Ton: nichts
+    vc._handle("am pc schaltet den bildschirmschoner aus", None, 0, b"")  # seit 0.91: „am pc“ + Befehl zählt
     vc.stt = FakeWhisper("Alu PC, schalte den Bildschirmschoner aus.")
     vc._handle("am pc schaltet den bildschirmschoner aus", None, 0, b"x")
     vc.stt = FakeWhisper("Ich sitze am PC und arbeite.")
     vc._handle("ich sitze am pc und arbeite", None, 0, b"x")  # Whisper: kein Startwort → nichts
-    assert got == ["bildschirmschoner_aus"]
+    assert got == ["bildschirmschoner_aus", "bildschirmschoner_aus"]
 
 
 def test_audio_ok_accepts_both_enum_types():
@@ -374,3 +374,17 @@ def test_audio_ok_accepts_both_enum_types():
         return
     assert voice.audio_ok(QtAudio.Error.NoError)
     assert not voice.audio_ok(QtAudio.Error.IOError)
+
+
+def test_am_pc_at_sentence_start_counts_only_with_command(qtbot_free_app, tmp_path, monkeypatch):
+    """CI 0.90: „Alu PC, mach bitte den Bildschirm schwarz“ → „am pc mach bitte dem bildschirm schwarz“."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from alupc.config import Config
+
+    vc = voice.VoiceControl(Config(tmp_path / "c.json"))
+    got = []
+    vc.command.connect(lambda c, _l, _t: got.append(c))
+    vc._handle("am pc mach bitte dem bildschirm schwarz")
+    vc._handle("am pc sitzen wir heute lange")  # kein Befehl → nichts
+    vc._handle("ich bin am pc mach schwarz")  # nicht am Satzanfang → nichts
+    assert got == ["schwarz_an"]
