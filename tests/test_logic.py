@@ -1312,3 +1312,65 @@ def test_openrgb_resizable_zones_and_late_devices():
         client.close()
     finally:
         fake.close()
+
+
+def test_linux_gpu_scan_with_reasons(tmp_path):
+    """Linux: jede Karte zählt – mit Auslastung (amdgpu) oder mit Grund, warum sie fehlt (nouveau, Intel …)."""
+    import os
+    import shutil
+
+    from alupc import sysinfo
+    from alupc.sysinfo_draw import gauge_values
+
+    def card(name, vendor, driver, busy=None, vram_total=None, temp=None):
+        dev = tmp_path / "drm" / name / "device"
+        (dev / "hwmon" / "hwmon1").mkdir(parents=True)
+        (dev / "vendor").write_text(vendor + "\n")
+        drv = tmp_path / "drivers" / driver
+        drv.mkdir(parents=True, exist_ok=True)
+        os.symlink(drv, dev / "driver")
+        if busy is not None:
+            (dev / "gpu_busy_percent").write_text(f"{busy}\n")
+            (dev / "mem_info_vram_used").write_text(str(512 * 2**20))
+            (dev / "mem_info_vram_total").write_text(str(vram_total * 2**20))
+        if temp is not None:
+            (dev / "hwmon" / "hwmon1" / "temp1_input").write_text(str(temp * 1000))
+        (tmp_path / "drm" / f"{name}-HDMI-A-1").mkdir()
+
+    card("card0", "0x1002", "amdgpu", busy=3, vram_total=512, temp=40)  # Ryzen-Grafik im Prozessor
+    card("card1", "0x1002", "amdgpu", busy=71, vram_total=16384, temp=63)  # Radeon-Grafikkarte
+    gpus = sysinfo.linux_gpus(tmp_path / "drm")
+    assert len(gpus) == 2
+    best = sysinfo.pick_gpu(gpus)
+    assert best.load == 71 and best.mem_total == 16384 and best.name == "AMD-Grafikkarte" and best.temp == 63
+    shutil.rmtree(tmp_path / "drm")
+    card("card0", "0x10de", "nouveau", temp=45)  # nur NVIDIA mit nouveau: Grund statt „keine Daten“
+    (gpu,) = sysinfo.linux_gpus(tmp_path / "drm")
+    assert gpu.load is None and gpu.name == "NVIDIA-Grafikkarte" and "nouveau" in gpu.note and gpu.temp == 45
+
+    class Mon:
+        cores = 8
+
+    row = next(r for r in gauge_values(Mon(), sysinfo.Snapshot(gpu=gpu, ram_total=1)) if r[0] == "gpu")
+    assert row[2] is None and "NVIDIA-Grafikkarte" in row[4] and "45 °C" in row[4]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Ersatz-Programm ist ein Shell-Skript")
+def test_nvidia_stream_reads_continuous_output(tmp_path):
+    """nvidia-smi läuft dauerhaft (-lms) statt jede Sekunde neu – hier mit einem Ersatz-Programm."""
+    import time
+
+    from alupc import sysinfo
+
+    fake = tmp_path / "nvidia-smi"
+    fake.write_text("#!/bin/sh\n"
+                    "while true; do echo 'NVIDIA GeForce RTX 4070, 42, 55, 3000, 12282, 30, 95.5'; sleep 0.2; done\n")
+    fake.chmod(0o755)
+    stream = sysinfo.NvidiaStream(str(fake))
+    end = time.time() + 3
+    gpu = None
+    while gpu is None and time.time() < end:
+        gpu = stream.get()
+        time.sleep(0.05)
+    stream.stop()
+    assert gpu is not None and gpu.name == "GeForce RTX 4070" and gpu.load == 42 and gpu.temp == 55

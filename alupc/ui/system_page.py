@@ -480,6 +480,8 @@ class SystemPage(QWidget):
     def _update(self, snap) -> None:
         for key, title, frac, big, small in gauge_values(self.mon, snap):
             self.gauges[key].set(title, frac, big, small)
+        note = snap.gpu.note if snap.gpu is not None else ""
+        self.gauges["gpu"].setToolTip(note)
         parts = [self.mon.host, self.mon.os]
         if snap.uptime:
             parts.append(f"läuft seit {fmt_uptime(snap.uptime)}")

@@ -8,7 +8,20 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.87.0)
+### Neu in dieser Version (0.88.0)
+- **Grafikkarte unter Linux:**
+  - NVIDIA: `nvidia-smi` läuft jetzt dauerhaft im Hintergrund und liefert jede Sekunde Werte. Vorher wurde es jede
+    Sekunde neu gestartet – das dauert ohne „nvidia-persistenced“ oft länger als die erlaubten 2 s, dann kamen nie
+    Daten.
+  - AMD: bei Ryzen-Prozessoren mit eingebauter Grafik nimmt AluPC die Grafikkarte mit dem meisten Speicher.
+  - Ohne Auslastung (Intel-Grafik, NVIDIA mit freiem nouveau-Treiber) zeigt AluPC trotzdem Karte und Temperatur
+    und sagt, warum die Auslastung fehlt (Tooltip auf der Karte).
+- **Sprache in der fertigen Linux-Version wird jetzt geprüft:** Die CI installiert das .deb, lässt Piper über ein
+  virtuelles Mikrofon sprechen und prüft, dass das installierte AluPC die Befehle versteht.
+- Ehrlich: Echte Grafikkarten und dein Mikrofon kann ich nicht testen; PulseAudio/PipeWire mit virtuellem Mikrofon
+  ja (PipeWire nur aus dem Quellcode).
+
+### Neu in Version 0.87.0
 - **Mainboard-RGB (z. B. ASUS TUF B650):**
   - AluPC holt spät erkannte Geräte nach. OpenRGB findet Maus/Tastatur sofort, das Mainboard („ASUS Aura USB“)
     erst nach ein paar Sekunden – AluPC hatte die Liste aber schon beim Verbinden übernommen. Jetzt schaut es nach

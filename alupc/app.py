@@ -20,6 +20,8 @@ def parse_args(argv):
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     # Für den automatischen Test des fertigen Programms (baut alles auf, zeigt nichts, beendet sich)
     parser.add_argument("--selbsttest", metavar="LOGDATEI", help=argparse.SUPPRESS)
+    # Sprachtest des fertigen Programms: echtes Mikrofon → Vosk → Verstehen, Ergebnis in LOGDATEI
+    parser.add_argument("--sprachtest", metavar="LOGDATEI", help=argparse.SUPPRESS)
     # Anmelde-Prüfung für PAM (Fingerabdruckmodul am seriellen Anschluss) – ohne Oberfläche
     parser.add_argument("--fingerabdruck-pam", action="store_true", help=argparse.SUPPRESS)
     # Windows: Anmeldung mit Modul einrichten (mit Administratorrechten gestartet, siehe windows_serial_login)
@@ -27,6 +29,47 @@ def parse_args(argv):
     # Lüfter setzen (läuft per pkexec als Administrator, ohne Oberfläche)
     parser.add_argument("--luefter", metavar="REGLER=WERT,…", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
+
+
+def voice_test(log_path: str, seconds: float = 150.0) -> int:
+    """Wie im Betrieb zuhören (Mikrofon über Qt, Vosk, Verstehen) und alles mitschreiben. Ende nach
+    ALUPC_SPRACHTEST_ANZAHL Befehlen (Standard 4) oder nach `seconds`. Exit 0, wenn alle Befehle kamen."""
+    import time
+
+    from PySide6.QtCore import QCoreApplication
+
+    from .config import Config
+    from .voice import VoiceControl
+
+    app = QCoreApplication.instance() or QCoreApplication([])
+    want = int(os.environ.get("ALUPC_SPRACHTEST_ANZAHL", "4"))
+    log = open(log_path, "w", encoding="utf-8")  # noqa: SIM115
+
+    def write(text):
+        log.write(text + "\n")
+        log.flush()
+
+    config = Config()
+    config["voice"] = {**config["voice"], "on": True, "stt": "vosk", "only_voices": False}
+    vc = VoiceControl(config)
+    commands = []
+    vc.state_changed.connect(lambda st: write(f"ZUSTAND {st}"))
+    vc.heard.connect(lambda t: write(f"GEHÖRT {t}"))
+    vc.command.connect(lambda c, label, t: (commands.append(c), write(f"BEFEHL {c} ({label})")))
+    vc.not_understood.connect(lambda t: write(f"NICHT VERSTANDEN {t}"))
+    from PySide6.QtMultimedia import QMediaDevices
+
+    write("MIKROFONE " + " | ".join(d.description() for d in QMediaDevices.audioInputs()))
+    vc.start()
+    end = time.monotonic() + seconds
+    while time.monotonic() < end and len(commands) < want:
+        app.processEvents()
+        time.sleep(0.01)
+    write(f"FEHLER {' | '.join(vc.errors) or '-'} · Mikrofon neu geöffnet: {vc.mic_restarts}")
+    write(f"ENDE {len(commands)}/{want}")
+    vc.stop()
+    log.close()
+    return 0 if len(commands) >= want else 1
 
 
 def needs_chromium_sandbox_off() -> bool:
@@ -74,6 +117,8 @@ def main(argv=None) -> int:
         return apply_request(args.luefter)
     if args.selbsttest:
         return self_test(args.selbsttest)
+    if args.sprachtest:
+        return voice_test(args.sprachtest)
 
     if needs_chromium_sandbox_off():
         os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")

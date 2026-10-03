@@ -43,6 +43,7 @@ class Gpu:
     mem_total: float | None = None
     fan: float | None = None  # %
     power: float | None = None  # W
+    note: str = ""  # warum Werte fehlen (z. B. „Treiber meldet keine Auslastung“)
 
 
 @dataclass
@@ -192,29 +193,119 @@ def parse_nvidia(text: str) -> Gpu | None:
     return Gpu(parts[0].replace("NVIDIA ", ""), vals[0], vals[1], vals[2], vals[3], vals[4], vals[5])
 
 
-def amd_gpu(drm: Path = Path("/sys/class/drm")) -> Gpu | None:
-    for card in sorted(drm.glob("card[0-9]")):
-        dev = card / "device"
-        busy = dev / "gpu_busy_percent"
-        if not busy.exists():
+VENDORS = {"0x10de": "NVIDIA", "0x1002": "AMD", "0x8086": "Intel"}
+
+
+def _txt(p: Path) -> str:
+    try:
+        return p.read_text().strip()
+    except OSError:
+        return ""
+
+
+def linux_gpus(drm: Path = Path("/sys/class/drm")) -> list[Gpu]:
+    """Alle Grafikkarten aus /sys/class/drm – mit Auslastung, wo der Treiber sie meldet (amdgpu), sonst wenigstens
+    Name, Temperatur, Speicher und ein Hinweis, warum die Auslastung fehlt."""
+    out = []
+    for card in sorted(drm.glob("card[0-9]*")):
+        if "-" in card.name:  # card0-HDMI-A-1 = Anschluss, keine Karte
             continue
+        dev = card / "device"
+        vendor = VENDORS.get(_txt(dev / "vendor"), "")
         try:
-            gpu = Gpu("AMD-Grafikkarte", load=float(busy.read_text()))
+            driver = (dev / "driver").resolve().name
+        except OSError:
+            driver = ""
+        if not vendor and not driver:
+            continue
+        gpu = Gpu(f"{vendor or 'Grafikkarte'}-Grafik" if vendor != "NVIDIA" else "NVIDIA-Grafikkarte")
+        try:
+            busy = dev / "gpu_busy_percent"
+            if busy.exists():
+                gpu.load = float(_txt(busy))
             used, total = dev / "mem_info_vram_used", dev / "mem_info_vram_total"
             if used.exists() and total.exists():
-                gpu.mem_used = int(used.read_text()) / 2**20
-                gpu.mem_total = int(total.read_text()) / 2**20
-            for hw in (dev / "hwmon").glob("hwmon*"):
-                temp = hw / "temp1_input"
-                if temp.exists():
-                    gpu.temp = int(temp.read_text()) / 1000
-                power = hw / "power1_average"
-                if power.exists():
-                    gpu.power = int(power.read_text()) / 1e6
-            return gpu
-        except (OSError, ValueError):
-            continue
-    return None
+                gpu.mem_used = int(_txt(used)) / 2**20
+                gpu.mem_total = int(_txt(total)) / 2**20
+        except ValueError:
+            pass
+        for hw in (dev / "hwmon").glob("hwmon*"):
+            temp = _txt(hw / "temp1_input")
+            if temp.lstrip("-").isdigit():
+                gpu.temp = int(temp) / 1000
+            power = _txt(hw / "power1_average") or _txt(hw / "power1_input")
+            if power.isdigit():
+                gpu.power = int(power) / 1e6
+        if driver == "amdgpu":
+            gpu.name = "AMD-Grafik" if (gpu.mem_total or 0) < 1024 else "AMD-Grafikkarte"
+        if gpu.load is None:
+            gpu.note = {
+                "nouveau": "freier nouveau-Treiber meldet keine Auslastung – NVIDIA-Treiber installieren",
+                "nvidia": "NVIDIA-Treiber da, aber „nvidia-smi“ fehlt oder antwortet nicht",
+                "i915": "Intel-Grafik: Linux meldet die Auslastung nur Administratoren (intel_gpu_top)",
+                "xe": "Intel-Grafik: Linux meldet die Auslastung nur Administratoren (intel_gpu_top)",
+            }.get(driver, f"Treiber „{driver or '?'}“ meldet keine Auslastung")
+        out.append(gpu)
+    return out
+
+
+def pick_gpu(gpus: list[Gpu]) -> Gpu | None:
+    """Die „richtige“ Grafikkarte: eine mit Auslastung vor einer ohne, dann die mit dem meisten Grafikspeicher
+    (Ryzen-7000-Prozessoren haben z. B. eine kleine eingebaute Grafik neben der Grafikkarte)."""
+    if not gpus:
+        return None
+    return max(gpus, key=lambda g: (g.load is not None, g.mem_total or 0, g.name.endswith("karte")))
+
+
+def amd_gpu(drm: Path = Path("/sys/class/drm")) -> Gpu | None:
+    """Kompatibel zu älteren Tests: beste Grafikkarte mit Auslastung aus sysfs."""
+    gpu = pick_gpu([g for g in linux_gpus(drm) if g.load is not None])
+    return gpu
+
+
+class NvidiaStream:
+    """nvidia-smi EINMAL starten und jede Sekunde lesen (-lms). Ein Aufruf pro Sekunde dauert ohne
+    nvidia-persistenced oft länger als 2 s (der Treiber startet jedes Mal neu) – dann gab es nie Werte."""
+
+    def __init__(self, path: str):
+        self.path = path
+        self.latest: Gpu | None = None
+        self.latest_at = 0.0
+        self.error = ""
+        self._proc = None
+        self._retry_at = 0.0
+
+    def _start(self) -> None:
+        self._proc = subprocess.Popen(
+            [self.path, f"--query-gpu={NVIDIA_QUERY}", "--format=csv,noheader,nounits", "-lms", "1000"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=NO_WINDOW)
+        proc = self._proc
+
+        def read():
+            for line in proc.stdout:
+                gpu = parse_nvidia(line)
+                if gpu:
+                    self.latest, self.latest_at, self.error = gpu, time.monotonic(), ""
+            err = (proc.stderr.read() or "").strip() if proc.stderr else ""
+            self.error = (err.splitlines() or ["nvidia-smi beendet"])[-1][:160]
+
+        threading.Thread(target=read, name="nvidia-smi", daemon=True).start()
+
+    def get(self) -> Gpu | None:
+        now = time.monotonic()
+        if (self._proc is None or self._proc.poll() is not None) and now >= self._retry_at:
+            self._retry_at = now + 30
+            try:
+                self._start()
+            except OSError as exc:
+                self.error = str(exc)
+        if self.latest and now - self.latest_at < 5:
+            return self.latest
+        return None
+
+    def stop(self) -> None:
+        if self._proc is not None and self._proc.poll() is None:
+            self._proc.terminate()
 
 
 CPU_CHIPS = ("k10temp", "coretemp", "zenpower", "cpu_thermal", "acpitz")
@@ -291,6 +382,7 @@ class Sampler:
         self._disks_at = 0.0
         self._nvidia = shutil.which("nvidia-smi")
         self._nvidia_off_until = 0.0
+        self._nv_stream: NvidiaStream | None = None
         self.top: list[Proc] = []
         self._cpu_prev = self._cores_prev = None
         self._pdh = None  # Windows: Leistungsindikatoren wie im Task-Manager
@@ -427,6 +519,18 @@ class Sampler:
         return out[:6]
 
     def read_gpu(self, now: float) -> Gpu | None:
+        if sys.platform.startswith("linux"):
+            if self._nvidia:
+                if self._nv_stream is None:
+                    self._nv_stream = NvidiaStream(self._nvidia)
+                gpu = self._nv_stream.get()
+                if gpu:
+                    return gpu
+            gpu = pick_gpu(linux_gpus())
+            if gpu is not None and gpu.load is None and self._nvidia and gpu.name.startswith("NVIDIA"):
+                err = self._nv_stream.error if self._nv_stream else ""
+                gpu.note = f"nvidia-smi: {err}" if err else "warte auf nvidia-smi …"
+            return gpu
         if self._nvidia and now >= self._nvidia_off_until:
             try:
                 r = subprocess.run([self._nvidia, f"--query-gpu={NVIDIA_QUERY}", "--format=csv,noheader,nounits"],
@@ -437,8 +541,6 @@ class Sampler:
             except (OSError, subprocess.SubprocessError):
                 pass
             self._nvidia_off_until = now + 30  # Treiber gerade weg? Später nochmal versuchen
-        if sys.platform.startswith("linux"):
-            return amd_gpu()
         if self._pdh is not None:  # Windows ohne NVIDIA-Werkzeug: Zähler wie im Task-Manager (AMD, Intel, NVIDIA)
             try:
                 load, vram = self._pdh.gpu()

@@ -132,8 +132,11 @@ def gauge_values(mon, snap) -> list[tuple[str, str, float | None, str, str]]:
         if gpu.mem_total:
             sub = f"{fmt_bytes(gpu.mem_used * 2**20)} von {fmt_bytes(gpu.mem_total * 2**20)}"
         out.append(("gpu", "Grafikkarte", gpu.load / 100, f"{gpu.load:.0f}%", sub))
+    elif gpu is not None:  # Karte gefunden, aber der Treiber meldet keine Auslastung
+        extra = f" · {gpu.temp:.0f} °C" if gpu.temp is not None else ""
+        out.append(("gpu", "Grafikkarte", None, "–", f"{gpu.name}{extra} · keine Auslastung"))
     else:
-        out.append(("gpu", "Grafikkarte", None, "–", "keine Daten"))
+        out.append(("gpu", "Grafikkarte", None, "–", "keine Grafikkarte gefunden"))
     if temp is not None:
         where = "Prozessor" if snap.cpu_temp is not None else "Grafikkarte"
         out.append(("temp", "Temperatur", temp / 100, f"{temp:.0f}°", where))
