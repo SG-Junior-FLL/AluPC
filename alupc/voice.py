@@ -43,7 +43,8 @@ WAKES = {"monitor": "Monitor", "alupc": "Alu PC"}
 # „Alu PC“ hört das Modell je nach Aussprache als „alu pc“, „alu p c“, „alu pe ze“ … – zusammengeschrieben vergleichen
 ALUPC_FORMS = ("alupc", "alupeze", "alupezeh", "alupehzeh", "alupetse", "alupeetse", "alupece", "alupeceh",
                # das kleine Modell hört „Alu PC“ oft als „Hallo PC“ (in der CI mit Piper-Stimme: jedes Mal)
-               "hallopc", "halopc", "hallupc", "hallopeze", "hallopetse")
+               "hallopc", "halopc", "hallupc", "hallopeze", "hallopetse",
+               "alopezie", "alopeze")  # CI 0.89: „Alu PC, wie spät …“ → „alopezie die spät …“
 TARGET_WORDS = {"bildschirm", "monitor", "monitore", "zwei", "2"}  # „Alu PC, Bildschirm schwarz“
 STRICTNESS = {"streng": 0.40, "normal": 0.55, "locker": 0.70}  # höchster Kosinus-Abstand zur angelernten Stimme
 MIN_SPK_FRAMES = 30  # kürzere Äußerungen haben einen zu ungenauen Stimmabdruck
@@ -113,7 +114,7 @@ def _alupc_score(joined: str) -> float:
     # In der CI echt gehört: „anno pc“, „alle pc“, „allo pc“ – kurzes A-Wort + „pc“ zählt (nicht „am pc“)
     if joined.endswith("pc") and 5 <= len(joined) <= 6 and joined.startswith(("al", "an", "hal", "hel")):
         return 0.9
-    if not joined.startswith(("alu", "hal", "allu", "aloo")) or "p" not in joined[3:]:  # „hallo“ allein zählt nicht
+    if not joined.startswith(("alu", "hal", "allu", "aloo", "alop")) or "p" not in joined[3:]:  # „hallo“ allein zählt nicht
         return 0.0
     return max(difflib.SequenceMatcher(None, joined, form).ratio() for form in ALUPC_FORMS)
 

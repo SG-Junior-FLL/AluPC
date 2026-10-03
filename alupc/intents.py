@@ -172,7 +172,7 @@ def is_question(words: list[str]) -> bool:
 def question(words: list[str]) -> tuple[str, str] | None:
     s = " ".join(words)
     q = is_question(words)
-    if any(p in s for p in ("wie spaet", "wieviel uhr", "wie viel uhr", "uhrzeit", "welche zeit")):
+    if any(p in s for p in ("wie spaet", "wieviel uhr", "wie viel uhr", "uhrzeit", "welche zeit", "spaet ist es")):
         return "frage:uhrzeit", "Uhrzeit"
     if any(p in s for p in ("welcher tag", "welches datum", "datum", "der wievielte", "den wievielten",
                             "wochentag", "welchen tag")):

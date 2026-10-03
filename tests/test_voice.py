@@ -314,6 +314,7 @@ def test_real_ci_transcripts():
         ("Alu PC, Licht auf Blaum.", "rgb_farbe:#0000ff"),
         ("anno pc licht auf blau", "rgb_farbe:#0000ff"),  # 0.84, Vosk verhört das Startwort
         ("alle pc zeigt mir die kamera", "kamera"),
+        ("alopezie die spät ist es", "frage:uhrzeit"),  # CI 0.89, installierte Linux-Version
         ("Hallo PC, schaltet den Bildschirm schwarzschoner aus.", "bildschirmschoner_aus"),
     ]:
         words = voice.fold(heard).split()
