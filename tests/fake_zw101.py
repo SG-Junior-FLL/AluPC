@@ -108,7 +108,7 @@ class FakeZW101:
         if cmd == 0x02:  # Merkmale erzeugen
             if not getattr(self, "_image", None):
                 return 0x15, b""
-            if self.blurry > 0:
+            if getattr(self, "blurry", 0) > 0:
                 self.blurry -= 1
                 return 0x06, b""
             self.buffers[p[0]] = self._image
@@ -149,7 +149,7 @@ class FakeZW101:
             return 0x00, bytes(table)
         if cmd == 0x1D:
             return 0x00, len(self.library).to_bytes(2, "big")
-        if cmd == 0x3C and self.led_supported:  # LED (ZW101: Art, Startfarbe, Endfarbe, Wiederholungen)
-            self.leds.append((p[0], p[1]))
+        if cmd == 0x3C and getattr(self, "led_supported", True):  # LED (ZW101: Art, Startfarbe, Endfarbe, Wiederholungen)
+            getattr(self, "leds", []).append((p[0], p[1]))
             return 0x00, b""
         return 0x01, b""

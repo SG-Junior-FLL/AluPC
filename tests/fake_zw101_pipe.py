@@ -29,6 +29,9 @@ class PipeFake(FakeZW101):
         self.library = {slot: "A"}
         self.password_ok = True
         self.commands = []
+        self.blurry = 0
+        self.led_supported = True
+        self.leds = []
 
 
 def read(h, n):
