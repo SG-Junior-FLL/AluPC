@@ -634,6 +634,7 @@ class MainWindow(QMainWindow):
         # Timer-Anzeige auf Kachel/Statuskarte jede Sekunde aktualisieren
         self._timer_tick = QTimer(self, interval=500)
         self._timer_tick.timeout.connect(self._update_timer_ui)
+        self._timer_tick.timeout.connect(self._update_mic_button)
         self._timer_tick.start()
         self.camera_menu = QMenu(self)
         self.camera_menu.aboutToShow.connect(lambda: self._fill_camera_menu(self.camera_menu))
@@ -1655,12 +1656,19 @@ class MainWindow(QMainWindow):
             card.preview.set(image, card.preview.icon_name)
         self.side_monitor.set_image(image)
 
+    def _update_mic_button(self) -> None:
+        """Knopf „Zuhören“ zeigt auch das kurze Fenster nach „Ja?“ – so sieht man, dass AluPC gerade ohne
+        Startwort zuhört (und wann nicht mehr)."""
+        vc = self.controller.voice
+        text = "Hört zu …" if vc.direct else ("Ich höre …" if vc.open_ear() else "Zuhören")
+        if getattr(self.mic_button, "text_", None) != text or self.mic_button.isChecked() != (text != "Zuhören"):
+            self.mic_button.setChecked(text != "Zuhören")
+            self.mic_button.text_ = text
+            self.mic_button.update()
+
     def refresh(self):
         c = self.controller
-        listening = bool(c.voice.direct)
-        self.mic_button.setChecked(listening)
-        self.mic_button.text_ = "Hört zu …" if listening else "Zuhören"
-        self.mic_button.update()
+        self._update_mic_button()
         t = theme.current()
         out = c.output_screen()
         pip_on = bool(c.pip and c.pip.isVisible())

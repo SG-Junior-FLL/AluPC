@@ -4365,6 +4365,12 @@ def test_mic_switch_button(env, monkeypatch):
     controller.run_command("zuhoeren")  # Tastenkürzel / Kachel: umschalten
     pump()
     assert not controller.voice.direct and not window.mic_button.isChecked()
+    controller.voice.listen_on(5, force=True)  # nach „Ja?“: Knopf zeigt, dass AluPC kurz ohne Startwort hört
+    window._update_mic_button()
+    assert window.mic_button.isChecked() and window.mic_button.text_ == "Ich höre …"
+    controller.voice.follow_until = 0
+    window._update_mic_button()
+    assert not window.mic_button.isChecked() and window.mic_button.text_ == "Zuhören"
 
 
 def test_enroll_dialog_prepares_itself(env, monkeypatch):
