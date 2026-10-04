@@ -751,6 +751,14 @@ class VoiceControl(QObject):
             self.heard.emit(f"„{better}“ (genau)" + (f" – {who}" if who else ""))
             text, words, span = better, w2, s2
         found, empty = self._interpret(words, span)
+        if found is not None and aw and aw != words and (span is not None or self.direct):
+            # Vosk verstand nur das Grobe („Licht“ → umschalten), der Wortschatz-Erkenner das Genauere
+            # („Licht rot“ → Farbe): dann das Genauere nehmen (CI 0.93: „Computer, mach das Licht rot“)
+            sa = lead_wake(aw, wakes)
+            finer, _e = self._interpret(aw, sa if sa is not None else (0, 0))
+            if finer is not None and finer[0] != found[0] and finer[0].startswith(found[0] + "_"):
+                self.heard.emit(f"„{alt}“ (Wortschatz)" + (f" – {who}" if who else ""))
+                found, text = finer, alt
         if found is None and not empty and aw and aw != words and (span is not None or self.direct):
             sa = lead_wake(aw, wakes)  # zweite Meinung: Grammatik-Erkenner (nur, wenn AluPC gemeint ist)
             found2, _e = self._interpret(aw, sa if sa is not None else ((0, 0) if span is not None else None))

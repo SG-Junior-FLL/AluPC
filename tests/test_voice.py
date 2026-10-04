@@ -447,3 +447,5 @@ def test_chatter_without_wake_word_does_nothing(qtbot_free_app, tmp_path, monkey
     assert got == []
     vc._handle("computer licht rot", alt="computer licht rot")
     assert got == ["rgb_farbe:#ff0000"]
+    vc._handle("computer macht das licht dort", alt="computer macht das licht rot")  # Vosk verhört die Farbe
+    assert got[-1] == "rgb_farbe:#ff0000"

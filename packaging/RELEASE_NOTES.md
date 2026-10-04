@@ -8,7 +8,17 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.93.0)
+### Neu in dieser Version (0.94.0)
+- **Neuer Echttest gegen Fehlalarme:** In jedem Build spricht eine Computerstimme 8 normale Gesprächssätze ohne
+  Startwort („Ich sitze gerade am Computer …“, „Mach mal das Licht aus, Mama“, „Wie spät ist es eigentlich?“).
+  Ergebnis vor diesem Release: 0 von 8 Fehlalarmen (Windows und Linux).
+- **„Computer, …“ echt geprüft** (Computerstimme → Spracherkennung → Befehl).
+- **Genauer verstehen:** Hört die normale Erkennung nur „Licht“, der Wortschatz-Erkenner aber „Licht rot“, nimmt AluPC
+  jetzt das Genauere (vorher wurde nur das Licht umgeschaltet).
+- **Knopf „Zuhören“ zeigt „Ich höre …“**, solange AluPC nach „Ja?“ ohne Startwort zuhört.
+- Ehrlich: geprüft mit erzeugter Stimme, nicht mit deinem Mikrofon und echten Gesprächen im Raum.
+
+### Neu in Version 0.93.0
 - **Fehler behoben: AluPC reagierte auf normales Reden ohne Startwort.** Ursachen und Lösung:
   - Nach jeder Antwort hörte AluPC 8 s ohne Startwort weiter. Jeder Befehl öffnete das Fenster neu, so ging es
     endlos weiter. Jetzt passiert das nur noch nach „Ja?“ (nur das Startwort gesagt), und nur für EINEN Satz.
