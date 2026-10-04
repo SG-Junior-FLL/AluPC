@@ -161,6 +161,8 @@ def main() -> int:
         tts_s = time.time() - t1
         pcm = to_16k(wav)
         text = vosk_text(vosk.KaldiRecognizer(model, 16000), pcm)
+        alt = vosk_text(vosk.KaldiRecognizer(model, 16000, json.dumps(voice.grammar_words(), ensure_ascii=False)),
+                        pcm).replace("[unk]", "").strip()
         wake = voice.wake_span(voice.fold(text).split()) is not None
         ok_wake += wake
         # nur Vosk (Standard-Erkennung)
@@ -179,15 +181,16 @@ def main() -> int:
         hit, _empty = vc._interpret(w2, s2)
         whisper_cmd = hit[0] if hit else "-"
         ok_whisper += whisper_cmd == expected
-        # so arbeitet AluPC: Vosk zuerst, Whisper nur, wenn Vosk nichts verstanden hat
+        # so arbeitet AluPC: Vosk frei → Vosk mit Wortschatz → Whisper, jeweils nur, wenn vorher nichts verstanden
         got.clear()
-        vc._handle(text, None, 0, pcm)
+        vc._handle(text, None, 0, pcm, alt)
         both_cmd = got[-1] if got else "-"
         ok_both += both_cmd == expected
-        note(group="Sätze", text=f"„{sentence}“ → Vosk: „{text}“ (Startwort {'ja' if wake else 'NEIN'}) = {vosk_cmd} · Whisper: „{exact}“ = "
+        note(group="Sätze", text=f"„{sentence}“ → Vosk: „{text}“ (Startwort {'ja' if wake else 'NEIN'}) = {vosk_cmd} · "
+             f"Wortschatz: „{alt}“ · Whisper: „{exact}“ = "
              f"{whisper_cmd} · AluPC: {both_cmd} (erwartet {expected}; Stimme {tts_s:.1f} s, Whisper {whisper_s:.1f} s)")
     n = len(SENTENCES)
-    note(group="Ergebnis", text=f"Richtig verstanden: AluPC (Vosk + Whisper als zweite Meinung) {ok_both}/{n} · nur Vosk {ok_vosk}/{n} · "
+    note(group="Ergebnis", text=f"Richtig verstanden: AluPC (Vosk + Wortschatz + Whisper) {ok_both}/{n} · nur Vosk {ok_vosk}/{n} · "
          f"nur Whisper {ok_whisper}/{n} · Startwort von Vosk gehört {ok_wake}/{n}")
     if not mic_check(piper_voice):
         return 1

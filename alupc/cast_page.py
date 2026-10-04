@@ -116,6 +116,14 @@ input[type=range] { width:100%; accent-color:#8b5cf6; height:30px; }
 .corner { position:absolute; right:8px; top:8px; z-index:2; background:rgba(0,0,0,.55); color:#fff; padding:7px; border-radius:12px; }
 @keyframes pulse { 50% { opacity:.3; } }
 .timer { font-size:44px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums; margin:0 0 10px; letter-spacing:1px; }
+.askrow { display:flex; gap:8px; }
+.askrow input { flex:1; font-size:16px; }
+.askrow button { flex:0 0 52px; padding:0; }
+.reply { margin-top:10px; padding:10px 12px; border-radius:12px; background:var(--soft, rgba(139,92,246,.12));
+  font-size:15px; display:none; }
+.reply.show { display:block; animation:pop .25s ease-out; }
+.reply.bad { background:rgba(239,68,68,.14); }
+@keyframes pop { from { transform:scale(.97); opacity:0 } to { transform:none; opacity:1 } }
 .chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
 .chips button { flex:1 1 auto; padding:9px 6px; font-size:13.5px; border-radius:12px; }
 .big { font-size:30px; letter-spacing:8px; text-align:center; }
@@ -179,6 +187,10 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
   <symbol id="i-back10" viewBox="0 0 24 24"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></symbol>
   <symbol id="i-fwd10" viewBox="0 0 24 24"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></symbol>
   <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></symbol>
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4.5 17a9 9 0 1 1 15 0"/><path d="M12 14l4-4.5"/><circle cx="12" cy="14" r="1.4"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-board" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M9 20l1.5-4M15 20l-1.5-4M7 12c2-4 3 1 5-2s3 1 5-1"/></symbol>
+  <symbol id="i-wheel" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/><circle cx="12" cy="12" r="2"/></symbol>
   <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z"/></symbol>
   <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
   <symbol id="i-slides" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M10 8l4 2-4 2z"/></symbol>
@@ -218,6 +230,20 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
       <span class="badge"><i></i>LIVE · <span id="live-hint">Finger = Laser</span></span></div>
   </div>
   <div id="control">
+  <div class="card ask">
+    <h2>Frag AluPC</h2>
+    <form class="askrow" onsubmit="ask(); return false">
+      <input type="text" id="ask" placeholder="z. B. Licht blau · Timer 5 Minuten" enterkeyhint="send"
+             autocomplete="off" autocapitalize="off">
+      <button class="primary" type="submit" aria-label="Senden"><svg class="i"><use href="#i-next"/></svg></button>
+    </form>
+    <div class="reply" id="reply"></div>
+    <div class="chips" style="margin:10px 0 0">
+      <button onclick="askText('Bildschirm schwarz')">Schwarz</button><button onclick="askText('Licht aus')">Licht aus</button>
+      <button onclick="askText('Timer 5 Minuten')">Timer 5 min</button><button onclick="askText('Wie spät ist es?')">Uhrzeit</button>
+    </div>
+    <div class="hint">🎤 Sprechen: Mikrofon auf der Handy-Tastatur antippen – AluPC versteht ganze Sätze.</div>
+  </div>
   <div class="card">
     <h2>Monitor 2</h2>
     <div class="grid">
@@ -236,6 +262,10 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
       <button class="tile" onclick="cmd('airplay')"><svg class="i"><use href="#i-phone"/></svg>iPhone</button>
       <button class="tile" onclick="cmd('qr')"><svg class="i"><use href="#i-qr"/></svg>QR-Code</button>
       <button class="tile" onclick="cmd('timer_zeigen')"><svg class="i"><use href="#i-timer"/></svg>Timer</button>
+      <button class="tile" onclick="cmd('system')"><svg class="i"><use href="#i-gauge"/></svg>System</button>
+      <button class="tile" onclick="cmd('wetter')"><svg class="i"><use href="#i-sun"/></svg>Wetter</button>
+      <button class="tile" onclick="cmd('whiteboard')"><svg class="i"><use href="#i-board"/></svg>Tafel</button>
+      <button class="tile" onclick="cmd('gluecksrad')"><svg class="i"><use href="#i-wheel"/></svg>Glücksrad</button>
     </div>
   </div>
   <div class="card hide" id="c-ablauf">
@@ -490,6 +520,15 @@ async function post(path, obj, okText) {
   catch (e) { toast(e.message, true); }
 }
 function cmd(c) { buzz(); post("/api/cmd", { cmd: c }); }
+let replyId = -1, waitReply = false;
+function askText(t) { $("ask").value = t; ask(); }
+async function ask() {
+  const t = $("ask").value.trim(); if (!t) return;
+  buzz(); waitReply = true;
+  const r = $("reply"); r.className = "reply show"; r.textContent = "…";
+  try { await api("/api/ask", JSON.stringify({ text: t }), "application/json"); $("ask").value = ""; $("ask").blur(); setTimeout(refresh, 250); }
+  catch (e) { r.className = "reply show bad"; r.textContent = e.message; waitReply = false; }
+}
 function key(k) { buzz(); post("/api/cmd", { cmd: "taste:" + k }); }
 function sendLink() {
   const u = $("url").value.trim(); if (!u) return;
@@ -551,6 +590,15 @@ async function refresh() {
     $("c-vol").classList.toggle("hide", !s.sound);
     if (document.activeElement !== $("vol")) { $("vol").value = s.volume; $("vol-val").textContent = s.volume + " %"; }
     $("timer").textContent = s.timer || "–";
+    if (s.reply) {  // Antwort auf „Frag AluPC“ (nur neue Antworten zeigen)
+      if (replyId < 0) replyId = s.reply.id;
+      else if (s.reply.id !== replyId) {
+        replyId = s.reply.id;
+        if (waitReply && s.reply.text) { const r = $("reply"); r.className = "reply show" +
+          (/nicht verstanden|nur direkt|nicht geklappt|ging nicht/i.test(s.reply.text) ? " bad" : "");
+          r.textContent = s.reply.text; waitReply = false; }
+      }
+    }
     $("c-rgb").classList.toggle("hide", !s.rgb);
     for (const m of ["farbe", "monitor2", "aus"]) $("r-" + m).classList.toggle("on", s.rgb === m);
     $("c-keys").classList.toggle("hide", s.keys === false);

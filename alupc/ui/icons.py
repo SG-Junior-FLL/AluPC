@@ -547,6 +547,9 @@ def _draw(name: str, p: QPainter, color: QColor):
         path.lineTo(4.4, 17.4)
         path.lineTo(8.6, 16.4)
         p.drawPath(path)
+    elif name == "search":  # Lupe
+        p.drawEllipse(QPointF(10.5, 10.5), 6.2, 6.2)
+        p.drawLine(QPointF(15.2, 15.2), QPointF(20.5, 20.5))
     elif name == "gauge":  # Tacho: Bogen, Skalenstriche, Zeiger
         p.drawArc(QRectF(3, 4, 18, 18), -25 * 16, 230 * 16)
         for deg in (150, 90, 30):

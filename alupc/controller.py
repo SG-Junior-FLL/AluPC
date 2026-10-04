@@ -753,6 +753,7 @@ class Controller(QObject):
             "ablauf": bool(self.step_sources()),
             "punkt": self.step_label(),
             "rgb": rgb,
+            "reply": {"id": self.assistant.reply_seq, "text": self.assistant.last_reply},
             "flags": {"schwarz": self.privacy, "standbild": self.frozen, "schoner": self.screensaver.active,
                       "spiegeln": bool(self.mode == "content" and content.get("mirror")),
                       "erweitern": self.mode == "desktop" and self.desktop_note.startswith("Erweitert")},
@@ -871,6 +872,8 @@ class Controller(QObject):
                 self.live_text(req["text"])
             else:
                 self.show_text(req["text"])
+        elif kind == "ask":  # „Frag AluPC“ vom Handy (getippt oder mit der Tastatur diktiert)
+            self.ask(req.get("text", ""), source="handy")
         elif kind == "laser":
             self._phone_laser(req.get("x"), req.get("y"))
             return
@@ -1676,6 +1679,37 @@ class Controller(QObject):
         if command != "frage:ja":
             self.message.emit(f"🎤 {label}")
         self.assistant.handle(command, label, text)
+
+    # Befehle, die das Handy auch als Satz („Frag AluPC“) nicht auslösen darf – nur am PC
+    PHONE_FORBIDDEN = {"sperren", "zuhoeren", "zuhoeren_an", "zuhoeren_aus", "spiel_start"}
+
+    def ask(self, text: str, source: str = "pc") -> dict:
+        """Getippten (oder diktierten) Satz verstehen und ausführen – wie ein Sprachbefehl, nur ohne Mikrofon.
+        Rückgabe: {"ok", "command", "label", "reply"}."""
+        from .intents import understand
+        from .voice import fold, wake_span
+
+        words = fold(text).split()
+        span = wake_span(words)
+        if span:
+            words = words[:span[0]] + words[span[1]:]
+        try:
+            found = understand(words, self.config.scene_names(), self.config["voice"].get("custom") or []) \
+                if words else None
+        except Exception:  # noqa: BLE001
+            found = None
+        if not found:
+            reply = "Das habe ich nicht verstanden. Zum Beispiel: „Licht blau“, „Timer 5 Minuten“, „Kamera zeigen“."
+            self.assistant.remember(reply)
+            return {"ok": False, "command": "", "label": "", "reply": reply}
+        command, label = found
+        if source == "handy" and (command in self.PHONE_FORBIDDEN or command.startswith("spiel:")):
+            reply = "Das geht nur direkt am PC."
+            self.assistant.remember(reply)
+            return {"ok": False, "command": command, "label": label, "reply": reply}
+        self.message.emit(f"{'📱' if source == 'handy' else '⌨'} {label}")
+        reply = self.assistant.handle(command, label, text, voice=False)
+        return {"ok": True, "command": command, "label": label, "reply": reply}
 
     def _voice_not_understood(self, text: str) -> None:
         if self.voice.dry_run:  # „Sprache testen“ zeigt das selbst an

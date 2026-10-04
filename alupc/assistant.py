@@ -107,6 +107,8 @@ def say_weather(data: dict, place: str = "") -> str:
 class Assistant:
     def __init__(self, controller):
         self.c = controller
+        self.reply_seq = 0
+        self.last_reply = ""
         self.random = random.Random()
 
     # ------------------------------------------------------------ Zustand
@@ -130,7 +132,12 @@ class Assistant:
         return self.random.choice(ACK)
 
     # ------------------------------------------------------------ Befehl → Antwort
-    def handle(self, command: str, label: str, text: str = "") -> str:
+    def remember(self, reply: str) -> None:
+        """Letzte Antwort merken – das Handy („Frag AluPC“) und die Befehlssuche zeigen sie an."""
+        self.reply_seq += 1
+        self.last_reply = reply
+
+    def handle(self, command: str, label: str, text: str = "", voice: bool = True) -> str:
         """Ausführen und die gesprochene Antwort zurückgeben (wird auch gleich gesagt). Geht etwas schief, sagt
         AluPC das – mit Grund statt stiller oder „unbekannter“ Fehler."""
         c = self.c
@@ -152,6 +159,9 @@ class Assistant:
                        "")
         if problem and not command.startswith("frage:"):
             reply = f"Das ging nicht: {problem.rstrip('.')}."
+        self.remember(reply)
+        if not voice:  # getippt (Befehlssuche, Handy): nichts vorlesen, nicht aufs Nachfragen warten
+            return reply
         if reply:
             c.speaker.say(reply)
         if command != "zuhoeren_aus":
@@ -201,6 +211,7 @@ class Assistant:
 
     def not_understood(self, text: str) -> str:
         reply = self.random.choice(NOT_UNDERSTOOD)
+        self.remember(reply)
         self.c.speaker.say(reply)
         self.c.voice.listen_on()
         return reply

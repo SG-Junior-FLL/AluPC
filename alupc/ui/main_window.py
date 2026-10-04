@@ -299,6 +299,9 @@ class MainWindow(QMainWindow):
         self.nav_group.buttons()[0].setChecked(True)
 
         self.toast = Toast(self)
+        from PySide6.QtGui import QKeySequence, QShortcut
+
+        QShortcut(QKeySequence("Ctrl+K"), self, activated=self.open_command_palette)
         self._build_tray()
         controller.changed.connect(self.refresh)
         controller.games_changed.connect(self.refresh)
@@ -339,6 +342,15 @@ class MainWindow(QMainWindow):
         brand.addLayout(names, 1)
         lay.addLayout(brand)
 
+        # Befehlssuche (Strg+K): eintippen, was passieren soll
+        search = NavButton("search", "Suchen")
+        search.setCheckable(False)
+        search.setToolTip("Befehle, Szenen und Einstellungen suchen – oder einfach schreiben, was passieren soll "
+                          "(„Licht blau“, „Timer 5 Minuten“) · Strg+K")
+        search.clicked.connect(self.open_command_palette)
+        self.search_button = search
+        lay.addWidget(search)
+        lay.addSpacing(4)
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
         # (Seiten-Nummer, Symbol, Text) – Reihenfolge in der Leiste, Nummer = Seite im Stapel
@@ -410,6 +422,21 @@ class MainWindow(QMainWindow):
         self.version_label = version
         lay.addWidget(version)
         return side
+
+    def open_command_palette(self) -> None:
+        from .command_palette import CommandPalette
+
+        CommandPalette(self).exec()
+
+    def open_setup_section(self, title: str) -> None:
+        """Setup öffnen und dort den Bereich `title` zeigen (z. B. aus der Befehlssuche)."""
+        self._go(2)
+        from .setup_page import SetupPage
+
+        setup = self.findChild(SetupPage)
+        titles = [t for _i, t, _s in SetupPage.SECTIONS]
+        if setup is not None and title in titles:
+            setup.nav.setCurrentRow(titles.index(title))
 
     def _go(self, index: int):
         page = self.pages[index]
@@ -1787,7 +1814,7 @@ class MainWindow(QMainWindow):
         for w in (*self.brand_texts, self.version_label):
             w.setVisible(not compact)
         self.brand_layout.setContentsMargins(19 if compact else 14, 0, 8, 18)
-        for b in (*self.nav_group.buttons(), self.lock_button, self.mic_button):
+        for b in (*self.nav_group.buttons(), self.lock_button, self.mic_button, self.search_button):
             b.set_compact(compact)
         self.side_monitor.set_compact(compact)
         self.step_text.setVisible(not compact)

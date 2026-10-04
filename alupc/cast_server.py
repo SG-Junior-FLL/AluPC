@@ -466,7 +466,7 @@ def _make_handler(server: CastServer):
             if not self._auth():
                 return
             need = {"/api/upload": "senden", "/api/link": "senden", "/api/text": "senden",
-                    "/api/laser": "laser", "/api/draw": "laser", "/api/cmd": "steuern",
+                    "/api/laser": "laser", "/api/draw": "laser", "/api/cmd": "steuern", "/api/ask": "steuern",
                     "/api/mouse": "steuern"}.get(u.path)
             if need and not self._may(need):
                 self.close_connection = True
@@ -528,6 +528,12 @@ def _make_handler(server: CastServer):
                         if abs(dx) > 2000 or abs(dy) > 2000:
                             raise ValueError("zu weit")
                         server.request.emit({"kind": "mouse", "dx": dx, "dy": dy})
+                elif u.path == "/api/ask":  # „Frag AluPC“: ganzer Satz, AluPC versteht ihn wie einen Sprachbefehl
+                    text = str(data.get("text", "")).strip()[:300]
+                    if not text:
+                        self._json(400, {"error": "Kein Text"})
+                        return
+                    server.request.emit({"kind": "ask", "text": text})
                 elif u.path == "/api/cmd":
                     cmd = str(data.get("cmd", ""))
                     if not (cmd in ALLOWED_COMMANDS or cmd.startswith("szene:")

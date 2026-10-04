@@ -4518,3 +4518,49 @@ def test_voice_test_dialog_shows_each_step(env, monkeypatch):
     assert ran == [] and not vc.dry_run  # im Test nichts ausgeführt
     assert _until(lambda: vc.state == "aus", 3)  # nur für den Test gestartet → wieder aus
     vc.recognizer_factory = None
+
+
+# ---------------------------------------------------------------- 0.92: Befehlssuche + „Frag AluPC“ vom Handy
+def test_command_palette_understands_sentences_and_finds_pages(env):
+    controller, window, _ = env
+    from alupc.ui.command_palette import CommandPalette
+    from alupc.ui.setup_page import SetupPage
+
+    pal = CommandPalette(window)
+    pal.edit.setText("licht auf blau")
+    first = pal.list.item(0)
+    assert first.data(Qt.UserRole) == "ask:licht auf blau" and "Licht blau" in first.text()
+    pal.run_selected()
+    assert controller.rgb.settings()["color"] == "#0000ff"
+    assert controller.assistant.last_reply  # Antwort gemerkt (für Handy/Hinweis)
+    pal = CommandPalette(window)
+    pal.edit.setText("setup sprache")
+    actions = [pal.list.item(i).data(Qt.UserRole) for i in range(pal.list.count())]
+    assert "setup:Sprache" in actions
+    pal.list.setCurrentRow(actions.index("setup:Sprache"))
+    pal.run_selected()
+    pump()
+    setup = window.findChild(SetupPage)
+    assert window.stack.currentIndex() == 2 and setup.nav.currentRow() == [t for _i, t, _s in SetupPage.SECTIONS].index("Sprache")
+    pal = CommandPalette(window)
+    pal.edit.setText("xyzquatsch")
+    assert pal.list.count() == 0
+
+
+def test_ask_from_phone_and_pc(env):
+    controller, window, _ = env
+    r = controller.ask("Alu PC, mach den Bildschirm schwarz")
+    assert r["ok"] and r["command"] == "schwarz_an" and controller.privacy
+    r = controller.ask("Bild wieder an")
+    assert r["ok"] and not controller.privacy
+    seq = controller.assistant.reply_seq
+    r = controller.ask("blabla quatsch")
+    assert not r["ok"] and "nicht verstanden" in r["reply"] and controller.assistant.reply_seq == seq + 1
+    r = controller.ask("Computer sperren", source="handy")  # nur am PC
+    assert not r["ok"] and "nur direkt am PC" in r["reply"]
+    controller._cast_request({"kind": "ask", "text": "Timer auf zwei Minuten"})
+    from alupc.timer import clock
+
+    assert clock.running
+    controller._cast_tick() if hasattr(controller, "_cast_tick") else None
+    controller._update_cast_snapshot() if hasattr(controller, "_update_cast_snapshot") else None

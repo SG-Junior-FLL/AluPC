@@ -388,3 +388,20 @@ def test_am_pc_at_sentence_start_counts_only_with_command(qtbot_free_app, tmp_pa
     vc._handle("am pc sitzen wir heute lange")  # kein Befehl → nichts
     vc._handle("ich bin am pc mach schwarz")  # nicht am Satzanfang → nichts
     assert got == ["schwarz_an"]
+
+
+def test_grammar_recognizer_as_second_opinion(qtbot_free_app, tmp_path, monkeypatch):
+    """Zweiter Erkenner mit festem Wortschatz: hilft bei verhörtem Startwort/Befehl – aber nur mit Anhaltspunkt in
+    der freien Erkennung (sonst würde jedes Gespräch zum Befehl)."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from alupc.config import Config
+
+    vc = voice.VoiceControl(Config(tmp_path / "c.json"))
+    got = []
+    vc.command.connect(lambda c, _l, _t: got.append(c))
+    vc._handle("alopezie die spätestes", alt="alu pc wie spät ist es")  # Startwort + Befehl verhört
+    vc._handle("alu pc die spätestes", alt="alu pc wie spät ist es")  # Startwort ok, Befehl verhört
+    vc._handle("wir gehen morgen einkaufen", alt="alu pc licht aus")  # kein Anhaltspunkt → nichts
+    assert got == ["frage:uhrzeit", "frage:uhrzeit"]
+    words = voice.grammar_words(["Pause Mittag"], [{"say": "Kaffee holen", "do": "x"}])
+    assert "glücksrad" in words and "mittag" in words and "kaffee" in words and words[-1] == "[unk]"

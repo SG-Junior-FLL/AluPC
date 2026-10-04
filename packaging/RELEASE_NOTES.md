@@ -8,7 +8,20 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.91.0)
+### Neu in dieser Version (0.92.0)
+- **Befehlssuche (Strg+K / „Suchen“ oben links):** einfach tippen, was passieren soll – „Licht blau“, „Timer 5
+  Minuten“, „Szene Pause“, „Setup Sprache“. Ganze Sätze werden wie bei der Sprachsteuerung verstanden, dazu passende
+  Befehle, Szenen, Seiten und Setup-Bereiche. Enter führt aus.
+- **Handy: „Frag AluPC“** – Satz eintippen oder mit dem Mikrofon der Handy-Tastatur diktieren, AluPC führt ihn aus und
+  zeigt die Antwort auf dem Handy. Schnellknöpfe: Schwarz, Licht aus, Timer 5 min, Uhrzeit. Sperren, Zuhören und
+  Spiele-Start gehen aus Sicherheitsgründen nur direkt am PC.
+- **Handy: neue Kacheln** unter „Zeigen“: System, Wetter, Tafel, Glücksrad.
+- **Spracherkennung: zweiter Erkenner mit festem AluPC-Wortschatz.** Er hört parallel nur auf bekannte Wörter
+  (Befehle, Farben, Zahlen, eigene Szenen) und hilft, wenn die freie Erkennung einen Befehl verhört hat.
+- Ehrlich: Der Wortschatz-Erkenner ist nur mit erzeugten Sprachaufnahmen (CI) geprüft, nicht mit deinem Mikrofon.
+  Diktieren auf dem Handy hängt von der Handy-Tastatur ab (iPhone/Gboard können das) – nicht auf echtem Handy getestet.
+
+### Neu in Version 0.91.0
 - **Startwort noch zuverlässiger** – aus den echten Sprachtests der installierten Linux-Version:
   - „Alopezie …“ (so hörte das Sprachmodell „Alu PC“) zählt als Startwort.
   - „Am PC …“ am Satzanfang zählt, wenn danach ein Befehl kommt („Am PC sitzen …“ löst nichts aus).

@@ -100,6 +100,38 @@ GAME_NAMES = {
 }
 
 
+# Wortschatz von AluPC für den zweiten Erkenner („Grammatik“): Vosk darf dann nur diese Wörter hören (oder [unk]).
+# Das kleine Modell verhört freie Sprache oft („Alopezie“, „am PC“) – mit festem Wortschatz trifft es AluPCs Wörter
+# viel sicherer. Wörter, die das Modell nicht kennt, ignoriert Vosk.
+VOCAB = """
+alu pc pe ze monitor hallo hey okay bitte mal jetzt doch noch ja und dann mir mich uns du dein den die das der dem
+des ein eine einen einem auf mit für zu in im am an aus wieder nicht mehr kein keine keinen wie was wann welche
+welcher welches wer ist es sind heute gerade gleich viel wieviel
+mach mache machen schalte schalt stell stelle zeig zeige zeigen öffne starte starten stoppe stopp stop beenden
+beende dreh drehe drehen lass spielen spiel wechsel geh hör hören zuhören lösche löschen sperre sperren erzähl
+kannst einschalten ausschalten anmachen ausmachen aktivieren
+bildschirm schwarz sichtschutz dunkel standbild einfrieren bildschirmschoner schoner overlays overlay einblendungen
+vorschau bild licht beleuchtung rgb led lampe farbe rot grün blau gelb orange lila violett pink rosa weiß türkis
+heller dunkler kamera wetter uhr system systemstatus auslastung whiteboard tafel glücksrad rad minispiele spiele
+abstimmung umfrage ergebnis bestenliste airplay iphone ipad handy spiegeln erweitern desktop musik lied titel song
+pause weiter zurück nächste nächstes nächster vorherige vorheriges letzte szene szenen timer minute minuten sekunde
+sekunden stunde stunden halbe countdown stoppuhr start los neu plus minus länger kürzer zeichnungen computer rechner
+mikrofon spät uhrzeit tag datum warm temperatur prozessor grafikkarte speicher geht dir witz danke hilfe frage
+runde teams mischen töne lobby pong schätzen malen raten simon tauziehen ballon schlangen rennen reaktion
+eins zwei drei vier fünf sechs sieben acht neun zehn elf zwölf fünfzehn zwanzig dreißig vierzig fünfzig sechzig
+""".split()
+
+
+def grammar_words(scenes=(), custom=()) -> list[str]:
+    """Wortschatz + Wörter aus eigenen Szenen und eigenen Sprachbefehlen (klein, ohne Satzzeichen)."""
+    words = list(dict.fromkeys(VOCAB))
+    for text in [*scenes, *[c.get("say", "") for c in custom or []]]:
+        for w in "".join(ch if ch.isalnum() else " " for ch in str(text).lower()).split():
+            if w not in words:
+                words.append(w)
+    return words + ["[unk]"]
+
+
 def fold(text: str) -> str:
     """klein, ohne Akzente, Umlaute als ae/oe/ue, nur Buchstaben/Ziffern/Leerzeichen."""
     s = str(text or "").lower()
@@ -370,6 +402,7 @@ class VoiceControl(QObject):
         self._mute_until = 0.0  # Echo-Sperre: solange AluPC spricht, nichts auswerten
         self._reset = False
         self.stt = None  # genaue Erkennung (Whisper), falls eingeschaltet und heruntergeladen
+        self._grammar = None  # zweiter Vosk-Erkenner mit AluPCs Wortschatz
         self.stt_error = ""
         self._watchdog = None
         self._mic_lost = False
@@ -449,7 +482,14 @@ class VoiceControl(QObject):
                     import vosk
 
                     vosk.SetLogLevel(-1)
-                    rec = vosk.KaldiRecognizer(vosk.Model(str(model_dir())), RATE)
+                    model = vosk.Model(str(model_dir()))
+                    rec = vosk.KaldiRecognizer(model, RATE)
+                    self._grammar = None
+                    try:  # zweiter Erkenner mit festem Wortschatz (kleine Modelle können das)
+                        self._grammar = vosk.KaldiRecognizer(model, RATE, json.dumps(
+                            grammar_words(self.scenes(), self.settings().get("custom") or []), ensure_ascii=False))
+                    except Exception as exc:  # noqa: BLE001 – dann eben nur freie Erkennung
+                        self._note_error(exc)
                     self.has_spk = False
                     if spk_ready():  # Stimmen unterscheiden (nur wenn heruntergeladen)
                         rec.SetSpkModel(vosk.SpkModel(str(spk_dir())))
@@ -595,6 +635,7 @@ class VoiceControl(QObject):
 
     def _listen(self, rec) -> None:
         audio = bytearray()  # Ton des laufenden Satzes (für die genaue Erkennung)
+        grammar_parts: list[str] = []  # was der Grammatik-Erkenner im laufenden Satz gehört hat
         while not self._stop.is_set():
             try:
                 data = self._queue.get(timeout=0.3)
@@ -605,6 +646,9 @@ class VoiceControl(QObject):
                 audio.clear()
                 if hasattr(rec, "Reset"):
                     rec.Reset()
+                if self._grammar is not None:
+                    self._grammar.Reset()
+                    grammar_parts.clear()
                 while not self._queue.empty():
                     try:
                         self._queue.get_nowait()
@@ -615,13 +659,21 @@ class VoiceControl(QObject):
             if len(audio) > RATE * 2 * 30:  # höchstens 30 s
                 del audio[:len(audio) - RATE * 2 * 30]
             try:
+                g = self._grammar
+                if g is not None and g.AcceptWaveform(data):
+                    grammar_parts.append(json.loads(g.Result()).get("text", ""))
                 if rec.AcceptWaveform(data):
                     res = json.loads(rec.Result())
                     text = res.get("text", "")
                     said = bytes(audio)
                     audio.clear()
+                    alt = ""
+                    if g is not None:
+                        grammar_parts.append(json.loads(g.FinalResult()).get("text", ""))
+                        alt = " ".join(p for p in grammar_parts if p).replace("[unk]", "").strip()
+                        grammar_parts.clear()
                     if text:
-                        self._handle(text, res.get("spk"), int(res.get("spk_frames", 0) or 0), said)
+                        self._handle(text, res.get("spk"), int(res.get("spk_frames", 0) or 0), said, alt)
                 elif self.show_partial and hasattr(rec, "PartialResult"):
                     part = json.loads(rec.PartialResult()).get("partial", "")
                     if part:
@@ -630,7 +682,7 @@ class VoiceControl(QObject):
                 self._note_error(exc)
                 continue
 
-    def _handle(self, text: str, spk=None, frames: int = 0, audio: bytes = b"") -> None:
+    def _handle(self, text: str, spk=None, frames: int = 0, audio: bytes = b"", alt: str = "") -> None:
         if self.enrolling:
             self.heard.emit(f"„{text}“" + ("" if spk else " – ohne Stimmabdruck"))
             if spk:
@@ -652,6 +704,16 @@ class VoiceControl(QObject):
             # Befehl kommt – „am PC sitzen …“ löst so nichts aus
             if self._interpret(words, (0, 2))[0] is not None:
                 span = (0, 2)
+        aw = fold(alt).split() if alt else []
+        if span is None and not self.open_ear() and aw:
+            # Grammatik-Erkenner (fester Wortschatz) hörte das Startwort – nur glauben, wenn auch die freie Erkennung
+            # am Satzanfang etwas Ähnliches hat (sonst würde jedes Gespräch in AluPC-Wörter gepresst)
+            sa = wake_span(aw, wakes)
+            hint = any(w in ("pc", "pe", "monitor") or w.startswith(("alu", "hal", "allo", "alle", "ann", "alo"))
+                       for w in words[:3])
+            if sa is not None and hint and self._interpret(aw, sa)[0] is not None:
+                self.heard.emit(f"„{alt}“ (Wortschatz)" + (f" – {who}" if who else ""))
+                text, words, span = alt, aw, sa
         if span is None and not self.open_ear():
             # Vosk hat das Startwort vielleicht verhört („am pc“ …) – Whisper (falls an) fragt nach
             if not (self.stt is not None and audio and any(w in ("pc", "pe", "monitor") for w in words[:4])):
@@ -668,6 +730,12 @@ class VoiceControl(QObject):
             self.heard.emit(f"„{better}“ (genau)" + (f" – {who}" if who else ""))
             text, words, span = better, w2, s2
         found, empty = self._interpret(words, span)
+        if found is None and not empty and aw and aw != words:  # zweite Meinung: Grammatik-Erkenner
+            sa = wake_span(aw, wakes)
+            found2, _e = self._interpret(aw, sa if sa is not None else ((0, 0) if span is not None else None))
+            if found2 is not None:
+                self.heard.emit(f"„{alt}“ (Wortschatz)" + (f" – {who}" if who else ""))
+                found, text = found2, alt
         # Vosk hat nichts verstanden → Whisper als zweite Meinung (in der CI war Vosk bei klaren Sätzen
         # zuverlässiger, Whisper hilft bei Sätzen, die das kleine Modell nicht kennt)
         if found is None and not empty and self.stt is not None and audio:
