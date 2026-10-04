@@ -283,13 +283,19 @@ def test_direct_mode_follow_up_and_echo_mute(qtbot_free_app, tmp_path, monkeypat
     vc.feed(b"mach das licht aus")  # ohne Startwort: nichts
     vc.feed(b"alu pc")  # nur das Startwort: „Ja?“
     assert qtbot_free_app.wait(lambda: got == ["frage:ja"])
-    vc.listen_on(5)  # nach der Antwort: Nachfragen ohne Startwort
+    vc.listen_on(5)  # normale Antwort: ohne „follow_all“ KEIN Fenster
+    assert not vc.open_ear()
+    vc.listen_on(5, force=True)  # nach „Ja?“: einmal ohne Startwort
+    vc.feed(b"also ich finde das licht heute abend echt viel zu hell oder")  # langer Satz = Gespräch
     vc.feed(b"mach das licht aus")
     assert qtbot_free_app.wait(lambda: got == ["frage:ja", "rgb_aus"])
-    vc.follow_until = 0
+    assert not vc.open_ear()  # nach einem Befehl wieder zu
     vc.feed(b"licht an")  # Fenster zu: wieder nichts
+    vc.feed(b"ich glaube der monitor soll das licht an machen")  # Startwort mitten im Satz: nichts
     qtbot_free_app.wait(lambda: vc._queue.empty() and False, 0.4)
     assert "rgb_an" not in got
+    vc.feed(b"computer licht blau")  # neues Startwort
+    assert qtbot_free_app.wait(lambda: got[-1:] == ["rgb_farbe:#0000ff"])
     vc.set_direct(True)  # Mikrofon-Schalter
     vc.feed(b"licht an")
     vc.feed(b"quatsch mit sosse")
@@ -300,6 +306,17 @@ def test_direct_mode_follow_up_and_echo_mute(qtbot_free_app, tmp_path, monkeypat
     qtbot_free_app.wait(lambda: False, 0.3)
     assert got.count("rgb_an") == 1
     vc.stop()
+
+
+def test_wake_word_only_at_sentence_start():
+    w = lambda t: voice.lead_wake(voice.fold(t).split(), tuple(voice.WAKES))  # noqa: E731
+    assert w("Computer, Licht blau") == (0, 1)
+    assert w("ok hey Alu PC Licht blau") == (2, 4)
+    assert w("Monitor schwarz") == (0, 1)
+    assert w("der neue Monitor ist echt groß") is None
+    assert w("hallo pc licht blau") == (0, 2)  # so hört Vosk „Alu PC“ oft
+    assert w("ich habe gestern am Computer gespielt und dann war der Monitor aus") is None
+    assert w("wie geht es dem computer") is None
 
 
 def test_real_ci_transcripts():

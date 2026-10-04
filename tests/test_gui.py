@@ -4145,9 +4145,10 @@ def test_voice_enroll_dialog_and_setup(env):
     assert [v["name"] for v in voices] == ["Lena"] and len(voices[0]["vec"]) == 2
     vc.state, vc.has_spk = "aus", False
     setup = SetupPage(controller, window.hotkeys)
-    assert set(setup.wake_boxes) == {"monitor", "alupc"} and all(cb.isChecked() for cb in setup.wake_boxes.values())
+    assert set(setup.wake_boxes) == {"monitor", "alupc", "computer"} and all(cb.isChecked() for cb in setup.wake_boxes.values())
     assert setup.voice_list.item(0).text() == "Lena"
     setup.wake_boxes["monitor"].setChecked(False)
+    setup.wake_boxes["computer"].setChecked(False)
     assert controller.config["voice"]["wake"] == ["alupc"]
     setup.only_voices.setChecked(True)
     assert controller.config["voice"]["only_voices"] is True
@@ -4325,7 +4326,10 @@ def test_assistant_replies_follow_state(env):
     assert not controller.privacy and spoken[-1].endswith("Das Bild ist wieder da.")
     controller._voice_command("schwarz_aus", "Schwarz aus", "")
     assert spoken[-1] == "Monitor 2 ist gar nicht schwarz."
-    assert controller.voice.follow_until > 0  # Nachfragen ohne Startwort
+    assert controller.voice.follow_until == 0  # normale Antwort: danach nur mit Startwort
+    controller._voice_command("frage:ja", "Ja?", "")
+    assert controller.voice.follow_until > 0  # nach „Ja?“: einmal ohne Startwort
+    controller.voice.follow_until = 0
     controller._voice_command("timer_set:90", "Timer", "")
     from alupc.timer import clock
 

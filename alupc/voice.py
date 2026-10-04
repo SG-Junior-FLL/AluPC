@@ -1,4 +1,4 @@
-"""Sprachbefehle am PC – offline (Vosk), mit Startwort „Monitor“ oder „Alu PC“.
+"""Sprachbefehle am PC – offline (Vosk), mit Startwort „Computer“, „Alu PC“ oder „Monitor“ am Satzanfang.
 
 Beispiele: „Monitor schwarz“, „Alu PC, Bildschirm schwarz“, „Monitor nächste Szene“, „Alu PC, Szene Pause“,
 „Monitor Glücksrad drehen“, „Alu PC, Spiel starten“, „Monitor Bestenliste“.
@@ -39,7 +39,11 @@ SPK_SIZE_MB = 13
 RATE = 16000
 WAKE_WORDS = ("monitor", "monitore", "monitors", "monitoren")
 # Startwörter: Schlüssel → Anzeige
-WAKES = {"monitor": "Monitor", "alupc": "Alu PC"}
+WAKES = {"monitor": "Monitor", "alupc": "Alu PC", "computer": "Computer"}
+COMPUTER_WORDS = ("computer", "komputer", "kompjuter", "computa")
+WAKE_LEAD = 2  # so viele Wörter dürfen VOR dem Startwort stehen („ok hey alu pc …“) – nur diese hier:
+LEAD_WORDS = {"hey", "hei", "he", "hallo", "ok", "okay", "o", "k", "ja", "also", "na", "so", "du", "äh", "ähm", "äm",
+              "eh", "hm", "hmm", "und", "jetzt", "bitte", "lieber", "liebe"}
 # „Alu PC“ hört das Modell je nach Aussprache als „alu pc“, „alu p c“, „alu pe ze“ … – zusammengeschrieben vergleichen
 ALUPC_FORMS = ("alupc", "alupeze", "alupezeh", "alupehzeh", "alupetse", "alupeetse", "alupece", "alupeceh",
                # das kleine Modell hört „Alu PC“ oft als „Hallo PC“ (in der CI mit Piper-Stimme: jedes Mal)
@@ -159,7 +163,7 @@ def wake_span(words: list[str], wakes=("monitor", "alupc")) -> tuple[int, int] |
     """(Anfang, Ende) des LETZTEN Startworts im Satz – oder None, wenn keins vorkommt."""
     span = None
     for i, w in enumerate(words):
-        if "monitor" in wakes and w in WAKE_WORDS:
+        if ("monitor" in wakes and w in WAKE_WORDS) or ("computer" in wakes and w in COMPUTER_WORDS):
             span = (i, i + 1)
         if "alupc" in wakes:  # „alu pe ze“, „alu pc“, „alupc“ – die Variante, die am besten passt
             scores = [(_alupc_score("".join(words[i:i + k])), -k, k) for k in (1, 2, 3) if i + k <= len(words)]
@@ -167,6 +171,18 @@ def wake_span(words: list[str], wakes=("monitor", "alupc")) -> tuple[int, int] |
             if best >= 0.82 and (span is None or i + k > span[1]):
                 span = (i, i + k)
     return span
+
+
+def lead_wake(words: list[str], wakes=("monitor", "alupc"), lead: int = WAKE_LEAD) -> tuple[int, int] | None:
+    """Startwort am SATZANFANG (höchstens `lead` Wörter davor) – das erste passende. „Der Monitor ist …“ oder
+    „… am Computer“ mitten im Gespräch zählen so nicht; davor nur Füllwörter wie „hey“, „ok“."""
+    for i in range(min(len(words), lead + 1)):
+        if i and words[i - 1] not in LEAD_WORDS:
+            return None
+        span = wake_span(words[i:i + 3], wakes)
+        if span is not None and span[0] == 0:
+            return (i, i + span[1])
+    return None
 
 
 def wake_end(words: list[str], wakes=("monitor", "alupc")) -> int | None:
@@ -445,9 +461,10 @@ class VoiceControl(QObject):
         self.follow_until = 0.0
         self.direct_changed.emit(on)
 
-    def listen_on(self, seconds: float = FOLLOW_SECONDS) -> None:
-        """Nach einer Antwort kurz ohne Startwort weiterhören (ab dem Ende der gesprochenen Antwort)."""
-        if self.settings().get("follow_up", True):
+    def listen_on(self, seconds: float = FOLLOW_SECONDS, force: bool = False) -> None:
+        """Kurz ohne Startwort weiterhören (ab dem Ende der gesprochenen Antwort). Immer nach „Ja?“ (nur das
+        Startwort gesagt), nach anderen Antworten nur mit der Einstellung „follow_all“."""
+        if force or self.settings().get("follow_all", False):
             self.follow_until = max(self.follow_until, max(self._mute_until, time.monotonic()) + seconds)
 
     def mute(self, seconds: float) -> None:
@@ -696,9 +713,12 @@ class VoiceControl(QObject):
             limit = STRICTNESS.get(cfg.get("strict", "normal"), STRICTNESS["normal"])
             who = f"{name} ({dist:.2f})".replace(".", ",") if dist <= limit else f"fremde Stimme ({dist:.2f})".replace(".", ",")
         self.heard.emit(f"„{text}“" + (f" – {who}" if who else ""))
-        wakes = tuple(cfg.get("wake") or ("monitor", "alupc"))
+        wakes = tuple(cfg.get("wake") or WAKES)
         words = fold(text).split()
-        span = wake_span(words, wakes)
+        span = lead_wake(words, wakes)
+        follow = span is None and self.open_ear() and not self.direct
+        if follow and len(words) > 8:
+            return  # im Nachfrage-Fenster nur kurze Sätze – längeres ist Gespräch, nicht an AluPC gerichtet
         if span is None and not self.open_ear() and words[:2] == ["am", "pc"] and len(words) > 2:
             # „am pc …“ am SATZANFANG: so hört Vosk „Alu PC“ oft (CI 0.88–0.90). Zählt nur, wenn danach ein
             # Befehl kommt – „am PC sitzen …“ löst so nichts aus
@@ -708,15 +728,16 @@ class VoiceControl(QObject):
         if span is None and not self.open_ear() and aw:
             # Grammatik-Erkenner (fester Wortschatz) hörte das Startwort – nur glauben, wenn auch die freie Erkennung
             # am Satzanfang etwas Ähnliches hat (sonst würde jedes Gespräch in AluPC-Wörter gepresst)
-            sa = wake_span(aw, wakes)
-            hint = any(w in ("pc", "pe", "monitor") or w.startswith(("alu", "hal", "allo", "alle", "ann", "alo"))
+            sa = lead_wake(aw, wakes)
+            hint = any(w in ("pc", "pe", "monitor", *COMPUTER_WORDS) or w.startswith(("alu", "allu", "alop"))
                        for w in words[:3])
             if sa is not None and hint and self._interpret(aw, sa)[0] is not None:
                 self.heard.emit(f"„{alt}“ (Wortschatz)" + (f" – {who}" if who else ""))
                 text, words, span = alt, aw, sa
         if span is None and not self.open_ear():
             # Vosk hat das Startwort vielleicht verhört („am pc“ …) – Whisper (falls an) fragt nach
-            if not (self.stt is not None and audio and any(w in ("pc", "pe", "monitor") for w in words[:4])):
+            if not (self.stt is not None and audio and any(w in ("pc", "pe", "monitor", *COMPUTER_WORDS)
+                                                           for w in words[:4])):
                 return  # nicht an AluPC gerichtet
             try:
                 better = self.stt.transcribe(audio)
@@ -724,14 +745,14 @@ class VoiceControl(QObject):
                 self._note_error(exc)
                 return
             w2 = fold(better).split()
-            s2 = wake_span(w2, wakes)
+            s2 = lead_wake(w2, wakes)
             if s2 is None:
                 return
             self.heard.emit(f"„{better}“ (genau)" + (f" – {who}" if who else ""))
             text, words, span = better, w2, s2
         found, empty = self._interpret(words, span)
-        if found is None and not empty and aw and aw != words:  # zweite Meinung: Grammatik-Erkenner
-            sa = wake_span(aw, wakes)
+        if found is None and not empty and aw and aw != words and (span is not None or self.direct):
+            sa = lead_wake(aw, wakes)  # zweite Meinung: Grammatik-Erkenner (nur, wenn AluPC gemeint ist)
             found2, _e = self._interpret(aw, sa if sa is not None else ((0, 0) if span is not None else None))
             if found2 is not None:
                 self.heard.emit(f"„{alt}“ (Wortschatz)" + (f" – {who}" if who else ""))
@@ -747,7 +768,7 @@ class VoiceControl(QObject):
             if better:
                 self.heard.emit(f"„{better}“ (genau)" + (f" – {who}" if who else ""))
                 w2 = fold(better).split()
-                s2 = wake_span(w2, wakes)
+                s2 = lead_wake(w2, wakes)
                 if s2 is None and span is not None:
                     s2 = (0, 0)  # Vosk hörte das Startwort, Whisper schreibt es anders – ganzen Satz nehmen
                 found2, _empty2 = self._interpret(w2, s2)
@@ -770,8 +791,12 @@ class VoiceControl(QObject):
             if dist > limit:
                 self.rejected.emit(text, f"fremde Stimme (Abstand {dist:.2f})".replace(".", ","))
                 return
+            if follow:
+                self.follow_until = 0.0  # eine Nachfrage, dann wieder nur mit Startwort
             self._emit_command(found[0], f"{found[1]} · {name}", text)
             return
+        if follow:
+            self.follow_until = 0.0
         self._emit_command(found[0], found[1], text)
 
     def _emit_command(self, command: str, label: str, text: str) -> None:

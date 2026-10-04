@@ -165,7 +165,7 @@ class Assistant:
         if reply:
             c.speaker.say(reply)
         if command != "zuhoeren_aus":
-            c.voice.listen_on()
+            c.voice.listen_on(force=command == "frage:ja")  # nach „Ja?“ immer ohne Startwort weiter
         return reply
 
     def _run(self, command: str, label: str) -> str:

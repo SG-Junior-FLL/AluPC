@@ -89,10 +89,10 @@ DEFAULTS: dict = {
     # Sprachbefehle am PC (offline, Startwort „Monitor“)
     # wake: Startwörter („monitor“, „alupc“); only_voices: nur angelernte Stimmen (voices: [{name, vec}])
     # speak: Antwort per Stimme; custom: eigene Sätze [{say, do}]
-    "voice": {"on": False, "device": "", "wake": ["monitor", "alupc"], "only_voices": False, "voices": [],
+    "voice": {"on": False, "device": "", "wake": ["monitor", "alupc", "computer"], "wake_v2": True, "only_voices": False, "voices": [],
               "strict": "normal", "speak": True, "speak_voice": "", "custom": [],
               # tts: Piper-Stimme (speech.PIPER_VOICES) oder "system"; stt: "vosk" oder Whisper ("base"/"small")
-              "tts": "thorsten", "speak_rate": "normal", "stt": "vosk", "follow_up": True},
+              "tts": "thorsten", "speak_rate": "normal", "stt": "vosk", "follow_all": False},
     # Begrüßung nach der Anmeldung mit dem Finger (Seite Fingerabdruck → Begrüßung): Stil, eigener Text, eigene Namen je Person
     "welcome": {"on": True, "style": "aurora", "text": "", "sound": True, "names": {}, "birthdays": {}},
     # Timer (Countdown/Stoppuhr): Voreinstellung für Kachel und Befehle
@@ -213,6 +213,11 @@ class Config:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             if isinstance(raw, dict):
                 self.data = _merge(DEFAULTS, raw)
+                v = self.data.get("voice")
+                if isinstance(v, dict) and not (raw.get("voice") or {}).get("wake_v2"):  # 0.93: „Computer“ als Startwort dazu
+                    v["wake_v2"] = True
+                    if isinstance(v.get("wake"), list) and "computer" not in v["wake"]:
+                        v["wake"] = [*v["wake"], "computer"]
         except FileNotFoundError:
             pass
         except (OSError, ValueError):

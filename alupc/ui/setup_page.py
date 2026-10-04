@@ -1149,8 +1149,10 @@ class SetupPage(QWidget):
         self.speak_on = QCheckBox("Antworten per Stimme")
         self.speak_on.setChecked(bool(cfg.get("speak", True)))
         tf.addRow("", self.speak_on)
-        follow = QCheckBox(f"Nachfragen ohne Startwort ({voice.FOLLOW_SECONDS} s nach jeder Antwort)")
-        follow.setChecked(bool(cfg.get("follow_up", True)))
+        follow = QCheckBox(f"Nach jeder Antwort {voice.FOLLOW_SECONDS} s ohne Startwort weiterhören")
+        follow.setToolTip("Aus (empfohlen): AluPC reagiert nur, wenn ein Satz mit dem Startwort beginnt. Nur das "
+                          "Startwort sagen („Computer?“ → „Ja?“) geht immer.")
+        follow.setChecked(bool(cfg.get("follow_all", False)))
         tf.addRow("", follow)
         mic_hint = QLabel("Mikrofon-Schalter: Knopf „Zuhören“ links oder Strg+Alt+H – solange an, zählt jeder Satz "
                           "(kein Startwort nötig). Nochmal drücken oder „Hör auf zuzuhören“ = aus.")
@@ -1195,7 +1197,7 @@ class SetupPage(QWidget):
             self.config["voice"] = {**self.config["voice"], "speak": self.speak_on.isChecked(),
                                     "speak_voice": speak_voice.currentData(), "tts": tts_box.currentData(),
                                     "speak_rate": rate_box.currentData(), "stt": stt_box.currentData(),
-                                    "follow_up": follow.isChecked()}
+                                    "follow_all": follow.isChecked()}
             self.controller.speaker.reload()
             refresh_talk()
 

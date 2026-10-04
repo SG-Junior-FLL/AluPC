@@ -143,12 +143,12 @@ class VoiceTestDialog(QDialog):
         self.heard_text = text
         self.live.setText(f"🎤 {text}")
         words = voice.fold(text).split()
-        wakes = tuple(self.vc.settings().get("wake") or ("monitor", "alupc"))
+        wakes = tuple(self.vc.settings().get("wake") or voice.WAKES)
         self.status["heard"] = ("✓", text)
-        if voice.wake_span(words, wakes) is not None:
+        if voice.lead_wake(words, wakes) is not None:
             self.status["wake"] = ("✓", "ja")
         elif "(genau)" not in text:
-            self.status["wake"] = ("✗", "nicht im Satz – „Alu PC“ oder „Monitor“ an den Anfang (oder Knopf „Zuhören“)")
+            self.status["wake"] = ("✗", "nicht am Satzanfang – „Computer“, „Alu PC“ oder „Monitor“ zuerst sagen")
         self._paint()
 
     def _command(self, command: str, label: str, _text: str) -> None:

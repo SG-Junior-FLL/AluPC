@@ -8,7 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.92.0)
+### Neu in dieser Version (0.93.0)
+- **Fehler behoben: AluPC reagierte auf normales Reden ohne Startwort.** Ursachen und Lösung:
+  - Nach jeder Antwort hörte AluPC 8 s ohne Startwort weiter. Jeder Befehl öffnete das Fenster neu, so ging es
+    endlos weiter. Jetzt passiert das nur noch nach „Ja?“ (nur das Startwort gesagt), und nur für EINEN Satz.
+    Wer das alte Verhalten will: Setup → Sprache → „Nach jeder Antwort 8 s ohne Startwort weiterhören“ (aus).
+  - Das Startwort zählte irgendwo im Satz („… der Monitor ist …“). Jetzt nur noch am Satzanfang, davor höchstens
+    „hey“, „ok“, „hallo“ o. ä.
+  - Der Wortschatz-Erkenner aus 0.92 konnte normale Wörter wie „alles“ oder „halt“ als „Alu PC“ deuten. Jetzt nur noch,
+    wenn die normale Erkennung auch wirklich „PC“, „Monitor“, „Computer“ oder „Alu…“ gehört hat.
+- **Neues Startwort „Computer“** – z. B. „Computer, Licht blau“. Ist automatisch an, im Setup abwählbar.
+- Ehrlich: mit erzeugten Sprachaufnahmen und Tests geprüft, nicht mit deinem Mikrofon im echten Gespräch.
+
+### Neu in Version 0.92.0
 - **Befehlssuche (Strg+K / „Suchen“ oben links):** einfach tippen, was passieren soll – „Licht blau“, „Timer 5
   Minuten“, „Szene Pause“, „Setup Sprache“. Ganze Sätze werden wie bei der Sprachsteuerung verstanden, dazu passende
   Befehle, Szenen, Seiten und Setup-Bereiche. Enter führt aus.
