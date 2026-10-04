@@ -422,3 +422,28 @@ def test_grammar_recognizer_as_second_opinion(qtbot_free_app, tmp_path, monkeypa
     assert got == ["frage:uhrzeit", "frage:uhrzeit"]
     words = voice.grammar_words(["Pause Mittag"], [{"say": "Kaffee holen", "do": "x"}])
     assert "glücksrad" in words and "mittag" in words and "kaffee" in words and words[-1] == "[unk]"
+
+
+def test_chatter_without_wake_word_does_nothing(qtbot_free_app, tmp_path, monkeypatch):
+    """Normales Reden (so ähnlich, wie Vosk es hört) – auch wenn der Wortschatz-Erkenner AluPC-Wörter daraus macht."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from alupc.config import Config
+
+    vc = voice.VoiceControl(Config(tmp_path / "c.json"))
+    got = []
+    vc.command.connect(lambda c, _l, _t: got.append(c))
+    vc.not_understood.connect(lambda t: got.append(f"?{t}"))
+    for text, alt in [
+        ("ich sitze gerade am computer und spiele", "ich am computer und spiel"),
+        ("der monitor ist heute echt hell", "der monitor ist heute hell"),
+        ("mach mal das licht aus mama", "mach mal das licht aus"),
+        ("alles klar halt mal kurz", "alu pc halt mal kurz"),
+        ("hallo wie geht es dir heute", "hallo wie geht es dir heute"),
+        ("wie spät ist es eigentlich", "wie spät ist es"),
+        ("ich habe den timer auf fünf minuten gestellt", "den timer auf fünf minuten"),
+        ("alle kinder schauen auf die kamera", "alu pc die kamera"),
+    ]:
+        vc._handle(text, alt=alt)
+    assert got == []
+    vc._handle("computer licht rot", alt="computer licht rot")
+    assert got == ["rgb_farbe:#ff0000"]

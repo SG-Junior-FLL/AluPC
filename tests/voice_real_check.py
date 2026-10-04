@@ -40,6 +40,19 @@ SENTENCES = [
     ("Alu PC, stell einen Timer auf fünf Minuten.", "timer_set:300"),
     ("Alu PC, zeig mir die Kamera.", "kamera"),
     ("Alu PC, schalte den Bildschirmschoner aus.", "bildschirmschoner_aus"),
+    ("Computer, mach das Licht rot.", "rgb_farbe:#ff0000"),
+    ("Computer, wie spät ist es?", "frage:uhrzeit"),
+]
+# Normales Reden OHNE Startwort am Anfang – hier darf AluPC NICHTS tun und nichts antworten
+CHATTER = [
+    "Ich sitze gerade am Computer und spiele.",
+    "Der Monitor ist heute echt hell.",
+    "Mach mal das Licht aus, Mama.",
+    "Alles klar, halt mal kurz.",
+    "Hallo, wie geht es dir heute?",
+    "Wie spät ist es eigentlich?",
+    "Ich habe den Timer auf fünf Minuten gestellt.",
+    "Alle Kinder schauen auf die Kamera.",
 ]
 
 
@@ -192,6 +205,23 @@ def main() -> int:
     n = len(SENTENCES)
     note(group="Ergebnis", text=f"Richtig verstanden: AluPC (Vosk + Wortschatz + Whisper) {ok_both}/{n} · nur Vosk {ok_vosk}/{n} · "
          f"nur Whisper {ok_whisper}/{n} · Startwort von Vosk gehört {ok_wake}/{n}")
+    false_alarms = []
+    for sentence in CHATTER:
+        pcm = to_16k(speech.synthesize(piper_voice, sentence))
+        text = vosk_text(vosk.KaldiRecognizer(model, 16000), pcm)
+        alt = vosk_text(vosk.KaldiRecognizer(model, 16000, json.dumps(voice.grammar_words(), ensure_ascii=False)),
+                        pcm).replace("[unk]", "").strip()
+        got.clear()
+        vc.follow_until = 0.0
+        vc._handle(text, None, 0, pcm, alt)
+        if got:
+            false_alarms.append(f"„{sentence}“ (Vosk „{text}“, Wortschatz „{alt}“) → {got[-1]}")
+        note(group="Gespräch", text=f"„{sentence}“ → Vosk „{text}“ → {got[-1] if got else 'nichts (richtig)'}")
+    note(group="Ergebnis", text=f"Fehlalarme bei normalem Reden: {len(false_alarms)}/{len(CHATTER)}")
+    if len(false_alarms) > 1:
+        print("::error title=Sprache echt::AluPC reagiert auf Gespräch ohne Startwort: " + " | ".join(false_alarms),
+              flush=True)
+        return 1
     if not mic_check(piper_voice):
         return 1
     if ok_both < n - 1 or ok_wake < n - 1:
