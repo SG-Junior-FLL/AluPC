@@ -43,6 +43,8 @@ CMD_READ_SYS_PARA = 0x0F
 CMD_VERIFY_PASSWORD = 0x13
 CMD_TEMPLATE_COUNT = 0x1D
 CMD_READ_INDEX_TABLE = 0x1F
+CMD_LED = 0x3C  # ZW101 „ControlBLN“: Art (2 = blinken, 4 = aus), Startfarbe, Endfarbe, Wiederholungen
+LED_GREEN, LED_RED, LED_BLUE = 0x02, 0x04, 0x01
 
 OK, NO_FINGER, NOT_FOUND = 0x00, 0x02, 0x09
 ERRORS = {
@@ -75,6 +77,7 @@ class SensorError(RuntimeError):
 
 
 _PORT_LOCKS: dict[str, threading.RLock] = {}
+_LED_UNSUPPORTED: dict[str, bool] = {}  # Anschluss → Modul kennt den LED-Befehl nicht
 _PORT_LOCKS_GUARD = threading.Lock()
 
 
@@ -246,6 +249,38 @@ class ZWSensor:
         if confirm != OK:
             raise SensorError(ERRORS.get(confirm, f"Fehlercode {confirm:#04x}"))
         return int.from_bytes(d[0:2], "big"), int.from_bytes(d[2:4], "big")
+
+    def led(self, result: str) -> bool:
+        """Rückmeldung am Modul: „ok“ = grün blinken, „fail“ = rot blinken. Module ohne LED-Befehl melden einen
+        Fehler – dann eben ohne Licht (nie eine Ausnahme, die Anmeldung darf daran nicht scheitern)."""
+        if _LED_UNSUPPORTED.get(self.port):
+            return False
+        color = LED_GREEN if result == "ok" else LED_RED
+        try:
+            confirm, _ = self.command(CMD_LED, bytes([2, color, color, 2 if result == "ok" else 3]))
+        except Exception:  # noqa: BLE001
+            confirm = -1
+        if confirm != OK:
+            _LED_UNSUPPORTED[self.port] = True
+        return confirm == OK
+
+    def identify(self, capacity: int, tries: int = 3, window: float = 1.5) -> tuple[int, int] | None:
+        """Finger liegt auf → erkennen. Ist das erste Bild schlecht (Finger halb aufgelegt, verwischt), gleich
+        nochmal aufnehmen, solange der Finger liegt – bis zu `tries`-mal in `window` s. So reicht EIN Auflegen."""
+        end = time.monotonic() + window
+        for attempt in range(tries):
+            if attempt:
+                time.sleep(0.08)
+                if time.monotonic() > end or self.get_image() != OK:
+                    return None  # Finger weg oder Zeit um
+            try:
+                self.gen_char(1)
+                hit = self.search(1, capacity)
+            except SensorError:
+                hit = None
+            if hit is not None:
+                return hit
+        return None
 
     def delete(self, slot: int, count: int = 1) -> None:
         self.check(CMD_DELETE, slot.to_bytes(2, "big") + count.to_bytes(2, "big"))
@@ -632,11 +667,8 @@ class SerialFingerprintBackend(FingerprintBackend):
         s, cap = self._open(sensor_id)
         with s:
             self._wait_finger(s, status, "Finger auf den Sensor legen …", 0, 0)
-            try:
-                s.gen_char(1)
-            except SensorError as exc:
-                return (False, str(exc))
-            hit = s.search(1, cap)
+            hit = s.identify(cap)
+            s.led("ok" if hit is not None else "fail")
         if hit is None:
             return (False, "Nicht erkannt – dieser Finger ist nicht gespeichert.")
         slot, score = hit
@@ -886,16 +918,14 @@ def pam_check(env=None, login_file: Path = LOGIN_FILE, out=None, record=None) ->
                             time.sleep(0.05)
                             continue
                         tries += 1
-                        try:
-                            s.gen_char(1)
-                            hit = s.search(1, cap)
-                        except SensorError:
-                            hit = None
+                        hit = s.identify(cap)
                         if hit is not None and hit[0] in allowed:
+                            s.led("ok")
                             if record is not None:
                                 record(user, hit[0])
                             after_kde_unlock(env)
                             return 0
+                        s.led("fail")
                         print("Nicht erkannt.", file=out, flush=True)
                         time.sleep(0.4)
                     return 1

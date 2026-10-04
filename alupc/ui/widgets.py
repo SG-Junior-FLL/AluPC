@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from PySide6.QtCore import (
     Property,
     QEasingCurve,
@@ -319,6 +321,7 @@ class NavButton(HoverMixin, QAbstractButton):
         super().__init__(parent)
         self.icon_name, self.text_ = icon_name, text
         self.compact = False
+        self.external_indicator = False  # True: die Markierung zeichnet NavIndicator (gleitet zwischen Knöpfen)
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedHeight(42)
@@ -337,7 +340,9 @@ class NavButton(HoverMixin, QAbstractButton):
         r = QRectF(self.rect()).adjusted(8, 2, -8, -2)
         if self.compact:  # nur Symbol, mittig
             r = QRectF(self.rect().center().x() - 22, 2, 44, self.height() - 4)
-        if self.isChecked():  # ruhig: zart getönte Fläche, Symbol und Text in der Akzentfarbe
+        if self.isChecked() and self.external_indicator:
+            pass
+        elif self.isChecked():  # ruhig: zart getönte Fläche, Symbol und Text in der Akzentfarbe
             tint = QColor(t.accent)
             tint.setAlphaF(0.16 if t.dark else 0.11)
             p.fillPath(rounded(r, 12), tint)
@@ -799,6 +804,55 @@ class Toast(QWidget):
 
 
 # --------------------------------------------------------------------------- Fortschrittsring
+class NavIndicator(QWidget):
+    """Markierung der gewählten Seite in der Seitenleiste – gleitet beim Seitenwechsel weich zum neuen Knopf
+    (statt hart umzuspringen). Liegt hinter den Knöpfen; die Knöpfe zeichnen nur noch Symbol und Text."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.compact = False
+        self.target = None
+        self._anim = QPropertyAnimation(self, b"geometry", self)
+        self._anim.setDuration(260)
+        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+        self.hide()
+
+    def follow(self, button, animate: bool = True) -> None:
+        if button is None:
+            self.hide()
+            return
+        moved = self.target is not button
+        self.target = button
+        self.compact = getattr(button, "compact", False)
+        goal = button.geometry()
+        if animate and moved and self.isVisible() and not theme_reduced_motion():
+            self._anim.stop()
+            self._anim.setStartValue(self.geometry())
+            self._anim.setEndValue(goal)
+            self._anim.start()
+        else:
+            self._anim.stop()
+            self.setGeometry(goal)
+        self.show()
+        self.lower()
+        self.update()
+
+    def paintEvent(self, _e):
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(8, 2, -8, -2)
+        if self.compact:
+            r = QRectF(self.rect().center().x() - 22, 2, 44, self.height() - 4)
+        tint = QColor(t.accent)
+        tint.setAlphaF(0.16 if t.dark else 0.11)
+        p.fillPath(rounded(r, 12), tint)
+        if not self.compact:
+            p.fillPath(rounded(QRectF(r.left() + 1, r.center().y() - 9, 3, 18), 1.5), QColor(t.accent))
+        p.end()
+
+
 class ProgressRing(QWidget):
     """Ring mit Fingerabdruck in der Mitte; Farbe zeigt Erfolg/Fehler."""
 
@@ -810,7 +864,19 @@ class ProgressRing(QWidget):
         self._spin = 0
         self._timer = QTimer(self, interval=33)  # dreht nur, solange sichtbar und „busy“ (siehe show/hide)
         self._timer.timeout.connect(self._tick)
+        self._fx = 1.0  # 0 → 1: Erfolg „ploppt“ auf, Fehler schüttelt den Ring
+        self._fx_anim = QPropertyAnimation(self, b"fx", self)
+        self._fx_anim.setDuration(520)
         self.setFixedSize(150, 150)
+
+    def _get_fx(self):
+        return self._fx
+
+    def _set_fx(self, v):
+        self._fx = float(v)
+        self.update()
+
+    fx = Property(float, _get_fx, _set_fx)
 
     def showEvent(self, e):
         if self.value < 0 and self.state == "busy":
@@ -840,9 +906,18 @@ class ProgressRing(QWidget):
         self.set_progress(-1)
 
     def set_state(self, state: str):
+        changed = state != self.state
         self.state = state
         if state != "busy":
             self._timer.stop()
+            if changed and not theme_reduced_motion():
+                self._fx_anim.stop()
+                self._fx_anim.setEasingCurve(QEasingCurve.OutCubic if state == "ok" else QEasingCurve.Linear)
+                self._fx_anim.setStartValue(0.0)
+                self._fx_anim.setEndValue(1.0)
+                self._fx_anim.start()
+            else:
+                self._fx = 1.0
         self.update()
 
     def paintEvent(self, _e):
@@ -850,18 +925,49 @@ class ProgressRing(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(9, 9, -9, -9)
+        fx = self._fx
+        if self.state == "error" and fx < 1:  # Kopfschütteln: kurz links-rechts, wird schnell ruhiger
+            p.translate(math.sin(fx * math.pi * 6) * 9 * (1 - fx), 0)
         p.setPen(QPen(QColor(t.surface2), 9, Qt.SolidLine, Qt.RoundCap))
         p.drawEllipse(r)
         color = {"ok": t.success, "error": t.danger}.get(self.state, t.accent)
         p.setPen(QPen(QColor(color), 9, Qt.SolidLine, Qt.RoundCap))
-        if self.state != "busy":
+        if self.state == "ok" and fx < 1:  # Erfolg: Ring schließt sich, danach ein weicher Lichtring nach außen
+            p.drawArc(r, 90 * 16, int(-360 * 16 * min(1.0, fx * 1.6)))
+        elif self.state != "busy":
             p.drawEllipse(r)
         elif self.value < 0:
             p.drawArc(r, int((90 - self._spin) * 16), int(-90 * 16))
         elif self.value > 0:
             p.drawArc(r, 90 * 16, int(-360 * 16 * min(1.0, self.value)))
+        if self.state == "ok" and 0.25 < fx < 1:
+            glow = QColor(color)
+            glow.setAlphaF(0.45 * (1 - fx))
+            p.setPen(QPen(glow, 3))
+            grow = 6 + 3 * fx  # Lichtring außen am Ring, wandert nach außen und verblasst
+            p.drawEllipse(r.adjusted(-grow, -grow, grow, grow))
         name = {"ok": "check", "error": "x"}.get(self.state, self.icon_name)
-        icons.paint(p, name, r.adjusted(34, 34, -34, -34), color, 1.8)
+        inner = r.adjusted(34, 34, -34, -34)
+        if self.state == "ok" and fx < 1:  # Haken „ploppt“ auf (etwas zu groß, dann zurück)
+            k = 0.6 + 0.4 * QEasingCurve(QEasingCurve.OutBack).valueForProgress(min(1.0, fx * 1.4))
+            c = inner.center()
+            inner = QRectF(c.x() - inner.width() * k / 2, c.y() - inner.height() * k / 2,
+                           inner.width() * k, inner.height() * k)
+        icons.paint(p, name, inner, color, 1.8)
+        if self.state == "busy" and self.value < 0 and self.icon_name == "fingerprint":
+            # Scan-Strahl fährt über den Fingerabdruck – „ich warte auf deinen Finger“
+            phase = (math.sin(math.radians(self._spin) * 2) + 1) / 2
+            y = inner.top() + inner.height() * phase
+            beam = QLinearGradient(inner.left(), 0, inner.right(), 0)
+            edge = QColor(color)
+            edge.setAlphaF(0.0)
+            mid = QColor(color)
+            mid.setAlphaF(0.85)
+            beam.setColorAt(0, edge)
+            beam.setColorAt(0.5, mid)
+            beam.setColorAt(1, edge)
+            p.setPen(QPen(QBrush(beam), 3, Qt.SolidLine, Qt.RoundCap))
+            p.drawLine(QPointF(inner.left() - 6, y), QPointF(inner.right() + 6, y))
         p.end()
 
 

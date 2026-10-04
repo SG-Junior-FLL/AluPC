@@ -6,7 +6,7 @@ import copy
 import os
 import sys
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtWidgets import (
@@ -50,7 +50,7 @@ from .setup_page import SetupPage
 from .source_picker import IMAGE_FILTER, VIDEO_FILTER
 from ..startpage import BUILTIN_TILES, custom_key, find_custom, ordered_keys, section_of, sections
 from .start_page_dialog import StartPageDialog
-from .widgets import (EmptyState, MonitorCard, NavButton, SceneCard, SectionHeader, StatusCard, Tile, Toast,
+from .widgets import (EmptyState, MonitorCard, NavButton, NavIndicator, SceneCard, SectionHeader, StatusCard, Tile, Toast,
                       animate_height, button, fade_in, font, mark_current, menu_header, page_header)
 
 __all__ = ["MainWindow", "app_icon"]
@@ -362,6 +362,10 @@ class MainWindow(QMainWindow):
             self.nav_group.addButton(b, i)
             lay.addWidget(b)
         self.nav_group.idClicked.connect(self._go)
+        self.nav_indicator = NavIndicator(side)  # gleitet zur gewählten Seite
+        for b in self.nav_group.buttons():
+            b.external_indicator = True
+            b.installEventFilter(self)  # Knopf verschoben/größer (kleines Fenster) → Markierung mitnehmen
         lay.addStretch(1)
 
         self.side_monitor = MonitorCard()  # Monitor 2 immer im Blick: Live-Bild, Name, Zustand
@@ -438,6 +442,15 @@ class MainWindow(QMainWindow):
         if setup is not None and title in titles:
             setup.nav.setCurrentRow(titles.index(title))
 
+    def eventFilter(self, obj, event):
+        # Seitenleisten-Knopf verschoben/größer (Fensterbreite, Kompaktmodus) → Markierung ohne Animation mitnehmen
+        ind = getattr(self, "nav_indicator", None)
+        if ind is not None and event.type() in (QEvent.Move, QEvent.Resize, QEvent.Show) \
+                and obj is self.nav_group.checkedButton() \
+                and ind._anim.state() != ind._anim.State.Running:
+            ind.follow(obj, animate=False)
+        return super().eventFilter(obj, event)
+
     def _go(self, index: int):
         page = self.pages[index]
         if isinstance(page, LazyPage) and not page.built:
@@ -447,6 +460,7 @@ class MainWindow(QMainWindow):
         changed = self.stack.currentIndex() != index
         self.stack.setCurrentIndex(index)
         self.nav_group.button(index).setChecked(True)
+        self.nav_indicator.follow(self.nav_group.button(index), animate=changed)
         if changed:
             fade_in(self.stack.currentWidget(), 200)  # Seitenwechsel: weich einblenden
 
@@ -1825,6 +1839,7 @@ class MainWindow(QMainWindow):
         for b in (*self.nav_group.buttons(), self.lock_button, self.mic_button, self.search_button):
             b.set_compact(compact)
         self.side_monitor.set_compact(compact)
+        self.nav_indicator.follow(self.nav_group.checkedButton(), animate=False)
         self.step_text.setVisible(not compact)
         # Glücksrad-Leiste: schmal nur der runde Dreh-Knopf
         self.wheel_names_btn.setVisible(not compact)

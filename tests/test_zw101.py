@@ -664,11 +664,15 @@ def test_finger_unlock_without_enter(fake, tmp_path, monkeypatch):
     fake.finger = "fremd"  # Platz eines anderen Benutzers → bleibt gesperrt
     pause(0.8)
     assert unlocks == [] and state["locked"]
+    assert fake.leds and all(c == zw.LED_RED for _k, c in fake.leds)  # rot geblinkt
     fake.finger = None
     pause(0.4)
+    fake.leds.clear()
+    fake.blurry = 2  # Finger erst halb aufgelegt: zwei unscharfe Bilder – trotzdem EIN Auflegen
     fake.finger = "lena"
     assert wait(lambda: got == [4])
     assert unlocks == [1] and recorded == [4] and not state["locked"]
+    assert fake.leds and fake.leds[-1] == (2, zw.LED_GREEN)  # grün geblinkt
     # Anmelden mit Fingerabdruck aus → keine Plätze → nichts
     fu.slots = lambda: set()
     fake.finger = None
@@ -741,3 +745,27 @@ def test_pam_success_on_kde_lockscreen_also_unlocks(monkeypatch):
     assert not zw.after_kde_unlock({"PAM_SERVICE": "sudo"}, spawn)
     assert not zw.after_kde_unlock({}, spawn)
     assert len(started) == 1
+
+
+def test_led_is_optional(fake):
+    """Module ohne LED-Befehl: kein Fehler, und danach wird es nicht ständig wieder versucht."""
+    zw._LED_UNSUPPORTED.clear()
+    fake.led_supported = False
+    with zw.ZWSensor(fake.port) as s:
+        assert s.led("ok") is False
+        n = len(fake.commands)
+        assert s.led("fail") is False and len(fake.commands) == n
+    zw._LED_UNSUPPORTED.clear()
+
+
+def test_identify_retries_while_finger_stays(fake):
+    fake.library = {5: "noah"}
+    fake.finger = "noah"
+    with zw.ZWSensor(fake.port) as s:
+        fake.blurry = 2
+        assert s.get_image() == zw.OK and s.identify(50) == (5, 120)
+        fake.blurry = 5  # zu oft unscharf → aufgeben (dann eben nochmal auflegen)
+        assert s.get_image() == zw.OK and s.identify(50) is None
+        fake.blurry = 1
+        fake.finger = None  # Finger weg → nicht weiter versuchen
+        assert s.identify(50) is None

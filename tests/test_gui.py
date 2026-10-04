@@ -4574,3 +4574,33 @@ def test_ask_from_phone_and_pc(env):
     assert clock.running
     controller._cast_tick() if hasattr(controller, "_cast_tick") else None
     controller._update_cast_snapshot() if hasattr(controller, "_update_cast_snapshot") else None
+
+
+def test_nav_indicator_follows_page_and_ring_animates(env, monkeypatch):
+    """Seitenleiste: die Markierung sitzt unter der gewählten Seite (auch nach Kompaktmodus); der Fingerabdruck-Ring
+    animiert Erfolg/Fehler (mit Animationen an) und steht danach still."""
+    from PySide6.QtWidgets import QApplication
+
+    from alupc.ui.widgets import ProgressRing
+
+    _controller, window, _ = env
+    ind = window.nav_indicator
+    for index in (4, 2, 0):
+        window._go(index)
+        QApplication.processEvents()
+        button = window.nav_group.button(index)
+        assert ind.target is button and ind.geometry() == button.geometry()
+        assert button.external_indicator
+    window.apply_compact(True, False)
+    QApplication.processEvents()
+    assert ind.compact and ind.geometry() == window.nav_group.button(0).geometry()
+    window.apply_compact(False, False)
+    monkeypatch.setenv("ALUPC_NO_ANIMATION", "0")
+    ring = ProgressRing()
+    ring.set_state("ok")
+    assert ring._fx_anim.state() == ring._fx_anim.State.Running
+    ring._fx_anim.setCurrentTime(ring._fx_anim.duration())
+    assert ring._fx == 1.0
+    ring.set_state("error")
+    assert ring._fx_anim.state() == ring._fx_anim.State.Running
+    ring.grab()  # zeichnet mitten in der Animation ohne Fehler

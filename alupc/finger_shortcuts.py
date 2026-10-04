@@ -159,8 +159,7 @@ class FingerShortcuts(QObject):
             try:
                 if port not in self._capacity:
                     self._capacity[port] = s.sys_params()["capacity"]
-                s.gen_char(1)
-                hit = s.search(1, self._capacity[port])
+                hit = s.identify(self._capacity[port])  # unscharfes erstes Bild → gleich nochmal
             except zw.SensorError:
                 hit = None
             if hit is not None:

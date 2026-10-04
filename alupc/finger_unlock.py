@@ -171,12 +171,11 @@ class FingerUnlock(QObject):
                 return True  # kein Finger → ab jetzt scharf
             if not armed:
                 return False
-            try:
-                s.gen_char(1)
-                hit = s.search(1, s.sys_params()["capacity"])
-            except zw.SensorError:
-                hit = None
-            if hit is not None and hit[0] in allowed and self.locked():
+            hit = s.identify(s.sys_params()["capacity"])  # mehrere Versuche bei EINEM Auflegen
+            if hit is None or hit[0] not in allowed:
+                s.led("fail")  # rot: nicht erkannt / nicht erlaubt
+            elif self.locked():
+                s.led("ok")
                 self.last_slot = hit[0]
                 try:
                     from .welcome import record_login

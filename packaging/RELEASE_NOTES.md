@@ -8,7 +8,21 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.94.0)
+### Neu in dieser Version (0.95.0)
+- **Fingerabdruck: EIN Auflegen reicht öfter.** War das erste Bild schlecht (Finger halb aufgelegt, verwischt),
+  musste man den Finger heben und neu auflegen. Jetzt nimmt AluPC sofort bis zu 3 Bilder, solange der Finger liegt –
+  beim Entsperren (Linux), am Sperrbildschirm/sudo (PAM), bei Finger-Schnelltasten und beim „Finger prüfen“.
+- **Fingerabdruck: Licht am Modul.** Grün blinken = erkannt, rot blinken = nicht erkannt. Module ohne diesen
+  Befehl bleiben einfach dunkel (kein Fehler).
+- **Animationen:**
+  - Seitenleiste: die Markierung gleitet weich zur gewählten Seite (auch im schmalen Fenster).
+  - Fingerabdruck-Ring: Scan-Strahl beim Warten, Haken „ploppt“ mit Lichtring bei Erfolg, Ring schüttelt bei Fehler.
+- **Überprüft:** alle Seiten in Hell, Dunkel und im kleinen Fenster durchgesehen; 322 Tests grün.
+- Ehrlich: Die LED-Befehle stammen aus der ZW101-Beschreibung und sind nur mit dem nachgebauten Modul getestet –
+  ob dein Modul blinkt, kann ich ohne Hardware nicht prüfen. Das Entsperren selbst ebenfalls nur mit nachgebautem
+  Modul und nachgebautem Sperrbildschirm.
+
+### Neu in Version 0.94.0
 - **Neuer Echttest gegen Fehlalarme:** In jedem Build spricht eine Computerstimme 8 normale Gesprächssätze ohne
   Startwort („Ich sitze gerade am Computer …“, „Mach mal das Licht aus, Mama“, „Wie spät ist es eigentlich?“).
   Ergebnis vor diesem Release: 0 von 8 Fehlalarmen (Windows und Linux).

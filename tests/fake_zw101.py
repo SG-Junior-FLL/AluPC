@@ -38,6 +38,9 @@ class FakeZW101:
         self.library: dict[int, str] = {}
         self.password_ok = True
         self.commands: list[int] = []
+        self.blurry = 0  # so oft liefert „Merkmale erzeugen“ noch „zu unscharf“ (halb aufgelegter Finger)
+        self.led_supported = True
+        self.leds: list[tuple[int, int]] = []  # (Art, Farbe) der LED-Befehle
         self._stop = False
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
@@ -105,6 +108,9 @@ class FakeZW101:
         if cmd == 0x02:  # Merkmale erzeugen
             if not getattr(self, "_image", None):
                 return 0x15, b""
+            if self.blurry > 0:
+                self.blurry -= 1
+                return 0x06, b""
             self.buffers[p[0]] = self._image
             if self.auto_lift:
                 self._lifted = 2
@@ -143,4 +149,7 @@ class FakeZW101:
             return 0x00, bytes(table)
         if cmd == 0x1D:
             return 0x00, len(self.library).to_bytes(2, "big")
+        if cmd == 0x3C and self.led_supported:  # LED (ZW101: Art, Startfarbe, Endfarbe, Wiederholungen)
+            self.leds.append((p[0], p[1]))
+            return 0x00, b""
         return 0x01, b""
