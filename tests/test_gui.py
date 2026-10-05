@@ -3176,7 +3176,8 @@ def test_reset_all_data_button(env, monkeypatch):
              if b.title() == "Zurücksetzen"]
     assert boxes, "Bereich „Zurücksetzen“ fehlt"
     requested = []
-    monkeypatch.setattr(reset, "request", lambda config, **kw: requested.append(config))
+    monkeypatch.setattr(reset, "request", lambda config, **kw: requested.append((config, kw)))
+    monkeypatch.setattr(reset, "backup_dir", lambda: _tmp / "Sicherungen")  # nie in die echten Dokumente
     monkeypatch.setattr(reset_page.ResetDialog, "exec", lambda self: QDialog.Rejected)
     reset_page.reset_all(setup)
     assert not requested  # abgebrochen
@@ -3186,7 +3187,9 @@ def test_reset_all_data_button(env, monkeypatch):
     assert not requested  # zweite Frage verneint
     monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: QMessageBox.Yes)
     reset_page.reset_all(setup)
-    assert requested == [controller.config]
+    assert requested[0][0] is controller.config
+    backup = requested[0][1]["backup"]  # vorher gesichert → lässt sich wieder laden
+    assert backup and backup.parent == _tmp / "Sicherungen" and "AluPC" in backup.read_text(encoding="utf-8")
 
 
 def test_browser_control_stays_smooth_while_moving(env):

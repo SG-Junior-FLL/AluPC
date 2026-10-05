@@ -73,6 +73,22 @@ def resize_slots(scene: dict, layout: str) -> dict:
     return scene
 
 
+def normalize_scene(scene: dict) -> dict:
+    """Szene reparieren, falls Teile fehlen (alte Sicherung, Abgleich, von Hand bearbeitet): sonst stürzt die
+    Szenen-Seite ab („layout“ fehlt). Unbekanntes Layout → Vollbild, Plätze passend auffüllen/kürzen."""
+    if not isinstance(scene, dict):
+        return new_scene("Szene")
+    if scene.get("layout") not in LAYOUTS or not isinstance(scene.get("slots"), list):
+        layout = scene.get("layout") if scene.get("layout") in LAYOUTS else "vollbild"
+        if not isinstance(scene.get("slots"), list):
+            scene["slots"] = []
+        scene = resize_slots(scene, layout)
+    elif len(scene["slots"]) != len(layout_slots(scene["layout"])):
+        scene = resize_slots(scene, scene["layout"])
+    scene["name"] = str(scene.get("name") or "Szene")
+    return scene
+
+
 def scene_refs(scene: dict) -> list[str]:
     return [s["scene"] for s in scene.get("slots", []) if s and s.get("type") == "scene"]
 

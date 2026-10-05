@@ -155,11 +155,15 @@ def sync_group(page) -> QGroupBox:
     cl.addWidget(enabled, 0, Qt.AlignTop)
     lay.addWidget(card)
     now = button("Jetzt abgleichen", "sync", primary=True)
+    test = button("Prüfen", "check")
+    test.setToolTip("Prüft Ordner, Schreibrechte und den Stand des anderen Systems")
     pick = button("Ordner wählen …", "window")
     search = button("Automatisch suchen", "refresh")
     mount = button("Windows-Laufwerk einhängen …", "plus")
     mount.setVisible(not ss.IS_WINDOWS)
-    lay.addWidget(flow_row(now, pick, search, mount))
+    restore = button("Sicherungen …", "undo")
+    restore.setToolTip("Bei einem Konflikt gesicherte Fassung des anderen Systems zurückholen")
+    lay.addWidget(flow_row(now, test, pick, search, mount, restore))
     # ---- Bereiche
     what = QLabel("<b>Was abgeglichen wird</b>")
     lay.addWidget(what)
@@ -221,8 +225,12 @@ def sync_group(page) -> QGroupBox:
         else:
             title.setText("Verbunden ✓")
             last = f"Zuletzt: {s['last']} · " if s.get("last") else ""
-            sub.setText(f"{last}{status_text}\nOrdner: {s['folder']}")
+            info = ss.remote_info(config)
+            other = (f"\nIm Ordner: Stand von {info['system']} ({info.get('written', '')}, AluPC "
+                     f"{info.get('version', '')})") if info else ""
+            sub.setText(f"{last}{status_text}{other}\nOrdner: {s['folder']}")
             set_badge(t.success, "sync")
+        restore.setVisible(bool(ss.conflict_backups(config)))
         skip = set(s.get("skip") or [])
         for name, cb in section_boxes.items():
             cb.blockSignals(True)
@@ -316,6 +324,39 @@ def sync_group(page) -> QGroupBox:
             controller.run_sync()
         refresh()
 
+    def do_check():
+        result = ss.check(config)
+        lines = [("✓ " if ok else "✗ ") + text for ok, text in result]
+        all_ok = all(ok for ok, _t in result)
+        (QMessageBox.information if all_ok else QMessageBox.warning)(page, "Abgleich prüfen", "\n".join(lines))
+
+    def do_restore():
+        menu = QMenu(page)
+        theme.round_popup(menu)
+        for path in ss.conflict_backups(config)[:8]:
+            import time as _time
+
+            label = f"{path.name.split('-')[-1].removesuffix('.json')} · {_time.strftime('%d.%m. %H:%M', _time.localtime(path.stat().st_mtime))}"
+
+            def go(p=path):
+                if QMessageBox.question(page, "Sicherung übernehmen", "Die gesicherte Fassung des anderen Systems "
+                                        "übernehmen? Die Einstellungen hier werden dabei überschrieben.") \
+                        != QMessageBox.Yes:
+                    return
+                try:
+                    changed = ss.restore_backup(config, p)
+                except ValueError as exc:
+                    error_box(page, str(exc))
+                    return
+                controller.settings_imported.emit(changed)
+                controller.run_sync()
+                refresh()
+
+            menu.addAction(label, go)
+        menu.popup(restore.mapToGlobal(restore.rect().bottomLeft()))
+
+    test.clicked.connect(do_check)
+    restore.clicked.connect(do_restore)
     enabled.toggled.connect(toggle)
     pick.clicked.connect(do_pick)
     search.clicked.connect(do_search)

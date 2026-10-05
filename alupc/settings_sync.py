@@ -264,6 +264,10 @@ def apply_payload(config, data: dict, keys: list[str] | None = None) -> list[str
             value = merged
         elif isinstance(default, list) and not isinstance(value, list):
             continue
+        if key == "scenes" and isinstance(value, list):  # vom anderen System/aus einer Datei: Szenen prüfen
+            from .scenes import normalize_scene
+
+            value = [normalize_scene(dict(sc)) for sc in value if isinstance(sc, dict)]
         if config.data.get(key) != value:
             config.data[key] = value
             changed.append(key)
@@ -577,6 +581,72 @@ def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
         return msg, changed
     _copy_in_background(paths)  # z. B. Kopie war beim letzten Mal unterbrochen
     return "Alles aktuell.", []
+
+
+# --------------------------------------------------------------------------- Anzeige / Prüfen / Sicherungen
+def remote_info(config) -> dict | None:
+    """Was steht gerade im Sync-Ordner? (System, Zeit, Version, Computer) – für die Sync-Seite."""
+    folder = config.data["sync"].get("folder")
+    if not folder:
+        return None
+    data = _read(sync_file(folder)) if sync_file(folder).is_file() else None
+    if not data:
+        return None
+    return {k: data.get(k, "") for k in ("system", "written", "version", "computer", "rev")}
+
+
+def conflict_backups(config) -> list[Path]:
+    """Sicherungen, die bei Konflikten angelegt wurden (neueste zuerst)."""
+    folder = config.data["sync"].get("folder")
+    if not folder or not Path(folder).is_dir():
+        return []
+    files = list(Path(folder).glob("alupc-sync-sicherung-*.json"))
+    return sorted(files, key=lambda f: f.stat().st_mtime, reverse=True)
+
+
+def restore_backup(config, path: str | Path) -> list[str]:
+    """Konflikt-Sicherung übernehmen (die Fassung des anderen Systems) – danach normal abgleichen."""
+    data = _read(Path(path))
+    if not data:
+        raise ValueError("Die Sicherung ist nicht lesbar.")
+    folder = Path(config.data["sync"].get("folder") or Path(path).parent)
+    changed = apply_payload(config, PathMap(folder).local(data["data"]), synced_keys(config))
+    _log(config, f"Sicherung übernommen: {_labels(changed)}" if changed else "Sicherung übernommen (nichts neu)")
+    return changed
+
+
+def check(config) -> list[tuple[bool, str]]:
+    """„Prüfen“: geht alles? Ordner da, beschreibbar, anderes System gesehen, Abgleich an."""
+    s = config.data["sync"]
+    out: list[tuple[bool, str]] = []
+    out.append((bool(s.get("enabled")), "Abgleich ist an" if s.get("enabled") else "Abgleich ist aus"))
+    folder = resolve_folder(config, mount=False) if s.get("folder") else None
+    if folder is None:
+        out.append((False, "Sync-Ordner nicht erreichbar" + ("" if IS_WINDOWS else
+                                                               " – Windows-Laufwerk einhängen")))
+        return out
+    out.append((True, f"Ordner gefunden: {folder}"))
+    probe = folder / ".alupc-schreibtest"
+    try:
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        out.append((True, "Ordner ist beschreibbar"))
+    except OSError as exc:
+        hint = " (Windows-„Schnellstart“ ausschalten)" if not IS_WINDOWS and getattr(exc, "errno", 0) == 30 else ""
+        out.append((False, f"Ordner ist nicht beschreibbar{hint}"))
+    info = remote_info(config)
+    me = "Windows" if IS_WINDOWS else "Linux"
+    if info is None:
+        out.append((False, "Noch keine Sync-Datei – einmal „Jetzt abgleichen“"))
+    elif info.get("system") and info["system"] != me:
+        out.append((True, f"Letzter Stand von {info['system']} ({info.get('written', '?')}, AluPC "
+                          f"{info.get('version', '?')})"))
+    else:
+        out.append((True, f"Letzter Stand von diesem System ({info.get('written', '?')}) – das andere System "
+                          "hat noch nichts Neueres geschrieben"))
+    if info and info.get("version") and info["version"] != __version__:
+        out.append((False, f"Anderes System hat AluPC {info['version']}, hier {__version__} – beide aktualisieren"))
+    return out
 
 
 # --------------------------------------------------------------------------- Ordner finden

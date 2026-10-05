@@ -241,7 +241,7 @@ def main(argv=None) -> int:
         QTimer.singleShot(700, lambda: (window.show(), window.open_first_run()))
     from . import reset
 
-    QTimer.singleShot(900, lambda: reset.report_leftovers(window))  # nach „Alle Daten löschen“
+    QTimer.singleShot(900, lambda: reset.report_leftovers(window, config))  # nach „Alle Daten löschen“
     QTimer.singleShot(1200, controller.welcome_watcher.greet_startup)
     code = app.exec()
     if reset.pending():

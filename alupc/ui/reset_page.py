@@ -38,7 +38,12 @@ class ResetDialog(QDialog):
         self.sync.setChecked(True)
         self.sync.setVisible(sync_on)
         lay.addWidget(self.sync)
-        hint = QLabel("Tipp: Vorher unter „Sichern & Sync“ exportieren, wenn du etwas behalten willst.")
+        self.keep = QCheckBox("Szenen, Startseite, Mediathek und Overlays behalten (nur Einstellungen zurücksetzen)")
+        lay.addWidget(self.keep)
+        self.backup = QCheckBox("Vorher eine Sicherung speichern (Dokumente/AluPC-Sicherungen – zum Zurückholen)")
+        self.backup.setChecked(True)
+        lay.addWidget(self.backup)
+        hint = QLabel("Die Sicherung lässt sich unter „Sichern & Sync → Importieren“ wieder laden.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         lay.addWidget(hint)
@@ -96,7 +101,15 @@ def reset_all(page) -> None:
                 page, "Alle Daten löschen", "Nicht alles hat geklappt:\n\n" + "\n".join(problems)
                 + "\n\nTrotzdem die Daten von AluPC löschen?") != QMessageBox.Yes:
             return
-        reset.request(controller.config, clear_sync=not dlg.sync.isHidden() and dlg.sync.isChecked())
+        backup = None
+        if dlg.backup.isChecked():
+            backup = reset.save_backup(controller.config)
+            if backup is None and QMessageBox.question(
+                    page, "Alle Daten löschen", "Die Sicherung ließ sich nicht speichern. Trotzdem löschen?") \
+                    != QMessageBox.Yes:
+                return
+        reset.request(controller.config, clear_sync=not dlg.sync.isHidden() and dlg.sync.isChecked(),
+                      keep=dlg.keep.isChecked(), backup=backup)
 
     if login_off or clear_module:
         controller.message.emit("Fingerabdruck wird zurückgesetzt …")

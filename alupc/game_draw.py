@@ -417,13 +417,17 @@ def podium(c) -> None:
         if pl.avatar:  # Avatar über dem Namen, hüpft ein bisschen
             hop = abs(math.sin((c.now - hub.over_at) * 4 + idx)) * h * 0.012
             text(p, QRectF(rect.x(), rect.y() - h * 0.17 - hop, rect.width(), h * 0.09), pl.avatar, h * 0.07)
-        text(p, QRectF(rect.x(), rect.bottom() - h * 0.07, rect.width(), h * 0.06), score_label(key, score),
-             h * 0.032, "#ffffff")
         gain = hub.last_award.get(pl.name)
-        if gain:
-            a = ease_out((c.now - hub.over_at - 1.2) / 0.5)
-            text(p, QRectF(rect.x(), rect.y() + h * 0.15, rect.width(), h * 0.05), f"+{gain} gesamt", h * 0.03,
-                 qc("#fbbf24", a), True)
+        a = ease_out((c.now - hub.over_at - 1.2) / 0.5) if gain else 0.0
+        if gain and hh < h * 0.29:  # niedriges Podest: Punkte und Gewinn in einer Zeile (sonst überlappen sie)
+            text(p, QRectF(rect.x(), rect.bottom() - h * 0.07, rect.width(), h * 0.06),
+                 f"{score_label(key, score)} · +{gain}", h * 0.03, "#ffffff")
+        else:
+            text(p, QRectF(rect.x(), rect.bottom() - h * 0.07, rect.width(), h * 0.06), score_label(key, score),
+                 h * 0.032, "#ffffff")
+            if gain:
+                text(p, QRectF(rect.x(), rect.bottom() - h * 0.125, rect.width(), h * 0.05), f"+{gain} gesamt",
+                     h * 0.03, qc("#fbbf24", a), True)
     rest = ranking[3:10]
     if rest:
         line = "   ".join(f"{places[i + 3]}. {hub.players[pid].name}" for i, (pid, _s) in enumerate(rest))
@@ -905,7 +909,7 @@ def rennen(c, g, events) -> None:
     top = m + h * 0.08
     lane_h = min((h - top - m) / max(1, len(pids)), h * 0.14)
     name_w = w * 0.18
-    track_x = m + name_w + m * 0.5
+    track_x = m + name_w + m * 0.5 + lane_h * 0.36  # Platz für die Kugel am Start (sonst verdeckt sie den Namen)
     track_w = w - track_x - m - h * 0.06
     for _n, t, kind, data in events:
         if kind == "finish" and data["pid"] in pids:

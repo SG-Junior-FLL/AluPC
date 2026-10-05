@@ -1265,6 +1265,9 @@ class Controller(QObject):
 
     def run_command(self, command: str) -> None:
         command = command.strip()
+        if command == "pc_sperren":  # wie Win+L
+            self.lock_computer()
+            return
         if command.startswith("pc_") and command not in ("pc_herunterfahren", "pc_neustart", "pc_schlafen",
                                                          "pc_abmelden"):
             from . import pc_control

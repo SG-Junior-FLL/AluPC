@@ -8,7 +8,27 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.102.0)
+### Neu in dieser Version (0.103.0)
+- **PC steuern wie mit einer Kontroll-App:** System-Seite → Karte **„PC steuern“**: Lautstärke-Regler, Stumm, Musik
+  (⏮ ⏯ ⏭), Desktop, Fenster wechseln, Bildschirmfoto und ein Feld **„Programm oder Befehl“** (wie Win+R, mit
+  Vorschlägen aus den installierten Programmen). **Handy-Karte „PC“**: Lautstärke-Regler, Fenster klein/groß/schließen,
+  **PC sperren**, **Programm öffnen** (nur aus der Liste der installierten Programme – keine freien Befehle vom Handy).
+- **Zurücksetzen besser:** vorher automatisch eine **Sicherung** (Dokumente/AluPC-Sicherungen, nach dem Neustart wird
+  gesagt, wo sie liegt – zurückholen über „Importieren“), auf Wunsch **Szenen, Startseite, Mediathek und Overlays
+  behalten** (nur Einstellungen zurücksetzen).
+- **Sync besser:** **„Prüfen“** (Ordner da? beschreibbar? Stand und AluPC-Version des anderen Systems), die Status-Karte
+  zeigt, welches System zuletzt geschrieben hat, **Konflikt-Sicherungen zurückholen** („Sicherungen …“).
+- **Alles durchgeprüft:** neues Rundgang-Skript öffnet jede Seite, jeden Setup-Bereich, alle Fenster, alle
+  Monitor-2-Anzeigen und alle Spiele (läuft jetzt bei jedem Build in der CI mit). Dabei gefunden und behoben:
+  - Szenen ohne „layout“ (z. B. aus alten Sicherungen) ließen die App beim Start abstürzen – werden jetzt repariert.
+  - Handy: Beitreten zu einem Spiel konnte durch eine gleichzeitige Abfrage sofort wieder rückgängig gemacht werden.
+  - Tipp-Rennen: Namen wurden von der Kugel verdeckt; Siegertreppchen: Texte überlappten bei niedrigem Podest.
+- **README neu** (Übersicht mit Screenshots) und **Handbuch als PDF** mit allen Screens und ihrer Funktion
+  (docs/AluPC-Handbuch.pdf).
+- Ehrlich: Screenshots und Prüfungen laufen ohne echte Monitore, Kameras, Handys und WLAN-Karte; die PC-Steuerung
+  (Lautstärke, Fenster, Sperren) ist nur mit nachgespielten Systembefehlen getestet.
+
+### Neu in Version 0.102.0
 - **Minispiele = eigenes WLAN:** Mit den Minispielen startet das Spiele-WLAN (einmal bestätigen: Linux Passwort,
   Windows „Ja“). Die Lobby zeigt dann **einen** Code: das WLAN. Scannen → das Handy öffnet die
   **WLAN-Anmeldeseite** wie im Hotel → **Name eingeben** → **Mitspielen** (gleich in der Spielsteuerung) oder

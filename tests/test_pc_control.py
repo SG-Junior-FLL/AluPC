@@ -3,7 +3,7 @@
 import sys
 
 import pytest
-from test_gui import env  # noqa: F401
+from test_gui import _free_tcp_port, _http, _until, env  # noqa: F401
 
 from alupc import pc_control
 from alupc.intents import understand
@@ -202,3 +202,71 @@ def test_hotspot_tile_on_start_page(env, monkeypatch):  # noqa: F811
         assert window.t_hotspot.badge == "AN" and window.t_hotspot.active
     finally:
         hs.running, hs.kind = False, ""
+
+
+def test_system_page_pc_card(env, monkeypatch):  # noqa: F811
+    """System → „PC steuern“: Lautstärke-Regler, Musik/Fenster-Knöpfe, Programm öffnen mit Vorschlägen."""
+    from alupc import pc_control
+    from alupc.ui.system_page import SystemPage
+
+    controller, window, _ = env
+    calls = []
+    monkeypatch.setattr(pc_control, "get_volume", lambda: 40)
+    monkeypatch.setattr(pc_control, "set_volume", lambda percent=None, step=0: (calls.append(("vol", percent)), (True, ""))[1])
+    monkeypatch.setattr(pc_control, "app_names", lambda max_age=300: ["Firefox", "Kate"])
+    monkeypatch.setattr(pc_control, "launch_installed", lambda name: (calls.append(("app", name)), (True, ""))[1])
+    monkeypatch.setattr(pc_control, "run_line", lambda line: (calls.append(("run", line)), (True, ""))[1])
+    commands = []
+    monkeypatch.setattr(controller, "run_command", lambda c: commands.append(c))
+    page = SystemPage(controller)
+    page.resize(1200, 900)
+    page.show()
+    _until(lambda: page.vol.value() == 40)
+    page.vol.setValue(70)
+    page.vol.sliderReleased.emit()
+    _until(lambda: ("vol", 70) in calls)
+    page.run_edit.setText("firefox")
+    page.run_edit.returnPressed.emit()
+    _until(lambda: ("app", "firefox") in calls)
+    page.run_edit.setText("notepad")
+    page.run_edit.returnPressed.emit()
+    _until(lambda: ("run", "notepad") in calls)
+    from PySide6.QtWidgets import QPushButton
+
+    [b for b in page.pc.findChildren(QPushButton) if b.text() == "⏯"][0].click()
+    [b for b in page.pc.findChildren(QPushButton) if b.text() == "Desktop"][0].click()
+    assert commands == ["musik_pause", "pc_desktop"]
+    page.close()
+
+
+def test_phone_pc_commands(env, monkeypatch):  # noqa: F811
+    """Handy: Lautstärke-Regler, Sperren, Fenster, Programm nur aus der Liste der installierten Programme."""
+    import json
+
+    from alupc import pc_control
+
+    controller, _window, _ = env
+    port = _free_tcp_port()
+    controller.config["cast"] = {**controller.config["cast"], "port": port, "code": "123456"}
+    controller.cast.start()
+    monkeypatch.setattr(pc_control, "app_names", lambda max_age=300: ["Firefox", "Kate"])
+    seen = []
+    controller.cast.request.connect(lambda d: seen.append(d.get("cmd")))
+    base = f"http://127.0.0.1:{controller.cast.port}"
+    hdr = {"Content-Type": "application/json", "X-AluPC-Code": "123456"}
+    status, body = _http("GET", base + "/api/apps", None, {"X-AluPC-Code": "123456"})
+    assert status == 200 and json.loads(body)["apps"] == ["Firefox", "Kate"]
+    assert _http("GET", base + "/api/apps", None, {"X-AluPC-Code": "000000"})[0] in (401, 403)
+    for c in ("pc_lautstaerke:55", "pc_sperren", "pc_minimieren", "pc_programm:Kate"):
+        assert _http("POST", base + "/api/cmd", json.dumps({"cmd": c}).encode(), hdr)[0] == 200, c
+    for bad in ("pc_herunterfahren", "pc_lautstaerke:abc", "pc_app:cmd.exe"):
+        assert _http("POST", base + "/api/cmd", json.dumps({"cmd": bad}).encode(), hdr)[0] == 400, bad
+    from test_gui import pump
+    pump()
+    assert {"pc_lautstaerke:55", "pc_sperren", "pc_programm:Kate"} <= set(seen)
+    # Programm vom Handy: nur exakt aus der Liste
+    monkeypatch.setattr(pc_control, "_apps_cache", (1e12, [("Kate", "/usr/share/applications/org.kde.kate.desktop")]))
+    monkeypatch.setattr(pc_control, "_launch_desktop", lambda path: path.endswith("kate.desktop"))
+    assert pc_control.launch_installed("kate") == (True, "")
+    assert not pc_control.launch_installed("rm -rf /")[0]
+    controller.cast.stop()

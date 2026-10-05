@@ -43,7 +43,7 @@ ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirm
                     "video_weiterschauen", "video_von_vorn",
                     # PC: Systemlautstärke, Desktop, Fenster, Bildschirmfoto (Ein/Aus nur am PC – mit Rückfrage)
                     "pc_lauter", "pc_leiser", "pc_stumm_an", "pc_stumm_aus", "pc_desktop", "pc_fenster_wechseln",
-                    "pc_screenshot"}  # Minispiele starten nur am PC
+                    "pc_screenshot", "pc_sperren", "pc_minimieren", "pc_maximieren", "pc_fenster_zu"}  # Minispiele starten nur am PC
 MAX_FAILS = 10
 BLOCK_SECONDS = 60
 
@@ -494,6 +494,11 @@ def _make_handler(server: CastServer):
             elif path == "/api/status":
                 if self._auth():
                     self._json(200, server.snapshot)
+            elif path == "/api/apps":  # installierte Programme (zum Öffnen vom Handy – nur aus dieser Liste)
+                if self._auth() and self._may("steuern"):
+                    from .pc_control import app_names
+
+                    self._json(200, {"apps": app_names()[:400]})
             elif path == "/api/preview":
                 if self._auth() and self._may("live"):
                     server.preview_wanted = time.monotonic()
@@ -684,6 +689,8 @@ def _make_handler(server: CastServer):
                     if not (cmd in ALLOWED_COMMANDS or cmd.startswith("szene:")
                             or re.fullmatch(r"whiteboard:[a-z]{2,20}", cmd)
                             or re.fullmatch(r"lautstaerke:\d{1,3}", cmd) or re.fullmatch(r"timer:\d{1,5}", cmd)
+                            or re.fullmatch(r"pc_lautstaerke:\d{1,3}", cmd)
+                            or (cmd.startswith("pc_programm:") and len(cmd) < 120)
                             or re.fullmatch(r"taste:(weiter|zurueck|rechts|links|start|ende|schwarz|leer)", cmd)):
                         self._json(400, {"error": "Unbekannter Befehl"})
                         return

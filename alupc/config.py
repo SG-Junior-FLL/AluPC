@@ -215,6 +215,10 @@ class Config:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             if isinstance(raw, dict):
                 self.data = _merge(DEFAULTS, raw)
+                if isinstance(self.data.get("scenes"), list):  # kaputte/unvollständige Szenen reparieren
+                    from .scenes import normalize_scene
+
+                    self.data["scenes"] = [normalize_scene(sc) for sc in self.data["scenes"] if isinstance(sc, dict)]
                 v = self.data.get("voice")
                 if isinstance(v, dict) and not (raw.get("voice") or {}).get("wake_v2"):  # 0.93: „Computer“ als Startwort dazu
                     v["wake_v2"] = True
@@ -268,6 +272,9 @@ class Config:
         return None
 
     def put_scene(self, scene: dict, old_name: str | None = None) -> None:
+        from .scenes import normalize_scene
+
+        scene = normalize_scene(scene)
         scenes = self.data["scenes"]
         key = old_name or scene["name"]
         for i, existing in enumerate(scenes):

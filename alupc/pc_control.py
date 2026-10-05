@@ -384,6 +384,32 @@ def _launch_desktop(path: str) -> bool:
     return False
 
 
+_apps_cache: tuple[float, list[tuple[str, str]]] = (0.0, [])
+
+
+def app_names(max_age: float = 300) -> list[str]:
+    """Namen der installierten Programme (5 Minuten gemerkt) – für die Liste auf dem Handy und die Suche am PC."""
+    global _apps_cache
+    if not _apps_cache[1] or time.monotonic() - _apps_cache[0] > max_age:
+        _apps_cache = (time.monotonic(), installed_apps())
+    return [name for name, _path in _apps_cache[1]]
+
+
+def launch_installed(name: str) -> tuple[bool, str]:
+    """Genau ein installiertes Programm aus der Liste starten (Handy: nur das, keine freien Befehle)."""
+    app_names(max_age=600)
+    hit = next((path for n, path in _apps_cache[1] if n.lower() == name.strip().lower()), None)
+    if hit is None:
+        return False, f"„{name}“ ist nicht installiert"
+    if sys.platform.startswith("win"):
+        try:
+            os.startfile(hit)  # noqa: S606 – Startmenü-Verknüpfung aus der Liste
+            return True, ""
+        except OSError as exc:
+            return False, str(exc)
+    return (True, "") if _launch_desktop(hit) else (False, "ließ sich nicht starten")
+
+
 def find_app(name: str, entries: dict[str, str]) -> str | None:
     key = fold(name)
     if key in entries:
@@ -543,6 +569,10 @@ def run(cmd: str) -> str:
             q = cmd.split(":", 1)[1]
             ok = _open_url("https://www.youtube.com/results?search_query=" + urllib.parse.quote_plus(q))
             return f"YouTube: {q}." if ok else "Der Browser ließ sich nicht öffnen."
+        if cmd.startswith("pc_programm:"):
+            name = cmd.split(":", 1)[1]
+            ok, why = launch_installed(name)
+            return f"Ich öffne {name}." if ok else f"Das ging nicht: {why}."
         if cmd.startswith("pc_app:"):
             name = cmd.split(":", 1)[1]
             ok, why = open_app(name)

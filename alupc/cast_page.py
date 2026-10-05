@@ -72,6 +72,7 @@ header .now { font-size:13px; color:var(--muted); white-space:nowrap; overflow:h
 .card h2 { margin:0 0 10px; font-size:12px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.8px;
            display:flex; align-items:center; justify-content:space-between; }
 .row { display:flex; gap:8px; }
+select { font: inherit; padding: 12px; border-radius: 12px; background: var(--card2); color: var(--text); border: 1px solid var(--line, #334155); }
 .row > * { flex:1 1 0; min-width:0; }
 .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
@@ -313,7 +314,9 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
     <div class="row"><button onclick="cmd('musik_zeigen')">Läuft gerade zeigen</button></div>
   </div>
   <div class="card" id="c-pc">
-    <h2>PC</h2>
+    <h2>PC <span id="pcvol-val" style="font-weight:600;opacity:.7"></span></h2>
+    <input type="range" id="pcvol" min="0" max="100" step="5" aria-label="Lautstärke am PC"
+           oninput="$('pcvol-val').textContent = '· ' + this.value + ' %'" onchange="cmd('pc_lautstaerke:' + this.value)">
     <div class="row">
       <button onclick="cmd('pc_leiser')">🔉 Leiser</button>
       <button onclick="cmd('pc_lauter')">🔊 Lauter</button>
@@ -323,6 +326,16 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
       <button onclick="cmd('pc_desktop')">Desktop</button>
       <button onclick="cmd('pc_fenster_wechseln')">Fenster ⇄</button>
       <button onclick="cmd('pc_screenshot')">📸 Foto</button>
+    </div>
+    <div class="row">
+      <button onclick="cmd('pc_minimieren')">▁ Klein</button>
+      <button onclick="cmd('pc_maximieren')">▢ Groß</button>
+      <button onclick="if (confirm('Aktives Fenster am PC schließen?')) cmd('pc_fenster_zu')">✕ Schließen</button>
+      <button onclick="cmd('pc_sperren')">🔒 Sperren</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <select id="apps" onfocus="loadApps()" aria-label="Programm"><option value="">Programm öffnen …</option></select>
+      <button style="flex:0 0 auto" onclick="openApp()">Öffnen</button>
     </div>
   </div>
   <div class="card" id="c-vol">
@@ -559,6 +572,16 @@ async function post(path, obj, okText) {
   catch (e) { toast(e.message, true); }
 }
 function cmd(c) { buzz(); post("/api/cmd", { cmd: c }); }
+let appsLoaded = false;
+async function loadApps() {  // installierte Programme am PC (nur aus dieser Liste lässt sich etwas öffnen)
+  if (appsLoaded) return; appsLoaded = true;
+  try {
+    const r = await fetch("/api/apps", { headers: { "X-AluPC-Code": code } });
+    const d = await r.json();
+    for (const n of (d.apps || [])) { const o = document.createElement("option"); o.value = o.textContent = n; $("apps").append(o); }
+  } catch (e) { appsLoaded = false; }
+}
+function openApp() { const n = $("apps").value; if (n) cmd("pc_programm:" + n); else { loadApps(); $("apps").focus(); } }
 let replyId = -1, waitReply = false;
 function askText(t) { $("ask").value = t; ask(); }
 async function ask() {

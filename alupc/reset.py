@@ -105,7 +105,39 @@ def pending() -> bool:
     return _pending["on"]
 
 
-def request(config, clear_sync: bool = False) -> None:
+KEEP_KEYS = ["scenes", "start_page", "media", "websites", "overlays"]  # „Szenen & Startseite behalten“
+
+
+def backup_dir() -> Path:
+    """Sicherungen vor dem Zurücksetzen: Dokumente/AluPC-Sicherungen (liegt NICHT in den gelöschten Ordnern)."""
+    try:
+        from PySide6.QtCore import QStandardPaths
+
+        docs = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)
+    except Exception:  # noqa: BLE001
+        docs = ""
+    return Path(docs or Path.home()) / "AluPC-Sicherungen"
+
+
+def save_backup(config) -> Path | None:
+    """Alle Einstellungen als Datei sichern (wie „Exportieren“) – lässt sich unter Sichern & Sync wieder laden."""
+    import json
+    import time
+
+    from .settings_sync import SECTIONS, export_settings
+
+    try:
+        folder = backup_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"AluPC-Sicherung-{time.strftime('%Y-%m-%d_%H%M%S')}.json"
+        data = export_settings(config, list(SECTIONS))
+        path.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
+        return path
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def request(config, clear_sync: bool = False, keep: bool = False, backup: Path | None = None) -> None:
     """Zurücksetzen anstoßen: nichts mehr speichern, AluPC beenden. Gelöscht wird nach dem Beenden
     (siehe app.main → finish_and_restart), dann startet AluPC neu – mit der Ersteinrichtung.
     clear_sync: auch die abgeglichenen Einstellungen im Dual-Boot-Ordner löschen und den Abgleich auslassen."""
@@ -114,6 +146,8 @@ def request(config, clear_sync: bool = False) -> None:
     sync = config.data.get("sync") or {}
     _pending["sync_folder"] = str(sync.get("folder") or "") if clear_sync else ""
     _pending["clear_sync"] = clear_sync
+    _pending["keep"] = {k: config.data[k] for k in KEEP_KEYS if k in config.data} if keep else {}
+    _pending["backup"] = str(backup or "")
     config.frozen = True
     _pending["on"] = True
     QApplication.quit()
@@ -134,12 +168,19 @@ def finish_and_restart(attempts: int = 6, pause: float = 0.5) -> None:
             break
         time.sleep(pause)
         problems = wipe()
+    fresh: dict = dict(_pending.get("keep") or {})  # behaltene Bereiche (Szenen, Startseite …)
     if _pending.get("clear_sync"):
         if _pending.get("sync_folder"):
             problems += clear_sync_folder(_pending["sync_folder"])
-        try:  # Abgleich bleibt aus, bis man ihn im Setup wieder einschaltet (sonst richtet er sich selbst ein)
+        fresh["sync"] = {"declined": True}  # Abgleich bleibt aus, bis man ihn wieder einschaltet
+    if _pending.get("backup"):
+        fresh["reset_info"] = {"backup": _pending["backup"]}  # der Neustart sagt, wo die Sicherung liegt
+    if fresh:
+        import json
+
+        try:
             config_dir().mkdir(parents=True, exist_ok=True)
-            (config_dir() / "config.json").write_text('{"sync": {"declined": true}}', encoding="utf-8")
+            (config_dir() / "config.json").write_text(json.dumps(fresh, ensure_ascii=False), encoding="utf-8")
         except OSError as exc:
             problems.append(f"Einstellungen: {exc}")
     if problems:  # was jetzt noch klemmt, löscht der Neustart als Allererstes (bevor er Dateien öffnet)
@@ -179,8 +220,8 @@ def cleanup_pending() -> None:
         return
     keep = None
     cfg = config_dir() / "config.json"
-    try:  # die frisch geschriebene „Abgleich aus“-Einstellung behalten
-        keep = cfg.read_text(encoding="utf-8") if cfg.is_file() and cfg.stat().st_size < 200 else None
+    try:  # die frisch geschriebenen Einstellungen (Abgleich aus, behaltene Szenen) behalten
+        keep = cfg.read_text(encoding="utf-8") if cfg.is_file() else None
     except OSError:
         keep = None
     problems = [p for p in wipe([d for d in dirs if is_alupc_dir(d)]) if not p.startswith("Autostart")]
@@ -201,16 +242,22 @@ def cleanup_pending() -> None:
         pass
 
 
-def report_leftovers(parent) -> None:
+def report_leftovers(parent, config=None) -> None:
+    """Nach dem Neustart: sagen, wo die Sicherung liegt – und was sich nicht löschen ließ."""
+    info = (config.data.pop("reset_info", None) if config is not None else None) or {}
+    lines = []
+    if info.get("backup"):
+        lines.append(f"Sicherung: {info['backup']}\nZurückholen: Setup → Sichern & Sync → „Importieren …“.")
+        config.save()
     path = config_dir() / LEFTOVER_FILE
-    if not path.is_file():
-        return
-    try:
-        text = path.read_text(encoding="utf-8")
-        path.unlink()
-    except OSError:
+    if path.is_file():
+        try:
+            lines.append("Nicht alles ließ sich löschen:\n" + path.read_text(encoding="utf-8")[:1500])
+            path.unlink()
+        except OSError:
+            pass
+    if not lines:
         return
     from PySide6.QtWidgets import QMessageBox
 
-    QMessageBox.information(parent, "Daten gelöscht",
-                            "AluPC wurde zurückgesetzt. Nicht alles ließ sich löschen:\n\n" + text[:1500])
+    QMessageBox.information(parent, "AluPC zurückgesetzt", "AluPC wurde zurückgesetzt.\n\n" + "\n\n".join(lines))

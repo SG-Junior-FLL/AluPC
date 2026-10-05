@@ -1,15 +1,63 @@
-# AluPC – Monitor 2 steuern
+<div align="center">
 
-AluPC steuert einen **zweiten Monitor für andere Leute** (Beamer, Kundenmonitor, Fernseher …),
-während du am **Hauptmonitor** normal weiterarbeitest. Läuft unter **Kubuntu** (KDE Plasma,
-Wayland und X11) und **Windows 11 Pro**.
+<img src="docs/screens/logo.png" width="96" alt="AluPC">
 
-Bedienung ohne Schnickschnack: große Kacheln, ein Klick – fertig. Keine Vorschau, kein
-OBS-Studio-Fenster.
+# AluPC
 
-| Dunkel | Hell |
+**Monitor 2 für die anderen – du arbeitest am Hauptmonitor weiter.**
+Beamer, Fernseher oder Kundenmonitor mit einem Klick steuern, das Handy wird zur Fernbedienung und zum
+Spiele-Controller, der PC lässt sich aus der Ferne bedienen. Für **Windows 11** und **Kubuntu/Linux** (KDE, Wayland
+und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beiden Systemen.
+
+[![Release](https://img.shields.io/github/v/release/SG-Junior-FLL/AluPC?label=Download&color=3b82f6)](https://github.com/SG-Junior-FLL/AluPC/releases/latest)
+[![Build](https://github.com/SG-Junior-FLL/AluPC/actions/workflows/build.yml/badge.svg)](https://github.com/SG-Junior-FLL/AluPC/actions/workflows/build.yml)
+![Windows 11](https://img.shields.io/badge/Windows-11-0078d4)
+![Linux](https://img.shields.io/badge/Kubuntu-Linux-1d99f3)
+
+**[⬇ Download](https://github.com/SG-Junior-FLL/AluPC/releases/latest)** ·
+**[📘 Handbuch mit allen Screens (PDF)](docs/AluPC-Handbuch.pdf)** ·
+[Installation](#installation) · [Alle Funktionen](#funktionen) · [Ehrliche Grenzen](#ehrliche-grenzen)
+
+<img src="docs/screens/start.png" width="860" alt="Startseite">
+
+</div>
+
+## Auf einen Blick
+
+| | |
 |---|---|
-| ![Start – dunkel](docs/start.png) | ![Start – hell](docs/start-hell.png) |
+| 🖥️ **Monitor 2 mit einem Klick** | Spiegeln, Erweitern, Kamera, Programm, Website, Bild/Video, Text, Uhr, Timer, Whiteboard, 32 gestaltete Karten, eigene Szenen mit Übergängen, Overlays, Sichtschutz, Standbild |
+| 📱 **Handy = Fernbedienung** | QR-Code scannen, ohne App: Monitor 2 steuern, Live-Bild mit Laserpointer, zeichnen, Folien klicken, Touchpad, Fotos/Links senden – freigeben per „Erlauben“ am PC statt Code |
+| 🎛️ **PC steuern** | Lautstärke, Musik, Fenster, Bildschirmfoto, Programme öffnen, Ausführen wie Win+R, Sperren – in der App, vom Handy, per Sprache („Alu PC, lauter“) oder Strg+K |
+| 🎮 **Minispiele = eigenes WLAN** | Snake, Tic-Tac-Toe, Pong, Ballon, Tipp-Rennen, Simon sagt, Schere-Stein-Papier – WLAN-Code scannen, Anmeldeseite öffnet sich, Name eingeben, mitspielen |
+| 📶 **Hotspot** | Der PC macht ein (unsichtbares) WLAN – QR-Code auf Monitor 2, Anmeldeseite wie im Hotel |
+| 🔁 **Dual-Boot-Abgleich** | Windows ↔ Linux: Einstellungen, Szenen, Bilder/Videos zusammenführen, Bereiche wählbar, Prüfen, Sicherungen |
+| 🗣️ **Sprache, offline** | Startwort „Alu PC“ oder „Computer“, ganze Sätze, Antwort per Stimme |
+| 🔐 **Fingerabdruck** | ZW101-Modul: Anmelden bei Windows/Linux, Finger als Schnelltaste, Begrüßung |
+
+## So sieht es aus
+
+| Startseite (hell) | System – PC steuern | Sichern & Sync |
+|---|---|---|
+| ![Start hell](docs/screens/start-hell.png) | ![System](docs/screens/system.png) | ![Sync](docs/screens/sync.png) |
+| **Befehlssuche (Strg+K)** | **Neue Szene – Vorlagen** | **Hotspot** |
+| ![Befehlssuche](docs/screens/befehlssuche.png) | ![Vorlagen](docs/screens/neue-szene.png) | ![Hotspot](docs/screens/hotspot.png) |
+
+**Auf Monitor 2**
+
+| Design-Karte | Abstimmung | WLAN-QR-Code |
+|---|---|---|
+| ![Neon](docs/screens/design-neon.png) | ![Abstimmung](docs/screens/abstimmung-m2.png) | ![WLAN](docs/screens/wlan-qr.png) |
+| **Tic-Tac-Toe** | **Snake** | **Minispiele – Lobby** |
+| ![Tic-Tac-Toe](docs/screens/spiel-tictactoe.png) | ![Snake](docs/screens/spiel-schlangen.png) | ![Lobby](docs/screens/spiele-lobby.png) |
+
+**Auf dem Handy** (im Browser, ohne App)
+
+| Fernbedienung | PC steuern | WLAN-Anmeldung | Mitspielen |
+|---|---|---|---|
+| ![Fernbedienung](docs/screens/phone-fernbedienung.png) | ![PC](docs/screens/phone-pc.png) | ![Anmeldung](docs/screens/phone-anmeldung.png) | ![Tic-Tac-Toe](docs/screens/phone-spiel-tictactoe.png) |
+
+Alle Screens mit Erklärung: **[Handbuch (PDF)](docs/AluPC-Handbuch.pdf)**. Frühere Neuerungen: [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
 ## Design
 
@@ -383,42 +431,6 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
 - **QR-Code öffnet nichts / Handy bietet nur „Link kopieren“:** meist steht im QR-Code eine Adresse, die das
   Handy nicht erreicht (VPN, WSL, virtuelle Netze). AluPC nimmt jetzt automatisch die WLAN-Adresse; im
   Handy-Fenster lässt sich die Adresse auch von Hand wählen.
-
-## Neu in 0.100: Anmeldeseite auch unter Windows, besserer Abgleich
-- **Spiele-WLAN mit Anmeldeseite unter Linux und Windows** (einmal Passwort bzw. „Ja“) – klappt auch ohne Internet
-  am PC. Hotspot und Spiele-WLAN sind unter Linux unsichtbar (QR-Code oder Name + Passwort).
-- **Dual-Boot-Abgleich** führt einzelne Einträge zusammen, übersetzt Bild-/Video-Pfade zwischen Windows und Linux und
-  kopiert Dateien, die nur auf einem System liegen, in den Sync-Ordner. Neu dabei: Sprache, Spiele, Hotspot, Extras.
-
-## Neu in 0.96/0.97: PC steuern, Programme, Hotspot, Spiele-WLAN
-
-- **Den ganzen PC steuern** (Sprache, Befehlssuche `Strg+K`, Handy-Karte „PC“): „lauter“, „Lautstärke auf 30“,
-  „stumm“, „öffne Firefox/Spotify/…“ (sucht im Startmenü bzw. in den .desktop-Dateien), „öffne YouTube“,
-  „suche nach …“, „spiel … auf YouTube“, „Fenster schließen/minimieren“, „zeig den Desktop“, „mach einen
-  Screenshot“ (Bilder/AluPC). **Herunterfahren, Neustart, Ruhezustand, Abmelden nur nach Rückfrage** („Sag Ja“) und
-  nie vom Handy. Linux: Lautstärke über wpctl/pactl, Fenster über KDE-Kurzbefehle (geht auch unter Wayland) bzw.
-  X11-Tasten. Windows: Medientasten (2 %-Schritte) und Tastenkürzel.
-- **Programme auf der Startseite** (0.97): Startseite anpassen → „Programm …“ → Kachel im Bereich „Programme“.
-- **Hotspot-Kachel** (0.97): eigenes WLAN an/aus, Name/Passwort/QR über den Pfeil.
-- **Spiele-WLAN** (0.97, Minispiele-Fenster): offen, Handys bekommen beim Verbinden die Anmeldeseite mit
-  „Mitspielen“ und „AluPC steuern“ (nur mit Code); geht aus, wenn die Minispiele enden. Anmeldeseite seit 0.100 auch unter Windows.
-- **Handy freigeben** (0.98): statt Code „Am PC freigeben lassen“ → am PC „Erlauben / Ablehnen“; erlaubte Geräte
-  steuern danach ohne Code (Setup → Handy & Kamera: Freigaben löschen).
-- **Minispiele**: neu **Quiz** (A/B/C/D, schneller = mehr Punkte), **Lichtrenner** (Leuchtspuren wie „Tron“),
-  **Schere, Stein, Papier** (alle gegen alle). Spiele-Fenster → **WLAN / Hotspot**: eigenes WLAN starten
-  (Linux: NetworkManager; Windows: Mobiler Hotspot) oder vorhandenes WLAN eintragen – die Lobby zeigt dann
-  **① WLAN-QR-Code** und **② Spiel-QR-Code**: Handy scannt beide, nichts abtippen.
-- **Ausführen-Kacheln (wie Win+R)**: eigene Kachel → „Ausführen“: Programm, Programm mit Argumenten, Datei,
-  Ordner, Webseite oder URI (`ms-settings:`) – ein Befehl für beide Systeme oder getrennt für Windows und Linux
-  (Dual-Boot: die Kachel gibt es auf beiden). Auch in der Befehlssuche: `>` davor, z. B. `> notepad`.
-- **Dual-Boot-Abgleich zuverlässiger**: Haben beide Systeme Verschiedenes geändert, wird zusammengeführt (vorher
-  gewann eine Seite ganz). Ordner woanders eingehängt (Linux-Pfad oder Laufwerksbuchstabe geändert) → wird
-  wiedergefunden. Abgleich zusätzlich jede Minute. Findet AluPC beim Start den Ordner des anderen Systems, verbindet
-  es sich ohne Klicken.
-- **Linux mit Wayland**: Handy als Fernbedienung/Touchpad und „Fenster schließen“ gehen jetzt über `ydotool`
-  (empfohlenes Paket; der Dienst `ydotoold` muss laufen).
-- **QR-Codes besser scannbar**: 4 Module weißer Rand (Norm), jedes Modul gleich viele ganze Pixel, stehen still,
-  in der App größer und per Klick bildschirmgroß.
 
 ## Ehrliche Grenzen
 

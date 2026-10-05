@@ -1605,3 +1605,85 @@ def test_sync_sections_can_be_switched_off(tmp_path):
     data = ss._read(ss.sync_file(shared))["data"]
     assert data["scenes"] == [{"name": "Windows-Szene"}] and data["timer"]["minutes"] == 3  # Szenen von Windows bleiben
     assert any("übernommen" in h for h in lin["sync"]["history"]) and "gespeichert" in lin["sync"]["history"][-1]
+
+
+def test_reset_keeps_scenes_and_reports_backup(tmp_path, monkeypatch):
+    """„Szenen & Startseite behalten“: nur Einstellungen weg; Sicherung wird nach dem Neustart genannt und lässt sich
+    importieren."""
+    from alupc import reset
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "cfg"))
+    monkeypatch.setattr("alupc.platform.autostart.set_enabled", lambda on: None)
+    monkeypatch.setattr("tempfile.gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(reset, "data_dirs", lambda: [tmp_path / "cfg" / "AluPC"])
+    monkeypatch.setattr(reset, "backup_dir", lambda: tmp_path / "Sicherungen")
+    cfg = Config(tmp_path / "cfg" / "AluPC" / "config.json")
+    cfg["scenes"] = [{"name": "Party"}]
+    cfg["timer"] = {**cfg["timer"], "minutes": 33}
+    backup = reset.save_backup(cfg)
+    assert backup and backup.is_file()
+    reset._pending.update(on=True, clear_sync=False, sync_folder="", keep={"scenes": cfg["scenes"]},
+                          backup=str(backup))
+    with monkeypatch.context() as mp:
+        mp.setattr("subprocess.Popen", lambda cmd, **kw: None)
+        try:
+            reset.finish_and_restart(pause=0)
+        finally:
+            reset._pending.update(on=False, keep={}, backup="")
+    fresh = Config(tmp_path / "cfg" / "AluPC" / "config.json")
+    assert [sc["name"] for sc in fresh["scenes"]] == ["Party"] and fresh["timer"]["minutes"] != 33
+    shown = []
+    monkeypatch.setattr("PySide6.QtWidgets.QMessageBox.information", lambda *a: shown.append(a[2]))
+    reset.report_leftovers(None, fresh)
+    assert shown and str(backup) in shown[0] and "reset_info" not in fresh.data
+    changed = ss.import_settings(fresh, ss.read_export(backup), list(ss.SECTIONS))  # alles wieder da
+    assert "timer" in changed and fresh["timer"]["minutes"] == 33
+
+
+def test_sync_check_info_and_restore_conflict_backup(tmp_path):
+    """Sync-Seite: „Prüfen“, Stand des anderen Systems, Konflikt-Sicherung zurückholen."""
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    shared = tmp_path / ss.FOLDER_NAME
+    shared.mkdir()
+    win, lin = Config(tmp_path / "win.json"), Config(tmp_path / "lin.json")
+    for cfg in (win, lin):
+        cfg.data["sync"] = {**cfg.data["sync"], "enabled": True, "folder": str(shared)}
+    result = ss.check(lin)
+    assert any(not ok and "Sync-Datei" in t for ok, t in result)  # noch nie abgeglichen
+    ss.sync_once(win)
+    ss.sync_once(lin)
+    assert ss.remote_info(lin)["rev"] >= 1
+    assert all(ok for ok, _t in ss.check(lin))
+    # Konflikt: beide ändern dieselbe Stelle → Sicherung der anderen Fassung
+    win["timer"] = {**win["timer"], "minutes": 11}
+    ss.sync_once(win)
+    lin["timer"] = {**lin["timer"], "minutes": 22}
+    ss.sync_once(lin)
+    backups = ss.conflict_backups(lin)
+    assert backups and lin["timer"]["minutes"] == 22
+    changed = ss.restore_backup(lin, backups[0])  # doch lieber die andere Fassung
+    assert "timer" in changed and lin["timer"]["minutes"] == 11
+    assert "Sicherung übernommen" in lin["sync"]["history"][-1]
+
+
+def test_broken_scenes_are_repaired(tmp_path):
+    """Gefunden beim Rundgang: Szene ohne „layout“ (alte Sicherung, Abgleich) ließ die App beim Start abstürzen."""
+    import json
+
+    from alupc.config import Config
+    from alupc.scenes import LAYOUTS, layout_slots
+
+    p = tmp_path / "c.json"
+    p.write_text(json.dumps({"scenes": [{"name": "Alt"}, {"name": "X", "layout": "gibtsnicht", "slots": [None] * 9},
+                                        "kaputt"]}), encoding="utf-8")
+    cfg = Config(p)
+    assert [s["name"] for s in cfg["scenes"]] == ["Alt", "X"]
+    for sc in cfg["scenes"]:
+        assert sc["layout"] in LAYOUTS and len(sc["slots"]) == len(layout_slots(sc["layout"]))
+    cfg.put_scene({"name": "Neu"})
+    assert cfg.get_scene("Neu")["layout"] == "vollbild"

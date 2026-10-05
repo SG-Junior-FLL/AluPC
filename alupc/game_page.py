@@ -117,9 +117,12 @@ setInterval(() => { if (ws && ws.readyState === 1) ws.send('{"ping":1}'); }, 400
 async function load() {
   if (wsOpen) return;
   try {
-    const r = await fetch("/api/spiel?u=" + enc(token) + "&p=" + enc(pid), {cache: "no-store"});
+    const asked = pid;  // Antwort gehört zu diesem Stand – kam inzwischen ein Beitritt dazwischen, nicht verwenden
+    const r = await fetch("/api/spiel?u=" + enc(token) + "&p=" + enc(asked), {cache: "no-store"});
     if (r.status === 404) { $("jtitle").textContent = "Keine Spielrunde"; $("jhelp").textContent = "Am PC Minispiele starten"; show(false); return; }
-    render(await r.json());
+    const d = await r.json();
+    if (asked !== pid) return;  // sonst würde „noch nicht dabei“ den frisch Beigetretenen wieder rauswerfen
+    render(d);
   } catch (e) {}
 }
 setInterval(load, 400);

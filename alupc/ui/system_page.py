@@ -1,5 +1,6 @@
 """Seite „System“: Live-Status (Prozessor, Speicher, Grafikkarte, Temperaturen, Lüfter, Laufwerke, Netzwerk,
-Akku, Programme) und Steuerung (Sperren, Energie sparen, Neustart, Herunterfahren, RGB)."""
+Akku, Programme), „PC steuern“ (Lautstärke, Musik, Fenster, Bildschirmfoto, Programme öffnen) und Steuerung
+(Sperren, Energie sparen, Neustart, Herunterfahren, RGB)."""
 
 from __future__ import annotations
 
@@ -338,7 +339,8 @@ class SystemPage(QWidget):
         self.grid = QGridLayout()
         self.grid.setSpacing(14)
         lay.addLayout(self.grid)
-        self.cards = [*self.gauges.values(), self.cores, self.net, self.disks, self.sensors,
+        self.pc = self._pc_card()
+        self.cards = [*self.gauges.values(), self.pc, self.cores, self.net, self.disks, self.sensors,
                       self._procs_card(), self._control_card()]
         self._cols = 0
         self._relayout(1)  # resizeEvent wählt dann die passende Spaltenzahl
@@ -440,6 +442,146 @@ class SystemPage(QWidget):
         self._refresh_rgb()
         return box
 
+    def _pc_card(self) -> QWidget:
+        """PC steuern wie mit einer Fernbedienung: Lautstärke, Musik, Fenster, Bildschirmfoto, Programme, Ausführen."""
+        from PySide6.QtWidgets import QCompleter, QLineEdit, QSlider
+
+        from .. import pc_control
+        from .util import run_async
+        from .widgets import flow_row
+
+        box = QWidget()
+        box.setObjectName("Card")
+        box.setAttribute(Qt.WA_StyledBackground, True)
+        v = QVBoxLayout(box)
+        v.setContentsMargins(16, 12, 16, 14)
+        v.setSpacing(10)
+        head = QHBoxLayout()
+        ic = QLabel()
+        ic.setPixmap(icons.pixmap("sliders", "#06b6d4", 18))
+        title = QLabel("PC steuern")
+        title.setFont(font(10, QFont.DemiBold))
+        head.addWidget(ic)
+        head.addWidget(title, 1)
+        v.addLayout(head)
+        # Lautstärke
+        vol_row = QHBoxLayout()
+        self.mute_btn = button("", "sound")
+        self.mute_btn.setToolTip("Stumm an/aus")
+        self.mute_btn.setCheckable(True)
+        self.vol = QSlider(Qt.Horizontal)
+        self.vol.setRange(0, 100)
+        self.vol.setSingleStep(5)
+        self.vol.setPageStep(10)
+        self.vol_label = QLabel("– %")
+        self.vol_label.setMinimumWidth(44)
+        vol_row.addWidget(self.mute_btn)
+        vol_row.addWidget(self.vol, 1)
+        vol_row.addWidget(self.vol_label)
+        v.addLayout(vol_row)
+
+        def set_volume():
+            value = self.vol.value()
+            self.vol_label.setText(f"{value} %")
+            run_async(lambda: pc_control.set_volume(value), lambda r: None if r[0] else
+                      self.controller.message.emit(f"Lautstärke geht nicht: {r[1]}"))
+
+        self.vol.valueChanged.connect(lambda val: self.vol_label.setText(f"{val} %"))
+        self.vol.sliderReleased.connect(set_volume)
+        self.vol.actionTriggered.connect(lambda _a: QTimer.singleShot(0, set_volume) if not self.vol.isSliderDown()
+                                         else None)
+        def mute(on):
+            self.mute_btn.setIcon(icons.icon("mute" if on else "sound", theme.current().text, 18))
+            run_async(lambda: pc_control.set_mute(on))
+
+        self.mute_btn.toggled.connect(mute)
+
+        def cmd(c):
+            return lambda: self.controller.run_command(c)
+
+        actions = [("⏮", "musik_zurueck", "Vorheriger Titel"), ("⏯", "musik_pause", "Play/Pause"),
+                   ("⏭", "musik_weiter", "Nächster Titel")]
+        media = []
+        for label, c, tip in actions:
+            b = QPushButton(label)
+            b.setToolTip(tip)
+            b.setMinimumWidth(48)
+            b.clicked.connect(cmd(c))
+            media.append(b)
+        win = []
+        for text, icon_name, c in (("Desktop", "window", "pc_desktop"), ("Fenster wechseln", "refresh",
+                                                                         "pc_fenster_wechseln"),
+                                   ("Bildschirmfoto", "camera", "pc_screenshot")):
+            b = button(text, icon_name)
+            b.clicked.connect(cmd(c))
+            win.append(b)
+        v.addWidget(flow_row(*media, *win))
+        # Ausführen / Programm öffnen (wie Win+R bzw. KRunner, mit Vorschlägen aus den installierten Programmen)
+        run_row = QHBoxLayout()
+        self.run_edit = QLineEdit()
+        self.run_edit.setPlaceholderText("Programm oder Befehl (wie Win+R) – z. B. Firefox, notepad, https://…")
+        completer = QCompleter([], self.run_edit)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        self.run_edit.setCompleter(completer)
+        go = button("Öffnen", "play", primary=True)
+        run_row.addWidget(self.run_edit, 1)
+        run_row.addWidget(go)
+        v.addLayout(run_row)
+
+        def fill_apps(names):
+            try:
+                from PySide6.QtCore import QStringListModel
+
+                completer.setModel(QStringListModel(names, completer))
+                self._app_names = set(n.lower() for n in names)
+            except RuntimeError:
+                pass
+
+        self._app_names: set[str] = set()
+        self._load_apps = lambda: run_async(pc_control.app_names, fill_apps)  # erst, wenn die Seite gezeigt wird
+
+        def run_it():
+            text = self.run_edit.text().strip()
+            if not text:
+                return
+
+            def work():
+                if text.lower() in self._app_names:
+                    return pc_control.launch_installed(text)
+                return pc_control.run_line(text)
+
+            def done(result):
+                ok, why = result
+                self.controller.message.emit(f"Geöffnet: {text}" if ok else f"Ging nicht: {why}")
+                if ok:
+                    self.run_edit.clear()
+
+            run_async(work, done)
+
+        self.run_edit.returnPressed.connect(run_it)
+        go.clicked.connect(run_it)
+        return box
+
+    def _read_volume(self) -> None:
+        from .. import pc_control
+        from .util import run_async
+
+        def show(value):
+            try:
+                if value is None:
+                    self.vol_label.setText("– %")
+                    self.vol.setToolTip("Lautstärke lässt sich hier nicht ablesen")
+                    return
+                self.vol.blockSignals(True)
+                self.vol.setValue(int(value))
+                self.vol.blockSignals(False)
+                self.vol_label.setText(f"{int(value)} %")
+            except RuntimeError:
+                pass
+
+        run_async(pc_control.get_volume, show)
+
     def _relayout(self, cols: int) -> None:
         if cols == self._cols:
             return
@@ -452,7 +594,9 @@ class SystemPage(QWidget):
             self.grid.addWidget(card, i // g_cols, i % g_cols)
         row = (len(gauges) + g_cols - 1) // g_cols
         rest = self.cards[len(gauges):]
-        if cols >= 4:  # breit: untere Karten paarweise (je zwei Spalten), sonst untereinander
+        if cols >= 4:  # breit: „PC steuern“ über die ganze Breite, untere Karten paarweise
+            self.grid.addWidget(self.pc, row, 0, 1, 4)
+            row += 1
             layout = [(self.cores, 0, 2), (self.net, 2, 2), (self.disks, 0, 2), (self.sensors, 2, 2),
                       (rest[-2], 0, 2), (rest[-1], 2, 2)]
             for k, (card, col, span) in enumerate(layout):
@@ -470,6 +614,11 @@ class SystemPage(QWidget):
 
     def showEvent(self, e):
         self.mon.acquire(self)
+        if hasattr(self, "vol"):
+            self._read_volume()  # Lautstärke kann sich außerhalb von AluPC geändert haben
+            if not self._app_names and getattr(self, "_load_apps", None):
+                load, self._load_apps = self._load_apps, None
+                load()
         super().showEvent(e)
 
     def hideEvent(self, e):
