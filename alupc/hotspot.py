@@ -101,6 +101,7 @@ def _linux_active(run=_run) -> bool:
 # --------------------------------------------------------------------------- Windows (Mobiler Hotspot)
 _PS_HEAD = r"""
 $ErrorActionPreference = 'Stop'
+trap { Write-Output ('FEHLER:' + $_.Exception.Message); exit 3 }
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 $m = [System.WindowsRuntimeSystemExtensions].GetMethods()
 $opT = ($m | ? { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and
@@ -154,6 +155,10 @@ def windows_message(out: str) -> tuple[bool, str]:
         return False, ("Windows startet den Mobilen Hotspot nur, wenn der PC selbst Netz hat (LAN-Kabel oder "
                        "WLAN). Alternativ: Router-WLAN unten eintragen.")
     for line in out.splitlines():
+        if line.startswith("FEHLER:"):  # z. B. kein WLAN-Adapter, Funktion fehlt (Windows Server)
+            why = line[7:].strip().split("(Exception from HRESULT")[0].strip().rstrip(".") or "unbekannter Fehler"
+            return False, (f"Mobiler Hotspot geht auf diesem PC nicht ({why}). Hat er einen WLAN-Adapter? "
+                           "Alternativ: vorhandenes WLAN eintragen.")
         if line.startswith("STATUS:"):
             status = line.split(":")[1]
             if status == "Success":

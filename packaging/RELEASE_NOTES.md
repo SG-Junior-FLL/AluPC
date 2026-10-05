@@ -8,7 +8,37 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.95.0)
+### Neu in dieser Version (0.96.0)
+- **QR-Code war nicht scannbar – behoben:** In der App war er nur 84 px groß mit zu schmalem weißen Rand (2 statt
+  4 Module) – auf dunklem Hintergrund erkennen viele Handy-Kameras das nicht. Jetzt: Rand nach Norm, jedes Modul
+  gleich viele ganze Pixel, Code steht still (wippte vorher in der Lobby), in der App größer und per Klick
+  bildschirmgroß. In den Tests liest ein echter QR-Decoder alle Codes.
+- **Minispiele: eigenes WLAN per QR-Code.** Spiele-Fenster → „WLAN / Hotspot“: Hotspot starten (Linux:
+  NetworkManager, Windows: Mobiler Hotspot) oder vorhandenes WLAN eintragen. Die Lobby zeigt dann ① WLAN-Code und
+  ② Spiel-Code – nichts abtippen.
+- **Neue klassische Minispiele:** Quiz (A/B/C/D, schneller = mehr Punkte), Lichtrenner (Leuchtspuren wie „Tron“),
+  Schere-Stein-Papier (alle gegen alle).
+- **Den ganzen PC steuern** (Sprache, Strg+K, Handy-Karte „PC“): Lautstärke („lauter“, „auf 30“, „stumm“),
+  Programme und Webseiten öffnen, „suche nach …“, YouTube, Fenster schließen/minimieren, Desktop zeigen,
+  Bildschirmfoto. Herunterfahren/Neustart/Ruhezustand nur nach „Ja“ und nie vom Handy.
+- **Ausführen-Kacheln wie Win+R:** Programm, Datei, Ordner, Webseite oder Befehl – gemeinsam oder getrennt für
+  Windows und Linux (Dual-Boot). In der Befehlssuche: „> notepad“.
+- **Desktop-Widgets:** Uhr, Systemstatus, Musik, Sprach- und Lautstärke-Anzeige auf Monitor 1 – halb durchsichtig,
+  Stile Glas dunkel/hell/Neon, einzeln an/aus (Setup → Desktop-Widgets oder „Widgets an“).
+- **Dual-Boot-Abgleich zuverlässiger:** zusammenführen statt eine Seite verwerfen; Ordner wird wiedergefunden, wenn
+  Linux das Laufwerk woanders einhängt; Abgleich zusätzlich jede Minute; verbindet sich beim Start automatisch,
+  wenn das andere System schon einen Sync-Ordner hat.
+- **Linux (Wayland):** Handy als Fernbedienung/Touchpad und „Fenster schließen“ über ydotool (empfohlenes Paket,
+  Dienst ydotoold muss laufen).
+- **Schneller:** Setup öffnet ~2,5× schneller (Bereiche erst beim Öffnen, Sprachpakete nicht zum Prüfen laden);
+  Minispiel-Grafik teils doppelt so schnell (Lichtrenner 28 → 15 ms je Bild, Full HD), Lobby mit 30 statt 60 Bildern/s.
+- **Sprache:** Echttest jetzt mit PC-Befehlen („Computer, mach lauter“, „Alu PC, öffne Firefox“) – 10/10 verstanden,
+  0/8 Fehlalarme (CI, Windows und Linux).
+- Ehrlich – nicht mit echter Hardware getestet: Hotspot (in der CI hat Windows kein WLAN; dort kommt nur eine
+  verständliche Fehlermeldung), Desktop-Widgets unter Wayland (Positionen legt KWin fest), ydotool, Lautstärke
+  unter Windows (Medientasten, 2 %-Schritte), Dual-Boot mit echten Laufwerken.
+
+### Neu in Version 0.95.0
 - **Fingerabdruck: EIN Auflegen reicht öfter.** War das erste Bild schlecht (Finger halb aufgelegt, verwischt),
   musste man den Finger heben und neu auflegen. Jetzt nimmt AluPC sofort bis zu 3 Bilder, solange der Finger liegt –
   beim Entsperren (Linux), am Sperrbildschirm/sudo (PAM), bei Finger-Schnelltasten und beim „Finger prüfen“.

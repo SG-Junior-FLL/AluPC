@@ -87,6 +87,9 @@ def test_windows_messages():
     assert hotspot.windows_message("STATUS:Success:") == (True, "Mobiler Hotspot läuft.")
     ok, msg = hotspot.windows_message("FEHLER:keine Internetverbindung")
     assert not ok and "Netz" in msg
+    ok, msg = hotspot.windows_message("FEHLER:The specified procedure could not be found. (Exception from HRESULT: "
+                                      "0x8007007F)")
+    assert not ok and "procedure could not be found" in msg and "HRESULT" not in msg and "WLAN" in msg
     ok, msg = hotspot.windows_message("STATUS:WiFiDeviceOff:")
     assert not ok and "WiFiDeviceOff" in msg
 
