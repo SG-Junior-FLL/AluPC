@@ -57,7 +57,8 @@ ACTION_KINDS = {
     "screensaver": "Eigenen Bildschirmschoner zeigen (nochmal klicken = beenden)",
     "overlay": "Overlay einblenden (nochmal klicken = aus)",
     "timer": "Timer mit eigener Dauer starten",
-    "command": "Befehl ausführen",
+    "command": "AluPC-Befehl ausführen",
+    "run": "Ausführen wie Win+R (Programm, Datei, Webseite, Befehl)",
 }
 
 
@@ -194,6 +195,33 @@ class CustomTileDialog(QDialog):
         self._page_index["command"] = self.pages.count()
         self.pages.addWidget(self.command)
 
+        # --- Ausführen (wie Win+R) – gemeinsam oder je System (Dual-Boot: die Kachel gibt es auf beiden)
+        page = QWidget()
+        rf = QFormLayout(page)
+        rf.setContentsMargins(0, 0, 0, 0)
+        run = action if kind == "run" else {}
+        self.run_both = QLineEdit(run.get("command", ""))
+        self.run_both.setPlaceholderText("z. B. notepad · firefox · https://… · ~/Dokumente · ms-settings:")
+        self.run_win = QLineEdit(run.get("windows", ""))
+        self.run_win.setPlaceholderText("leer = wie oben")
+        self.run_linux = QLineEdit(run.get("linux", ""))
+        self.run_linux.setPlaceholderText("leer = wie oben")
+        test = button("Testen", "play")
+        test.clicked.connect(self._test_run)
+        rf.addRow("Befehl:", self.run_both)
+        rf.addRow("Nur Windows:", self.run_win)
+        rf.addRow("Nur Linux:", self.run_linux)
+        self.run_state = QLabel("Wie Win+R · Linux auch Programmnamen")
+        self.run_state.setObjectName("Muted")
+        self.run_state.setToolTip("Programm, Programm mit Argumenten, Datei, Ordner, Webseite, URI (ms-settings:). "
+                                  "Linux: auch Programmnamen („Rechner“) und Shell-Befehle (|, &&).")
+        test_row = QHBoxLayout()
+        test_row.addWidget(test)
+        test_row.addWidget(self.run_state, 1)
+        rf.addRow("", test_row)
+        self._page_index["run"] = self.pages.count()
+        self.pages.addWidget(page)
+
         self.kind.currentIndexChanged.connect(
             lambda _i: self.pages.setCurrentIndex(self._page_index[self.kind.currentData()]))
         self.kind.setCurrentIndex(max(0, self.kind.findData(kind)))
@@ -228,9 +256,20 @@ class CustomTileDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Eigene Kachel", "Anzeigen · Schoner · Timer · Befehl"))
+        lay.addWidget(page_header("Eigene Kachel", "Anzeigen · Schoner · Timer · Befehl · Ausführen"))
         lay.addLayout(form)
         lay.addWidget(buttons)
+
+    def _run_action(self) -> dict:
+        return {"kind": "run", "command": self.run_both.text().strip(), "windows": self.run_win.text().strip(),
+                "linux": self.run_linux.text().strip()}
+
+    def _test_run(self) -> None:
+        from ..pc_control import run_line, run_line_for_os
+
+        line = run_line_for_os(self._run_action())
+        ok, why = run_line(line)
+        self.run_state.setText(f"✓ gestartet: {line}" if ok else f"✗ {why}")
 
     def _pick_source(self):
         picker = SourcePicker(self.config, self, self.source)
@@ -291,6 +330,11 @@ class CustomTileDialog(QDialog):
             action = {"kind": "timer", "timer": {
                 "mode": self.t_mode.currentData(), "minutes": self.t_min.value(), "seconds": self.t_sec.value(),
                 "finished_text": self.t_text.text(), "autostart": self.t_auto.isChecked()}}
+        elif kind == "run":
+            action = self._run_action()
+            if not any(action.get(k) for k in ("command", "windows", "linux")):
+                QMessageBox.warning(self, "Kachel", "Bitte einen Befehl eintragen.")
+                return
         else:
             action = {"kind": "command", "command": self.command.currentData()}
         checked = self.color_group.checkedButton()

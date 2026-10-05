@@ -84,7 +84,7 @@ class CommandPalette(QDialog):
         self.list.setMinimumHeight(320)
         self.list.setUniformItemSizes(True)
         lay.addWidget(self.list)
-        self.status = QLabel("↑↓ wählen · Enter ausführen · Esc schließen")
+        self.status = QLabel("↑↓ wählen · Enter ausführen · Esc schließen · „>“ davor = ausführen wie Win+R")
         self.status.setObjectName("Muted")
         self.status.setWordWrap(True)
         lay.addWidget(self.status)
@@ -105,6 +105,13 @@ class CommandPalette(QDialog):
         t = theme.current()
         self.list.clear()
         text = text.strip()
+        if text.startswith(">"):  # „> notepad“ = ausführen wie Win+R
+            line = text[1:].strip()
+            item = QListWidgetItem(icons.icon("play", t.accent, 18), f"Ausführen:  {line or '…'}")
+            item.setData(Qt.UserRole, f"run:{line}")
+            self.list.addItem(item)
+            self.list.setCurrentRow(0)
+            return
         if text:  # 1) was die Sprachsteuerung aus dem Satz macht
             from ..intents import understand
             from ..voice import wake_span
@@ -141,7 +148,12 @@ class CommandPalette(QDialog):
             return
         action = item.data(Qt.UserRole)
         w, c = self.window_, self.controller
-        if action.startswith("ask:"):
+        if action.startswith("run:"):
+            from ..pc_control import run_line
+
+            ok, why = run_line(action[4:])
+            c.message.emit(f"▶ {action[4:]}" if ok else why)
+        elif action.startswith("ask:"):
             result = c.ask(action[4:])
             c.message.emit(result["reply"] or result["label"])
         elif action.startswith("page:"):

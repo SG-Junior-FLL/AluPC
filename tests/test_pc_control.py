@@ -95,3 +95,38 @@ def test_screenshot_saves_file(env, tmp_path, monkeypatch):  # noqa: F811
     monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
     ok, path = pc_control.screenshot(tmp_path)
     assert ok and path.endswith(".png") and (tmp_path / path.split("/")[-1]).exists()
+
+
+def test_run_line_like_win_r(monkeypatch, tmp_path):
+    if not sys.platform.startswith("linux"):
+        pytest.skip("Linux-Pfad")
+    spawned = []
+    monkeypatch.setattr(pc_control, "_spawn", lambda cmd: spawned.append(cmd) or True)
+    monkeypatch.setattr(pc_control.shutil, "which", lambda n: f"/usr/bin/{n}" if n in ("xdg-open", "kate") else None)
+    assert pc_control.run_line("https://example.org") == (True, "")
+    assert spawned[-1] == ["xdg-open", "https://example.org"]
+    assert pc_control.run_line("ms-settings:")[0] and spawned[-1] == ["xdg-open", "ms-settings:"]
+    f = tmp_path / "liste.txt"
+    f.write_text("x")
+    pc_control.run_line(str(f))
+    assert spawned[-1] == ["xdg-open", str(f)]
+    pc_control.run_line("kate ~/notiz.txt")  # Programm mit Argument, ~ aufgelöst
+    assert spawned[-1][0] == "kate" and spawned[-1][1].endswith("/notiz.txt") and "~" not in spawned[-1][1]
+    pc_control.run_line("echo hallo | tee /tmp/x")  # Shell
+    assert spawned[-1][:2] == ["sh", "-c"]
+    assert pc_control.run_line("   ") == (False, "kein Befehl eingetragen")
+
+
+def test_run_tile_uses_command_for_this_system(env, monkeypatch):  # noqa: F811
+    controller, _window, _ = env
+    ran, msgs = [], []
+    monkeypatch.setattr(pc_control, "run_line", lambda line: (ran.append(line) or True, ""))
+    controller.message.connect(msgs.append)
+    tile = {"id": "t1", "title": "Notizen", "action": {"kind": "run", "command": "editor", "windows": "notepad",
+                                                       "linux": ""}}
+    controller.config["start_page"] = {**controller.config["start_page"], "custom": [tile]}
+    controller.run_tile("t1")
+    assert ran == ["notepad" if sys.platform.startswith("win") else "editor"] and msgs[-1] == "▶ Notizen"
+    from alupc.startpage import describe_action
+
+    assert describe_action(tile["action"]).startswith("Ausführen: ")

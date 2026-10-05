@@ -123,7 +123,8 @@ TILE_ICONS = {
     "eye_off": "Sichtschutz", "moon": "Bildschirmschoner", "mirror": "Spiegeln", "extend": "Erweitern",
     "pip": "Bild-in-Bild", "home": "Haus", "lock": "Schloss", "power": "Ein/Aus", "sun": "Sonne",
     "music": "Musik", "layers": "Ebenen", "board": "Whiteboard", "weather": "Wetter", "poll": "Abstimmung",
-    "wheel": "Glücksrad", "gamepad": "Spiel", "gauge": "Tacho",
+    "wheel": "Glücksrad", "gamepad": "Spiel", "gauge": "Tacho", "keyboard": "Tastatur", "download": "Download",
+    "search": "Suche", "sound": "Lautstärke", "phone": "Handy", "sliders": "Einstellungen",
 }
 
 TILE_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#64748b"]
@@ -215,6 +216,10 @@ def describe_action(action: dict | None) -> str:
         return "Befehl: " + COMMANDS.get(action.get("command", ""), action.get("command", ""))
     if action.get("kind") == "source":
         return describe_source(action.get("source"))
+    if action.get("kind") == "run":
+        from .pc_control import run_line_for_os
+
+        return "Ausführen: " + (run_line_for_os(action) or "(auf diesem System nichts eingetragen)")
     if action.get("kind") == "screensaver":
         return "Eigener Bildschirmschoner"
     if action.get("kind") == "overlay":

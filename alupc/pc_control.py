@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import difflib
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -366,6 +367,59 @@ def open_app(name: str) -> tuple[bool, str]:
         if shutil.which(parts[0]) and _spawn(parts):
             return True, ""
     return False, f"„{name}“ nicht gefunden"
+
+
+# ---- „Ausführen“ (wie Win+R bzw. KRunner)
+def run_line(line: str) -> tuple[bool, str]:
+    """Eine Zeile ausführen wie im Windows-Dialog „Ausführen“ (Win+R): Programm, Programm mit Argumenten, Datei,
+    Ordner, Webseite oder URI (ms-settings:, steam://, spotify: …). Linux: Pfade/URLs mit xdg-open, Programme
+    direkt, sonst Programm per Name (.desktop) und zuletzt über die Shell (Pipes, &&, $VAR …)."""
+    import shlex
+
+    line = (line or "").strip()
+    if not line:
+        return False, "kein Befehl eingetragen"
+    expanded = os.path.expandvars(os.path.expanduser(line))
+    uri = re.match(r"^[a-z][a-z0-9+.-]*:(?![\\/])", expanded) is not None  # ms-settings:, spotify:, mailto:
+    is_target = "://" in expanded or uri or Path(expanded).exists()
+    if sys.platform.startswith("win"):
+        try:
+            if is_target and " " not in expanded.strip('"'):
+                os.startfile(expanded)  # noqa: S606
+                return True, ""
+            try:
+                parts = shlex.split(expanded, posix=False)
+            except ValueError:
+                parts = expanded.split()
+            exe, args = parts[0].strip('"'), " ".join(parts[1:])
+            os.startfile(exe, arguments=args) if args else os.startfile(exe)  # noqa: S606 – wie Win+R
+            return True, ""
+        except OSError as exc:
+            if _spawn(["cmd", "/c", "start", "", "/b", "cmd", "/c", expanded]):  # Shell-Befehle (dir, &&, …)
+                return True, ""
+            return False, f"Windows findet „{line}“ nicht ({exc.strerror or exc})"
+    # Linux
+    if is_target and shutil.which("xdg-open"):  # Datei, Ordner, Webseite, URI → Standardprogramm
+        return (True, "") if _spawn(["xdg-open", expanded]) else (False, "xdg-open startet nicht")
+    try:
+        parts = [os.path.expanduser(x) for x in shlex.split(expanded)]  # „~/Datei“ auch als Argument
+    except ValueError:
+        parts = []
+    if parts and shutil.which(parts[0]) and not any(c in expanded for c in "|&;<>$`"):
+        return (True, "") if _spawn(parts) else (False, f"„{parts[0]}“ startet nicht")
+    if parts and len(parts) == 1:
+        ok, why = open_app(parts[0])  # Programm per Anzeigename („Firefox“, „Rechner“)
+        if ok:
+            return True, ""
+    if _spawn(["sh", "-c", expanded]):
+        return True, ""
+    return False, f"„{line}“ ließ sich nicht starten"
+
+
+def run_line_for_os(action: dict) -> str:
+    """Befehl einer Ausführen-Kachel für DIESES System (eigener Windows-/Linux-Befehl oder der gemeinsame)."""
+    own = action.get("windows" if sys.platform.startswith("win") else "linux") or ""
+    return own.strip() or (action.get("command") or "").strip()
 
 
 # ---- Bildschirmfoto

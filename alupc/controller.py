@@ -1531,6 +1531,12 @@ class Controller(QObject):
         normal = not tile_sound
         if kind == "command":
             self.run_command(action.get("command", ""))
+        elif kind == "run":  # wie Win+R – eigener Befehl je System (Dual-Boot) oder ein gemeinsamer
+            from .pc_control import run_line, run_line_for_os
+
+            line = run_line_for_os(action)
+            ok, why = run_line(line)
+            self.message.emit(f"▶ {tile.get('title', '')}" if ok else f"„{tile.get('title', '')}“: {why}")
         elif kind == "source" and action.get("source"):
             self.show_source(action["source"], remember=True, sound=normal)
         elif kind == "screensaver":
