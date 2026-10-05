@@ -709,16 +709,11 @@ class SetupPage(QWidget):
         self.widgets_on.setChecked(bool(cfg["on"]))
         lay.addWidget(self.widgets_on)
         self.widget_boxes = {}
-        items = QWidget()
-        il = QHBoxLayout(items)
-        il.setContentsMargins(0, 0, 0, 0)
         for key, label in ITEMS.items():
             cb = QCheckBox(label)
             cb.setChecked(bool(cfg["items"].get(key, True)))
-            il.addWidget(cb)
             self.widget_boxes[key] = cb
-        il.addStretch(1)
-        lay.addWidget(items)
+        lay.addWidget(flow_row(*self.widget_boxes.values(), spacing=14))  # bricht im schmalen Fenster um
         form = QFormLayout()
         style = QComboBox()
         for key, label in STYLES.items():
@@ -729,7 +724,8 @@ class SetupPage(QWidget):
         opacity.setRange(20, 100)
         opacity.setValue(int(round(float(cfg["opacity"]) * 100)))
         form.addRow("Deckkraft:", opacity)
-        top = QCheckBox("Immer im Vordergrund (sonst hinter den Fenstern, wie auf dem Desktop)")
+        top = QCheckBox("Immer im Vordergrund")
+        top.setToolTip("Aus: hinter den Fenstern, wie auf dem Desktop")
         top.setChecked(bool(cfg["top"]))
         form.addRow("", top)
         lay.addLayout(form)

@@ -381,6 +381,24 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   Handy nicht erreicht (VPN, WSL, virtuelle Netze). AluPC nimmt jetzt automatisch die WLAN-Adresse; im
   Handy-Fenster lässt sich die Adresse auch von Hand wählen.
 
+## Neu in 0.96: PC steuern, Desktop-Widgets, Hotspot für Minispiele
+
+- **Den ganzen PC steuern** (Sprache, Befehlssuche `Strg+K`, Handy-Karte „PC“): „lauter“, „Lautstärke auf 30“,
+  „stumm“, „öffne Firefox/Spotify/…“ (sucht im Startmenü bzw. in den .desktop-Dateien), „öffne YouTube“,
+  „suche nach …“, „spiel … auf YouTube“, „Fenster schließen/minimieren“, „zeig den Desktop“, „mach einen
+  Screenshot“ (Bilder/AluPC). **Herunterfahren, Neustart, Ruhezustand, Abmelden nur nach Rückfrage** („Sag Ja“) und
+  nie vom Handy. Linux: Lautstärke über wpctl/pactl, Fenster über KDE-Kurzbefehle (geht auch unter Wayland) bzw.
+  X11-Tasten. Windows: Medientasten (2 %-Schritte) und Tastenkürzel.
+- **Desktop-Widgets** (Setup → Desktop-Widgets): Uhr, Systemstatus, Musik als halb durchsichtige Karten auf
+  Monitor 1, dazu kurze Anzeigen für Sprache („✓ Licht aus“) und Lautstärke. Stile Glas dunkel/hell/Neon,
+  Deckkraft, vorne oder hinter den Fenstern. Einzeln an/aus, mit der Maus verschiebbar.
+- **Minispiele**: neu **Quiz** (A/B/C/D, schneller = mehr Punkte), **Lichtrenner** (Leuchtspuren wie „Tron“),
+  **Schere, Stein, Papier** (alle gegen alle). Spiele-Fenster → **WLAN / Hotspot**: eigenes WLAN starten
+  (Linux: NetworkManager; Windows: Mobiler Hotspot) oder vorhandenes WLAN eintragen – die Lobby zeigt dann
+  **① WLAN-QR-Code** und **② Spiel-QR-Code**: Handy scannt beide, nichts abtippen.
+- **QR-Codes besser scannbar**: 4 Module weißer Rand (Norm), jedes Modul gleich viele ganze Pixel, stehen still,
+  in der App größer und per Klick bildschirmgroß.
+
 ## Ehrliche Grenzen
 
 - **Nicht auf echter Hardware getestet.** Die automatischen Tests laufen auf GitHub unter Linux und

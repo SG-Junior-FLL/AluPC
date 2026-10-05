@@ -53,7 +53,7 @@ class GamesWindow(QWidget):
             b.setFocusPolicy(Qt.NoFocus)
             b.setCursor(Qt.PointingHandCursor)
             b.setMinimumHeight(64)
-            b.setToolTip(f"Taste {KEYS[i]}" if i < len(KEYS) else "")
+            b.setToolTip(f"{spec.short}" + (f" · Taste {KEYS[i]}" if i < len(KEYS) else ""))
             b.setStyleSheet(self._card_css(t))
             b.clicked.connect(lambda _=False, k=key: self.choose(k))
             cols = 3 if len(GAMES) > 10 else 2
