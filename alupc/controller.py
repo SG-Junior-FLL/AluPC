@@ -28,8 +28,7 @@ class Controller(QObject):
     settings_imported = Signal(list)  # Dual-Boot: Einstellungen vom anderen System übernommen
     sync_status = Signal(str)
     games_changed = Signal()  # Minispiele: Spieler/Phase geändert (Steuerfenster)
-    volume_changed = Signal(int)  # Systemlautstärke per AluPC geändert (Desktop-Widget „Lautstärke“)
-    widgets_toggle = Signal()  # Desktop-Widgets an/aus (Sprache, Befehlssuche, Tastenkürzel)
+    hotspot_changed = Signal()  # Hotspot an/aus (Kachel, Spiele-Fenster)
     video_resume = Signal(str, int)  # Video schon mal geschaut: (Titel, Position ms) → „Weiterschauen?“
     presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
 
@@ -1267,10 +1266,6 @@ class Controller(QObject):
             from . import pc_control
 
             self.message.emit(pc_control.run(command))  # Lautstärke, Programme, Fenster … (Ein/Aus nur mit Rückfrage)
-            self.after_pc_command(command)
-            return
-        if command == "widgets":
-            self.widgets_toggle.emit()
             return
         if command.startswith("szene:"):
             name = command[6:]
@@ -1756,36 +1751,37 @@ class Controller(QObject):
         self.message.emit("🎤 Ich höre zu – ohne Startwort" if on else "🎤 Mikrofon-Schalter aus")
         self.changed.emit()
 
-    def after_pc_command(self, command: str) -> None:
-        """Nach Lautstärke-Befehlen die Lautstärke-Anzeige (Desktop-Widget) zeigen."""
-        if command.startswith(("pc_lautstaerke:", "pc_lauter", "pc_leiser", "pc_stumm")):
-            from .pc_control import get_volume
-
-            vol = 0 if command == "pc_stumm_an" else get_volume()
-            if vol is not None:
-                self.volume_changed.emit(int(vol))
-
     def guest_wifi(self) -> tuple[str, str] | None:
-        """WLAN, in das Handys sollen: eigener Hotspot (falls an) oder das im Spiele-Fenster eingetragene WLAN."""
-        from .hotspot import hotspot, settings
+        """WLAN, in das Handys sollen: laufender Hotspot von AluPC oder das im Spiele-Fenster eingetragene WLAN."""
+        from .hotspot import hotspot
 
         if hotspot.running:
-            hs = settings(self.config)
-            return hs["ssid"], hs["password"]
+            return hotspot.ssid, hotspot.password
         wifi = self.config["games"].get("wifi") or {}
         return (wifi["ssid"], wifi.get("password", "")) if wifi.get("ssid") else None
 
-    def set_hotspot(self, on: bool) -> tuple[bool, str]:
-        """Eigenes WLAN für die Minispiele an/aus (läuft im Hintergrund-Thread des Aufrufers)."""
+    def set_hotspot(self, on: bool, kind: str = "normal") -> tuple[bool, str]:
+        """Hotspot an/aus (blockiert einige Sekunden – aus einem Hintergrund-Thread aufrufen).
+        kind „normal“ = Hotspot-Kachel, „spiele“ = Spiele-WLAN (offen, mit Anmeldeseite, geht mit den Spielen aus)."""
         from .hotspot import hotspot, settings
 
         if on:
-            hs = settings(self.config)
-            ok, msg = hotspot.start(hs["ssid"], hs["password"])
+            hs = settings(self.config, kind)
+            ok, msg = hotspot.start(hs["ssid"], hs["password"], kind=kind, portal=kind == "spiele")
         else:
             ok, msg = hotspot.stop()
         self.message.emit(msg)
+        self.hotspot_changed.emit()
         return ok, msg
+
+    def _stop_games_hotspot(self) -> None:
+        """Minispiele beendet → Spiele-WLAN aus (im Hintergrund; der normale Hotspot bleibt an)."""
+        import threading
+
+        from .hotspot import hotspot
+
+        if hotspot.running and hotspot.kind == "spiele":
+            threading.Thread(target=lambda: self.set_hotspot(False), name="spiele-wlan-aus", daemon=True).start()
 
     def start_games(self, key: str | None = None) -> None:
         """Minispiele: Lobby mit QR-Code auf Monitor 2 (eine laufende Runde bleibt erhalten).
@@ -1884,6 +1880,7 @@ class Controller(QObject):
         elif action == "aus":
             self.save_game_options()
             self.cast.games = None
+            self._stop_games_hotspot()  # Spiele-WLAN geht mit den Spielen aus
             if self._games_timer is not None:
                 self._games_timer.stop()
             if self.mode == "content" and (self.content or {}).get("type") == "spiel":
@@ -1925,6 +1922,11 @@ class Controller(QObject):
         window.play()
 
     def shutdown(self) -> None:
+        from .hotspot import hotspot, stop_portal
+
+        stop_portal()  # Anmeldeseiten-Weiterleitung fällt auch ohne das weg (Wächter prüft, ob AluPC noch läuft)
+        if hotspot.running and hotspot.kind == "spiele":
+            hotspot.stop()
         self._timer_watch.stop()
         if self._games_timer is not None:
             self._games_timer.stop()

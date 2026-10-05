@@ -381,7 +381,7 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   Handy nicht erreicht (VPN, WSL, virtuelle Netze). AluPC nimmt jetzt automatisch die WLAN-Adresse; im
   Handy-Fenster lässt sich die Adresse auch von Hand wählen.
 
-## Neu in 0.96: PC steuern, Desktop-Widgets, Hotspot für Minispiele
+## Neu in 0.96/0.97: PC steuern, Programme, Hotspot, Spiele-WLAN
 
 - **Den ganzen PC steuern** (Sprache, Befehlssuche `Strg+K`, Handy-Karte „PC“): „lauter“, „Lautstärke auf 30“,
   „stumm“, „öffne Firefox/Spotify/…“ (sucht im Startmenü bzw. in den .desktop-Dateien), „öffne YouTube“,
@@ -389,9 +389,10 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   Screenshot“ (Bilder/AluPC). **Herunterfahren, Neustart, Ruhezustand, Abmelden nur nach Rückfrage** („Sag Ja“) und
   nie vom Handy. Linux: Lautstärke über wpctl/pactl, Fenster über KDE-Kurzbefehle (geht auch unter Wayland) bzw.
   X11-Tasten. Windows: Medientasten (2 %-Schritte) und Tastenkürzel.
-- **Desktop-Widgets** (Setup → Desktop-Widgets): Uhr, Systemstatus, Musik als halb durchsichtige Karten auf
-  Monitor 1, dazu kurze Anzeigen für Sprache („✓ Licht aus“) und Lautstärke. Stile Glas dunkel/hell/Neon,
-  Deckkraft, vorne oder hinter den Fenstern. Einzeln an/aus, mit der Maus verschiebbar.
+- **Programme auf der Startseite** (0.97): Startseite anpassen → „Programm …“ → Kachel im Bereich „Programme“.
+- **Hotspot-Kachel** (0.97): eigenes WLAN an/aus, Name/Passwort/QR über den Pfeil.
+- **Spiele-WLAN** (0.97, Minispiele-Fenster): offen, Handys bekommen beim Verbinden die Anmeldeseite mit
+  „Mitspielen“ und „AluPC steuern“ (nur mit Code); geht aus, wenn die Minispiele enden. Anmeldeseite nur Linux.
 - **Minispiele**: neu **Quiz** (A/B/C/D, schneller = mehr Punkte), **Lichtrenner** (Leuchtspuren wie „Tron“),
   **Schere, Stein, Papier** (alle gegen alle). Spiele-Fenster → **WLAN / Hotspot**: eigenes WLAN starten
   (Linux: NetworkManager; Windows: Mobiler Hotspot) oder vorhandenes WLAN eintragen – die Lobby zeigt dann

@@ -54,9 +54,13 @@ def test_wifi_payload_escapes():
 
 def test_hotspot_settings_and_linux_commands(monkeypatch):
     cfg = {"games": {}}
-    hs = hotspot.settings(cfg)
-    assert hs["ssid"] == "AluPC-Spiele" and len(hs["password"]) == 10 and cfg["games"]["hotspot"] == hs
-    assert hotspot.settings(cfg) == hs  # bleibt gleich
+    hs = hotspot.settings(cfg, "normal")
+    assert hs["ssid"] == "AluPC" and len(hs["password"]) == 10 and cfg["hotspot"] == hs
+    assert hotspot.settings(cfg, "normal") == hs  # bleibt gleich
+    games = hotspot.settings(cfg, "spiele")
+    assert games["ssid"] == "AluPC-Spiele" and cfg["games"]["hotspot"] == games
+    if not hotspot.IS_WINDOWS:
+        assert games["password"] == ""  # Spiele-WLAN unter Linux: offen
     calls = []
 
     def run(cmd, timeout=25):
@@ -69,7 +73,7 @@ def test_hotspot_settings_and_linux_commands(monkeypatch):
             return 0, "10.42.0.1/24"
         return 0, ""
 
-    ok, msg, ip = hotspot._linux_start("Party", "geheim123", run)
+    ok, msg, ip = hotspot._linux_start("Party", "geheim123", run, kind="normal")
     assert ok and ip == "10.42.0.1" and "Party" in msg
     assert ["nmcli", "device", "wifi", "hotspot", "ifname", "wlp4s0", "con-name", "AluPC-Hotspot", "ssid", "Party",
             "password", "geheim123"] in calls
@@ -79,7 +83,7 @@ def test_hotspot_settings_and_linux_commands(monkeypatch):
             return 0, "wlp4s0:wifi"
         return 4, "Error: Connection activation failed: device does not support AP mode"
 
-    ok, msg, ip = hotspot._linux_start("Party", "geheim123", fail)
+    ok, msg, ip = hotspot._linux_start("Party", "geheim123", fail, kind="normal")
     assert not ok and "AP mode" in msg and ip == ""
 
 
@@ -98,11 +102,12 @@ def test_server_url_uses_hotspot_ip(env):  # noqa: F811
     controller, _window, _ = env
     controller.cast.start()
     try:
-        hotspot.hotspot.running, hotspot.hotspot.ip = True, "10.42.0.1"
+        hs = hotspot.hotspot
+        hs.running, hs.ip, hs.kind, hs.ssid, hs.password = True, "10.42.0.1", "spiele", "AluPC-Spiele", ""
         assert controller.cast.games_url().startswith("http://10.42.0.1:")
-        assert controller.guest_wifi()[0] == "AluPC-Spiele"
+        assert controller.guest_wifi() == ("AluPC-Spiele", "")
     finally:
-        hotspot.hotspot.running, hotspot.hotspot.ip = False, ""
+        hotspot.hotspot.running, hotspot.hotspot.ip, hotspot.hotspot.kind = False, "", ""
     assert controller.guest_wifi() is None
     controller.config["games"] = {**controller.config["games"], "wifi": {"ssid": "Zuhause", "password": "x"}}
     assert controller.guest_wifi() == ("Zuhause", "x")
@@ -130,3 +135,78 @@ def test_hotspot_unsupported_without_nmcli(monkeypatch):
     monkeypatch.setattr(hotspot.shutil, "which", lambda _n: None)
     ok, why = hotspot.supported()
     assert not ok and "nmcli" in why
+
+
+def test_open_games_network_and_portal_script():
+    calls = []
+
+    def run(cmd, timeout=25):
+        calls.append(cmd)
+        if cmd[:4] == ["nmcli", "-t", "-f", "DEVICE,TYPE"]:
+            return 0, "wlp4s0:wifi"
+        if cmd[:2] == ["nmcli", "-g"]:
+            return 0, "10.42.0.1/24"
+        return 0, ""
+
+    ok, _msg, ip = hotspot._linux_start("AluPC-Spiele", "", run, kind="spiele")
+    assert ok and ip == "10.42.0.1"
+    add = next(c for c in calls if c[:3] == ["nmcli", "connection", "add"])
+    assert "802-11-wireless.mode" in add and "ap" in add and "shared" in add and "password" not in add
+    assert ["nmcli", "connection", "up", "AluPC-Spiele"] in calls
+    script = hotspot.portal_script("wlp4s0", 8765, hotspot.Path("/run/user/1000/alupc-portal-1000"), 4242)
+    assert "-I PREROUTING -i wlp4s0 -p tcp --dport 80 -j REDIRECT --to-ports 8765" in script
+    assert "kill -0 4242" in script and script.rstrip().endswith("--comment alupc-portal")
+    assert "-D PREROUTING" in script  # Regel wird wieder entfernt
+
+
+def test_portal_redirects_phone_checks_to_game(env, monkeypatch):  # noqa: F811
+    """Anmeldeseite: Android/iPhone fragen fremde Adressen ab → Weiterleitung auf die Spielsteuerung."""
+    import http.client
+
+    controller, _window, _ = env
+    controller.cast.start()
+    controller.start_games("quiz")
+    hs = hotspot.hotspot
+    try:
+        hs.running, hs.kind, hs.portal, hs.ip = True, "spiele", True, "127.0.0.1"
+        conn = http.client.HTTPConnection("127.0.0.1", controller.cast.port, timeout=5)
+        conn.request("GET", "/generate_204", headers={"Host": "connectivitycheck.gstatic.com"})
+        r = conn.getresponse()
+        assert r.status == 302 and r.getheader("Location").endswith("/anmelden")
+        r.read()
+        conn.request("GET", "/anmelden", headers={"Host": "127.0.0.1"})
+        r = conn.getresponse()
+        page = r.read().decode()
+        assert r.status == 200 and "/spiel?u=" in page and "Mitspielen" in page
+        assert "AluPC steuern" in page and "?k=" not in page  # Steuern nur mit Code – der steht NICHT drin
+        conn.request("GET", "/spiel", headers={"Host": "127.0.0.1"})  # eigene Adresse: normal
+        r = conn.getresponse()
+        assert r.status == 200
+        r.read()
+        conn.close()
+    finally:
+        hs.running, hs.kind, hs.portal, hs.ip = False, "", False, ""
+
+
+def test_games_wifi_stops_with_games(env, monkeypatch):  # noqa: F811
+    controller, _window, _ = env
+    stopped = []
+    monkeypatch.setattr(hotspot.hotspot, "stop", lambda: stopped.append(1) or (True, "aus"))
+    hs = hotspot.hotspot
+    controller.start_games("quiz")
+    try:
+        hs.running, hs.kind = True, "normal"
+        controller.game_action("aus")  # normaler Hotspot bleibt an
+        import time
+
+        time.sleep(0.2)
+        assert stopped == []
+        controller.start_games("quiz")
+        hs.running, hs.kind = True, "spiele"
+        controller.game_action("aus")
+        end = time.time() + 3
+        while not stopped and time.time() < end:
+            time.sleep(0.05)
+        assert stopped == [1]
+    finally:
+        hs.running, hs.kind = False, ""

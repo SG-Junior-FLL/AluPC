@@ -80,6 +80,8 @@ DEFAULTS: dict = {
     "poll": {"question": "", "options": []},
     # Minispiele: zuletzt gewähltes Spiel
     "games": {"last": "schaetzen", "options": {}, "sound": True, "board": {}},
+    # Hotspot-Kachel (normaler Hotspot): Name/Passwort – das Spiele-WLAN steht unter games.hotspot
+    "hotspot": {},
     # Finger als Schnelltaste (Modul am USB-Seriell-Adapter): Platz → Befehl
     "finger_shortcuts": {"on": False, "map": {}},
     # Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter zu drücken (wie unter Windows)
@@ -125,8 +127,6 @@ DEFAULTS: dict = {
     "laser": {"size": 100, "trail": True},
     # Overlays über Monitor 2 (Musik, Uhr, Bauchbinde …) – siehe overlays.py
     "overlays": {"on": False, "items": []},
-    # Desktop-Widgets auf Monitor 1 (Uhr, System, Musik, Sprach-/Lautstärke-Anzeige) – ui/desktop_widgets.py
-    "widgets": {"on": False, "items": {}, "opacity": 0.78, "top": False, "pos": {}, "style": "glas"},
     # Whiteboard auf Monitor 2: zuletzt gewählter Hintergrund (whiteboard.BACKGROUNDS)
     "whiteboard": {"background": "weiss"},
     # Fenster „Zeigen & Zeichnen“: Werkzeug, Farbe, Stärke; Zeichnungen automatisch löschen

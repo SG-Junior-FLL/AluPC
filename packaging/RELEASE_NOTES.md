@@ -8,7 +8,23 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.96.0)
+### Neu in dieser Version (0.97.0)
+- **Desktop-Widgets entfernt** (die dauerhaft eingeblendeten Karten auf Monitor 1) – waren anders gemeint.
+- **Programme auf der Startseite:** Startseite anpassen → **„Programm …“**: installiertes Programm aus der Liste wählen
+  (mit Suche) → Kachel im neuen Bereich **„Programme“**. Ein Klick startet es. Gilt für das System, auf dem du es
+  hinzufügst (Dual-Boot: auf dem anderen System dort das Programm wählen).
+- **Hotspot-Kachel** (Bereich Handy): Klick = eigenes WLAN an/aus, Pfeil = Name, Passwort und WLAN-QR-Code.
+- **Spiele-WLAN** (Minispiele-Fenster → „Spiele-WLAN …“), getrennt vom normalen Hotspot:
+  - Linux: offen (ohne Passwort) – Handy tippt das WLAN an und bekommt sofort **„Im WLAN anmelden“**: eine
+    Seite mit **„Mitspielen“** und **„AluPC steuern“** (nur mit dem Zugangscode vom PC).
+  - geht **automatisch aus, wenn die Minispiele beendet werden** (auch beim Beenden von AluPC).
+  - Die Anmeldeseite braucht unter Linux beim Start einmal das PC-Passwort (Weiterleitung von Port 80).
+- Ehrlich: nicht mit echter Hardware getestet. Die Anmeldeseite ist mit nachgespielten Handy-Anfragen geprüft
+  (Android/iPhone fragen beim Verbinden fremde Adressen ab → Weiterleitung). Sie erscheint nur, wenn das Handy
+  diese Adressen auflösen kann – also wenn der PC selbst Internet hat (z. B. per Kabel). Unter Windows gibt es
+  keine Anmeldeseite (Windows lässt das nicht umleiten) – dort helfen die QR-Codes.
+
+### Neu in Version 0.96.0
 - **QR-Code war nicht scannbar – behoben:** In der App war er nur 84 px groß mit zu schmalem weißen Rand (2 statt
   4 Module) – auf dunklem Hintergrund erkennen viele Handy-Kameras das nicht. Jetzt: Rand nach Norm, jedes Modul
   gleich viele ganze Pixel, Code steht still (wippte vorher in der Lobby), in der App größer und per Klick

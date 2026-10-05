@@ -1,42 +1,59 @@
-"""Eigenes WLAN für die Minispiele (Hotspot) – Handys verbinden sich per QR-Code, ganz ohne Router.
+"""Hotspot: der PC macht selbst ein WLAN auf. Zwei Arten:
 
-* Linux: NetworkManager (`nmcli device wifi hotspot`). Adresse des PCs im Hotspot meist 10.42.0.1.
-  Achtung: Viele WLAN-Karten können nicht gleichzeitig Hotspot sein UND mit einem anderen WLAN verbunden – dann
-  ist der PC während des Hotspots ohne Internet (über Kabel geht beides).
-* Windows: der eingebaute „Mobile Hotspot“ (WinRT NetworkOperatorTetheringManager über PowerShell). Er teilt eine
-  bestehende Internetverbindung – ganz ohne Netz lehnt Windows ihn ab. Adresse des PCs: 192.168.137.1.
+* **normal** – „Hotspot“-Kachel auf der Startseite: eigener Name/Passwort, an/aus wie ein Lichtschalter.
+* **spiele** – Spiele-WLAN aus dem Minispiele-Fenster: offen (ohne Passwort, Linux) und mit **Anmeldeseite**:
+  Wer sich verbindet, bekommt vom Handy sofort die „Im WLAN anmelden“-Seite – und das ist direkt die
+  Spielsteuerung. Geht automatisch aus, wenn die Minispiele beendet werden.
 
-Alle Funktionen geben (ok, Meldung) zurück und werfen nie – die Meldung ist für Menschen.
+Linux: NetworkManager (nmcli), PC-Adresse im Hotspot meist 10.42.0.1. Die Anmeldeseite braucht eine
+Weiterleitung (Port 80 → AluPC) – das darf nur root: einmal Passwort (pkexec) beim Start, ein kleiner Wächter
+nimmt die Regel wieder raus, sobald der Hotspot aus ist oder AluPC endet.
+Windows: „Mobiler Hotspot“ (WinRT über PowerShell), Passwort ist dort Pflicht, Adresse 192.168.137.1. Eine
+Anmeldeseite geht unter Windows nicht (Windows lässt fremden Verkehr nicht umleiten) – dann helfen die QR-Codes.
+
+Achtung: Viele WLAN-Karten können nicht gleichzeitig Hotspot sein UND mit einem anderen WLAN verbunden – dann ist
+der PC während des Hotspots ohne Internet (über Kabel geht beides). Alle Funktionen geben (ok, Meldung) zurück.
 """
 
 from __future__ import annotations
 
+import os
 import secrets
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
-CON_NAME = "AluPC-Hotspot"
-DEFAULT_SSID = "AluPC-Spiele"
+CON_NAMES = {"normal": "AluPC-Hotspot", "spiele": "AluPC-Spiele"}
+DEFAULT_SSID = {"normal": "AluPC", "spiele": "AluPC-Spiele"}
+CON_NAME = CON_NAMES["spiele"]  # (älterer Name)
 WINDOWS_IP = "192.168.137.1"
+PORTAL_PORT = 8765
 _PW_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"  # ohne l/1/o/0 – leicht abzulesen
+IS_WINDOWS = sys.platform.startswith("win")
 
 
 def new_password() -> str:
     return "".join(secrets.choice(_PW_CHARS) for _ in range(10))
 
 
-def settings(config) -> dict:
-    """Name/Passwort des Hotspots (einmal erzeugt, dann gespeichert)."""
-    games = config["games"]
-    hs = dict(games.get("hotspot") or {})
+def settings(config, kind: str = "spiele") -> dict:
+    """Name/Passwort des Hotspots (einmal erzeugt, dann gespeichert). Spiele-WLAN unter Linux: offen."""
+    if kind == "spiele":
+        hs = dict(config["games"].get("hotspot") or {})
+    else:
+        hs = dict(config.get("hotspot") or {})
     changed = False
     if not hs.get("ssid"):
-        hs["ssid"], changed = DEFAULT_SSID, True
-    if len(hs.get("password") or "") < 8:
-        hs["password"], changed = new_password(), True
+        hs["ssid"], changed = DEFAULT_SSID[kind], True
+    need_pw = kind == "normal" or IS_WINDOWS or hs.get("password")
+    if "password" not in hs or (need_pw and len(hs.get("password") or "") < 8):
+        hs["password"], changed = (new_password() if need_pw else ""), True
     if changed:
-        config["games"] = {**games, "hotspot": hs}
+        if kind == "spiele":
+            config["games"] = {**config["games"], "hotspot": hs}
+        else:
+            config["hotspot"] = hs
     return hs
 
 
@@ -45,7 +62,7 @@ def supported() -> tuple[bool, str]:
         if not shutil.which("nmcli"):
             return False, "NetworkManager (nmcli) fehlt – Hotspot geht nur damit."
         return (True, "") if wifi_device() else (False, "Keine WLAN-Karte gefunden.")
-    if sys.platform == "win32":
+    if IS_WINDOWS:
         return True, ""
     return False, "Hotspot gibt es nur unter Linux und Windows."
 
@@ -77,25 +94,74 @@ def _linux_ip(dev: str, run=_run) -> str:
     return first.split("/")[0].strip() or "10.42.0.1"
 
 
-def _linux_start(ssid: str, password: str, run=_run) -> tuple[bool, str, str]:
+def _linux_start(ssid: str, password: str, run=_run, kind: str = "spiele") -> tuple[bool, str, str]:
     dev = wifi_device(run)
     if not dev:
         return False, "Keine WLAN-Karte gefunden.", ""
-    code, out = run(["nmcli", "device", "wifi", "hotspot", "ifname", dev, "con-name", CON_NAME,
-                     "ssid", ssid, "password", password])
+    con = CON_NAMES[kind]
+    if password:
+        code, out = run(["nmcli", "device", "wifi", "hotspot", "ifname", dev, "con-name", con,
+                         "ssid", ssid, "password", password])
+    else:  # offenes WLAN (Spiele): eigene Verbindung im AP-Modus ohne Verschlüsselung
+        run(["nmcli", "connection", "delete", con], 10)
+        code, out = run(["nmcli", "connection", "add", "type", "wifi", "ifname", dev, "con-name", con,
+                         "autoconnect", "no", "ssid", ssid, "802-11-wireless.mode", "ap",
+                         "802-11-wireless.band", "bg", "ipv4.method", "shared"])
+        if code == 0:
+            code, out = run(["nmcli", "connection", "up", con])
     if code != 0:
         return False, f"Hotspot ging nicht: {out.splitlines()[-1] if out else 'unbekannter Fehler'}", ""
     return True, f"Hotspot „{ssid}“ läuft (über {dev}).", _linux_ip(dev, run)
 
 
-def _linux_stop(run=_run) -> tuple[bool, str]:
-    code, out = run(["nmcli", "connection", "down", CON_NAME], 15)
+def _linux_stop(run=_run, kind: str = "spiele") -> tuple[bool, str]:
+    code, out = run(["nmcli", "connection", "down", CON_NAMES[kind]], 15)
     return code == 0, "Hotspot aus." if code == 0 else (out or "Hotspot lief nicht.")
 
 
-def _linux_active(run=_run) -> bool:
+def _linux_active(run=_run) -> str:
+    """Welcher AluPC-Hotspot läuft gerade („normal“/„spiele“, leer = keiner)?"""
     code, out = run(["nmcli", "-t", "-f", "NAME", "connection", "show", "--active"], 8)
-    return code == 0 and CON_NAME in out.splitlines()
+    names = out.splitlines() if code == 0 else []
+    return next((k for k, con in CON_NAMES.items() if con in names), "")
+
+
+# ---- Anmeldeseite (Captive Portal): Port 80 aus dem Hotspot → AluPC
+def portal_flag() -> Path:
+    base = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp")
+    return base / f"alupc-portal-{os.getuid() if hasattr(os, 'getuid') else 0}"
+
+
+def portal_script(dev: str, port: int, flag: Path, pid: int) -> str:
+    """Root-Skript: Weiterleitung setzen, warten bis Flagge weg oder AluPC beendet, Weiterleitung entfernen."""
+    rule = f"-i {dev} -p tcp --dport 80 -j REDIRECT --to-ports {int(port)} -m comment --comment alupc-portal"
+    return (f"iptables -t nat -I PREROUTING {rule} || exit 1; "
+            f"while [ -e '{flag}' ] && kill -0 {int(pid)} 2>/dev/null; do sleep 2; done; "
+            f"iptables -t nat -D PREROUTING {rule}")
+
+
+def start_portal(dev: str, port: int = PORTAL_PORT, spawn=None) -> tuple[bool, str]:
+    if IS_WINDOWS:
+        return False, "Anmeldeseite geht unter Windows nicht – die Handys nehmen den QR-Code."
+    if not (shutil.which("pkexec") and shutil.which("iptables")):
+        return False, "Anmeldeseite braucht pkexec und iptables."
+    flag = portal_flag()
+    flag.write_text("an")
+    cmd = ["pkexec", "sh", "-c", portal_script(dev, port, flag, os.getpid())]
+    try:
+        (spawn or subprocess.Popen)(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError as exc:
+        flag.unlink(missing_ok=True)
+        return False, f"Anmeldeseite ging nicht: {exc}"
+    return True, "Anmeldeseite an: Handys öffnen die Spielsteuerung beim Verbinden selbst."
+
+
+def stop_portal() -> None:
+    try:
+        portal_flag().unlink(missing_ok=True)  # der Wächter nimmt die Regel in ≤ 2 s raus
+    except OSError:
+        pass
 
 
 # --------------------------------------------------------------------------- Windows (Mobiler Hotspot)
@@ -137,8 +203,6 @@ Write-Output ('STATE:' + $tm.TetheringOperationalState)
 
 
 def _ps(script: str, env_extra: dict | None = None, timeout: float = 40) -> tuple[int, str]:
-    import os
-
     env = {**os.environ, **(env_extra or {})}
     try:
         r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
@@ -153,7 +217,7 @@ def windows_message(out: str) -> tuple[bool, str]:
     """PowerShell-Ausgabe → (ok, verständliche Meldung)."""
     if "FEHLER:keine Internetverbindung" in out:
         return False, ("Windows startet den Mobilen Hotspot nur, wenn der PC selbst Netz hat (LAN-Kabel oder "
-                       "WLAN). Alternativ: Router-WLAN unten eintragen.")
+                       "WLAN). Alternativ: Router-WLAN eintragen.")
     for line in out.splitlines():
         if line.startswith("FEHLER:"):  # z. B. kein WLAN-Adapter, Funktion fehlt (Windows Server)
             why = line[7:].strip().split("(Exception from HRESULT")[0].strip().rstrip(".") or "unbekannter Fehler"
@@ -169,42 +233,60 @@ def windows_message(out: str) -> tuple[bool, str]:
 
 # --------------------------------------------------------------------------- gemeinsam
 class Hotspot:
-    """Merkt sich, ob AluPC den Hotspot gestartet hat und unter welcher Adresse der PC dort erreichbar ist."""
+    """Merkt sich, welcher Hotspot von AluPC läuft (normal/spiele), seine Adresse und ob die Anmeldeseite an ist."""
 
     def __init__(self):
         self.ip = ""
         self.running = False
+        self.kind = ""
+        self.ssid = ""
+        self.password = ""
+        self.portal = False
         self.message = ""
 
-    def start(self, ssid: str, password: str) -> tuple[bool, str]:
+    def start(self, ssid: str, password: str, kind: str = "spiele", portal: bool = False) -> tuple[bool, str]:
         ok, why = supported()
         if not ok:
             self.message = why
             return False, why
+        if self.running and self.kind != kind:
+            self.stop()  # nur ein Hotspot auf einmal (eine WLAN-Karte)
         if sys.platform.startswith("linux"):
-            ok, msg, ip = _linux_start(ssid, password)
+            ok, msg, ip = _linux_start(ssid, password, kind=kind)
         else:
+            password = password if len(password or "") >= 8 else new_password()
             code, out = _ps(_PS_START, {"ALUPC_SSID": ssid, "ALUPC_PW": password})
             ok, msg = windows_message(out)
             ip = WINDOWS_IP if ok else ""
         self.running, self.ip, self.message = ok, ip, msg
+        self.kind, self.ssid, self.password = (kind, ssid, password) if ok else ("", "", "")
+        self.portal = False
+        if ok and portal:
+            dev = wifi_device() if sys.platform.startswith("linux") else ""
+            p_ok, p_msg = start_portal(dev) if dev else (False, "")
+            self.portal = p_ok
+            if p_msg:
+                self.message = msg = f"{msg} {p_msg}"
         return ok, msg
 
     def stop(self) -> tuple[bool, str]:
+        stop_portal()
+        self.portal = False
+        kind = self.kind or "spiele"
         if sys.platform.startswith("linux"):
-            ok, msg = _linux_stop()
-        elif sys.platform == "win32":
+            ok, msg = _linux_stop(kind=kind)
+        elif IS_WINDOWS:
             ok, msg = windows_message(_ps(_PS_STOP)[1])
             msg = "Hotspot aus." if ok else msg
         else:
             ok, msg = False, ""
-        self.running, self.ip, self.message = False, "", msg
+        self.running, self.ip, self.kind, self.message = False, "", "", msg
         return ok, msg
 
     def active(self) -> bool:
         if sys.platform.startswith("linux"):
-            return _linux_active()
-        if sys.platform == "win32":
+            return bool(_linux_active())
+        if IS_WINDOWS:
             return "STATE:On" in _ps(_PS_STATE, timeout=20)[1]
         return False
 

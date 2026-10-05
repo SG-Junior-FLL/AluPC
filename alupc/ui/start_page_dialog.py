@@ -350,6 +350,82 @@ class CustomTileDialog(QDialog):
         self.accept()
 
 
+def add_programs(cfg: dict, apps: list[tuple[str, str]], windows: bool) -> list[dict]:
+    """Programm-Kacheln (Ausführen-Kachel mit der Startzeile dieses Systems) im Bereich „Programme“ anlegen."""
+    from ..startpage import new_section, sections
+
+    secs = sections(cfg)
+    sec = next((x for x in secs if x["name"] == "Programme"), None)
+    if sec is None:
+        sec = new_section("Programme")
+        cfg["sections"] = secs + [sec]
+    made = []
+    for name, line in apps:
+        tile = new_custom_tile()
+        tile.update({"title": name[:40], "subtitle": "Programm", "icon": "window", "color": TILE_COLORS[1],
+                     "section": sec["id"], "action": {"kind": "run", "command": "",
+                                                      "windows": line if windows else "",
+                                                      "linux": "" if windows else line}})
+        cfg.setdefault("custom", []).append(tile)
+        move_to_section(cfg, custom_key(tile), sec["id"])
+        if cfg.get("tiles") is not None:
+            cfg["tiles"] = cfg["tiles"] + [custom_key(tile)]
+        made.append(tile)
+    return made
+
+
+class AppPicker(QDialog):
+    """Liste der installierten Programme mit Suche."""
+
+    def __init__(self, parent=None):
+        from ..pc_control import installed_apps
+
+        super().__init__(parent)
+        self.setWindowTitle("Programm hinzufügen")
+        self.setMinimumSize(460, 520)
+        self.chosen = None
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(20, 18, 20, 16)
+        lay.addWidget(page_header("Programm hinzufügen", "Wird eine Kachel im Bereich „Programme“", "window"))
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Suchen …")
+        self.search.setClearButtonEnabled(True)
+        lay.addWidget(self.search)
+        self.apps = installed_apps()
+        self.listw = QListWidget()
+        lay.addWidget(self.listw, 1)
+        hint = QLabel(f"{len(self.apps)} Programme gefunden" if self.apps else "Keine Programme gefunden – "
+                      "„Eigene Kachel → Ausführen“ geht mit jedem Befehl.")
+        hint.setObjectName("Muted")
+        lay.addWidget(hint)
+        buttons = QDialogButtonBox()
+        buttons.addButton(button("Hinzufügen", "plus", primary=True), QDialogButtonBox.AcceptRole)
+        buttons.addButton(button("Abbrechen"), QDialogButtonBox.RejectRole)
+        buttons.accepted.connect(self._ok)
+        buttons.rejected.connect(self.reject)
+        lay.addWidget(buttons)
+        self.search.textChanged.connect(self._fill)
+        self.listw.itemDoubleClicked.connect(lambda _i: self._ok())
+        self._fill("")
+
+    def _fill(self, text: str) -> None:
+        self.listw.clear()
+        t = text.strip().lower()
+        for name, line in self.apps:
+            if not t or t in name.lower():
+                item = QListWidgetItem(icons.icon("window", theme.current().muted, 18), name)
+                item.setData(Qt.UserRole, (name, line))
+                self.listw.addItem(item)
+        if self.listw.count():
+            self.listw.setCurrentRow(0)
+
+    def _ok(self) -> None:
+        item = self.listw.currentItem()
+        if item is not None:
+            self.chosen = item.data(Qt.UserRole)
+            self.accept()
+
+
 class StartPageDialog(QDialog):
     def __init__(self, config, parent=None, controller=None):
         super().__init__(parent)
@@ -382,6 +458,7 @@ class StartPageDialog(QDialog):
             ("Nach oben", "up", lambda: self._move(-1), {}),
             ("Nach unten", "down", lambda: self._move(1), {}),
             ("Eigene Kachel …", "plus", self._add, {"primary": True}),
+            ("Programm …", "window", self._add_program, {}),
             ("Bildschirmschoner", "moon", self._add_saver_menu, {}),
             ("Overlay", "layers", self._add_overlay_menu, {}),
             ("Bearbeiten …", "edit", self._edit, {}),
@@ -543,6 +620,20 @@ class StartPageDialog(QDialog):
             self.cfg["tiles"] = self.cfg["tiles"] + [custom_key(dlg.tile)]
             self._set_hotkey(dlg.tile["id"], dlg.hotkey_text())
             self._fill(custom_key(dlg.tile))
+
+    def _add_program(self):
+        """Installiertes Programm wählen → Kachel im Bereich „Programme“ (legt ihn an, falls nötig).
+        Die Startzeile gilt nur für DIESES System (Dual-Boot: unter dem anderen System eigenes Programm wählen)."""
+        import sys
+
+        self._sync()
+        dlg = AppPicker(self)
+        if dlg.exec() != QDialog.Accepted or not dlg.chosen:
+            return
+        name, line = dlg.chosen
+        add_programs(self.cfg, [(name, line)], windows=sys.platform.startswith("win"))
+        self._fill_sections()
+        self._fill(custom_key(self.cfg["custom"][-1]))
 
     # ------------------------------------------------------------ Bereiche
     def _fill_sections(self, select: str | None = None):

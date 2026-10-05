@@ -4605,36 +4605,3 @@ def test_nav_indicator_follows_page_and_ring_animates(env, monkeypatch):
     assert ring._fx_anim.state() == ring._fx_anim.State.Running
     ring.grab()  # zeichnet mitten in der Animation ohne Fehler
 
-
-def test_desktop_widgets_on_off_and_huds(env):
-    """Desktop-Widgets: an/aus (Setup, Sprache), einzelne Karten, Lautstärke-/Sprach-Anzeige erscheinen kurz."""
-    from alupc.ui.desktop_widgets import HudCard
-
-    controller, window, _ = env
-    dw = window.desktop_widgets
-    assert controller.desktop_widgets is dw and not dw.cards  # Standard: aus
-    controller.run_command("widgets")  # Befehl (Sprache „Widgets an“, Befehlssuche)
-    pump()
-    assert set(dw.cards) == {"uhr", "system", "musik"} and all(c.isVisible() for c in dw.cards.values())
-    for card in dw.cards.values():
-        assert not card.grab().isNull()
-    dw.set_item("musik", False)
-    assert "musik" not in dw.cards
-    controller.volume_changed.emit(42)
-    hud = dw.cards["lautstaerke"]
-    assert isinstance(hud, HudCard) and hud.isVisible() and hud.value == 42
-    controller.voice.command.emit("rgb_aus", "Licht aus", "licht aus")
-    assert dw.cards["sprache"].isVisible() and "Licht aus" in dw.cards["sprache"].title
-    controller.config["widgets"] = {**controller.config["widgets"], "style": "neon", "opacity": 0.4}
-    dw.apply()
-    assert not dw.cards["uhr"].grab().isNull()
-    dw.remember_pos("uhr", dw.cards["uhr"].pos())
-    assert controller.config["widgets"]["pos"]["uhr"]
-    window.open_setup_section("Desktop-Widgets")
-    pump()
-    from alupc.ui.setup_page import SetupPage
-
-    setup = window.findChild(SetupPage)
-    assert setup.widgets_on.isChecked()
-    setup.widgets_on.setChecked(False)
-    assert not controller.config["widgets"]["on"] and not any(k in dw.cards for k in ("uhr", "system"))

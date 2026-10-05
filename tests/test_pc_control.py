@@ -153,3 +153,52 @@ def test_wayland_keys_and_mouse_via_ydotool(monkeypatch):
     assert keys.move(5, -2) and calls[-1] == ["/usr/bin/ydotool", "mousemove", "-x", "5", "-y", "-2"]
     monkeypatch.setattr("shutil.which", lambda n: None)
     assert not keys.available()  # ohne ydotool ehrlich „geht nicht“
+
+
+def test_installed_apps_and_program_tiles(monkeypatch, tmp_path):
+    if not sys.platform.startswith("linux"):
+        pytest.skip("Linux-.desktop")
+    apps = tmp_path / "share" / "applications"
+    apps.mkdir(parents=True)
+    (apps / "org.kde.kate.desktop").write_text("[Desktop Entry]\nType=Application\nName=Kate\nName[de]=Kate Editor\n"
+                                               "Exec=kate %U\n")
+    (apps / "hidden.desktop").write_text("[Desktop Entry]\nType=Application\nName=Versteckt\nNoDisplay=true\n")
+    monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path / "share"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "leer"))
+    found = pc_control.installed_apps()
+    assert [n for n, _ in found] == ["Kate Editor"] and found[0][1].endswith("org.kde.kate.desktop")
+    spawned = []
+    monkeypatch.setattr(pc_control, "_spawn", lambda cmd: spawned.append(cmd) or True)
+    monkeypatch.setattr(pc_control.shutil, "which", lambda n: "/usr/bin/" + n if n == "gtk-launch" else None)
+    assert pc_control.run_line(found[0][1]) == (True, "") and spawned[-1] == ["gtk-launch", "org.kde.kate"]
+    from alupc.startpage import custom_key, ordered_keys, section_of, sections
+    from alupc.ui.start_page_dialog import add_programs
+
+    cfg = {"custom": [], "tiles": None}
+    tiles = add_programs(cfg, found, windows=False)
+    sec = next(s for s in sections(cfg) if s["name"] == "Programme")
+    assert section_of(custom_key(tiles[0]), cfg) == sec["id"] and custom_key(tiles[0]) in ordered_keys(cfg)
+    assert tiles[0]["action"] == {"kind": "run", "command": "", "windows": "", "linux": found[0][1]}
+    add_programs(cfg, [("Zwei", "x")], windows=True)
+    assert [s["name"] for s in sections(cfg)].count("Programme") == 1  # Bereich nur einmal
+
+
+def test_hotspot_tile_on_start_page(env, monkeypatch):  # noqa: F811
+    from alupc import hotspot
+
+    controller, window, _ = env
+    assert "hotspot" in window.tiles
+    calls = []
+    monkeypatch.setattr(controller, "set_hotspot", lambda on, kind="normal": calls.append((on, kind)) or (True, ""))
+    window.toggle_hotspot()
+    from PySide6.QtCore import QThreadPool
+
+    QThreadPool.globalInstance().waitForDone(3000)
+    assert calls == [(True, "normal")]
+    hs = hotspot.hotspot
+    try:
+        hs.running, hs.kind = True, "normal"
+        window.refresh()
+        assert window.t_hotspot.badge == "AN" and window.t_hotspot.active
+    finally:
+        hs.running, hs.kind = False, ""

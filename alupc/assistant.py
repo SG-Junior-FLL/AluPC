@@ -176,9 +176,6 @@ class Assistant:
         c = self.c
         if command.startswith("pc_") or command in ("bestaetigen", "abbrechen"):
             return self._pc(command)
-        if command == "widgets":
-            c.widgets_toggle.emit()
-            return f"{self.ack()} Desktop-Widgets umgeschaltet."
         if command.startswith("frage:"):
             return self.answer(command[6:])
         base, _, state = command.rpartition("_")
@@ -225,9 +222,7 @@ class Assistant:
             if command == "abbrechen":
                 return "Okay, abgebrochen."
             return pc_control.run(pending[0])
-        reply = pc_control.run(command)
-        c.after_pc_command(command)
-        return reply
+        return pc_control.run(command)
 
     def done_text(self, command: str, label: str) -> str:
         if command in SHOW_TEXT:

@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 from ..screens import wifi_payload
 from ..sources import qr_pixmap
+from . import icons, theme
 from .widgets import button, font, page_header
 
 QR_PX = 260
@@ -80,104 +81,155 @@ class ConnectDialog(QDialog):
         lay.addLayout(buttons)
 
 
-class WifiDialog(QDialog):
-    """Spiele-Fenster → „WLAN für Handys“: eigenen Hotspot starten ODER das vorhandene WLAN eintragen (dann zeigt
-    die Lobby einen WLAN-QR-Code – praktisch für Gäste, die das Passwort nicht kennen)."""
+class HotspotDialog(QDialog):
+    """Hotspot einstellen und an/aus. kind „normal“ (Hotspot-Kachel) oder „spiele“ (Spiele-WLAN aus dem
+    Minispiele-Fenster: offen, mit Anmeldeseite, geht mit den Spielen aus – dazu „vorhandenes WLAN“ für den QR-Code)."""
 
-    def __init__(self, controller, parent=None):
-        from PySide6.QtWidgets import QFormLayout, QLineEdit
+    def __init__(self, controller, kind: str = "normal", parent=None):
+        from PySide6.QtWidgets import QCheckBox, QFormLayout, QLineEdit
 
-        from ..hotspot import hotspot, settings, supported
+        from ..hotspot import IS_WINDOWS, hotspot, settings, supported
 
         super().__init__(parent)
-        self.controller = controller
-        self.setWindowTitle("WLAN für Handys")
-        self.setMinimumWidth(520)
+        self.controller, self.kind = controller, kind
+        games = kind == "spiele"
+        title = "Spiele-WLAN" if games else "Hotspot"
+        self.setWindowTitle(title)
+        self.setMinimumWidth(540)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 18, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("WLAN für Handys", "Handys scannen erst den WLAN-Code, dann den Spiel-Code", "phone"))
-        # --- eigener Hotspot
-        hs = settings(controller.config)
+        lay.addWidget(page_header(title, "Handys verbinden sich, gehen automatisch auf die Spielsteuerung · aus, wenn "
+                                         "die Spiele enden" if games else "Der PC macht ein eigenes WLAN auf", "wifi"))
+        hs = settings(controller.config, kind)
         ok, why = supported()
         box = QFrame()
         box.setObjectName("Card")
         bl = QVBoxLayout(box)
-        bl.addWidget(QLabel("<b>Eigenes WLAN (Hotspot)</b> – der PC macht selbst ein WLAN auf"))
         form = QFormLayout()
         self.ssid = QLineEdit(hs["ssid"])
         self.ssid.setMaxLength(32)
         self.pw = QLineEdit(hs["password"])
         self.pw.setMaxLength(63)
+        self.pw.setPlaceholderText("mindestens 8 Zeichen")
         form.addRow("Name:", self.ssid)
         form.addRow("Passwort:", self.pw)
+        self.open_net = None
+        if games and not IS_WINDOWS:  # offenes WLAN: ein Tippen, dann kommt die Anmeldeseite von selbst
+            self.open_net = QCheckBox("Offen (ohne Passwort) – empfohlen für Spiele")
+            self.open_net.setChecked(not hs["password"])
+            self.open_net.toggled.connect(lambda on: self.pw.setEnabled(not on))
+            self.pw.setEnabled(not self.open_net.isChecked())
+            form.addRow("", self.open_net)
         bl.addLayout(form)
         row = QHBoxLayout()
-        self.toggle = button("Hotspot starten" if not hotspot.running else "Hotspot beenden", "play" if not
-                             hotspot.running else "x", primary=not hotspot.running)
+        self.toggle = button("", "play", primary=True)
         self.toggle.setEnabled(ok)
         self.toggle.clicked.connect(self._toggle)
         row.addWidget(self.toggle)
         row.addStretch(1)
         bl.addLayout(row)
-        self.state = QLabel(why or hotspot.message or "Hinweis: Viele WLAN-Karten trennen dabei das normale WLAN – "
-                            "der PC hat dann (außer per Kabel) kein Internet.")
+        self.state = QLabel(why or hotspot.message)
         self.state.setObjectName("Muted")
         self.state.setWordWrap(True)
         bl.addWidget(self.state)
+        hint = QLabel(("Anmeldeseite (Linux): beim Start einmal das Passwort des PCs (für die Weiterleitung). "
+                       "Windows: Handys nehmen den QR-Code. " if games else "")
+                      + "Viele WLAN-Karten trennen dabei das normale WLAN – der PC hat dann (außer per Kabel) "
+                        "kein Internet.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        bl.addWidget(hint)
         lay.addWidget(box)
-        # --- vorhandenes WLAN eintragen
-        box2 = QFrame()
-        box2.setObjectName("Card")
-        b2 = QVBoxLayout(box2)
-        b2.addWidget(QLabel("<b>Vorhandenes WLAN</b> – nur für den WLAN-QR-Code (leer = keiner)"))
-        form2 = QFormLayout()
-        wifi = controller.config["games"].get("wifi") or {}
-        self.r_ssid = QLineEdit(wifi.get("ssid", ""))
-        self.r_pw = QLineEdit(wifi.get("password", ""))
-        self.r_pw.setEchoMode(QLineEdit.PasswordEchoOnEdit)
-        form2.addRow("Name:", self.r_ssid)
-        form2.addRow("Passwort:", self.r_pw)
-        b2.addLayout(form2)
-        lay.addWidget(box2)
+        self.qr = QLabel()
+        self.qr.setAlignment(Qt.AlignCenter)
+        self.qr.setStyleSheet("background:#ffffff; border-radius:14px; padding:10px;")
+        lay.addWidget(self.qr, 0, Qt.AlignCenter)
+        self.r_ssid = self.r_pw = None
+        if games:  # Alternative ohne Hotspot: vorhandenes WLAN nur für den WLAN-QR-Code
+            box2 = QFrame()
+            box2.setObjectName("Card")
+            b2 = QVBoxLayout(box2)
+            b2.addWidget(QLabel("<b>Oder vorhandenes WLAN</b> – nur für den WLAN-QR-Code in der Lobby"))
+            form2 = QFormLayout()
+            wifi = controller.config["games"].get("wifi") or {}
+            self.r_ssid = QLineEdit(wifi.get("ssid", ""))
+            self.r_pw = QLineEdit(wifi.get("password", ""))
+            self.r_pw.setEchoMode(QLineEdit.PasswordEchoOnEdit)
+            form2.addRow("Name:", self.r_ssid)
+            form2.addRow("Passwort:", self.r_pw)
+            b2.addLayout(form2)
+            lay.addWidget(box2)
         bottom = QHBoxLayout()
         bottom.addStretch(1)
-        close = button("Fertig", "check", primary=True)
+        close = button("Fertig", "check")
         close.clicked.connect(self.accept)
         bottom.addWidget(close)
         lay.addLayout(bottom)
+        controller.hotspot_changed.connect(self._refresh)
+        self._refresh()
+
+    def _mine(self) -> bool:
+        from ..hotspot import hotspot
+
+        return hotspot.running and hotspot.kind == self.kind
+
+    def _refresh(self) -> None:
+        from ..hotspot import hotspot
+
+        try:
+            on = self._mine()
+            self.toggle.setText(("Spiele-WLAN" if self.kind == "spiele" else "Hotspot") +
+                                (" beenden" if on else " starten"))
+            self.toggle.setIcon(icons.icon("x" if on else "play", theme.current().text, 18))
+            self.qr.setVisible(on)
+            if on:
+                dpr = self.devicePixelRatioF()
+                self.qr.setPixmap(qr_pixmap(wifi_payload(hotspot.ssid, hotspot.password), 220, dpr))
+        except RuntimeError:  # Dialog schon zu
+            pass
 
     def _save(self) -> None:
-        cfg = self.controller.config
-        hs = {"ssid": self.ssid.text().strip() or "AluPC-Spiele", "password": self.pw.text().strip()}
-        if len(hs["password"]) < 8:  # WPA braucht mindestens 8 Zeichen
-            from ..hotspot import new_password
+        from ..hotspot import IS_WINDOWS, new_password
 
-            hs["password"] = new_password()
-            self.pw.setText(hs["password"])
-        ssid = self.r_ssid.text().strip()
-        cfg["games"] = {**cfg["games"], "hotspot": hs,
-                        "wifi": {"ssid": ssid, "password": self.r_pw.text()} if ssid else {}}
+        cfg = self.controller.config
+        pw = "" if self.open_net is not None and self.open_net.isChecked() else self.pw.text().strip()
+        if (pw or IS_WINDOWS or self.kind == "normal") and len(pw) < 8:  # WPA braucht mindestens 8 Zeichen
+            pw = new_password()
+            self.pw.setText(pw)
+        default = "AluPC-Spiele" if self.kind == "spiele" else "AluPC"
+        hs = {"ssid": self.ssid.text().strip() or default, "password": pw}
+        if self.kind == "spiele":
+            games = {**cfg["games"], "hotspot": hs}
+            ssid = self.r_ssid.text().strip()
+            games["wifi"] = {"ssid": ssid, "password": self.r_pw.text()} if ssid else {}
+            cfg["games"] = games
+        else:
+            cfg["hotspot"] = hs
 
     def _toggle(self) -> None:
-        from ..hotspot import hotspot
         from .util import run_async
 
         self._save()
-        on = not hotspot.running
+        on = not self._mine()
         self.toggle.setEnabled(False)
-        self.state.setText("Hotspot startet …" if on else "Hotspot wird beendet …")
+        self.state.setText("Startet …" if on else "Wird beendet …")
 
         def done(result):
-            ok, msg = result
-            self.state.setText(msg)
-            self.toggle.setEnabled(True)
-            self.toggle.setText("Hotspot beenden" if hotspot.running else "Hotspot starten")
+            try:
+                self.state.setText(result[1])
+                self.toggle.setEnabled(True)
+            except RuntimeError:
+                pass
+            self._refresh()
             self.controller.games_changed.emit()
 
-        run_async(lambda: self.controller.set_hotspot(on), done, lambda t: done((False, t)))
+        run_async(lambda: self.controller.set_hotspot(on, self.kind), done, lambda t: done((False, t)))
 
     def accept(self) -> None:
         self._save()
         self.controller.games_changed.emit()
         super().accept()
+
+
+WifiDialog = HotspotDialog  # (alter Name)

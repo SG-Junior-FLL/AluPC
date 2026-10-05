@@ -37,8 +37,7 @@ def entries(controller) -> list[tuple[str, str, str, str]]:
                        "airplay": "AirPlay (iPhone) zeigen", "qr": "Handy-Steuerung (QR-Code)",
                        "sperren": "Computer sperren", "pc_lauter": "PC lauter", "pc_leiser": "PC leiser",
                        "pc_stumm_an": "PC stumm", "pc_stumm_aus": "PC Ton an", "pc_screenshot": "Bildschirmfoto",
-                       "pc_desktop": "Desktop zeigen", "pc_fenster_wechseln": "Fenster wechseln",
-                       "widgets": "Desktop-Widgets an/aus"}.items():
+                       "pc_desktop": "Desktop zeigen", "pc_fenster_wechseln": "Fenster wechseln"}.items():
         if cmd in seen:
             continue
         seen.add(cmd)

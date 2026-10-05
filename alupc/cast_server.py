@@ -228,6 +228,7 @@ class CastServer(QObject):
         from .hotspot import hotspot
 
         ip = hotspot.ip if hotspot.running and hotspot.ip else local_ip(self.settings().get("ip", ""))
+        # (Hotspot an → Handys sind in DIESEM WLAN, also diese Adresse – auch beim normalen Hotspot)
         return f"http://{ip}:{self.port or self.settings()['port']}/"
 
     def url(self, with_code: bool = True) -> str:
@@ -295,6 +296,30 @@ class CastServer(QObject):
             return False
 
 
+def portal_page(server) -> str:
+    """Seite, die das Handy nach dem Verbinden mit dem Spiele-WLAN selbst öffnet („Im WLAN anmelden“).
+    Mitspielen geht ohne Code; AluPC steuern führt auf die Handy-Steuerung, die den 6-stelligen Code verlangt
+    (steht am PC unter dem QR-Code) – wer nur im WLAN ist, kann also nichts am PC verändern."""
+    import html
+
+    games = server.games
+    game_btn = (f'<a class="b g" href="{html.escape(server.games_url())}">🎮 Mitspielen<small>'
+                f'{html.escape(games.spec.title)}</small></a>' if games is not None else
+                '<div class="b off">🎮 Gerade keine Minispiele<small>Am PC starten</small></div>')
+    return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>AluPC</title>
+<style>body{{margin:0;font-family:system-ui,sans-serif;background:#0b1020;color:#f1f5f9;display:flex;
+flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:20px;box-sizing:border-box}}
+h1{{margin:0 0 6px;font-size:28px}}p{{margin:0 0 10px;color:#94a3b8;text-align:center}}
+.b{{display:block;width:100%;max-width:380px;box-sizing:border-box;padding:22px;border-radius:20px;font-size:22px;
+font-weight:800;text-align:center;text-decoration:none;color:#fff;background:#1e293b;border:2px solid #334155}}
+.b small{{display:block;font-size:14px;font-weight:600;color:#cbd5e1;margin-top:4px}}
+.g{{background:linear-gradient(135deg,#6366f1,#ec4899);border:0}}.off{{opacity:.55}}</style></head>
+<body><h1>AluPC</h1><p>Du bist im Spiele-WLAN.</p>{game_btn}
+<a class="b" href="{html.escape(server.base())}">🔒 AluPC steuern<small>Nur mit Zugangscode (steht am PC)</small></a>
+</body></html>"""
+
+
 def _make_handler(server: CastServer):
     class Handler(BaseHTTPRequestHandler):
         server_version = "AluCast"
@@ -340,7 +365,29 @@ def _make_handler(server: CastServer):
                 raise ValueError("ungültig")
             return data
 
+        def _portal_redirect(self) -> bool:
+            """Spiele-WLAN mit Anmeldeseite: Handys prüfen beim Verbinden fremde Adressen (Android:
+            connectivitycheck…/generate_204, iPhone: captive.apple.com, Windows: msftconnecttest.com) – die
+            leitet der PC hierher um. Antwort: Weiterleitung zur Spielsteuerung → das Handy zeigt „Im WLAN
+            anmelden“ und öffnet sie selbst."""
+            from .hotspot import hotspot
+
+            if not hotspot.portal:
+                return False
+            host = (self.headers.get("Host") or "").split(":")[0]
+            if not host or host == hotspot.ip:
+                return False
+            target = server.base() + "anmelden"  # Anmeldeseite: Mitspielen (frei) · AluPC steuern (mit Code)
+            self.send_response(302)
+            self.send_header("Location", target)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+
         def do_GET(self):
+            if self._portal_redirect():
+                return
             path = urlparse(self.path).path
             if path in ("/", "/index.html"):
                 self._send(200, PAGE.encode(), "text/html; charset=utf-8")
@@ -353,6 +400,8 @@ def _make_handler(server: CastServer):
                 poll = self._poll(q.get("u", [""])[0])
                 if poll is not None:
                     self._json(200, poll.public(q.get("v", [""])[0]))
+            elif path == "/anmelden":  # WLAN-Anmeldeseite (Spiele-WLAN): Mitspielen oder – mit Code – steuern
+                self._send(200, portal_page(server).encode(), "text/html; charset=utf-8")
             elif path == "/spiel":
                 from .game_page import GAME_PAGE
 

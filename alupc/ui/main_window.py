@@ -302,15 +302,6 @@ class MainWindow(QMainWindow):
         from PySide6.QtGui import QKeySequence, QShortcut
 
         QShortcut(QKeySequence("Ctrl+K"), self, activated=self.open_command_palette)
-        # Desktop-Widgets (Uhr, System, Musik, Sprach-/Lautstärke-Anzeige) auf Monitor 1
-        from .desktop_widgets import DesktopWidgets
-
-        self.desktop_widgets = DesktopWidgets(controller, lambda: (self.showNormal(), self.raise_(),
-                                                                   self.activateWindow(),
-                                                                   self.open_setup_section("Desktop-Widgets")))
-        controller.desktop_widgets = self.desktop_widgets
-        controller.widgets_toggle.connect(self.desktop_widgets.toggle)
-        QTimer.singleShot(0, self.desktop_widgets.apply)
         self._build_tray()
         controller.changed.connect(self.refresh)
         controller.games_changed.connect(self.refresh)
@@ -615,6 +606,15 @@ class MainWindow(QMainWindow):
         wheel_menu = QMenu(self)
         wheel_menu.aboutToShow.connect(lambda: self._fill_wheel_menu(wheel_menu))
         self.t_wheel.set_menu(wheel_menu, split=True)
+        # Hotspot (normal): Klick = an/aus, Pfeil = Name/Passwort + WLAN-QR-Code
+        self.t_hotspot = self.tiles["hotspot"]
+        self.t_hotspot.activated.connect(self.toggle_hotspot)
+        hotspot_menu = QMenu(self)
+        hotspot_menu.addAction(icons.icon("wifi", theme.current().text, 18), "An / aus", self.toggle_hotspot)
+        hotspot_menu.addAction(icons.icon("qr", theme.current().text, 18), "Name, Passwort, QR-Code …",
+                               lambda: self.open_hotspot_dialog("normal"))
+        self.t_hotspot.set_menu(hotspot_menu, split=True)
+        c.hotspot_changed.connect(self.refresh)
         self.t_games = self.tiles["spiele"]
         self.t_games.activated.connect(self.open_games_window)
         games_menu = QMenu(self)
@@ -1051,6 +1051,20 @@ class MainWindow(QMainWindow):
         win.show()
         win.raise_()
         win.activateWindow()
+
+    def toggle_hotspot(self) -> None:
+        """Hotspot-Kachel: normalen Hotspot an/aus (dauert ein paar Sekunden – im Hintergrund)."""
+        from ..hotspot import hotspot
+        from .util import run_async
+
+        on = not (hotspot.running and hotspot.kind == "normal")
+        self.controller.message.emit("Hotspot startet …" if on else "Hotspot wird beendet …")
+        run_async(lambda: self.controller.set_hotspot(on, "normal"))
+
+    def open_hotspot_dialog(self, kind: str = "normal") -> None:
+        from .connect_dialog import HotspotDialog
+
+        HotspotDialog(self.controller, kind, self).exec()
 
     def _fill_games_menu(self, menu):
         from ..games import GAMES
@@ -1764,6 +1778,10 @@ class MainWindow(QMainWindow):
             (self.t_airplay, typ == "airplay" or (c.mode == "desktop" and c.desktop_note.startswith("iPhone"))),
         ]:
             tile.set_state(on, badge="AKTIV" if on else "")
+        from ..hotspot import hotspot
+
+        on = hotspot.running and hotspot.kind == "normal"
+        self.t_hotspot.set_state(on, badge="AN" if on else "")
         hub = c.cast.games
         self.t_games.set_state(hub is not None,
                                badge="" if hub is None else {"lobby": "LOBBY", "running": "LÄUFT",

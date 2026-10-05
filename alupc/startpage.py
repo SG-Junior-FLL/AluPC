@@ -31,6 +31,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "umfrage": ("poll", "Abstimmung", "Per Handy", "#22c55e", "handy"),
     "zufall": ("wheel", "Glücksrad", "Wer ist dran?", "#f59e0b", "schnell"),
     "spiele": ("gamepad", "Minispiele", "Handy = Controller", "#f43f5e", "handy"),
+    "hotspot": ("wifi", "Hotspot", "WLAN vom PC", "#0891b2", "handy"),
 }
 # Schwarz, Standbild, Bild-in-Bild sind jetzt Schalter oben beim Live-Bild – als Kachel nur noch auf Wunsch
 HIDDEN_BY_DEFAULT = {"freeze", "black", "pip", "draw"}
@@ -124,7 +125,7 @@ TILE_ICONS = {
     "pip": "Bild-in-Bild", "home": "Haus", "lock": "Schloss", "power": "Ein/Aus", "sun": "Sonne",
     "music": "Musik", "layers": "Ebenen", "board": "Whiteboard", "weather": "Wetter", "poll": "Abstimmung",
     "wheel": "Glücksrad", "gamepad": "Spiel", "gauge": "Tacho", "keyboard": "Tastatur", "download": "Download",
-    "search": "Suche", "sound": "Lautstärke", "phone": "Handy", "sliders": "Einstellungen",
+    "search": "Suche", "sound": "Lautstärke", "phone": "Handy", "sliders": "Einstellungen", "wifi": "WLAN",
 }
 
 TILE_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#64748b"]

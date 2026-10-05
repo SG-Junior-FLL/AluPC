@@ -130,8 +130,9 @@ class GamesWindow(QWidget):
         copy.setToolTip("Großer QR-Code zum Scannen (mit WLAN-Code, falls eingerichtet) – Link kopieren")
         copy.setFocusPolicy(Qt.NoFocus)
         copy.clicked.connect(self.show_connect)
-        wifi = button("WLAN / Hotspot …", "phone")
-        wifi.setToolTip("Eigenes WLAN für die Handys starten oder vorhandenes WLAN eintragen → WLAN-QR-Code in der Lobby")
+        wifi = button("Spiele-WLAN …", "wifi")
+        wifi.setToolTip("Eigenes WLAN für die Spiele: Handys verbinden sich und landen direkt in der Spielsteuerung. "
+                        "Geht aus, wenn die Minispiele beendet werden.")
         wifi.setFocusPolicy(Qt.NoFocus)
         wifi.clicked.connect(self.open_wifi)
         stop = button("Minispiele beenden", "x", danger=True)
@@ -181,9 +182,9 @@ class GamesWindow(QWidget):
                       parent=self).exec()
 
     def open_wifi(self) -> None:
-        from .connect_dialog import WifiDialog
+        from .connect_dialog import HotspotDialog
 
-        WifiDialog(self.controller, self).exec()
+        HotspotDialog(self.controller, "spiele", self).exec()
 
     def hub(self):
         return self.controller.cast.games

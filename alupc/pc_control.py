@@ -78,8 +78,6 @@ def pc_intent(words: list[str], alupc_words: set[str] | None = None) -> tuple[st
     „Timer“ …) – „öffne die Kamera“ bleibt dann AluPCs Kamera."""
     said = " ".join(words)
     ws = set(words)
-    if ws & {"widgets", "widget", "desktopwidgets"}:  # Desktop-Widgets an/aus
-        return "widgets", "Desktop-Widgets"
     pc = bool(ws & {"computer", "pc", "rechner", "laptop"})
     # --- Ein/Aus
     if pc and ws & {"herunterfahren", "runterfahren", "ausschalten", "abschalten", "ausmachen", "aus", "shutdown"} \
@@ -336,6 +334,56 @@ def _start_menu() -> dict[str, str]:
     return found
 
 
+def installed_apps() -> list[tuple[str, str]]:
+    """Installierte Programme dieses Systems: [(Anzeigename, Startzeile)] – für „Programm hinzufügen“.
+    Linux: .desktop-Dateien (Startzeile = Pfad der .desktop-Datei), Windows: Startmenü-Verknüpfungen (.lnk)."""
+    apps: dict[str, tuple[str, str]] = {}
+    if sys.platform.startswith("win"):
+        roots = [Path(os.environ.get("ProgramData", r"C:\ProgramData")) / r"Microsoft\Windows\Start Menu\Programs",
+                 Path(os.environ.get("APPDATA", "")) / r"Microsoft\Windows\Start Menu\Programs"]
+        for root in roots:
+            try:
+                for f in root.rglob("*.lnk"):
+                    low = f.stem.lower()
+                    if any(w in low for w in ("uninstall", "deinstall", "readme", "hilfe", "help")):
+                        continue
+                    apps.setdefault(low, (f.stem, str(f)))
+            except OSError:
+                continue
+    else:
+        dirs = [Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "applications"]
+        dirs += [Path(d) / "applications" for d in
+                 os.environ.get("XDG_DATA_DIRS", "/usr/local/share:/usr/share").split(":")]
+        dirs += [Path("/var/lib/flatpak/exports/share/applications"),
+                 Path.home() / ".local/share/flatpak/exports/share/applications"]
+        for d in dirs:
+            try:
+                files = sorted(d.glob("*.desktop"))
+            except OSError:
+                continue
+            for f in files:
+                try:
+                    text = f.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                if "NoDisplay=true" in text or "Type=Application" not in text:
+                    continue
+                name = next((ln.split("=", 1)[1] for ln in text.splitlines() if ln.startswith("Name[de]=")), "") or \
+                    next((ln.split("=", 1)[1] for ln in text.splitlines() if ln.startswith("Name=")), f.stem)
+                apps.setdefault(name.lower(), (name, str(f)))
+    return sorted(apps.values(), key=lambda a: a[0].lower())
+
+
+def _launch_desktop(path: str) -> bool:
+    """Linux: Programm aus einer .desktop-Datei starten (wie das Startmenü)."""
+    stem = Path(path).stem
+    for tool in (["gtk-launch", stem], ["kioclient", "exec", path], ["kioclient5", "exec", path],
+                 ["gio", "launch", path]):
+        if shutil.which(tool[0]) and _spawn(tool):
+            return True
+    return False
+
+
 def find_app(name: str, entries: dict[str, str]) -> str | None:
     key = fold(name)
     if key in entries:
@@ -399,6 +447,8 @@ def run_line(line: str) -> tuple[bool, str]:
                 return True, ""
             return False, f"Windows findet „{line}“ nicht ({exc.strerror or exc})"
     # Linux
+    if expanded.endswith(".desktop") and Path(expanded).is_file():  # Programm-Kachel aus „Programm hinzufügen“
+        return (True, "") if _launch_desktop(expanded) else (False, "Programm startet nicht")
     if is_target and shutil.which("xdg-open"):  # Datei, Ordner, Webseite, URI → Standardprogramm
         return (True, "") if _spawn(["xdg-open", expanded]) else (False, "xdg-open startet nicht")
     try:

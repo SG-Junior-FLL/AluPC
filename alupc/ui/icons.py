@@ -450,6 +450,12 @@ def _draw(name: str, p: QPainter, color: QColor):
         # Funkwellen
         p.drawArc(QRectF(15.5, 7, 6, 6), -60 * 16, 120 * 16)
         p.drawArc(QRectF(15, 4.5, 9, 11), -55 * 16, 110 * 16)
+    elif name == "wifi":  # WLAN: drei Bögen über einem Punkt
+        for r in (3.5, 7, 10.5):
+            p.drawArc(QRectF(12 - r, 18.5 - r, 2 * r, 2 * r), 45 * 16, 90 * 16)
+        p.setBrush(fill)
+        p.drawEllipse(QPointF(12, 18.5), 1.3, 1.3)
+        p.setBrush(Qt.NoBrush)
     elif name == "pause":
         p.setBrush(fill)
         p.drawRoundedRect(QRectF(6.5, 5, 3.8, 14), 1, 1)
