@@ -130,3 +130,26 @@ def test_run_tile_uses_command_for_this_system(env, monkeypatch):  # noqa: F811
     from alupc.startpage import describe_action
 
     assert describe_action(tile["action"]).startswith("Ausführen: ")
+
+
+def test_wayland_keys_and_mouse_via_ydotool(monkeypatch):
+    if not sys.platform.startswith("linux"):
+        pytest.skip("Linux")
+    import subprocess
+
+    from alupc.platform import keys
+
+    calls = []
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
+    monkeypatch.setattr("shutil.which", lambda n: "/usr/bin/ydotool" if n == "ydotool" else None)
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd) or
+                        subprocess.CompletedProcess(cmd, 0, b"", b""))
+    assert keys.available() and keys.send("weiter")
+    assert calls[-1] == ["/usr/bin/ydotool", "key", "109:1", "109:0"]  # Bild ab
+    assert keys.combo("F4", ("Alt_L",))
+    assert calls[-1] == ["/usr/bin/ydotool", "key", "56:1", "62:1", "62:0", "56:0"]  # Alt+F4
+    assert keys.click("rechts") and calls[-1] == ["/usr/bin/ydotool", "click", "0xC1"]
+    assert keys.scroll(-3) and calls[-1][-1] == "-3"
+    assert keys.move(5, -2) and calls[-1] == ["/usr/bin/ydotool", "mousemove", "-x", "5", "-y", "-2"]
+    monkeypatch.setattr("shutil.which", lambda n: None)
+    assert not keys.available()  # ohne ydotool ehrlich „geht nicht“

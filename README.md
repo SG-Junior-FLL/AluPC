@@ -396,6 +396,15 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   **Schere, Stein, Papier** (alle gegen alle). Spiele-Fenster → **WLAN / Hotspot**: eigenes WLAN starten
   (Linux: NetworkManager; Windows: Mobiler Hotspot) oder vorhandenes WLAN eintragen – die Lobby zeigt dann
   **① WLAN-QR-Code** und **② Spiel-QR-Code**: Handy scannt beide, nichts abtippen.
+- **Ausführen-Kacheln (wie Win+R)**: eigene Kachel → „Ausführen“: Programm, Programm mit Argumenten, Datei,
+  Ordner, Webseite oder URI (`ms-settings:`) – ein Befehl für beide Systeme oder getrennt für Windows und Linux
+  (Dual-Boot: die Kachel gibt es auf beiden). Auch in der Befehlssuche: `>` davor, z. B. `> notepad`.
+- **Dual-Boot-Abgleich zuverlässiger**: Haben beide Systeme Verschiedenes geändert, wird zusammengeführt (vorher
+  gewann eine Seite ganz). Ordner woanders eingehängt (Linux-Pfad oder Laufwerksbuchstabe geändert) → wird
+  wiedergefunden. Abgleich zusätzlich jede Minute. Findet AluPC beim Start den Ordner des anderen Systems, verbindet
+  es sich ohne Klicken.
+- **Linux mit Wayland**: Handy als Fernbedienung/Touchpad und „Fenster schließen“ gehen jetzt über `ydotool`
+  (empfohlenes Paket; der Dienst `ydotoold` muss laufen).
 - **QR-Codes besser scannbar**: 4 Module weißer Rand (Norm), jedes Modul gleich viele ganze Pixel, stehen still,
   in der App größer und per Klick bildschirmgroß.
 

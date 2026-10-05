@@ -192,15 +192,92 @@ def _set_state(config, **changes) -> None:
     config.save()
 
 
-def sync_once(config) -> tuple[str, list[str]]:
-    """Einmal abgleichen. Rückgabe: (Meldung, übernommene Schlüssel)."""
+def _base_path(config) -> Path:
+    """Stand des letzten Abgleichs (für das Zusammenführen, wenn beide Seiten geändert haben)."""
+    p = Path(config.path)
+    return p.with_name(f"{p.stem}-sync-base.json")
+
+
+def _load_base(config) -> dict:
+    try:
+        data = json.loads(_base_path(config).read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_base(config, data: dict) -> None:
+    try:
+        _base_path(config).write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def merge(base: dict, local: dict, remote: dict) -> tuple[list[str], list[str]]:
+    """Dreiwege-Abgleich je Bereich: (vom anderen System übernehmen, Konflikte – beide geändert).
+    Nur das andere System hat geändert → übernehmen; nur hier geändert → behalten; beide → hier gewinnt."""
+    take, conflicts = [], []
+    for key in sorted(set(local) | set(remote)):
+        lv, rv, bv = local.get(key), remote.get(key), base.get(key)
+        if lv == rv or rv is None:
+            continue
+        if lv == bv:
+            take.append(key)
+        elif rv != bv:
+            conflicts.append(key)
+    return take, conflicts
+
+
+def resolve_folder(config, mount: bool = True) -> Path | None:
+    """Sync-Ordner finden – auch wenn er woanders eingehängt ist als beim letzten Mal (Linux hängt Laufwerke
+    je nach Name/UUID unter /run/media/… oder /media/… ein, Windows-Laufwerksbuchstaben können wechseln)."""
+    s = config.data["sync"]
+    folder = Path(s.get("folder") or "")
+    if s.get("folder") and folder.is_dir():
+        if not IS_WINDOWS and s.get("device") and not s.get("rel"):  # Lage im Laufwerk merken
+            root = mount_point_of(folder)
+            if root:
+                rel = os.path.relpath(folder, root)
+                config.data["sync"] = {**s, "rel": rel}
+        return folder
+    if not IS_WINDOWS and s.get("device"):
+        root = mount_point_of_device(s["device"]) or (mount_device(s["device"], interactive=False) if mount else None)
+        if root:
+            candidate = Path(root) / (s.get("rel") or FOLDER_NAME)
+            if candidate.is_dir():
+                config.data["sync"] = {**s, "folder": str(candidate)}
+                return candidate
+    for candidate in find_existing():  # anderes Laufwerk/anderer Buchstabe: vorhandenen Sync-Ordner nehmen
+        config.data["sync"] = {**config.data["sync"], "folder": str(candidate)}
+        return candidate
+    return None
+
+
+def auto_setup(config) -> Path | None:
+    """Noch nie eingerichtet, aber das andere System hat schon einen Sync-Ordner angelegt → automatisch
+    verbinden (Dual-Boot ohne Klicken). Wer den Abgleich einmal selbst ausgeschaltet hat, bleibt aus."""
+    s = config.data["sync"]
+    if s.get("enabled") or s.get("folder") or s.get("declined"):
+        return None
+    found = find_existing()
+    if not found:
+        return None
+    folder = found[0]
+    config.data["sync"] = {**s, "enabled": True, "folder": str(folder), "device": device_of(folder), "rel": "",
+                           "base_rev": 0, "base_hash": "", "status": "Automatisch eingerichtet."}
+    config.save()
+    return folder
+
+
+def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
+    """Einmal abgleichen. Rückgabe: (Meldung, übernommene Schlüssel). mount=False: kein Einhängen versuchen
+    (für den regelmäßigen Abgleich im Hintergrund – Einhängen kann einige Sekunden dauern)."""
     s = config.data["sync"]
     if not s.get("enabled") or not s.get("folder"):
         return "Abgleich ist aus.", []
-    folder = Path(s["folder"])
-    if not folder.is_dir():
-        mount_device(s.get("device", ""), interactive=False)
-    if not folder.is_dir():
+    folder = resolve_folder(config, mount)
+    s = config.data["sync"]
+    if folder is None:
         msg = "Ordner nicht erreichbar – ist das Windows-Laufwerk eingehängt?" if not IS_WINDOWS else \
             "Ordner nicht erreichbar."
         if s.get("status") != msg:
@@ -214,30 +291,46 @@ def sync_once(config) -> tuple[str, list[str]]:
     base_rev, dirty = int(s.get("base_rev", 0)), local_hash != s.get("base_hash")
     first = not s.get("base_hash")  # zum ersten Mal verbunden → die vorhandenen Einstellungen übernehmen
     now = time.strftime("%d.%m. %H:%M")
+    changed: list[str] = []
     try:
         if remote and remote_rev > base_rev and (not dirty or first):
             changed = apply_payload(config, remote["data"])
+            _save_base(config, remote["data"])
             _set_state(config, base_rev=remote_rev, base_hash=payload_hash(payload(config)), last=now,
                        status=f"Übernommen von {remote.get('system', '?')} ({remote.get('written', '')}).")
             return config.data["sync"]["status"], changed
         if dirty or not remote:
-            if remote and remote_rev > base_rev:  # beide Seiten geändert → andere Fassung sichern
-                backup = folder / f"alupc-sync-sicherung-{remote_rev}-{remote.get('system', 'x')}.json"
-                shutil.copyfile(path, backup)
-                note = f" Die Änderungen von {remote.get('system', '?')} liegen als Sicherung daneben."
-            else:
-                note = ""
+            note = ""
+            if remote and remote_rev > base_rev:  # beide Seiten haben geändert → je Bereich zusammenführen
+                take, conflicts = merge(_load_base(config), local, remote["data"])
+                if take:
+                    changed = apply_payload(config, remote["data"], take)
+                    local = payload(config)
+                    local_hash = payload_hash(local)
+                if conflicts:
+                    backup = folder / f"alupc-sync-sicherung-{remote_rev}-{remote.get('system', 'x')}.json"
+                    shutil.copyfile(path, backup)
+                    note = f" Die Änderungen von {remote.get('system', '?')} liegen als Sicherung daneben."
+                if take:
+                    note = f" Zusammengeführt: {len(take)} Bereich(e) von {remote.get('system', '?')} übernommen." \
+                        + note
+                # Stand des anderen Systems ist jetzt bekannt – fürs nächste Zusammenführen merken
+                _save_base(config, remote["data"])
+                _set_state(config, base_rev=remote_rev)
             rev = max(remote_rev, base_rev) + 1
             _write(path, rev, local)
+            _save_base(config, local)
             _set_state(config, base_rev=rev, base_hash=local_hash, last=now, status="Gespeichert." + note)
-            return config.data["sync"]["status"], []
+            return config.data["sync"]["status"], changed
     except OSError as exc:
         msg = f"Schreiben nicht möglich: {exc.strerror or exc}"
         if not IS_WINDOWS and getattr(exc, "errno", 0) == 30:  # EROFS
             msg = ("Windows-Laufwerk ist nur lesbar – in Windows „Schnellstart“ ausschalten "
                    "(Energieoptionen) und Windows einmal richtig herunterfahren.")
+            if changed:
+                msg = "Änderungen von Windows übernommen. " + msg
         _set_state(config, status=msg)
-        return msg, []
+        return msg, changed
     return "Alles aktuell.", []
 
 
@@ -302,6 +395,29 @@ def unmounted_partitions() -> list[dict]:
 
     walk(devices)
     return result
+
+
+def mount_point_of(folder: str | Path) -> str:
+    """Linux: Einhängepunkt des Laufwerks, auf dem `folder` liegt."""
+    if IS_WINDOWS or not shutil.which("findmnt"):
+        return ""
+    try:
+        return subprocess.run(["findmnt", "-n", "-o", "TARGET", "--target", str(folder)],
+                              capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def mount_point_of_device(uuid: str) -> str:
+    """Linux: wo ist die Partition mit dieser UUID gerade eingehängt? (leer = gar nicht)"""
+    if IS_WINDOWS or not uuid or not shutil.which("findmnt") or not re.fullmatch(r"[\w-]+", uuid):
+        return ""
+    try:
+        out = subprocess.run(["findmnt", "-n", "-o", "TARGET", "--source", f"UUID={uuid}"],
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+        return out.splitlines()[0] if out else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
 
 
 def device_of(folder: str | Path) -> str:

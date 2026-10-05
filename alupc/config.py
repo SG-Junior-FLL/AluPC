@@ -141,7 +141,7 @@ DEFAULTS: dict = {
              "allow": {"senden": True, "steuern": True, "live": True, "laser": True}},
     # Dual-Boot-Abgleich (Windows ↔ Linux) über einen gemeinsamen Ordner, siehe settings_sync.py
     "sync": {"enabled": False, "folder": "", "base_rev": 0, "base_hash": "", "device": "", "last": "",
-             "status": ""},
+             "status": "", "rel": "", "declined": False},
     # RGB-Beleuchtung über OpenRGB (siehe rgb.py / rgb_manager.py)
     "rgb": {"enabled": False, "port": 6742, "mode": "farbe", "color": "#3b82f6", "brightness": 100,
             "skip": [], "openrgb_path": "", "start_openrgb": True},

@@ -24,11 +24,52 @@ KEYS = {
 }
 
 
+# Wayland: Programme dürfen keine Tasten an andere Fenster schicken – außer über ydotool (uinput, braucht den
+# Dienst „ydotoold“). Linux-Tastencodes (input-event-codes.h) für ydotool:
+EVDEV = {"weiter": 109, "zurueck": 104, "rechts": 106, "links": 105, "start": 63, "ende": 1, "schwarz": 48,
+         "leer": 57, "F4": 62, "Tab": 15, "d": 32, "Alt_L": 56, "Super_L": 125}
+
+
+def _wayland() -> bool:
+    return os.environ.get("XDG_SESSION_TYPE") == "wayland" or bool(os.environ.get("WAYLAND_DISPLAY"))
+
+
+def _ydotool(names: list[str]) -> bool:
+    """Tasten (gleichzeitig gedrückt, dann in umgekehrter Reihenfolge los) über ydotool senden."""
+    import shutil
+    import subprocess
+
+    tool = shutil.which("ydotool")
+    codes = [EVDEV.get(n) for n in names]
+    if not tool or None in codes:
+        return False
+    args = [f"{c}:1" for c in codes] + [f"{c}:0" for c in reversed(codes)]
+    try:
+        return subprocess.run([tool, "key", *args], capture_output=True, timeout=3).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def _ydotool_raw(args: list[str]) -> bool:
+    import shutil
+    import subprocess
+
+    tool = shutil.which("ydotool")
+    if not tool:
+        return False
+    try:
+        return subprocess.run([tool, *args], capture_output=True, timeout=3).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def available() -> bool:
     if sys.platform.startswith("win"):
         return True
-    if os.environ.get("XDG_SESSION_TYPE") == "wayland" or os.environ.get("WAYLAND_DISPLAY"):
-        return False
+    if _wayland():
+        import shutil
+
+        return shutil.which("ydotool") is not None
     return bool(ctypes.util.find_library("Xtst")) and bool(os.environ.get("DISPLAY"))
 
 
@@ -44,6 +85,8 @@ def send(name: str) -> bool:
         return True
     if not available():
         return False
+    if _wayland():
+        return _ydotool([name])
     x11, xtst = _x11()
     display = x11.XOpenDisplay(None)
     if not display:
@@ -64,6 +107,8 @@ def combo(key: str, mods: tuple[str, ...] = ()) -> bool:
     """X11: Tastenkombination per Keysym-Namen („F4“ mit („Alt_L“,)). False = geht hier nicht (Wayland …)."""
     if sys.platform.startswith("win") or not available():
         return False
+    if _wayland():
+        return _ydotool([*mods, key])
     x11, xtst = _x11()
     x11.XStringToKeysym.argtypes = [ctypes.c_char_p]
     x11.XStringToKeysym.restype = ctypes.c_ulong
@@ -112,6 +157,8 @@ def click(button: str = "links") -> bool:
         user32.mouse_event(down, 0, 0, 0, 0)
         user32.mouse_event(up, 0, 0, 0, 0)
         return True
+    if _wayland():  # ydotool: 0xC0 = links drücken+loslassen, 0xC1 rechts, 0xC2 Mitte
+        return _ydotool_raw(["click", {1: "0xC0", 3: "0xC1", 2: "0xC2"}[xbutton]])
     return _x11_buttons([xbutton])
 
 
@@ -123,7 +170,16 @@ def scroll(steps: int) -> bool:
     if sys.platform.startswith("win"):
         ctypes.windll.user32.mouse_event(0x0800, 0, 0, ctypes.c_uint32(120 * steps & 0xFFFFFFFF).value, 0)
         return True
+    if _wayland():
+        return _ydotool_raw(["mousemove", "--wheel", "-x", "0", "-y", str(steps)])
     return _x11_buttons([4 if steps > 0 else 5] * abs(steps))
+
+
+def move(dx: int, dy: int) -> bool:
+    """Mauszeiger relativ bewegen – nur für Wayland nötig (sonst setzt Qt die Position direkt)."""
+    if not _wayland():
+        return False
+    return _ydotool_raw(["mousemove", "-x", str(int(dx)), "-y", str(int(dy))])
 
 
 def _x11_buttons(buttons: list[int]) -> bool:

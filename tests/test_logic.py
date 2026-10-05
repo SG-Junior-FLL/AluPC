@@ -537,9 +537,52 @@ def test_dual_boot_sync(tmp_path):
     msg, _ = ss.sync_once(lin)
     assert "Sicherung" in msg and list(shared.glob("alupc-sync-sicherung-*.json"))
     assert ss.sync_once(win)[1] == ["timer"] and win["timer"]["minutes"] == 9
-    # Ordner fehlt → verständliche Meldung, nichts kaputt
+    # Beide ändern VERSCHIEDENES → zusammenführen, nichts geht verloren
+    win["timer"] = {**win["timer"], "size": 40}
+    ss.sync_once(win)
+    lin["appearance"] = {**lin["appearance"], "accent": "rot"}
+    msg, changed = ss.sync_once(lin)
+    assert "Zusammengeführt" in msg and changed == ["timer"] and lin["timer"]["size"] == 40
+    assert lin["appearance"]["accent"] == "rot"
+    assert ss.sync_once(win)[1] == ["appearance"] and win["appearance"]["accent"] == "rot"
+    assert win["timer"]["size"] == 40
+    # Ordner woanders eingehängt (Linux: anderer Pfad) → vorhandenen Sync-Ordner wiederfinden
+    moved = tmp_path / "D" / ss.FOLDER_NAME
+    moved.parent.mkdir()
+    shared.rename(moved)
     lin.data["sync"]["folder"] = str(tmp_path / "gibtsnicht")
-    assert "nicht erreichbar" in ss.sync_once(lin)[0]
+    import alupc.settings_sync as mod
+
+    old = mod.drives
+    mod.drives = lambda: [str(tmp_path / "D")]
+    try:
+        assert "nicht erreichbar" not in ss.sync_once(lin)[0] and lin["sync"]["folder"] == str(moved)
+        # Ordner wirklich weg → verständliche Meldung, nichts kaputt
+        mod.drives = lambda: []
+        lin.data["sync"]["folder"] = str(tmp_path / "gibtsnicht")
+        assert "nicht erreichbar" in ss.sync_once(lin)[0]
+    finally:
+        mod.drives = old
+
+
+def test_sync_auto_setup(tmp_path, monkeypatch):
+    """Das andere System hat schon einen Sync-Ordner → beim Start ohne Klicken verbinden (außer selbst abgeschaltet)."""
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    shared = tmp_path / "C" / ss.FOLDER_NAME
+    win = Config(tmp_path / "win.json")
+    win.data["sync"] = {**win.data["sync"], "enabled": True, "folder": str(shared)}
+    shared.mkdir(parents=True)
+    win["timer"] = {**win["timer"], "minutes": 12}
+    ss.sync_once(win)
+    monkeypatch.setattr(ss, "drives", lambda: [str(tmp_path / "C")])
+    lin = Config(tmp_path / "lin.json")
+    assert ss.auto_setup(lin) == shared and lin["sync"]["enabled"]
+    assert "start_page" not in ss.sync_once(lin)[1] and lin["timer"]["minutes"] == 12
+    other = Config(tmp_path / "other.json")
+    other.data["sync"] = {**other.data["sync"], "declined": True}
+    assert ss.auto_setup(other) is None and not other["sync"]["enabled"]
 
 
 def test_sync_ignores_clock_and_status_changes(tmp_path):

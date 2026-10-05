@@ -161,6 +161,11 @@ class Controller(QObject):
         self._syncing = False
         self._sync_timer = QTimer(self, singleShot=True, interval=4000)
         self._sync_timer.timeout.connect(self.run_sync)
+        # Regelmäßig abgleichen: Laufwerk später eingehängt, Änderung vom anderen System, Schreiben ging vorher nicht
+        self._sync_poll = QTimer(self, interval=60_000)
+        self._sync_poll.timeout.connect(lambda: self.config.data["sync"].get("enabled") and not self._syncing
+                                        and self.run_sync(mount=False))
+        self._sync_poll.start()
         config.listeners.append(self._config_saved)
         self.apply_output_settings()
 
@@ -637,12 +642,12 @@ class Controller(QObject):
         """Etwas außerhalb der Einstellungen hat sich geändert (z. B. Fingerabdruck-Namen) → bald abgleichen."""
         self._config_saved()
 
-    def run_sync(self) -> str:
+    def run_sync(self, mount: bool = True) -> str:
         from .settings_sync import sync_once
 
         self._syncing = True
         try:
-            msg, changed = sync_once(self.config)
+            msg, changed = sync_once(self.config, mount)
         except Exception as exc:  # noqa: BLE001
             msg, changed = f"Abgleich fehlgeschlagen: {exc}", []
         finally:
@@ -791,12 +796,14 @@ class Controller(QObject):
         elif "scroll" in req:
             ok = keys.scroll(int(req["scroll"]))
         else:
-            pos = QCursor.pos()
-            QCursor.setPos(pos.x() + round(float(req.get("dx", 0))), pos.y() + round(float(req.get("dy", 0))))
+            dx, dy = round(float(req.get("dx", 0))), round(float(req.get("dy", 0)))
+            if not keys.move(dx, dy):  # Wayland: nur über ydotool; X11/Windows: Qt setzt die Position
+                pos = QCursor.pos()
+                QCursor.setPos(pos.x() + dx, pos.y() + dy)
             ok = True
         if not ok and not getattr(self, "_mouse_hint", False):
             self._mouse_hint = True
-            self.message.emit("Handy-Klicks: unter Wayland nicht möglich (X11 nutzen)")
+            self.message.emit("Handy-Klicks: unter Wayland nur mit „ydotool“ (Paket ydotool + Dienst ydotoold)")
 
     def _phone_laser(self, x, y) -> None:
         """Laserpointer vom Handy (Finger auf dem Live-Bild)."""
@@ -896,7 +903,7 @@ class Controller(QObject):
                 from .platform import keys
 
                 if not keys.send(cmd.split(":", 1)[1]):
-                    self.message.emit("Handy-Tasten: unter Wayland nicht möglich (X11 nutzen)")
+                    self.message.emit("Handy-Tasten: unter Wayland nur mit „ydotool“ (Paket ydotool + Dienst ydotoold) oder X11")
             elif cmd.startswith("timer:"):  # Timer-Vorgabe vom Handy (Sekunden), gleich zeigen und starten
                 from .timer import clock
 
@@ -1956,6 +1963,7 @@ class Controller(QObject):
         except (RuntimeError, TypeError):
             pass
         self.rgb.shutdown()
+        self._sync_poll.stop()
         if self.config.data["sync"].get("enabled"):
             self._sync_timer.stop()
             self.run_sync()

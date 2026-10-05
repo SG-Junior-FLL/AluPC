@@ -126,7 +126,8 @@ def sync_group(page) -> QGroupBox:
     how = QLabel(
         "<b>1.</b> Einschalten · Windows-Laufwerk wählen<br>"
         "<b>2.</b> Auf dem anderen System: „Automatisch suchen“<br>"
-        "Danach automatisch bei jeder Änderung")
+        "Danach automatisch: beim Start, nach jeder Änderung und jede Minute. Findet AluPC beim Start den "
+        "Ordner des anderen Systems, verbindet es sich selbst.")
     how.setWordWrap(True)
     lay.addWidget(how)
     status = Banner("", "info")
@@ -171,7 +172,8 @@ def sync_group(page) -> QGroupBox:
             return
         existing = ss.sync_file(folder).is_file()
         config.data["sync"] = {**config.data["sync"], "enabled": True, "folder": str(folder),
-                               "device": ss.device_of(folder), "base_rev": 0, "base_hash": "", "status": ""}
+                               "device": ss.device_of(folder), "rel": "", "base_rev": 0, "base_hash": "",
+                               "status": "", "declined": False}
         config.save()
         msg = controller.run_sync()
         refresh()
@@ -221,7 +223,8 @@ def sync_group(page) -> QGroupBox:
         menu.popup(mount.mapToGlobal(mount.rect().bottomLeft()))
 
     def toggle(on):
-        config.data["sync"] = {**config.data["sync"], "enabled": bool(on)}
+        # selbst ausgeschaltet → beim Start nicht wieder automatisch verbinden
+        config.data["sync"] = {**config.data["sync"], "enabled": bool(on), "declined": not on}
         config.save()
         if on and config.data["sync"].get("folder"):
             controller.run_sync()

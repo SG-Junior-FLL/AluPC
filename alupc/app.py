@@ -180,8 +180,9 @@ def main(argv=None) -> int:
 
     config = Config()
     try:  # Dual-Boot: Einstellungen vom anderen System übernehmen, bevor die Oberfläche entsteht
-        from .settings_sync import sync_once
+        from .settings_sync import auto_setup, sync_once
 
+        auto_setup(config)  # anderes System hat schon einen Sync-Ordner → ohne Klicken verbinden
         sync_once(config)
     except Exception:  # noqa: BLE001 - Abgleich darf den Start nie verhindern
         pass
