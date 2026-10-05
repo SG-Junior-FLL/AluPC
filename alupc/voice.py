@@ -100,7 +100,9 @@ GAME_NAMES = {
     "stroop": ("farb chaos", "farbchaos", "farben"), "simon": ("simon", "simon sagt"),
     "tauziehen": ("tauziehen", "tau ziehen"), "pong": ("pong", "ping pong"), "ballon": ("ballon", "luftballon"),
     "schlangen": ("schlangen", "schlange", "snake"), "reaktion": ("schnellster finger", "reaktion"),
-    "rennen": ("tipp rennen", "rennen", "wettrennen"),
+    "rennen": ("tipp rennen", "rennen", "wettrennen"), "quiz": ("quiz", "quizz"),
+    "lichtrenner": ("lichtrenner", "tron", "licht rennen"),
+    "ssp": ("schere stein papier", "schnick schnack schnuck"),
 }
 
 
@@ -123,6 +125,10 @@ sekunden stunde stunden halbe countdown stoppuhr start los neu plus minus länge
 mikrofon spät uhrzeit tag datum warm temperatur prozessor grafikkarte speicher geht dir witz danke hilfe frage
 runde teams mischen töne lobby pong schätzen malen raten simon tauziehen ballon schlangen rennen reaktion
 eins zwei drei vier fünf sechs sieben acht neun zehn elf zwölf fünfzehn zwanzig dreißig vierzig fünfzig sechzig
+achtzig hundert prozent lauter leiser lautstärke laut stumm ton fenster schließen minimieren maximieren screenshot
+bildschirmfoto herunterfahren herunter runter fahr ruhezustand öffnen firefox chrome browser youtube google suche
+such nach spotify discord steam nein abbrechen taschenrechner explorer dateien einstellungen editor wikipedia netflix
+wechseln quiz lichtrenner schere stein papier
 """.split()
 
 
@@ -415,6 +421,7 @@ class VoiceControl(QObject):
         self.direct = False  # Mikrofon-Schalter an: jeder Satz zählt, kein Startwort nötig
         self._temporary = False  # nur für den Mikrofon-Schalter gestartet (Sprachbefehle sonst aus)
         self.follow_until = 0.0  # bis dahin geht es ohne Startwort (nach einer Antwort)
+        self.confirm_until = 0.0  # bis dahin wartet eine Rückfrage auf „Ja“
         self._mute_until = 0.0  # Echo-Sperre: solange AluPC spricht, nichts auswerten
         self._reset = False
         self.stt = None  # genaue Erkennung (Whisper), falls eingeschaltet und heruntergeladen
@@ -816,6 +823,8 @@ class VoiceControl(QObject):
         rest = [w for w in rest if w not in TARGET_WORDS or len(rest) > 1]
         meaningful = [w for w in rest if w not in FILLERS and w not in ("hey", "hallo", "ok", "okay")]
         if not meaningful:
+            if time.monotonic() < self.confirm_until and any(w in ("ja", "ok", "okay") for w in rest):
+                return ("bestaetigen", "Ja"), False  # Antwort auf „Soll ich den PC wirklich …?“
             return None, True
         try:
             from .intents import understand

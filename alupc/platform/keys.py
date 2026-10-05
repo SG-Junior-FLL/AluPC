@@ -60,6 +60,30 @@ def send(name: str) -> bool:
         x11.XCloseDisplay(display)
 
 
+def combo(key: str, mods: tuple[str, ...] = ()) -> bool:
+    """X11: Tastenkombination per Keysym-Namen („F4“ mit („Alt_L“,)). False = geht hier nicht (Wayland …)."""
+    if sys.platform.startswith("win") or not available():
+        return False
+    x11, xtst = _x11()
+    x11.XStringToKeysym.argtypes = [ctypes.c_char_p]
+    x11.XStringToKeysym.restype = ctypes.c_ulong
+    display = x11.XOpenDisplay(None)
+    if not display:
+        return False
+    try:
+        codes = [x11.XKeysymToKeycode(display, x11.XStringToKeysym(n.encode())) for n in (*mods, key)]
+        if not all(codes):
+            return False
+        for c in codes:
+            xtst.XTestFakeKeyEvent(display, c, 1, 0)
+        for c in reversed(codes):
+            xtst.XTestFakeKeyEvent(display, c, 0, 0)
+        x11.XFlush(display)
+        return True
+    finally:
+        x11.XCloseDisplay(display)
+
+
 def _x11():
     x11 = ctypes.CDLL(ctypes.util.find_library("X11"))
     xtst = ctypes.CDLL(ctypes.util.find_library("Xtst"))

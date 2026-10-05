@@ -308,6 +308,19 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
     </div>
     <div class="row"><button onclick="cmd('musik_zeigen')">Läuft gerade zeigen</button></div>
   </div>
+  <div class="card" id="c-pc">
+    <h2>PC</h2>
+    <div class="row">
+      <button onclick="cmd('pc_leiser')">🔉 Leiser</button>
+      <button onclick="cmd('pc_lauter')">🔊 Lauter</button>
+      <button onclick="cmd('pc_stumm_an')">🔇 Stumm</button>
+    </div>
+    <div class="row">
+      <button onclick="cmd('pc_desktop')">Desktop</button>
+      <button onclick="cmd('pc_fenster_wechseln')">Fenster ⇄</button>
+      <button onclick="cmd('pc_screenshot')">📸 Foto</button>
+    </div>
+  </div>
   <div class="card" id="c-vol">
     <h2>Lautstärke <span id="vol-val"></span></h2>
     <input type="range" id="vol" min="0" max="100" step="5" oninput="$('vol-val').textContent = this.value + ' %'"

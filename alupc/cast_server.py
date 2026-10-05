@@ -39,7 +39,10 @@ ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirm
                     "timer_stopp", "ablauf_weiter", "ablauf_zurueck",
                     "musik_zeigen", "musik_pause", "musik_weiter", "musik_zurueck", "overlays", "gluecksrad", "gluecksrad_drehen", "wetter", "system",
                     "umfrage_zeigen", "umfrage_ende", "spiele", "whiteboard",
-                    "video_weiterschauen", "video_von_vorn"}  # Minispiele starten nur am PC
+                    "video_weiterschauen", "video_von_vorn",
+                    # PC: Systemlautstärke, Desktop, Fenster, Bildschirmfoto (Ein/Aus nur am PC – mit Rückfrage)
+                    "pc_lauter", "pc_leiser", "pc_stumm_an", "pc_stumm_aus", "pc_desktop", "pc_fenster_wechseln",
+                    "pc_screenshot"}  # Minispiele starten nur am PC
 MAX_FAILS = 10
 BLOCK_SECONDS = 60
 

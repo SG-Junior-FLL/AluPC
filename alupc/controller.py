@@ -1253,6 +1253,12 @@ class Controller(QObject):
 
     def run_command(self, command: str) -> None:
         command = command.strip()
+        if command.startswith("pc_") and command not in ("pc_herunterfahren", "pc_neustart", "pc_schlafen",
+                                                         "pc_abmelden"):
+            from . import pc_control
+
+            self.message.emit(pc_control.run(command))  # Lautstärke, Programme, Fenster … (Ein/Aus nur mit Rückfrage)
+            return
         if command.startswith("szene:"):
             name = command[6:]
             if self.config.get_scene(name):
@@ -1682,7 +1688,8 @@ class Controller(QObject):
         self.assistant.handle(command, label, text)
 
     # Befehle, die das Handy auch als Satz („Frag AluPC“) nicht auslösen darf – nur am PC
-    PHONE_FORBIDDEN = {"sperren", "zuhoeren", "zuhoeren_an", "zuhoeren_aus", "spiel_start"}
+    PHONE_FORBIDDEN = {"sperren", "zuhoeren", "zuhoeren_an", "zuhoeren_aus", "spiel_start", "pc_herunterfahren",
+                       "pc_neustart", "pc_schlafen", "pc_abmelden", "bestaetigen"}
 
     def ask(self, text: str, source: str = "pc") -> dict:
         """Getippten (oder diktierten) Satz verstehen und ausführen – wie ein Sprachbefehl, nur ohne Mikrofon.

@@ -206,6 +206,26 @@ def question(words: list[str]) -> tuple[str, str] | None:
 
 
 # --------------------------------------------------------------------------- verstehen
+YES = {"ja", "ja bitte", "jawohl", "ok", "okay", "mach", "mach es", "ja mach", "ja mach das", "bestaetigen",
+       "sicher", "genau", "ja klar", "klar", "ja genau", "mach das"}
+NO = {"nein", "abbrechen", "doch nicht", "nein danke", "lass es", "lieber nicht", "nicht", "stopp", "halt"}
+
+
+def alupc_words() -> set[str]:
+    """Themen, die AluPC selbst kann – „öffne die Kamera“ ist dann AluPCs Kamera, kein Programm."""
+    words = {"timer", "countdown", "stoppuhr", "wecker", "spiel", "spiele", "minispiel", "minispiele", "szene",
+             "szenen", "kamera", "whiteboard", "tafel", "gluecksrad", "rad", "abstimmung", "umfrage", "musik", "lied",
+             "licht", "rgb", "bildschirmschoner", "schoner", "airplay", "iphone", "handy", "qr", "wetter", "uhr",
+             "system", "systemstatus", "overlays", "zeichnen", "standbild", "schwarz", "monitor"}
+    for keys, _cmd, _label in SHOW:
+        words.update(k for k in keys if " " not in k and k not in ("spotify",))
+    for f in FEATURES:
+        words.update(f.words)
+    for names in GAME_NAMES.values():
+        words.update(fold(n) for n in names if " " not in fold(n))
+    return words
+
+
 def understand(words: list[str], scenes: list[str] | None = None,
                custom: list[dict] | None = None) -> tuple[str, str] | None:
     """Gefaltete Wörter (ohne Startwort) → (Befehl, Anzeige) oder None."""
@@ -227,6 +247,17 @@ def understand(words: list[str], scenes: list[str] | None = None,
             best = (score, c)
     if best[0] >= 0.8:
         return best[1]["do"], f"„{best[1]['say']}“"
+    # 1b) Rückfrage beantworten („Soll ich den PC wirklich herunterfahren?“ – „Ja“)
+    if said in YES:
+        return "bestaetigen", "Ja"
+    if said in NO:
+        return "abbrechen", "Nein"
+    # 1c) den ganzen PC steuern: Lautstärke, Programme, Webseiten, Fenster, Bildschirmfoto, Ein/Aus
+    from .pc_control import pc_intent
+
+    hit = pc_intent(words, alupc_words())
+    if hit:
+        return hit
     # 2) Fragen und Plaudern
     hit = question(words)
     if hit:

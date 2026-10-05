@@ -108,6 +108,7 @@ class Assistant:
     def __init__(self, controller):
         self.c = controller
         self.reply_seq = 0
+        self.pending: tuple[str, float] | None = None  # Befehl, der noch ein „Ja“ braucht (Herunterfahren …)
         self.last_reply = ""
         self.random = random.Random()
 
@@ -165,11 +166,16 @@ class Assistant:
         if reply:
             c.speaker.say(reply)
         if command != "zuhoeren_aus":
-            c.voice.listen_on(force=command == "frage:ja")  # nach „Ja?“ immer ohne Startwort weiter
+            from .pc_control import POWER
+
+            # nach „Ja?“ und nach einer Rückfrage („Wirklich herunterfahren?“) einmal ohne Startwort weiter
+            c.voice.listen_on(force=command == "frage:ja" or command in POWER)
         return reply
 
     def _run(self, command: str, label: str) -> str:
         c = self.c
+        if command.startswith("pc_") or command in ("bestaetigen", "abbrechen"):
+            return self._pc(command)
         if command.startswith("frage:"):
             return self.answer(command[6:])
         base, _, state = command.rpartition("_")
@@ -195,6 +201,28 @@ class Assistant:
                 "Mikrofon ist aus."
         c.run_command(command)
         return self.done_text(command, label)
+
+    CONFIRM_SECONDS = 20
+
+    def _pc(self, command: str) -> str:
+        """PC-Befehle; Herunterfahren & Co. erst nach „Ja“ (Rückfrage), damit nichts aus Versehen passiert."""
+        from . import pc_control
+
+        c = self.c
+        now = time.monotonic()
+        if command in pc_control.POWER:
+            self.pending = (command, now + self.CONFIRM_SECONDS)
+            c.voice.confirm_until = now + self.CONFIRM_SECONDS
+            return f"Soll ich den PC wirklich {pc_control.POWER[command]}? Sag „Ja“."
+        if command in ("bestaetigen", "abbrechen"):
+            pending, self.pending = self.pending, None
+            c.voice.confirm_until = 0.0
+            if pending is None or pending[1] < now:
+                return "Okay." if command == "abbrechen" else "Es gibt gerade nichts zu bestätigen."
+            if command == "abbrechen":
+                return "Okay, abgebrochen."
+            return pc_control.run(pending[0])
+        return pc_control.run(command)
 
     def done_text(self, command: str, label: str) -> str:
         if command in SHOW_TEXT:
