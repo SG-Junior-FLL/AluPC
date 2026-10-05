@@ -8,7 +8,13 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.100.0)
+### Neu in dieser Version (0.100.1)
+- **„Alle Daten löschen“ unter Windows repariert:** Es blieben `absturz.log` und der Ordner
+  `%APPDATA%\AluPC` übrig („wird von einem anderen Prozess verwendet“) – AluPC hielt das eigene
+  Absturz-Protokoll offen. Jetzt wird es vor dem Löschen geschlossen; klemmt noch eine Datei (z. B. vom
+  eingebauten Browser), versucht AluPC es einige Male erneut.
+
+### Neu in Version 0.100.0
 - **WLAN-Anmeldeseite jetzt auch unter Windows** – Linux und Windows machen es gleich: Spiele-WLAN starten →
   einmal bestätigen (Linux: Passwort, Windows: „Ja“ für Administrator) → Handys, die sich verbinden, bekommen
   „Im WLAN anmelden“ mit **Mitspielen** und **AluPC steuern** (Freigabe am PC). Nach dem Ausschalten (oder wenn

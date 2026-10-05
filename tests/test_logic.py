@@ -1087,11 +1087,35 @@ def test_reset_wipes_only_alupc_data(tmp_path, monkeypatch):
 
     # Nach dem Beenden: löschen, Reste melden, neu starten
     started = []
-    monkeypatch.setattr(reset, "wipe", lambda: ["gesperrt.log: benutzt"])
+    tries = []
+    monkeypatch.setattr(reset, "wipe", lambda: tries.append(1) or ["gesperrt.log: benutzt"])
     monkeypatch.setattr("subprocess.Popen",
                         lambda cmd, **kw: started.append(cmd))
-    reset.finish_and_restart()
+    reset.finish_and_restart(pause=0)
     assert started and (data / reset.LEFTOVER_FILE).read_text(encoding="utf-8") == "gesperrt.log: benutzt"
+    assert len(tries) == 6  # mehrmals versucht (Browser-Hilfsprozesse geben Dateien erst kurz danach frei)
+
+
+def test_reset_closes_own_crash_log_first(tmp_path, monkeypatch):
+    """Windows-Fehler: „absturz.log wird von einem anderen Prozess verwendet“ – AluPC hielt die Datei selbst offen."""
+    import faulthandler
+
+    from alupc import bug_report, reset
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "cfg"))
+    was_on = faulthandler.is_enabled()
+    log = tmp_path / "cfg" / "AluPC" / "absturz.log"
+    log.parent.mkdir(parents=True)
+    monkeypatch.setattr(bug_report, "_crash_file", open(log, "a", encoding="utf-8"))  # noqa: SIM115
+    seen = []
+    monkeypatch.setattr(reset, "wipe", lambda: seen.append(bug_report._crash_file) or [])
+    monkeypatch.setattr("subprocess.Popen", lambda cmd, **kw: None)
+    reset.finish_and_restart(pause=0)
+    assert seen == [None]  # beim Löschen ist die Datei schon zu
+    log.unlink()  # unter Windows ginge das nur mit geschlossener Datei
+    if was_on:
+        faulthandler.enable()
 
 
 def test_rtp_relay_remembers_keyframe():

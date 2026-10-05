@@ -94,6 +94,25 @@ def install() -> None:
 _crash_file = None
 
 
+def close_crash_log() -> None:
+    """Absturz-Protokoll schließen (vor „Alle Daten löschen“ – Windows löscht keine offenen Dateien)."""
+    global _crash_file
+    if _crash_file is None:
+        return
+    try:
+        import faulthandler
+
+        faulthandler.disable()
+    except Exception:  # noqa: BLE001
+        pass
+    if _crash_file is not None:
+        try:
+            _crash_file.close()
+        except OSError:
+            pass
+        _crash_file = None
+
+
 # --------------------------------------------------------------------------- Bericht bauen
 def default_folder() -> Path:
     from PySide6.QtCore import QStandardPaths

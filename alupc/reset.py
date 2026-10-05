@@ -90,8 +90,21 @@ def request(config) -> None:
     QApplication.quit()
 
 
-def finish_and_restart() -> None:
+def finish_and_restart(attempts: int = 6, pause: float = 0.5) -> None:
+    import time
+
+    try:  # eigene offene Dateien zuerst schließen (sonst: „wird von einem anderen Prozess verwendet“)
+        from .bug_report import close_crash_log
+
+        close_crash_log()
+    except Exception:  # noqa: BLE001
+        pass
     problems = wipe()
+    for _ in range(attempts - 1):  # Browser-Hilfsprozesse halten Dateien oft noch kurz offen → nochmal
+        if not problems:
+            break
+        time.sleep(pause)
+        problems = wipe()
     if problems:  # der neue Start zeigt, was nicht ging
         try:
             config_dir().mkdir(parents=True, exist_ok=True)
