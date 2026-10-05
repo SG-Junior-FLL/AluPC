@@ -612,6 +612,8 @@ class MainWindow(QMainWindow):
         self.t_hotspot.activated.connect(self.toggle_hotspot)
         hotspot_menu = QMenu(self)
         hotspot_menu.addAction(icons.icon("wifi", theme.current().text, 18), "An / aus", self.toggle_hotspot)
+        hotspot_menu.addAction(icons.icon("monitor", theme.current().text, 18), "WLAN-QR-Code auf Monitor 2",
+                               self.controller.show_wifi_qr)
         hotspot_menu.addAction(icons.icon("qr", theme.current().text, 18), "Name, Passwort, QR-Code …",
                                lambda: self.open_hotspot_dialog("normal"))
         self.t_hotspot.set_menu(hotspot_menu, split=True)

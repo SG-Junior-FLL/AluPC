@@ -1051,6 +1051,75 @@ class CastSource(QWidget):
         pass
 
 
+class WifiQrSource(QWidget):
+    """WLAN-QR-Code des Hotspots groß auf Monitor 2: Handy scannt → ist im WLAN (auch wenn es unsichtbar ist)."""
+
+    def __init__(self, cfg, parent=None):
+        super().__init__(parent)
+        from .screens import wifi_payload
+
+        self.ssid, self.password = cfg.get("ssid", ""), cfg.get("password", "")
+        self.hidden = bool(cfg.get("hidden"))
+        self._qr = qr_image(wifi_payload(self.ssid, self.password, self.hidden)) if self.ssid else None
+        self.setAttribute(Qt.WA_OpaquePaintEvent)
+
+    def paintEvent(self, _e):
+        from PySide6.QtGui import QLinearGradient
+
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+        grad = QLinearGradient(0, 0, w, h)
+        grad.setColorAt(0, QColor("#0b1220"))
+        grad.setColorAt(1, QColor("#083344"))
+        p.fillRect(self.rect(), grad)
+        if self._qr is None:
+            p.setPen(QColor("#e2e8f0"))
+            p.setFont(fitted_font(p, "Hotspot ist aus", w // 2, max(14, h // 14)))
+            p.drawText(self.rect(), Qt.AlignCenter, "Hotspot ist aus")
+            p.end()
+            return
+        horizontal = w > h * 1.25
+        if horizontal:
+            side = int(min(h * 0.66, w * 0.42))
+            qr_rect = QRectF(w * 0.08, (h - side) / 2, side, side)
+            text_rect = QRectF(qr_rect.right() + w * 0.06, h * 0.2, w - qr_rect.right() - w * 0.12, h * 0.6)
+        else:
+            side = int(min(w * 0.72, h * 0.5))
+            qr_rect = QRectF((w - side) / 2, h * 0.08, side, side)
+            text_rect = QRectF(w * 0.08, qr_rect.bottom() + h * 0.05, w * 0.84, h * 0.35)
+        pad = side * 0.05
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#ffffff"))
+        p.drawRoundedRect(qr_rect.adjusted(-pad, -pad, pad, pad), pad, pad)
+        draw_qr(p, qr_rect, self._qr)
+        lines = [("WLAN verbinden", "#ffffff", 0.13, True),
+                 ("QR-Code mit der Kamera-App scannen", "#cbd5e1", 0.065, False),
+                 ("", "", 0.04, False),
+                 (f"Name: {self.ssid}", "#67e8f9", 0.08, True),
+                 (f"Passwort: {self.password}" if self.password else "ohne Passwort", "#fbbf24", 0.08, True),
+                 ("unsichtbar – nur per QR-Code oder Name + Passwort" if self.hidden else "", "#94a3b8", 0.05,
+                  False),
+                 ("", "", 0.03, False),
+                 ("Danach: Mitspielen oder AluPC steuern", "#e2e8f0", 0.06, True)]
+        y = text_rect.y()
+        unit = text_rect.height() if horizontal else text_rect.height() * 1.2
+        for text, color, size, bold in lines:
+            px = max(10, int(unit * size))
+            if text:
+                font = fitted_font(p, text, int(text_rect.width()), px)
+                font.setBold(bold)
+                p.setFont(font)
+                p.setPen(QColor(color))
+                p.drawText(QRectF(text_rect.x(), y, text_rect.width(), px * 1.5),
+                           (Qt.AlignLeft if horizontal else Qt.AlignHCenter) | Qt.AlignVCenter, text)
+            y += px * 1.55
+        p.end()
+
+    def stop(self):
+        pass
+
+
 # --------------------------------------------------------------------------- Website
 def allow_autoplay(view) -> None:
     """Ton ohne Klick erlauben. Chromium spielt Videos/Musik sonst erst nach einem Klick auf die Seite mit Ton ab
@@ -1608,6 +1677,7 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             "window": KWinWindowSource if kwin_window_mode() else WindowSource,
             "airplay": AirPlaySource,
             "cast": CastSource,
+            "wlan": WifiQrSource,
             "website": WebsiteSource,
             "image": ImageSource,
             "video": VideoSource,

@@ -73,6 +73,7 @@ SOURCE_COLORS = {
     "clock": "#f59e0b", "countdown": "#f43f5e", "color": "#64748b", "scene": "#ec4899",
     "airplay": "#0ea5e9",
     "cast": "#8b5cf6",
+    "wlan": "#0891b2",
     "design": "#6366f1",
     "nowplaying": "#1db954",
     "system": "#06b6d4",

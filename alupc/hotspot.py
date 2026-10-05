@@ -1,6 +1,7 @@
 """Hotspot: der PC macht selbst ein WLAN auf. Zwei Arten:
 
-* **normal** – „Hotspot“-Kachel auf der Startseite: eigener Name/Passwort, an/aus wie ein Lichtschalter.
+* **normal** – „Hotspot“-Kachel auf der Startseite: eigener Name/Passwort, an/aus wie ein Lichtschalter – auch mit
+  Anmeldeseite (Mitspielen oder AluPC steuern mit Freigabe am PC).
 * **spiele** – Spiele-WLAN aus dem Minispiele-Fenster: offen (ohne Passwort, Linux) und mit **Anmeldeseite**:
   Wer sich verbindet, bekommt vom Handy sofort die „Im WLAN anmelden“-Seite – und das ist direkt die
   Spielsteuerung. Geht automatisch aus, wenn die Minispiele beendet werden.
@@ -155,7 +156,9 @@ def portal_script(dev: str, port: int, flag: Path, pid: int) -> str:
     """Root-Skript (Linux): Prüf-Adressen auf den Hotspot zeigen lassen (dnsmasq), Port 80 → AluPC, „bereit“
     melden, warten bis Flagge weg oder AluPC beendet, alles wieder entfernen. Läuft VOR dem Start des Hotspots,
     damit dnsmasq die Einträge beim Start liest."""
-    rule = f"-i {dev} -p tcp --dport 80 -j REDIRECT --to-ports {int(port)} -m comment --comment alupc-portal"
+    # Nur Anfragen AN den PC selbst (die Prüf-Adressen zeigen per dnsmasq hierher) – normales Surfen bleibt unberührt
+    rule = (f"-i {dev} -p tcp --dport 80 -m addrtype --dst-type LOCAL -j REDIRECT --to-ports {int(port)} "
+            "-m comment --comment alupc-portal")
     lines = "\\n".join(f"interface-name={h},{dev}" for h in PORTAL_HOSTS + WINDOWS_CHECK_HOSTS)
     return (f"mkdir -p {Path(DNSMASQ_CONF).parent} && printf '{lines}\\n' > {DNSMASQ_CONF}; "
             f"iptables -t nat -I PREROUTING {rule} || {{ rm -f {DNSMASQ_CONF}; exit 1; }}; "

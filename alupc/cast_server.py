@@ -357,7 +357,7 @@ class CastServer(QObject):
 
 
 def portal_page(server) -> str:
-    """Seite, die das Handy nach dem Verbinden mit dem Spiele-WLAN selbst öffnet („Im WLAN anmelden“).
+    """Seite, die das Handy nach dem Verbinden mit dem Hotspot/Spiele-WLAN selbst öffnet („Im WLAN anmelden“).
     Mitspielen geht ohne Code; AluPC steuern führt auf die Handy-Steuerung, die den 6-stelligen Code verlangt
     (steht am PC unter dem QR-Code) – wer nur im WLAN ist, kann also nichts am PC verändern."""
     import html
@@ -375,7 +375,7 @@ h1{{margin:0 0 6px;font-size:28px}}p{{margin:0 0 10px;color:#94a3b8;text-align:c
 font-weight:800;text-align:center;text-decoration:none;color:#fff;background:#1e293b;border:2px solid #334155}}
 .b small{{display:block;font-size:14px;font-weight:600;color:#cbd5e1;margin-top:4px}}
 .g{{background:linear-gradient(135deg,#6366f1,#ec4899);border:0}}.off{{opacity:.55}}</style></head>
-<body><h1>AluPC</h1><p>Du bist im Spiele-WLAN.</p>{game_btn}
+<body><h1>AluPC</h1><p>Du bist im WLAN von AluPC. Was möchtest du?</p>{game_btn}
 <a class="b" href="{html.escape(server.base())}">🔒 AluPC steuern<small>Am PC freigeben lassen (oder Code)</small></a>
 </body></html>"""
 

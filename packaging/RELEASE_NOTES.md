@@ -8,7 +8,16 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.100.1)
+### Neu in dieser Version (0.101.0)
+- **WLAN-QR-Code auf Monitor 2:** Hotspot-Kachel → Pfeil → „WLAN-QR-Code auf Monitor 2“ (oder im Hotspot-Fenster
+  „QR auf Monitor 2“). Groß, mit Name und Passwort – Handys scannen ihn von dort.
+- **Minispiele ohne WLAN-QR-Code:** Lobby auf Monitor 2 und „QR groß“ zeigen nur noch den Spiel-Code.
+- **Anmeldeseite auch beim normalen Hotspot:** WLAN-QR scannen → das Handy öffnet „Im WLAN anmelden“ →
+  **Mitspielen** (wenn Minispiele laufen) oder **AluPC steuern** (Freigabe am PC).
+- Linux: Umgeleitet werden nur noch Anfragen an den PC selbst – normales Surfen über den Hotspot bleibt unberührt.
+- Ehrlich: mit echten Handys noch nicht ausprobiert.
+
+### Neu in Version 0.100.1
 - **„Alle Daten löschen“ unter Windows repariert:** Es blieben `absturz.log` und der Ordner
   `%APPDATA%\AluPC` übrig („wird von einem anderen Prozess verwendet“) – AluPC hielt das eigene
   Absturz-Protokoll offen. Jetzt wird es vor dem Löschen geschlossen; klemmt noch eine Datei (z. B. vom

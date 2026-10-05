@@ -138,7 +138,7 @@ class Controller(QObject):
         from .cast_server import cast_server
 
         self.cast = cast_server(config)
-        self.cast.wifi_provider = self.guest_wifi  # WLAN-QR-Code in der Spiele-Lobby / „Handy verbinden“
+        # WLAN-QR-Code nicht mehr in der Spiele-Lobby – dafür „WLAN-QR-Code zeigen“ (Hotspot-Kachel/-Fenster)
         self.cast.request.connect(self._cast_request)
         from PySide6.QtCore import QTimer as _QTimer
 
@@ -1772,13 +1772,24 @@ class Controller(QObject):
 
         if on:
             hs = settings(self.config, kind)
-            ok, msg = hotspot.start(hs["ssid"], hs["password"], kind=kind, portal=kind == "spiele",
+            ok, msg = hotspot.start(hs["ssid"], hs["password"], kind=kind, portal=True,
                                     hidden=bool(hs.get("hidden", True)))
         else:
             ok, msg = hotspot.stop()
         self.message.emit(msg)
         self.hotspot_changed.emit()
         return ok, msg
+
+    def show_wifi_qr(self) -> bool:
+        """WLAN-QR-Code des laufenden Hotspots groß auf Monitor 2."""
+        from .hotspot import hotspot
+
+        if not hotspot.running:
+            self.message.emit("Hotspot ist aus – erst einschalten, dann den WLAN-QR-Code zeigen.")
+            return False
+        self.show_source({"type": "wlan", "ssid": hotspot.ssid, "password": hotspot.password,
+                          "hidden": hotspot.hidden}, remember=False)
+        return True
 
     def _stop_games_hotspot(self) -> None:
         """Minispiele beendet → Spiele-WLAN aus (im Hintergrund; der normale Hotspot bleibt an)."""

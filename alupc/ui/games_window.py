@@ -127,7 +127,7 @@ class GamesWindow(QWidget):
         right.addWidget(self.url)
         bottom = QHBoxLayout()
         copy = button("QR groß", "qr")
-        copy.setToolTip("Großer QR-Code zum Scannen (mit WLAN-Code, falls eingerichtet) – Link kopieren")
+        copy.setToolTip("Großer QR-Code zum Scannen – Link kopieren")
         copy.setFocusPolicy(Qt.NoFocus)
         copy.clicked.connect(self.show_connect)
         wifi = button("Spiele-WLAN …", "wifi")
@@ -178,7 +178,7 @@ class GamesWindow(QWidget):
         c = self.controller
         if c.cast.games is None:
             c.start_games()
-        ConnectDialog("Mitspielen", c.cast.games_url(), c.guest_wifi(), "Handy-Kamera auf den Code halten",
+        ConnectDialog("Mitspielen", c.cast.games_url(), None, "Handy-Kamera auf den Code halten",
                       parent=self).exec()
 
     def open_wifi(self) -> None:

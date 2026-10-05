@@ -100,8 +100,8 @@ class HotspotDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 18, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header(title, "Handys verbinden sich, gehen automatisch auf die Spielsteuerung · aus, wenn "
-                                         "die Spiele enden" if games else "Der PC macht ein eigenes WLAN auf", "wifi"))
+        lay.addWidget(page_header(title, "Eigenes WLAN für die Spiele · aus, wenn die Spiele enden" if games
+                                 else "Der PC macht ein eigenes WLAN auf", "wifi"))
         hs = settings(controller.config, kind)
         ok, why = supported()
         box = QFrame()
@@ -136,6 +136,10 @@ class HotspotDialog(QDialog):
         self.toggle.setEnabled(ok)
         self.toggle.clicked.connect(self._toggle)
         row.addWidget(self.toggle)
+        self.show_qr = button("QR auf Monitor 2", "monitor")
+        self.show_qr.setToolTip("WLAN-QR-Code groß auf Monitor 2 zeigen – Handys scannen ihn von dort")
+        self.show_qr.clicked.connect(controller.show_wifi_qr)
+        row.addWidget(self.show_qr)
         row.addStretch(1)
         self.pill = QLabel()  # Status als Pille: grün „AN“ / grau „AUS“
         self.pill.setAlignment(Qt.AlignCenter)
@@ -145,9 +149,9 @@ class HotspotDialog(QDialog):
         self.state.setObjectName("Muted")
         self.state.setWordWrap(True)
         bl.addWidget(self.state)
-        hint = QLabel(("Beim Start einmal bestätigen (Linux: Passwort, Windows: „Ja“) – für die Anmeldeseite. "
-                       if games else "")
-                      + "Das normale WLAN des PCs kann dabei getrennt werden.")
+        hint = QLabel("Beim Start einmal bestätigen (Linux: Passwort, Windows: „Ja“) – dann bekommen Handys "
+                      "die Anmeldeseite: Mitspielen oder AluPC steuern. Das normale WLAN des PCs kann dabei "
+                      "getrennt werden.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         bl.addWidget(hint)
@@ -201,6 +205,7 @@ class HotspotDialog(QDialog):
             self.pill.setStyleSheet(f"color:{color}; background:{t.soft(color, 0.14)}; border-radius:11px;"
                                     "padding:3px 12px; font-weight:700;")
             self.qr.setVisible(on)
+            self.show_qr.setEnabled(on)
             if on:
                 dpr = self.devicePixelRatioF()
                 self.qr.setPixmap(qr_pixmap(wifi_payload(hotspot.ssid, hotspot.password, hotspot.hidden), 220, dpr))

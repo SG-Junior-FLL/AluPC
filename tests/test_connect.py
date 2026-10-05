@@ -126,7 +126,8 @@ def test_server_url_uses_hotspot_ip(env):  # noqa: F811
     assert controller.guest_wifi() == ("Zuhause", "x", False)
 
 
-def test_lobby_shows_two_readable_codes(env, tmp_path):  # noqa: F811
+def test_lobby_shows_only_game_code(env, tmp_path):  # noqa: F811
+    """WLAN-QR-Code ist raus aus den Minispielen – dafür „WLAN-QR-Code auf Monitor 2“ beim Hotspot."""
     zx = pytest.importorskip("zxingcpp")
     pil = pytest.importorskip("PIL.Image")
     controller, _window, _ = env
@@ -139,8 +140,30 @@ def test_lobby_shows_two_readable_codes(env, tmp_path):  # noqa: F811
     path = tmp_path / "lobby.png"
     src.grab().save(str(path))
     texts = sorted(r.text for r in zx.read_barcodes(pil.open(path)))
-    assert texts == sorted([controller.cast.games_url(), wifi_payload("Zuhause", "geheim99")])
+    assert texts == [controller.cast.games_url()]
     src.stop()
+
+
+def test_wifi_qr_on_monitor2(env, tmp_path, monkeypatch):  # noqa: F811
+    zx = pytest.importorskip("zxingcpp")
+    pil = pytest.importorskip("PIL.Image")
+    controller, _window, _ = env
+    hs = hotspot.hotspot
+    monkeypatch.setattr(hs, "running", False)
+    assert controller.show_wifi_qr() is False  # aus → Hinweis statt leerer Seite
+    for k, v in (("running", True), ("kind", "normal"), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
+                 ("hidden", True), ("ip", "10.42.0.1")):
+        monkeypatch.setattr(hs, k, v)
+    assert controller.show_wifi_qr() and controller.content["type"] == "wlan"
+    from alupc.sources import WifiQrSource
+
+    src = WifiQrSource(controller.content)
+    src.resize(1280, 720)
+    path = tmp_path / "wlan.png"
+    src.grab().save(str(path))
+    texts = [r.text for r in zx.read_barcodes(pil.open(path))]
+    assert texts == [wifi_payload("AluPC", "k7pm2qa9xr", hidden=True)]
+
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux")
@@ -168,7 +191,8 @@ def test_open_games_network_and_portal_script():
     assert add[add.index("802-11-wireless.hidden") + 1] == "yes"  # unsichtbar (Standard)
     assert ["nmcli", "connection", "up", "AluPC-Spiele"] in calls
     script = hotspot.portal_script("wlp4s0", 8765, hotspot.Path("/run/user/1000/alupc-portal-1000"), 4242)
-    assert "-I PREROUTING -i wlp4s0 -p tcp --dport 80 -j REDIRECT --to-ports 8765" in script
+    assert "-I PREROUTING -i wlp4s0 -p tcp --dport 80 -m addrtype --dst-type LOCAL -j REDIRECT --to-ports 8765" \
+        in script  # nur Anfragen an den PC – normales Surfen über den Hotspot bleibt unberührt
     assert "kill -0 4242" in script and "-D PREROUTING" in script  # Regel wird wieder entfernt
     assert "interface-name=connectivitycheck.gstatic.com,wlp4s0" in script  # klappt auch ohne Internet
 
@@ -338,3 +362,12 @@ def test_phone_access_by_approval_on_pc(env, monkeypatch):  # noqa: F811
     assert call("GET", f"/api/freigabe?id={d2['id']}")[1] == {"state": "no"}
     controller.cast.forget_devices()
     assert controller.cast.check("1.2.3.4", st["key"]) is False
+
+
+def test_normal_hotspot_also_gets_login_page(env, monkeypatch):  # noqa: F811
+    """WLAN-QR scannen → Anmeldeseite (Mitspielen / AluPC steuern) – auch beim normalen Hotspot."""
+    controller, _window, _ = env
+    seen = {}
+    monkeypatch.setattr(hotspot.hotspot, "start", lambda *a, **k: (seen.update(k), (True, "läuft"))[1])
+    controller.set_hotspot(True, "normal")
+    assert seen["portal"] is True and seen["kind"] == "normal"
