@@ -42,7 +42,23 @@ def fail(msg):
     sys.exit(1)
 
 
+def listener_on_80():
+    out = subprocess.run(["powershell", "-NoProfile", "-Command",
+                          "Get-NetTCPConnection -LocalPort 80 -State Listen -ErrorAction SilentlyContinue | "
+                          "ForEach-Object { $_.LocalAddress + ' ' + $_.OwningProcess + ' ' + "
+                          "(Get-Process -Id $_.OwningProcess).ProcessName }"], capture_output=True, text=True)
+    return out.stdout.strip()
+
+
 def main():
+    busy = listener_on_80()
+    if busy:  # Runner: oft IIS/http.sys – wie auf einem normalen PC ohne Webserver: anhalten
+        print(f"::notice title=Port 80 vorher belegt::{busy}")
+        subprocess.run(["powershell", "-NoProfile", "-Command",
+                        "Stop-Service W3SVC,WAS -Force -ErrorAction SilentlyContinue; "
+                        "netsh http show servicestate view=requestq | Select-String 'URL' | Select-Object -First 5"])
+        busy = listener_on_80()
+        print(f"::notice title=Port 80 danach::{busy or 'frei'}")
     httpd = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     flag = Path(tempfile.gettempdir()) / "alupc-portal-ci"
@@ -50,8 +66,16 @@ def main():
     script = hotspot.portal_script_windows("127.0.0.1", PORT, flag, os.getpid())
     enc = base64.b64encode(script.encode("utf-16-le")).decode()
     proc = subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", enc])
-    if not hotspot._wait_ready(flag, proc, 60):
+    state = hotspot._wait_ready(flag, proc, 60)
+    if not state:
         fail(f"Skript meldet nicht „bereit“ (Rückgabe {proc.poll()})")
+    if state.startswith("belegt"):
+        flag.unlink()
+        proc.wait(20)
+        if busy:  # Port war wirklich schon belegt → richtig erkannt, mehr lässt sich hier nicht prüfen
+            print(f"::warning title=Anmeldeseite (Windows)::Port 80 belegt, Wächter meldet es richtig ({state})")
+            return
+        fail(f"Wächter meldet belegt, obwohl Port 80 frei war ({state})")
     hosts = Path(os.environ["SystemRoot"]) / "System32" / "drivers" / "etc" / "hosts"
     if "alupc-portal" not in hosts.read_text(errors="replace"):
         fail("hosts-Einträge fehlen")

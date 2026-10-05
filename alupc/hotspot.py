@@ -190,26 +190,42 @@ try {{
   netsh interface portproxy add v4tov4 listenport=80 listenaddress=$ip connectport={int(port)} connectaddress=$ip | Out-Null
   netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=TCP localport=80 | Out-Null
   ipconfig /flushdns | Out-Null
+  Start-Sleep -Milliseconds 800
+  # Port 80 schon von einem anderen Dienst belegt (z. B. IIS/http.sys)? Dann kommt die Prüfung nie bei AluPC an.
+  $helper = (Get-CimInstance Win32_Service -Filter "Name='iphlpsvc'").ProcessId
+  $other = @(Get-NetTCPConnection -LocalPort 80 -State Listen -ErrorAction SilentlyContinue |
+    Where-Object {{ $_.LocalAddress -in @($ip, '0.0.0.0', '::') -and $_.OwningProcess -ne $helper }})
+  if ($other.Count -gt 0) {{
+    $name = (Get-Process -Id $other[0].OwningProcess -ErrorAction SilentlyContinue).ProcessName
+    Set-Content -LiteralPath "$flag.ok" -Value ('belegt:' + $name)
+    return
+  }}
   Set-Content -LiteralPath "$flag.ok" -Value 'ok'
   while ((Test-Path -LiteralPath $flag) -and (Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue)) {{ Start-Sleep 2 }}
 }} finally {{ Clean }}
 """
 
 
-def _wait_ready(flag: Path, proc=None, timeout: float = 120, sleep=None) -> bool:
-    """Bis der Wächter „bereit“ meldet (Passwort/„Ja“ eingegeben) – oder abgebrochen wurde."""
+def _wait_ready(flag: Path, proc=None, timeout: float = 120, sleep=None) -> str:
+    """Bis der Wächter „bereit“ meldet (Passwort/„Ja“ eingegeben) – oder abgebrochen wurde.
+    Rückgabe: „ok“, „belegt:<Programm>“ (Windows: Port 80 schon belegt) oder leer."""
     import time
 
     ok = Path(f"{flag}.ok")
     end = time.monotonic() + timeout
     while time.monotonic() < end:
         if ok.exists():
+            try:
+                text = ok.read_text(encoding="utf-8", errors="replace").strip().lstrip("\ufeff") or "ok"
+            except OSError:
+                (sleep or time.sleep)(0.2)
+                continue
             ok.unlink(missing_ok=True)
-            return True
+            return text
         if proc is not None and proc.poll() is not None and not ok.exists():
-            return False  # Passwort-Abfrage abgebrochen / Fehler
+            return ""  # Passwort-Abfrage abgebrochen / Fehler
         (sleep or time.sleep)(0.3)
-    return False
+    return ""
 
 
 def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_ready,
@@ -230,8 +246,15 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
         if code != 0:
             flag.unlink(missing_ok=True)
             return False, "Anmeldeseite aus („Ja“ nicht bestätigt) – Handys nehmen den QR-Code."
-        if not wait(flag, None, 60):
+        state = wait(flag, None, 60)
+        if state is True:
+            state = "ok"
+        if not state or str(state).startswith("belegt"):
             flag.unlink(missing_ok=True)
+            if str(state).startswith("belegt"):
+                who = str(state).partition(":")[2] or "ein anderes Programm"
+                return False, (f"Anmeldeseite aus: Port 80 ist schon belegt ({who}, z. B. ein Webserver) – "
+                               "Handys nehmen den QR-Code.")
             return False, "Anmeldeseite ging nicht – Handys nehmen den QR-Code."
         return True, "Anmeldeseite an: Handys öffnen die Spielsteuerung beim Verbinden selbst."
     if not (shutil.which("pkexec") and shutil.which("iptables")):

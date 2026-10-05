@@ -234,6 +234,9 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
     assert ok and "-Verb RunAs" in seen[0] and "-EncodedCommand" in seen[0]
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (1, "abgebrochen"), wait=lambda f, p, t: True)
     assert not ok and "QR-Code" in msg and not (tmp_path / "flag").exists()
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: "belegt:System")
+    assert not ok and "Port 80" in msg and "System" in msg
+    assert "Get-NetTCPConnection -LocalPort 80" in script and "belegt:" in script
 
 
 def test_portal_redirects_phone_checks_to_game(env, monkeypatch):  # noqa: F811

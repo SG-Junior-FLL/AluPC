@@ -13,6 +13,8 @@
   einmal bestätigen (Linux: Passwort, Windows: „Ja“ für Administrator) → Handys, die sich verbinden, bekommen
   „Im WLAN anmelden“ mit **Mitspielen** und **AluPC steuern** (Freigabe am PC). Nach dem Ausschalten (oder wenn
   AluPC endet) räumt ein Wächter alles wieder auf.
+- Ist Port 80 unter Windows schon von einem anderen Programm belegt (z. B. ein Webserver), sagt AluPC das klar
+  („Port 80 ist schon belegt …“) – die Handys nehmen dann den QR-Code.
 - **Anmeldeseite auch ohne Internet am PC:** Die Prüf-Adressen der Handys (Android, iPhone, Xiaomi, Huawei …)
   beantwortet jetzt der PC selbst (Linux: Eintrag für den Hotspot, Windows: hosts-Datei).
 - **Besserer Dual-Boot-Abgleich:**
