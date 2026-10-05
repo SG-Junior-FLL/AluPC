@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import io
 import queue
+import sys
 import threading
 import wave
 from pathlib import Path
@@ -31,7 +32,12 @@ PIPER_VOICES = {
 RATES = {"langsam": 1.2, "normal": 1.0, "schnell": 0.85}
 
 
-def piper_available() -> bool:
+def piper_available(quick: bool = False) -> bool:
+    """Ist Piper da? quick=True: nur nachsehen (für die Oberfläche, spart ~0,15 s Laden)."""
+    if quick and "piper" not in sys.modules:
+        import importlib.util
+
+        return importlib.util.find_spec("piper") is not None
     try:
         import piper  # noqa: F401
     except Exception:  # noqa: BLE001

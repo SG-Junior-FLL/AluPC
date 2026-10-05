@@ -48,7 +48,7 @@ def test_qr_scannable_with_real_decoder(qapp, tmp_path):
 
 
 def test_wifi_payload_escapes():
-    assert wifi_payload('a;b', 'p"w') == 'WIFI:T:WPA;S:a\;b;P:p\\"w;;'
+    assert wifi_payload('a;b', 'p"w') == r'WIFI:T:WPA;S:a\;b;P:p\"w;;'
     assert wifi_payload("Offen", "") == "WIFI:T:nopass;S:Offen;P:;;"
 
 

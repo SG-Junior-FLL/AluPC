@@ -247,26 +247,22 @@ class SetupPage(QWidget):
         self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.stack = QStackedWidget()
         t = theme.current()
-        for icon_name, title, sub in self.SECTIONS:
+        # Bereiche werden erst gebaut, wenn man sie öffnet (das erste Öffnen von „Setup“ war sonst spürbar
+        # langsam). Greift Code auf etwas aus einem noch nicht gebauten Bereich zu, baut __getattr__ alle.
+        self._areas: list[QScrollArea] = []
+        self._pending = {}
+        for i, (icon_name, title, sub) in enumerate(self.SECTIONS):
             item = QListWidgetItem(icons.icon(icon_name, t.accent, 20), f"{title}\n{sub}")
             item.setSizeHint(QSize(220, 54))
             self.nav.addItem(item)
             area = QScrollArea()
             area.setWidgetResizable(True)
             area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            inner = QWidget()
-            lay = QVBoxLayout(inner)
-            lay.setContentsMargins(0, 0, 8, 0)
-            lay.setSpacing(6)
-            for build in builders[title]:
-                lay.addWidget(build())
-            for combo in inner.findChildren(QComboBox):  # lange Einträge dürfen das Fenster nicht verbreitern
-                combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-                combo.setMinimumContentsLength(10)
-            lay.addStretch(1)
-            area.setWidget(inner)
+            self._areas.append(area)
+            self._pending[i] = builders[title]
             self.stack.addWidget(area)
-        self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
+        self.nav.currentRowChanged.connect(self._show_row)
+        self._build_section(0)
         self.nav.setCurrentRow(0)
         root = QHBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -275,6 +271,38 @@ class SetupPage(QWidget):
         root.addWidget(self.stack, 1)
         controller.changed.connect(self._update_arrangement)
         QTimer.singleShot(0, self.reload_outputs)
+
+    def _build_section(self, i: int) -> None:
+        builders = self.__dict__.get("_pending", {}).pop(i, None)
+        if builders is None:
+            return
+        inner = QWidget()
+        lay = QVBoxLayout(inner)
+        lay.setContentsMargins(0, 0, 8, 0)
+        lay.setSpacing(6)
+        for build in builders:
+            lay.addWidget(build())
+        for combo in inner.findChildren(QComboBox):  # lange Einträge dürfen das Fenster nicht verbreitern
+            combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            combo.setMinimumContentsLength(10)
+        lay.addStretch(1)
+        self._areas[i].setWidget(inner)
+
+    def build_all(self) -> None:
+        for i in list(self.__dict__.get("_pending", {})):
+            self._build_section(i)
+
+    def _show_row(self, i: int) -> None:
+        self._build_section(i)
+        self.stack.setCurrentIndex(i)
+
+    def __getattr__(self, name):
+        # Attribut aus einem noch nicht gebauten Bereich (z. B. self.voice_on) → alle Bereiche bauen
+        pending = self.__dict__.get("_pending")
+        if pending and not name.startswith("__"):
+            self.build_all()
+            return object.__getattribute__(self, name)
+        raise AttributeError(name)
 
     def set_compact(self, on: bool) -> None:
         """Kleines Fenster: Bereichsliste nur mit Symbolen (Name als Tooltip)."""
@@ -1256,7 +1284,7 @@ class SetupPage(QWidget):
                 tts_note.setText("" if self.controller.speaker.available() else
                                  "Keine System-Stimme gefunden – Linux: sudo apt install speech-dispatcher espeak-ng")
                 tts_dl.hide()
-            elif not speech.piper_available():
+            elif not speech.piper_available(quick=True):
                 tts_note.setText("Natürliche Stimmen (Piper) fehlen in dieser AluPC-Version – es spricht die "
                                  "System-Stimme.")
                 tts_dl.hide()
@@ -1427,7 +1455,7 @@ class SetupPage(QWidget):
                 self.voice_list.item(0).setFlags(Qt.NoItemFlags)
 
         def refresh():
-            ok = voice.vosk_available()
+            ok = voice.vosk_available(quick=True)
             ready = voice.model_ready()
             spk = voice.spk_ready()
             self.spk_label.setText("Stimmerkennung ✓" if spk else

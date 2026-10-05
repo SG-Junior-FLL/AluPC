@@ -588,6 +588,7 @@ def test_finger_shortcuts(fake):
     fake.finger = None
     pause(1.0)
     state["locked"] = True  # Sperrbildschirm: Modul gehört der Anmeldung
+    pause(1.2)
     fake.finger = "noah"
     pause(0.8)
     assert got == ["schwarz", "szene:Pause"]

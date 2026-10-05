@@ -165,7 +165,7 @@ class FingerShortcuts(QObject):
             if hit is not None:
                 self.last_slot = hit[0]
                 command = shortcut_map(self.config).get(hit[0])
-                if command:
+                if command and not self.locked():  # gerade gesperrt worden → der Finger gehört der Anmeldung
                     self.triggered.emit(command)
             # warten, bis der Finger weg ist (höchstens 4 s) – sonst löst er mehrfach aus
             end = time.monotonic() + 4

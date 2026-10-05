@@ -98,4 +98,9 @@ class GameSource(QWidget):
                 self.fx.ev = game.event_n
                 gd.DRAW[hub.game_key](c, game, events)
             gd.draw_particles(c)
+            # Spielen: 60 Bilder/s (Pong, Snake …). Lobby/Ergebnis/Bestenliste bewegen sich langsam → 30 Bilder/s
+            # (halbe Rechenzeit; mit Konfetti weiter flüssig genug)
+            want = 16 if hub.phase == "running" or c.fx.parts else 33
+            if self.timer.interval() != want:
+                self.timer.setInterval(want)
         p.end()

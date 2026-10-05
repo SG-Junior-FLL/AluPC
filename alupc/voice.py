@@ -20,6 +20,7 @@ import difflib
 import json
 import queue
 import shutil
+import sys
 import threading
 import time
 import unicodedata
@@ -300,7 +301,13 @@ def who_speaks(vector, voices: list[dict]) -> tuple[str, float]:
     return best
 
 
-def vosk_available() -> bool:
+def vosk_available(quick: bool = False) -> bool:
+    """Ist Vosk da? quick=True: nur nachsehen, ob das Paket existiert (für die Oberfläche – das echte Laden
+    kostet ~0,15 s und passiert ohnehin beim Start des Zuhörens)."""
+    if quick and "vosk" not in sys.modules:
+        import importlib.util
+
+        return importlib.util.find_spec("vosk") is not None
     try:
         import vosk  # noqa: F401
     except Exception:  # noqa: BLE001 – auch kaputte Bibliothek (DLL) = nicht verfügbar

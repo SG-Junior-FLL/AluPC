@@ -42,6 +42,8 @@ SENTENCES = [
     ("Alu PC, schalte den Bildschirmschoner aus.", "bildschirmschoner_aus"),
     ("Computer, mach das Licht rot.", "rgb_farbe:#ff0000"),
     ("Computer, wie spät ist es?", "frage:uhrzeit"),
+    ("Computer, mach lauter.", "pc_lauter"),
+    ("Alu PC, öffne Firefox.", "pc_app:firefox"),
 ]
 # Normales Reden OHNE Startwort am Anfang – hier darf AluPC NICHTS tun und nichts antworten
 CHATTER = [

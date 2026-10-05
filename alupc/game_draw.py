@@ -209,8 +209,12 @@ def float_text(c, x, y, label, color, born, life=1.2, px=None):
     text(c.p, QRectF(x - c.w * 0.2, y - t * c.h * 0.06 - px, c.w * 0.4, px * 2), label, px, qc(color, a), True)
 
 
-def background(c) -> None:
-    p, w, h, now = c.p, c.w, c.h, c.now
+_BG_CACHE: dict = {}
+BG_SCALE = 8  # Hintergrund in 1/8 Größe rechnen – weiche Verläufe sehen hochskaliert gleich aus
+BG_EVERY = 0.12  # Sekunden: die Flecken wandern so langsam, dass öfter neu rechnen nichts bringt
+
+
+def _paint_background(p: QPainter, w: float, h: float, now: float) -> None:
     grad = QLinearGradient(0, 0, w, h)
     grad.setColorAt(0, QColor("#0b1020"))
     grad.setColorAt(1, QColor("#1a1033"))
@@ -224,6 +228,28 @@ def background(c) -> None:
         g.setColorAt(0, qc(color, 0.10))
         g.setColorAt(1, qc(color, 0.0))
         p.fillRect(QRectF(0, 0, w, h), g)
+
+
+def background(c) -> None:
+    """Hintergrund aller Spiele. Früher 4 Verläufe über den ganzen Bildschirm in JEDEM Bild (Full HD: ~10 ms) –
+    jetzt klein gerechnet, zwischengespeichert und nur alle 0,12 s neu."""
+    from PySide6.QtGui import QImage
+
+    p, w, h, now = c.p, c.w, c.h, c.now
+    sw, sh = max(8, int(w) // BG_SCALE), max(8, int(h) // BG_SCALE)
+    key = (sw, sh)
+    entry = _BG_CACHE.get(key)
+    if entry is None or abs(now - entry[0]) >= BG_EVERY:
+        img = QImage(sw, sh, QImage.Format_RGB32)
+        q = QPainter(img)
+        _paint_background(q, sw, sh, now)
+        q.end()
+        _BG_CACHE.clear()
+        _BG_CACHE[key] = entry = (now, img)
+    p.save()
+    p.setRenderHint(QPainter.SmoothPixmapTransform, True)
+    p.drawImage(QRectF(0, 0, w, h), entry[1])
+    p.restore()
 
 
 def qr_card(c, x, y, side, caption=True, image=None):
@@ -1299,21 +1325,26 @@ def lichtrenner(c, g, events) -> None:
     p.setPen(Qt.NoPen)
     p.setBrush(QColor("#020617"))
     p.drawRoundedRect(board.adjusted(-3, -3, 3, 3), 8, 8)
-    grid_pen = QPen(QColor(56, 189, 248, 22), 1)
-    p.setPen(grid_pen)
-    for gx in range(0, g.W + 1, 4):
-        p.drawLine(QPointF(bx + gx * cell, by), QPointF(bx + gx * cell, by + g.H * cell))
+    # Raster und Spuren ohne Kantenglättung: dünne Linien/Rechtecke sehen gleich aus, kosten aber ein Vielfaches
+    # (Full HD: Raster mit Glättung ~11 ms je Bild, ohne < 1 ms)
+    p.setRenderHint(QPainter.Antialiasing, False)
+    grid = QColor(56, 189, 248, 22)
+    for gx in range(0, g.W + 1, 4):  # 1-Pixel-Rechtecke statt Linien: schneller als drawLine
+        p.fillRect(QRectF(round(bx + gx * cell), by, 1, g.H * cell), grid)
     for gy in range(0, g.H + 1, 4):
-        p.drawLine(QPointF(bx, by + gy * cell), QPointF(bx + g.W * cell, by + gy * cell))
+        p.fillRect(QRectF(bx, round(by + gy * cell), g.W * cell, 1), grid)
+    p.setRenderHint(QPainter.Antialiasing, True)
     p.setPen(QPen(qc("#22d3ee", 0.55 + 0.2 * math.sin(now * 3)), 2))
     p.setBrush(Qt.NoBrush)
     p.drawRoundedRect(board.adjusted(-2, -2, 2, 2), 6, 6)
     p.setPen(Qt.NoPen)
+    p.setRenderHint(QPainter.Antialiasing, False)
     for (x, y), pid in g.trail.items():  # Spuren (ausgeschiedene verblassen)
         r = g.riders.get(pid)
         alive = r is not None and r["alive"]
         p.setBrush(qc(color_of(c, pid), 0.95 if alive else 0.28))
         p.drawRect(QRectF(bx + x * cell + cell * 0.08, by + y * cell + cell * 0.08, cell * 0.84, cell * 0.84))
+    p.setRenderHint(QPainter.Antialiasing, True)
     for pid, r in g.riders.items():  # Köpfe mit Leuchten
         if not r["alive"]:
             continue
