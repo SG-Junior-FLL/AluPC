@@ -506,3 +506,97 @@ def test_avatars_and_vibration():
     first = hub.state_for(a.pid)["buzz"][0]
     hub.finish()  # Sieger (Lena) bekommt eine lange Vibration
     assert hub.state_for(a.pid)["buzz"][0] > first and hub.state_for(a.pid)["buzz"][1][-1] == 300
+
+
+# --------------------------------------------------------------------------- Klassiker
+def test_tron_crash_into_trail_and_round_points():
+    from alupc.games_retro import TronGame
+
+    g = TronGame(players("A", "B", "C"), 0.0, random.Random(3), {"runden": 2})
+    assert g.phase == "bereit" and g.phone("a", 0.0)["ui"] == "pad"
+    g.update(g.READY)
+    assert g.phase == "fahren"
+    # A fährt geradeaus in die Spur von B, die quer davor liegt
+    a, b, c = g.riders["a"], g.riders["b"], g.riders["c"]
+    g.trail.clear()
+    a.update(pos=(10, 10), dir=(1, 0), next=(1, 0))
+    b.update(pos=(30, 20), dir=(0, 1), next=(0, 1))
+    c.update(pos=(50, 5), dir=(0, 1), next=(0, 1))
+    for x in range(5, 40):
+        g.trail[(x, 11)] = "b"  # Spur unter A
+    g.trail[(11, 10)] = "b"  # direkt vor A
+    g.input("a", {"dir": "left"}, g.READY)  # umdrehen geht nicht
+    assert a["next"] == (1, 0)
+    g.update(g.READY + g.STEP + 0.001)
+    assert not a["alive"] and b["alive"] and c["alive"]
+    b["next"] = (1, 0)  # B und C fahren in den Rand / ineinander
+    b["pos"] = (g.W - 1, 20)
+    g.update(g.READY + 2 * g.STEP + 0.002)
+    assert not b["alive"] and g.phase == "ergebnis" and g.winner == "c"
+    assert g.score == {"a": 0, "b": 1, "c": 2}
+    assert g.phone("c", 99)["big"] == "🏆"
+    assert g.skip(99) and (g.update(99) or g.phase == "bereit") and g.round == 2
+
+
+def test_rps_all_against_all():
+    from alupc.games_retro import RpsGame
+
+    g = RpsGame(players("A", "B", "C", "D"), 0.0, random.Random(1), {"runden": 2})
+    ui = g.phone("a", 0.0)
+    assert ui["ui"] == "buttons" and [b["id"] for b in ui["buttons"]] == ["stein", "papier", "schere"]
+    g.input("a", {"btn": "stein"}, 1.0)
+    g.input("a", {"btn": "papier"}, 1.1)  # nur die erste Wahl zählt
+    g.input("b", {"btn": "schere"}, 1.2)
+    g.input("c", {"btn": "schere"}, 1.3)
+    g.input("x", {"btn": "stein"}, 1.3)  # kein Mitspieler
+    g.update(2.0)
+    assert g.phase == "waehlen"  # D fehlt noch
+    g.update(g.CHOOSE + 0.1)  # Zeit um: D hat nicht gewählt
+    assert g.phase == "zeigen" and g.score == {"a": 2, "b": 0, "c": 0, "d": 0}
+    assert g.counts() == {"stein": 1, "papier": 0, "schere": 2}
+    assert g.phone("d", 9)["status"] == "Zu spät gewählt"
+    g.update(g.CHOOSE + g.SHOW + 0.2)
+    assert g.round == 2 and g.phase == "waehlen"
+    for pid, pick in (("a", "papier"), ("b", "papier"), ("c", "stein"), ("d", "schere")):
+        g.input(pid, {"btn": pick}, 20.0)
+    g.update(20.0)  # alle gewählt → sofort auflösen
+    assert g.phase == "zeigen" and g.gained == {"a": 1, "b": 1, "c": 1, "d": 2}
+    g.update(40.0)
+    assert g.over
+
+
+def test_quiz_points_for_right_and_fast():
+    from alupc.games_retro import QUIZ, QuizGame
+
+    for q, right, wrong in QUIZ:  # Daten: 3 falsche, keine doppelten Antworten
+        assert len(wrong) == 3 and right not in wrong and len(set(wrong)) == 3, q
+    g = QuizGame(players("A", "B", "C"), 0.0, random.Random(5), {"fragen": 3})
+    assert len(g.questions) == 3
+    ui = g.phone("a", 0.0)
+    assert ui["ui"] == "buttons" and len(ui["buttons"]) == 4 and ui["status"] == g.question
+    wrong = (g.right + 1) % 4
+    g.input("a", {"btn": str(g.right)}, 0.0)  # sofort richtig → 1000
+    g.input("b", {"btn": str(g.right)}, 7.5)  # halbe Zeit → 750
+    g.input("c", {"btn": str(wrong)}, 1.0)
+    g.input("c", {"btn": str(g.right)}, 2.0)  # zweiter Versuch zählt nicht
+    g.update(7.5)
+    assert g.phase == "aufloesung" and g.score == {"a": 1000, "b": 750, "c": 0}
+    assert g.phone("c", 8)["tone"] == "bad"
+    assert g.skip(8.0)
+    g.update(8.0)
+    assert g.phase == "frage" and g.index == 1
+    g.skip(9.0)
+    g.update(9.0)
+    g.skip(9.1)
+    g.update(9.1)
+    g.skip(9.2)
+    g.update(9.2)
+    g.skip(9.3)
+    g.update(9.3)
+    assert g.over
+
+
+def test_new_games_in_hub():
+    for key in ("quiz", "lichtrenner", "ssp"):
+        hub = GameHub(key)
+        assert hub.game_key == key and GAMES[key].title

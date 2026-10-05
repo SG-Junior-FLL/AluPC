@@ -91,7 +91,7 @@ def test_windows_messages():
     assert not ok and "WiFiDeviceOff" in msg
 
 
-def test_server_url_uses_hotspot_ip(env):
+def test_server_url_uses_hotspot_ip(env):  # noqa: F811
     controller, _window, _ = env
     controller.cast.start()
     try:
@@ -105,7 +105,7 @@ def test_server_url_uses_hotspot_ip(env):
     assert controller.guest_wifi() == ("Zuhause", "x")
 
 
-def test_lobby_shows_two_readable_codes(env, tmp_path):
+def test_lobby_shows_two_readable_codes(env, tmp_path):  # noqa: F811
     zx = pytest.importorskip("zxingcpp")
     pil = pytest.importorskip("PIL.Image")
     controller, _window, _ = env

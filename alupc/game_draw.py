@@ -1277,5 +1277,197 @@ def rennen(c, g, events) -> None:
                        QColor("#111827"))
 
 
+# =========================================================================== Klassiker
+def lichtrenner(c, g, events) -> None:
+    p, w, h, now = c.p, c.w, c.h, c.now
+    m = max(10, int(min(w, h) * 0.03))
+    side_w = w * 0.2
+    area = QRectF(m, m + h * 0.06, w - 3 * m - side_w, h - 2 * m - h * 0.06)
+    cell = min(area.width() / g.W, area.height() / g.H)
+    bx = area.x() + (area.width() - cell * g.W) / 2
+    by = area.y() + (area.height() - cell * g.H) / 2
+    board = QRectF(bx, by, cell * g.W, cell * g.H)
+    for _n, t, kind, data in events:
+        if kind == "crash":
+            x, y = data["cell"]
+            burst(c.fx, bx + (x + 0.5) * cell, by + (y + 0.5) * cell, color_of(c, data["pid"]), now, n=34, speed=320,
+                  size=5)
+        elif kind == "win":
+            c.fx.born["tron_win"] = t
+    tag(c, m, m, area.width(), f"LICHTRENNER · RUNDE {g.round} / {g.rounds}", "#67e8f9")
+    # Spielfeld: dunkles Raster mit Neon-Rand
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor("#020617"))
+    p.drawRoundedRect(board.adjusted(-3, -3, 3, 3), 8, 8)
+    grid_pen = QPen(QColor(56, 189, 248, 22), 1)
+    p.setPen(grid_pen)
+    for gx in range(0, g.W + 1, 4):
+        p.drawLine(QPointF(bx + gx * cell, by), QPointF(bx + gx * cell, by + g.H * cell))
+    for gy in range(0, g.H + 1, 4):
+        p.drawLine(QPointF(bx, by + gy * cell), QPointF(bx + g.W * cell, by + gy * cell))
+    p.setPen(QPen(qc("#22d3ee", 0.55 + 0.2 * math.sin(now * 3)), 2))
+    p.setBrush(Qt.NoBrush)
+    p.drawRoundedRect(board.adjusted(-2, -2, 2, 2), 6, 6)
+    p.setPen(Qt.NoPen)
+    for (x, y), pid in g.trail.items():  # Spuren (ausgeschiedene verblassen)
+        r = g.riders.get(pid)
+        alive = r is not None and r["alive"]
+        p.setBrush(qc(color_of(c, pid), 0.95 if alive else 0.28))
+        p.drawRect(QRectF(bx + x * cell + cell * 0.08, by + y * cell + cell * 0.08, cell * 0.84, cell * 0.84))
+    for pid, r in g.riders.items():  # Köpfe mit Leuchten
+        if not r["alive"]:
+            continue
+        x, y = r["pos"]
+        cx, cy = bx + (x + 0.5) * cell, by + (y + 0.5) * cell
+        glow = QRadialGradient(QPointF(cx, cy), cell * 2.2)
+        glow.setColorAt(0, qc(color_of(c, pid), 0.75))
+        glow.setColorAt(1, qc(color_of(c, pid), 0.0))
+        p.setBrush(glow)
+        p.drawEllipse(QPointF(cx, cy), cell * 2.2, cell * 2.2)
+        p.setBrush(QColor("#ffffff"))
+        p.drawEllipse(QPointF(cx, cy), cell * 0.42, cell * 0.42)
+        label = QRectF(cx - cell * 4, cy - cell * 1.9, cell * 8, cell * 1.1)
+        text(p, label, name_of(c, pid), cell * 0.85, "#ffffff", True)
+    if g.phase == "bereit":
+        left = max(0.0, g.until - now)
+        n = int(left) + 1
+        k = 1 - (left % 1)
+        p.save()
+        p.translate(board.center())
+        s = 1.4 - 0.4 * ease_out(k)
+        p.scale(s, s)
+        text(p, QRectF(-board.width() / 2, -h * 0.15, board.width(), h * 0.3), str(n), h * 0.22, qc("#ffffff", 1 - k * 0.6),
+             True)
+        p.restore()
+    elif g.phase == "ergebnis":
+        t = now - c.fx.born.get("tron_win", now)
+        msg = f"{name_of(c, g.winner)} gewinnt die Runde!" if g.winner else "Unentschieden!"
+        p.setBrush(QColor(2, 6, 23, 170))
+        p.drawRect(board)
+        text(p, QRectF(board.x(), board.center().y() - h * 0.08, board.width(), h * 0.16), msg,
+             h * 0.07 * ease_back(min(1.0, t / 0.4)), color_of(c, g.winner) if g.winner else TEXT, True)
+    scoreboard(c, QRectF(w - m - side_w, m + h * 0.06, side_w, h * 0.62), g.scores(), limit=8)
+    q = min(side_w * 0.5, h * 0.18)
+    qr_card(c, w - m - side_w / 2 - q / 2, h - m - q - q * 0.06 - h * 0.04, q, caption=False)
+    text(p, QRectF(w - m - side_w, h - m - h * 0.035, side_w, h * 0.035), "Einsteigen (nächste Runde)", h * 0.02,
+         MUTED)
+
+
+def ssp(c, g, events) -> None:
+    from .games_retro import RPS
+
+    p, w, h, now = c.p, c.w, c.h, c.now
+    m = max(14, int(min(w, h) * 0.045))
+    for _n, t, kind, data in events:
+        if kind == "reveal":
+            c.fx.born["rps_reveal"] = t
+        elif kind == "pick":
+            c.fx.born[("pick", data["pid"])] = t
+    side_w = w * 0.24
+    main = QRectF(m, m, w - 3 * m - side_w, h - 2 * m)
+    tag(c, m, m, main.width(), f"SCHERE · STEIN · PAPIER · RUNDE {g.round} / {g.rounds}", "#fda4af")
+    col_w = main.width() / 3
+    if g.phase == "waehlen":
+        text(p, QRectF(main.x(), main.y() + h * 0.08, main.width(), h * 0.09), "Geheim wählen!", h * 0.07, TEXT, True)
+        time_bar(c, QRectF(main.x() + main.width() * 0.2, main.y() + h * 0.19, main.width() * 0.6, h * 0.018),
+                 (g.until - now) / g.CHOOSE)
+        for i, (_k, label, emoji) in enumerate(RPS):  # die drei Zeichen wippen im Takt
+            cx = main.x() + col_w * (i + 0.5)
+            bob = math.sin(now * 5 + i) * h * 0.02
+            text(p, QRectF(cx - col_w / 2, main.y() + h * 0.27 + bob, col_w, h * 0.22), emoji, h * 0.16)
+            text(p, QRectF(cx - col_w / 2, main.y() + h * 0.5, col_w, h * 0.06), label, h * 0.04, MUTED, True)
+        players = [pid for pid in g.score]
+        chip_w = min(main.width() / 4, w * 0.16)
+        for i, pid in enumerate(players[:16]):
+            r_, col = divmod(i, 4)
+            rect = QRectF(main.x() + col * (chip_w + m * 0.3), main.y() + h * 0.62 + r_ * h * 0.075, chip_w, h * 0.06)
+            done = pid in g.picks
+            chip(p, rect, name_of(c, pid), color_of(c, pid), "✓" if done else "…", dim=1.0 if done else 0.5,
+                 avatar=avatar_of(c, pid))
+    else:
+        t = now - c.fx.born.get("rps_reveal", now)
+        counts = g.counts()
+        for i, (key, label, emoji) in enumerate(RPS):
+            k = ease_back(min(1.0, max(0.0, (t - i * 0.15) / 0.4)))
+            cx = main.x() + col_w * (i + 0.5)
+            p.save()
+            p.translate(cx, main.y() + h * 0.24)
+            p.scale(k, k)
+            text(p, QRectF(-col_w / 2, -h * 0.11, col_w, h * 0.22), emoji, h * 0.15)
+            p.restore()
+            text(p, QRectF(cx - col_w / 2, main.y() + h * 0.37, col_w, h * 0.06), f"{label} · {counts[key]}×",
+                 h * 0.038, TEXT, True)
+            pids = [pid for pid, v in g.picks.items() if v == key]
+            for j, pid in enumerate(pids[:7]):
+                gained = g.gained.get(pid, 0)
+                chip(p, QRectF(cx - col_w * 0.45, main.y() + h * 0.45 + j * h * 0.068, col_w * 0.9, h * 0.058),
+                     name_of(c, pid), color_of(c, pid), f"+{gained}" if gained else "0", dim=k,
+                     avatar=avatar_of(c, pid))
+    scoreboard(c, QRectF(w - m - side_w, m + h * 0.07, side_w, h * 0.8), g.scores())
+
+
+def quiz(c, g, events) -> None:
+    from .games_retro import ANSWER_COLORS, LETTERS
+
+    p, w, h, now = c.p, c.w, c.h, c.now
+    m = max(14, int(min(w, h) * 0.045))
+    for _n, t, kind, data in events:
+        if kind == "question":
+            c.fx.born[("q", g.index)] = t
+        elif kind == "reveal":
+            c.fx.born[("r", g.index)] = t
+    side_w = w * 0.24
+    main = QRectF(m, m, w - 3 * m - side_w, h - 2 * m)
+    tag(c, m, m, main.width(), f"QUIZ · FRAGE {g.index + 1} / {len(g.questions)}", "#c4b5fd")
+    t = now - c.fx.born.get(("q", g.index), now)
+    slide = ease_out(min(1.0, t / 0.5))
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(255, 255, 255, 16))
+    qbox = QRectF(main.x(), main.y() + h * 0.07, main.width(), h * 0.22)
+    p.drawRoundedRect(qbox.translated(0, (1 - slide) * -h * 0.05), h * 0.03, h * 0.03)
+    text(p, qbox.adjusted(m, 0, -m, 0).translated(0, (1 - slide) * -h * 0.05), g.question, h * 0.05,
+         qc(TEXT, slide), True, wrap=True)
+    if g.phase == "frage":
+        ring(c, QPointF(main.right() - h * 0.06, main.y() + h * 0.02), h * 0.035, (g.until - now) / g.ASK,
+             str(max(0, int(g.until - now + 0.999))))
+    reveal_t = now - c.fx.born.get(("r", g.index), now) if g.phase == "aufloesung" else -1
+    box_w = (main.width() - m) / 2
+    box_h = h * 0.17
+    for i, answer in enumerate(g.answers):
+        r_, col = divmod(i, 2)
+        k = ease_back(min(1.0, max(0.0, (t - 0.15 - i * 0.08) / 0.35)))
+        rect = QRectF(main.x() + col * (box_w + m), main.y() + h * 0.34 + r_ * (box_h + m * 0.8), box_w, box_h)
+        right = g.phase == "aufloesung" and i == g.right
+        dim = 0.25 if g.phase == "aufloesung" and not right else 1.0
+        p.save()
+        p.translate(rect.center())
+        p.scale(k * (1.05 if right and reveal_t < 0.5 else 1.0), k)
+        p.translate(-rect.center())
+        p.setBrush(qc(ANSWER_COLORS[i], 0.85 * dim))
+        p.drawRoundedRect(rect, box_h * 0.22, box_h * 0.22)
+        if right:
+            p.setPen(QPen(QColor("#ffffff"), max(3, h * 0.006)))
+            p.setBrush(Qt.NoBrush)
+            p.drawRoundedRect(rect.adjusted(-4, -4, 4, 4), box_h * 0.25, box_h * 0.25)
+            p.setPen(Qt.NoPen)
+        text(p, QRectF(rect.x() + box_h * 0.15, rect.y(), box_h * 0.5, rect.height()), LETTERS[i], box_h * 0.38,
+             qc("#ffffff", 0.8 * dim + 0.2), True)
+        text(p, QRectF(rect.x() + box_h * 0.7, rect.y(), rect.width() - box_h * 0.85, rect.height()), answer,
+             box_h * 0.26, qc("#ffffff", dim), True, Qt.AlignLeft | Qt.AlignVCenter, wrap=True)
+        if g.phase == "aufloesung":  # wer hat was getippt
+            pickers = [pid for pid, (ch, _t) in g.picks.items() if ch == i]
+            for j, pid in enumerate(pickers[:8]):
+                p.setBrush(qc(color_of(c, pid)))
+                p.drawEllipse(QPointF(rect.right() - box_h * 0.18 - j * box_h * 0.22, rect.bottom() - box_h * 0.17),
+                              box_h * 0.09, box_h * 0.09)
+        p.restore()
+    if g.phase == "frage":
+        done = len(g.picks)
+        text(p, QRectF(main.x(), main.bottom() - h * 0.05, main.width(), h * 0.05),
+             f"{done} / {len(g.score)} haben getippt", h * 0.03, MUTED, align=Qt.AlignLeft | Qt.AlignVCenter)
+    scoreboard(c, QRectF(w - m - side_w, m + h * 0.07, side_w, h * 0.8), g.scores())
+
+
 DRAW = {"schaetzen": schaetzen, "stroop": stroop, "simon": simon, "tauziehen": tauziehen, "malen": malen,
-        "pong": pong, "ballon": ballon, "schlangen": schlangen, "reaktion": reaktion, "rennen": rennen}
+        "pong": pong, "ballon": ballon, "schlangen": schlangen, "reaktion": reaktion, "rennen": rennen,
+        "quiz": quiz, "lichtrenner": lichtrenner, "ssp": ssp}

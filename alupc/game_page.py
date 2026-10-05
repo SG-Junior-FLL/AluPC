@@ -45,6 +45,9 @@ button:disabled { opacity: .35; }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 420px; }
 .grid button { border-radius: 18px; background: #1e293b; border: 2px solid #334155; font-size: 26px; padding: 26px 8px; }
 .grid button.hit { background: #f1f5f9; color: #0b1020; }
+.grid.quiz, .grid.column { grid-template-columns: 1fr; gap: 10px; }
+.grid.quiz button { text-align: left; font-size: 21px; padding: 18px 16px; border-color: var(--b); background: color-mix(in srgb, var(--b) 28%, #0f172a); }
+.grid.column button { font-size: 30px; padding: 22px 8px; }
 .simon { grid-template-columns: 1fr 1fr; gap: 14px; max-width: min(420px, 52vh); }
 .simon button { aspect-ratio: 1; border: 0; padding: 0; background: var(--b); filter: saturate(.75) brightness(.7); }
 .simon button.hit { filter: saturate(1.2) brightness(1.3); box-shadow: 0 0 40px var(--b); }
@@ -216,7 +219,7 @@ const BUILD = {
     return {};
   },
   buttons(ui, area) {
-    const g = el("div", "grid" + (ui.layout === "simon" ? " simon" : "")); area.append(g);
+    const g = el("div", "grid" + (["simon", "quiz", "column"].includes(ui.layout) ? " " + ui.layout : "")); area.append(g);
     const btns = ui.buttons.map(spec => {
       const b = el("button", "", spec.label); if (spec.color) b.style.setProperty("--b", spec.color);
       press(b, () => { send({btn: spec.id}); vibrate(15); }); g.append(b); return b;

@@ -20,6 +20,7 @@ from typing import NamedTuple
 
 from .games_base import TEAM_COLORS, TEAM_NAMES, Game
 from .games_classic import RaceGame, ReactionGame, SnakeGame
+from .games_retro import QuizGame, RpsGame, TronGame
 from .games_party import (BalloonGame, DrawGame, EstimateGame, PongGame, SimonGame, StroopGame, TugGame,
                           format_number)
 
@@ -71,6 +72,15 @@ GAMES: dict[str, GameSpec] = {
     "rennen": GameSpec("Tipp-Rennen", "Wer zuerst im Ziel ist",
                        "So schnell tippen wie möglich · wer zuerst im Ziel ist, gewinnt",
                        RaceGame, {"ziel": ("Ziel", [(40, "40 Tipps"), (60, "60 Tipps"), (100, "100 Tipps")], 60)}),
+    "quiz": GameSpec("Quiz", "Vier Antworten – wer weiß es zuerst?",
+                     "Frage lesen, A/B/C/D tippen · richtig = Punkte, schneller = mehr",
+                     QuizGame, {"fragen": ("Fragen", [(5, "5"), (10, "10"), (15, "15")], 10)}),
+    "lichtrenner": GameSpec("Lichtrenner", "Leuchtspuren – wer fährt am längsten?",
+                            "Steuerkreuz oder wischen · nicht gegen Spuren oder den Rand fahren",
+                            TronGame, {"runden": ("Runden", [(3, "3"), (5, "5"), (7, "7")], 3)}),
+    "ssp": GameSpec("Schere, Stein, Papier", "Alle gegen alle, gleichzeitig",
+                    "Geheim wählen · jeder geschlagene Gegner = 1 Punkt",
+                    RpsGame, {"runden": ("Runden", [(3, "3"), (5, "5"), (8, "8")], 5)}),
 }
 
 COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ec4899", "#06b6d4", "#f97316", "#84cc16",
