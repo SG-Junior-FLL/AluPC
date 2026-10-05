@@ -226,14 +226,15 @@ def background(c) -> None:
         p.fillRect(QRectF(0, 0, w, h), g)
 
 
-def qr_card(c, x, y, side, caption=True):
+def qr_card(c, x, y, side, caption=True, image=None):
     p = c.p
     pad = side * 0.06
     p.setPen(Qt.NoPen)
     p.setBrush(QColor("#ffffff"))
     p.drawRoundedRect(QRectF(x - pad, y - pad, side + 2 * pad, side + 2 * pad), pad * 1.5, pad * 1.5)
-    p.setRenderHint(QPainter.SmoothPixmapTransform, False)
-    p.drawImage(QRectF(x, y, side, side), c.qr())
+    from .sources import draw_qr
+
+    draw_qr(p, QRectF(x, y, side, side), image if image is not None else c.qr())
     if caption:
         url = c.url()
         room = min(side * 1.3, 2 * (c.w - 8 - (x + side / 2)))
@@ -296,9 +297,21 @@ def lobby(c) -> None:
     if line:
         text(p, QRectF(m, h - m - h * 0.1, left_w, h * 0.05), line, h * 0.03, "#fbbf24", True,
              Qt.AlignLeft | Qt.AlignVCenter)
+    wifi = getattr(c, "wifi", None)
+    if wifi:  # eigenes WLAN/Hotspot: erst WLAN-Code, dann Spiel-Code (kein Abtippen)
+        side = int(min(h * 0.33, qr_side))
+        qx = w - m - side
+        y1 = m + h * 0.07
+        text(p, QRectF(qx - m * 2, y1 - h * 0.065, side + 3 * m, h * 0.05), f"① WLAN „{wifi[0]}“", h * 0.03, TEXT,
+             True)
+        qr_card(c, qx, y1, side, caption=False, image=c.wifi_qr())
+        y2 = y1 + side + h * 0.12
+        text(p, QRectF(qx - m * 2, y2 - h * 0.065, side + 3 * m, h * 0.05), "② Mitspielen", h * 0.03, TEXT, True)
+        qr_card(c, qx, y2, side, caption=False)
+        return
+    # Der Code steht still (auch kein „Wippen“): bewegte Codes lesen manche Handy-Kameras schlecht
     qx, qy = w - m - qr_side, (h - qr_side) / 2 - h * 0.03
-    bob = math.sin(c.now * 1.6) * h * 0.006
-    qr_card(c, qx, qy + bob, qr_side)
+    qr_card(c, qx, qy, qr_side)
     text(p, QRectF(qx - m, qy - h * 0.1, qr_side + 2 * m, h * 0.06), "Scannen & mitspielen", h * 0.034, TEXT, True)
 
 

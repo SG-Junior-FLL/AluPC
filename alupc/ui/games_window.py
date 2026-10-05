@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QApplication, QComboBox, QGridLayout, QHBoxLayout, QLabel, QListWidget,
+from PySide6.QtWidgets import (QComboBox, QGridLayout, QHBoxLayout, QLabel, QListWidget,
                                QListWidgetItem, QPushButton, QVBoxLayout, QWidget)
 
 from . import icons, theme
@@ -56,7 +56,8 @@ class GamesWindow(QWidget):
             b.setToolTip(f"Taste {KEYS[i]}" if i < len(KEYS) else "")
             b.setStyleSheet(self._card_css(t))
             b.clicked.connect(lambda _=False, k=key: self.choose(k))
-            grid.addWidget(b, i // 2, i % 2)
+            cols = 3 if len(GAMES) > 10 else 2
+            grid.addWidget(b, i // cols, i % cols)
             self.cards[key] = b
         left.addLayout(grid)
         self.opts_row = QHBoxLayout()
@@ -125,9 +126,14 @@ class GamesWindow(QWidget):
         self.url.setTextInteractionFlags(Qt.TextSelectableByMouse)
         right.addWidget(self.url)
         bottom = QHBoxLayout()
-        copy = button("Link kopieren", "copy")
+        copy = button("QR groß", "qr")
+        copy.setToolTip("Großer QR-Code zum Scannen (mit WLAN-Code, falls eingerichtet) – Link kopieren")
         copy.setFocusPolicy(Qt.NoFocus)
-        copy.clicked.connect(lambda: QApplication.clipboard().setText(self.controller.cast.games_url()))
+        copy.clicked.connect(self.show_connect)
+        wifi = button("WLAN / Hotspot …", "phone")
+        wifi.setToolTip("Eigenes WLAN für die Handys starten oder vorhandenes WLAN eintragen → WLAN-QR-Code in der Lobby")
+        wifi.setFocusPolicy(Qt.NoFocus)
+        wifi.clicked.connect(self.open_wifi)
         stop = button("Minispiele beenden", "x", danger=True)
         stop.setFocusPolicy(Qt.NoFocus)
         stop.clicked.connect(self.stop_games)
@@ -135,6 +141,7 @@ class GamesWindow(QWidget):
         reset.setFocusPolicy(Qt.NoFocus)
         reset.clicked.connect(self.reset_board)
         bottom.addWidget(copy)
+        bottom.addWidget(wifi)
         bottom.addWidget(reset)
         bottom.addStretch(1)
         bottom.addWidget(stop)
@@ -164,6 +171,20 @@ class GamesWindow(QWidget):
                 f" {QColor(t.accent).green()}, {QColor(t.accent).blue()}, 40); }}")
 
     # ------------------------------------------------------------ Aktionen
+    def show_connect(self) -> None:
+        from .connect_dialog import ConnectDialog
+
+        c = self.controller
+        if c.cast.games is None:
+            c.start_games()
+        ConnectDialog("Mitspielen", c.cast.games_url(), c.guest_wifi(), "Handy-Kamera auf den Code halten",
+                      parent=self).exec()
+
+    def open_wifi(self) -> None:
+        from .connect_dialog import WifiDialog
+
+        WifiDialog(self.controller, self).exec()
+
     def hub(self):
         return self.controller.cast.games
 

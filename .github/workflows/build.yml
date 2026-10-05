@@ -202,6 +202,12 @@ jobs:
       - name: Installieren
         # Nicht „-e“: PyInstaller findet Pakete aus einer Entwicklungs-Installation nicht
         run: pip install ".[test]" pyinstaller
+      - name: Hotspot-Skript (Runner ohne WLAN – PowerShell muss laufen und eine klare Meldung geben)
+        shell: pwsh
+        run: |
+          $out = python -c "from alupc import hotspot as h; c, o = h._ps(h._PS_STATE, timeout=60); print(o.replace(chr(10), ' | ')); print('MELDUNG', h.windows_message(o)[1])"
+          Write-Output "::notice title=Hotspot (Windows)::$($out -join ' ')"
+          if (($out -join ' ') -match 'ParserError|Unexpected token|MissingEndCurlyBrace') { Write-Output "::error title=Hotspot::PowerShell-Skript kaputt"; exit 1 }
       - name: Tests (Logik + Windows-Strukturen)
         shell: pwsh
         run: |

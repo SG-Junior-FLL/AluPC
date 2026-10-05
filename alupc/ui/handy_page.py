@@ -6,7 +6,7 @@ from __future__ import annotations
 import sys
 
 from PySide6.QtCore import QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QPainter, QPixmap
+from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -238,15 +238,30 @@ class HandyPage(QWidget):
 
         run_async(lambda status: handy.run_plan(plan, status), done, failed, on_progress=progress)
 
+    def open_connect(self) -> None:
+        """Großer QR-Code (und WLAN-Code, falls bekannt) zum Scannen."""
+        from .connect_dialog import ConnectDialog
+
+        c = self.controller
+        if not c.cast.running():
+            c.cast.start()
+        dlg = ConnectDialog("Handy verbinden", c.cast.url(), c.guest_wifi(),
+                            f"Code {c.cast.code()[:3]} {c.cast.code()[3:]} steckt schon im QR-Code",
+                            on_monitor=lambda: c.run_command("qr"), parent=self)
+        dlg.exec()
+
     # ================================================================ AluCast
     def _cast_card(self) -> MethodCard:
         card = MethodCard("qr", "#8b5cf6", "Jedes Handy", "Browser + QR-Code · ohne App")
         card.body.addWidget(steps_label("QR-Code zeigen", "Mit dem Handy scannen", "Steuern · Zeichnen · Senden"))
         row = QHBoxLayout()
         self.qr = QLabel()
-        self.qr.setFixedSize(92, 92)
+        self.qr.setFixedSize(132, 132)
         self.qr.setAlignment(Qt.AlignCenter)
         self.qr.setStyleSheet("background:#ffffff; border:1px solid #cbd5e1; border-radius:10px;")
+        self.qr.setCursor(Qt.PointingHandCursor)
+        self.qr.setToolTip("Groß anzeigen – zum Scannen")
+        self.qr.mousePressEvent = lambda _e: self.open_connect()
         row.addWidget(self.qr)
         info = QVBoxLayout()
         self.cast_url = QLabel()
@@ -376,7 +391,7 @@ class HandyPage(QWidget):
             pass
 
     def _refresh_cards(self, c):
-        from ..sources import qr_image
+        from ..sources import qr_pixmap
 
         # --- Jedes Handy (AluCast)
         cast = self.cards["cast"]
@@ -386,8 +401,7 @@ class HandyPage(QWidget):
             url = c.cast.url()
             if getattr(self, "_qr_for", "") != url:  # QR-Code nur neu berechnen, wenn sich die Adresse ändert
                 self._qr_for = url
-                img = qr_image(url)
-                self.qr.setPixmap(QPixmap.fromImage(img.scaled(84, 84, Qt.KeepAspectRatio, Qt.FastTransformation)))
+                self.qr.setPixmap(qr_pixmap(url, 120, self.devicePixelRatioF()))
             cast.set_status("LÄUFT", LIVE, f"Adresse: <b>{c.cast.url(with_code=False)}</b> · Code <b>{code[:3]} "
                                            f"{code[3:]}</b>")
         else:

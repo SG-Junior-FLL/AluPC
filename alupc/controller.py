@@ -136,6 +136,7 @@ class Controller(QObject):
         from .cast_server import cast_server
 
         self.cast = cast_server(config)
+        self.cast.wifi_provider = self.guest_wifi  # WLAN-QR-Code in der Spiele-Lobby / „Handy verbinden“
         self.cast.request.connect(self._cast_request)
         from PySide6.QtCore import QTimer as _QTimer
 
@@ -1728,6 +1729,28 @@ class Controller(QObject):
         self.voice.set_direct(on)
         self.message.emit("🎤 Ich höre zu – ohne Startwort" if on else "🎤 Mikrofon-Schalter aus")
         self.changed.emit()
+
+    def guest_wifi(self) -> tuple[str, str] | None:
+        """WLAN, in das Handys sollen: eigener Hotspot (falls an) oder das im Spiele-Fenster eingetragene WLAN."""
+        from .hotspot import hotspot, settings
+
+        if hotspot.running:
+            hs = settings(self.config)
+            return hs["ssid"], hs["password"]
+        wifi = self.config["games"].get("wifi") or {}
+        return (wifi["ssid"], wifi.get("password", "")) if wifi.get("ssid") else None
+
+    def set_hotspot(self, on: bool) -> tuple[bool, str]:
+        """Eigenes WLAN für die Minispiele an/aus (läuft im Hintergrund-Thread des Aufrufers)."""
+        from .hotspot import hotspot, settings
+
+        if on:
+            hs = settings(self.config)
+            ok, msg = hotspot.start(hs["ssid"], hs["password"])
+        else:
+            ok, msg = hotspot.stop()
+        self.message.emit(msg)
+        return ok, msg
 
     def start_games(self, key: str | None = None) -> None:
         """Minispiele: Lobby mit QR-Code auf Monitor 2 (eine laufende Runde bleibt erhalten).

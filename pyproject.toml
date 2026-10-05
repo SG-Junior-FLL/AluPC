@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7"]
+test = ["pytest>=7", "zxing-cpp", "pillow"]  # QR-Codes mit echtem Decoder prüfen
 
 [project.scripts]
 alupc = "alupc.app:main"

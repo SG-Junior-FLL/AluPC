@@ -928,8 +928,9 @@ def paint_airplay_waiting(widget, name: str, code: str, style: str = "bereit") -
 
 
 # --------------------------------------------------------------------------- AluCast (QR-Code)
-def qr_image(text: str, border: int = 2) -> QImage:
-    """QR-Code als kleines Schwarz-Weiß-Bild (1 Pixel je Modul, zum Hochskalieren ohne Glätten)."""
+def qr_image(text: str, border: int = 4) -> QImage:
+    """QR-Code als kleines Schwarz-Weiß-Bild (1 Pixel je Modul, zum Hochskalieren ohne Glätten). Rand 4 Module
+    (wie in der Norm): mit weniger erkennen viele Handy-Kameras den Code auf dunklem Hintergrund nicht."""
     import segno
 
     rows = list(segno.make(text, error="m").matrix_iter(border=border))
@@ -941,6 +942,34 @@ def qr_image(text: str, border: int = 2) -> QImage:
             if bit:
                 img.setPixel(x, y, black)
     return img
+
+
+def draw_qr(p: QPainter, rect: QRectF, img: QImage) -> QRectF:
+    """QR-Code scharf zeichnen: jedes Modul gleich viele ganze Pixel (sonst werden manche Module 2, andere 3 Pixel
+    breit – auf echten Bildschirmen/Beamern lesen Handys das schlechter). Gibt das tatsächlich genutzte Rechteck."""
+    n = max(1, img.width())
+    scale = max(1, int(min(rect.width(), rect.height()) // n))
+    side = scale * n
+    x = round(rect.center().x() - side / 2)
+    y = round(rect.center().y() - side / 2)
+    target = QRectF(x, y, side, side)
+    p.save()
+    p.setRenderHint(QPainter.SmoothPixmapTransform, False)
+    p.drawImage(target, img)
+    p.restore()
+    return target
+
+
+def qr_pixmap(text: str, px: int, dpr: float = 1.0):
+    """QR-Code als QPixmap für Fenster: ganzzahlig vergrößert, scharf auch bei Bildschirm-Skalierung."""
+    from PySide6.QtGui import QPixmap
+
+    img = qr_image(text)
+    n = img.width()
+    scale = max(1, int(px * dpr) // n)
+    pm = QPixmap.fromImage(img.scaled(n * scale, n * scale, Qt.IgnoreAspectRatio, Qt.FastTransformation))
+    pm.setDevicePixelRatio(dpr)
+    return pm
 
 
 class CastSource(QWidget):
@@ -994,8 +1023,7 @@ class CastSource(QWidget):
         p.setPen(Qt.NoPen)
         p.setBrush(QColor("#ffffff"))
         p.drawRoundedRect(qr_rect.adjusted(-pad, -pad, pad, pad), pad, pad)
-        p.setRenderHint(QPainter.SmoothPixmapTransform, False)
-        p.drawImage(qr_rect, self.qr())
+        draw_qr(p, qr_rect, self.qr())
         # Text rechts bzw. unten
         code = self.server.code()
         lines = [("Handy → Monitor 2", "#ffffff", 0.11, True),

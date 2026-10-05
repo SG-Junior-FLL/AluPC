@@ -220,19 +220,26 @@ class CastServer(QObject):
         self.state_changed.emit()
         return self.code()
 
+    def base(self) -> str:
+        """http://IP:Port/ – läuft der Hotspot von AluPC, dessen Adresse (Handys sind dann in DIESEM WLAN)."""
+        from .hotspot import hotspot
+
+        ip = hotspot.ip if hotspot.running and hotspot.ip else local_ip(self.settings().get("ip", ""))
+        return f"http://{ip}:{self.port or self.settings()['port']}/"
+
     def url(self, with_code: bool = True) -> str:
-        base = f"http://{local_ip(self.settings().get('ip', ''))}:{self.port or self.settings()['port']}/"
+        base = self.base()
         return base + (f"?k={self.code()}" if with_code else "")
 
     def running(self) -> bool:
         return self.httpd is not None
 
     def poll_url(self) -> str:
-        base = f"http://{local_ip(self.settings().get('ip', ''))}:{self.port or self.settings()['port']}/"
+        base = self.base()
         return base + (f"abstimmung?u={self.poll.token}" if self.poll else "abstimmung")
 
     def games_url(self) -> str:
-        base = f"http://{local_ip(self.settings().get('ip', ''))}:{self.port or self.settings()['port']}/"
+        base = self.base()
         return base + (f"spiel?u={self.games.token}" if self.games else "spiel")
 
     # ------------------------------------------------------------ Start/Stopp

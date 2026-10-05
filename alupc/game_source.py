@@ -39,6 +39,23 @@ class GameSource(QWidget):
             self._qr_for, self._qr = url, qr_image(url)
         return self._qr
 
+    def wifi(self):
+        """(Name, Passwort) des WLANs für die Handys – vom Controller (Hotspot oder eingetragenes WLAN)."""
+        try:
+            provider = getattr(self.server, "wifi_provider", None)
+            return provider() if provider else None
+        except Exception:  # noqa: BLE001
+            return None
+
+    def wifi_qr(self):
+        from .screens import wifi_payload
+
+        wifi = self.wifi()
+        payload = wifi_payload(*wifi) if wifi else ""
+        if payload != getattr(self, "_wifi_for", None):
+            self._wifi_for, self._wifi_img = payload, qr_image(payload or " ")
+        return self._wifi_img
+
     def _fx_key(self, hub):
         return (id(hub), hub.phase if hub.phase != "running" else "running", id(hub.game))
 
@@ -47,7 +64,7 @@ class GameSource(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         hub = self.server.games
         c = SimpleNamespace(p=p, w=self.width(), h=self.height(), now=0.0, hub=hub, fx=self.fx, qr=self.qr,
-                            url=self.server.games_url)
+                            url=self.server.games_url, wifi=self.wifi(), wifi_qr=self.wifi_qr)
         if hub is None or not self.ok:
             import time
 

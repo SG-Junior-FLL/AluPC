@@ -6,7 +6,7 @@ from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter
 from PySide6.QtWidgets import QWidget
 
-from .sources import fitted_font, qr_image
+from .sources import draw_qr, fitted_font, qr_image
 
 BAR_COLORS = ["#6366f1", "#06b6d4", "#f59e0b", "#ec4899", "#22c55e", "#f43f5e"]
 
@@ -144,8 +144,7 @@ class PollSource(QWidget):
             p.setPen(Qt.NoPen)
             p.setBrush(QColor("#ffffff"))
             p.drawRoundedRect(QRectF(qx - pad, qy - pad, qr_side + 2 * pad, qr_side + 2 * pad), pad, pad)
-            p.setRenderHint(QPainter.SmoothPixmapTransform, False)
-            p.drawImage(QRectF(qx, qy, qr_side, qr_side), self.qr())
+            draw_qr(p, QRectF(qx, qy, qr_side, qr_side), self.qr())
             cf = QFont()
             cf.setBold(True)
             cf.setPixelSize(max(10, int(h * 0.034)))
