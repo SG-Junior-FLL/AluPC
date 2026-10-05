@@ -615,6 +615,7 @@ class MainWindow(QMainWindow):
                                lambda: self.open_hotspot_dialog("normal"))
         self.t_hotspot.set_menu(hotspot_menu, split=True)
         c.hotspot_changed.connect(self.refresh)
+        c.access_requested.connect(self.ask_access)  # Handy möchte steuern → hier erlauben/ablehnen
         self.t_games = self.tiles["spiele"]
         self.t_games.activated.connect(self.open_games_window)
         games_menu = QMenu(self)
@@ -1051,6 +1052,34 @@ class MainWindow(QMainWindow):
         win.show()
         win.raise_()
         win.activateWindow()
+
+    def ask_access(self, rid: str, name: str, ip: str) -> None:
+        """Ein Handy möchte AluPC steuern (ohne Code): Benachrichtigung + Frage „Erlauben / Ablehnen“.
+        Erlaubte Geräte bleiben gespeichert (Setup → Handy & Kamera → Freigaben löschen)."""
+        from PySide6.QtWidgets import QMessageBox
+
+        text = f"„{name}“ möchte AluPC steuern."
+        if self.tray.isVisible():
+            self.tray.showMessage(APP_NAME, text + " Im AluPC-Fenster erlauben oder ablehnen.",
+                                  QSystemTrayIcon.Information, 8000)
+        box = QMessageBox(self)
+        box.setWindowTitle("Handy freigeben?")
+        box.setIcon(QMessageBox.Question)
+        box.setText(f"<b>{text}</b>")
+        box.setInformativeText(f"Adresse {ip}. Erlaubt = dieses Gerät darf ab jetzt ohne Code steuern.")
+        allow = box.addButton("Erlauben", QMessageBox.AcceptRole)
+        box.addButton("Ablehnen", QMessageBox.RejectRole)
+        box.setModal(False)
+
+        def done(_r=None):
+            ok = box.clickedButton() is allow
+            self.controller.cast.answer_access(rid, ok)
+            self.controller.message.emit(f"„{name}“ darf jetzt steuern." if ok else f"„{name}“ abgelehnt.")
+
+        box.finished.connect(done)
+        self.pending_access = box
+        box.show()
+        box.raise_()
 
     def toggle_hotspot(self) -> None:
         """Hotspot-Kachel: normalen Hotspot an/aus (dauert ein paar Sekunden – im Hintergrund)."""

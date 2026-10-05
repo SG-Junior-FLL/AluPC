@@ -8,7 +8,16 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.97.0)
+### Neu in dieser Version (0.98.0)
+- **Handy freigeben statt Code eintippen:** Auf der Handy-Seite (und der WLAN-Anmeldeseite → „AluPC steuern“)
+  gibt es jetzt **„Am PC freigeben lassen“**. Am PC erscheint eine Benachrichtigung und die Frage **„Erlauben /
+  Ablehnen“**. Erlaubte Geräte steuern ab dann ohne Code (gemerkt im Handy-Browser; am PC nur als Prüfsumme
+  gespeichert). Setup → Handy & Kamera zeigt die freigegebenen Geräte und kann alle Freigaben löschen.
+  Der 6-stellige Code funktioniert weiterhin.
+- Ehrlich: mit nachgespielten Handy-Anfragen getestet, nicht mit echten Handys. Löscht das Handy seine
+  Browserdaten (oder privater Modus), muss es neu angefragt werden.
+
+### Neu in Version 0.97.0
 - **Desktop-Widgets entfernt** (die dauerhaft eingeblendeten Karten auf Monitor 1) – waren anders gemeint.
 - **Programme auf der Startseite:** Startseite anpassen → **„Programm …“**: installiertes Programm aus der Liste wählen
   (mit Suche) → Kachel im neuen Bereich **„Programme“**. Ein Klick startet es. Gilt für das System, auf dem du es

@@ -29,6 +29,7 @@ class Controller(QObject):
     sync_status = Signal(str)
     games_changed = Signal()  # Minispiele: Spieler/Phase geändert (Steuerfenster)
     hotspot_changed = Signal()  # Hotspot an/aus (Kachel, Spiele-Fenster)
+    access_requested = Signal(str, str, str)  # Handy bittet um Freigabe zum Steuern: (Anfrage-ID, Name, IP)
     video_resume = Signal(str, int)  # Video schon mal geschaut: (Titel, Position ms) → „Weiterschauen?“
     presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
 
@@ -867,6 +868,9 @@ class Controller(QObject):
         from .sources import video_sources
 
         kind = req.get("kind")
+        if kind == "freigabe":  # Handy möchte steuern (ohne Code) → am PC fragen (Hauptfenster zeigt die Frage)
+            self.access_requested.emit(req["id"], req.get("name", "Handy"), req.get("ip", ""))
+            return
         if kind == "file":
             cfg = {"type": req["type"], "path": req["path"]}
             if req["type"] == "video":

@@ -210,3 +210,51 @@ def test_games_wifi_stops_with_games(env, monkeypatch):  # noqa: F811
         assert stopped == [1]
     finally:
         hs.running, hs.kind = False, ""
+
+
+def test_phone_access_by_approval_on_pc(env, monkeypatch):  # noqa: F811
+    """Ohne Code: Handy bittet um Freigabe → am PC „Erlauben“ → Gerät steuert ab jetzt ohne Code."""
+    import http.client
+    import json as _json
+
+    from PySide6.QtWidgets import QApplication, QMessageBox
+
+    controller, window, _ = env
+    controller.cast.start()
+    asked = []
+    controller.access_requested.connect(lambda rid, name, ip: asked.append((rid, name)))
+    def call(method, path, body=None, headers=None):
+        conn = http.client.HTTPConnection("127.0.0.1", controller.cast.port, timeout=5)
+        conn.request(method, path, body=_json.dumps(body) if body is not None else None,
+                     headers={"Content-Type": "application/json", **(headers or {})})
+        r = conn.getresponse()
+        out = r.status, _json.loads(r.read() or b"{}")
+        conn.close()
+        return out
+
+    status, d = call("POST", "/api/freigabe", {"name": "Lenas Handy"})
+    assert status == 200 and d["id"]
+    for _ in range(50):
+        QApplication.processEvents()
+        if asked:
+            break
+    assert asked == [(d["id"], "Lenas Handy")]
+    box = window.pending_access
+    assert isinstance(box, QMessageBox) and "Lenas Handy" in box.text()
+    assert call("GET", f"/api/freigabe?id={d['id']}")[1] == {"state": "wait"}
+    assert call("POST", "/api/cmd", {"cmd": "schwarz"})[0] == 403  # ohne Freigabe: nichts
+    allow = next(b for b in box.buttons() if b.text() == "Erlauben")
+    allow.click()
+    QApplication.processEvents()
+    st = call("GET", f"/api/freigabe?id={d['id']}")[1]
+    assert st["state"] == "ok" and st["key"].startswith("d-")
+    assert call("GET", f"/api/freigabe?id={d['id']}")[1] == {"state": "ok"}  # Schlüssel nur einmal
+    assert controller.cast.check("1.2.3.4", st["key"]) is True
+    assert controller.config["cast"]["devices"][0]["name"] == "Lenas Handy"
+    assert st["key"] not in _json.dumps(controller.config["cast"])  # nur die Prüfsumme gespeichert
+    # Ablehnen
+    status, d2 = call("POST", "/api/freigabe", {"name": "Fremd"})
+    controller.cast.answer_access(d2["id"], False)
+    assert call("GET", f"/api/freigabe?id={d2['id']}")[1] == {"state": "no"}
+    controller.cast.forget_devices()
+    assert controller.cast.check("1.2.3.4", st["key"]) is False

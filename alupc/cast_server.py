@@ -9,6 +9,7 @@ Was ein Browser nicht kann: den Handy-Bildschirm übertragen (dafür gibt es Air
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import re
@@ -179,6 +180,7 @@ class CastServer(QObject):
         self._lock = threading.Lock()
         self.poll = None  # laufende Abstimmung (polls.Poll) – Handys stimmen ohne Steuer-Code ab
         self.games = None  # Minispiele (games.GameHub) – Handys spielen ohne Steuer-Code mit
+        self.access: dict[str, dict] = {}  # Freigabe-Anfragen: id → {name, ip, state, key, t}
 
     # ------------------------------------------------------------ Einstellungen
     def settings(self) -> dict:
@@ -280,8 +282,66 @@ class CastServer(QObject):
         self.state_changed.emit()
 
     # ------------------------------------------------------------ Zugangscode prüfen (mit Sperre)
+    # ------------------------------------------------------------ Geräte freigeben (statt Code)
+    @staticmethod
+    def _key_hash(key: str) -> str:
+        return hashlib.sha256(key.encode()).hexdigest()
+
+    def devices(self) -> list[dict]:
+        return list(self.settings().get("devices") or [])
+
+    def device_ok(self, key: str) -> bool:
+        if not key.startswith("d-") or len(key) < 20:
+            return False
+        h = self._key_hash(key)
+        return any(hmac.compare_digest(h, d.get("hash", "")) for d in self.devices())
+
+    def request_access(self, name: str, ip: str) -> str | None:
+        """Handy bittet um Freigabe → Anfrage-ID (None = zu viele offene Anfragen von dieser Adresse)."""
+        name = re.sub(r"[^\w .\-'äöüÄÖÜß]", "", str(name or ""))[:30].strip() or "Handy"
+        now = time.monotonic()
+        with self._lock:
+            for rid in [r for r, a in self.access.items() if now - a["t"] > 600]:
+                del self.access[rid]
+            if sum(1 for a in self.access.values() if a["ip"] == ip and a["state"] == "wait") >= 2:
+                return None
+            rid = secrets.token_urlsafe(12)
+            self.access[rid] = {"name": name, "ip": ip, "state": "wait", "key": "", "t": now}
+        self.request.emit({"kind": "freigabe", "id": rid, "name": name, "ip": ip})
+        return rid
+
+    def answer_access(self, rid: str, allow: bool) -> bool:
+        """Am PC erlaubt/abgelehnt. Erlaubt → Geräteschlüssel (gespeichert nur als Prüfsumme)."""
+        with self._lock:
+            req = self.access.get(rid)
+            if req is None or req["state"] != "wait":
+                return False
+            if allow:
+                key = "d-" + secrets.token_urlsafe(24)
+                req.update(state="ok", key=key)
+                entry = {"hash": self._key_hash(key), "name": req["name"], "added": time.strftime("%d.%m.%Y")}
+                self.config["cast"] = {**self.config["cast"], "devices": [*self.devices(), entry]}
+            else:
+                req["state"] = "no"
+        return True
+
+    def access_state(self, rid: str) -> dict:
+        with self._lock:
+            req = self.access.get(rid)
+            if req is None:
+                return {"state": "unbekannt"}
+            if req["state"] == "ok" and req["key"]:
+                key, req["key"] = req["key"], ""  # Schlüssel nur EINMAL herausgeben
+                return {"state": "ok", "key": key}
+            return {"state": req["state"]}
+
+    def forget_devices(self) -> None:
+        self.config["cast"] = {**self.config["cast"], "devices": []}
+
     def check(self, ip: str, code: str) -> bool | None:
         """True = ok, False = falsch, None = gesperrt (zu viele Fehlversuche)."""
+        if code and code.startswith("d-") and self.device_ok(code):  # freigegebenes Gerät
+            return True
         now = time.monotonic()
         with self._lock:
             fails = [t for t in self._fails.get(ip, []) if now - t < BLOCK_SECONDS]
@@ -316,7 +376,7 @@ font-weight:800;text-align:center;text-decoration:none;color:#fff;background:#1e
 .b small{{display:block;font-size:14px;font-weight:600;color:#cbd5e1;margin-top:4px}}
 .g{{background:linear-gradient(135deg,#6366f1,#ec4899);border:0}}.off{{opacity:.55}}</style></head>
 <body><h1>AluPC</h1><p>Du bist im Spiele-WLAN.</p>{game_btn}
-<a class="b" href="{html.escape(server.base())}">🔒 AluPC steuern<small>Nur mit Zugangscode (steht am PC)</small></a>
+<a class="b" href="{html.escape(server.base())}">🔒 AluPC steuern<small>Am PC freigeben lassen (oder Code)</small></a>
 </body></html>"""
 
 
@@ -400,6 +460,8 @@ def _make_handler(server: CastServer):
                 poll = self._poll(q.get("u", [""])[0])
                 if poll is not None:
                     self._json(200, poll.public(q.get("v", [""])[0]))
+            elif path == "/api/freigabe":  # Handy fragt nach: schon am PC erlaubt?
+                self._json(200, server.access_state(parse_qs(urlparse(self.path).query).get("id", [""])[0]))
             elif path == "/anmelden":  # WLAN-Anmeldeseite (Spiele-WLAN): Mitspielen oder – mit Code – steuern
                 self._send(200, portal_page(server).encode(), "text/html; charset=utf-8")
             elif path == "/spiel":
@@ -506,6 +568,16 @@ def _make_handler(server: CastServer):
                     self._game_post()
                 except (ValueError, TypeError, json.JSONDecodeError):
                     self._json(400, {"error": "Ungültige Anfrage"})
+                return
+            if u.path == "/api/freigabe":  # ohne Code: am PC um Freigabe bitten
+                try:
+                    rid = server.request_access(str(self._body_json().get("name", "")), self.client_address[0])
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    rid = server.request_access("", self.client_address[0])
+                if rid is None:
+                    self._json(429, {"error": "Schon angefragt – bitte am PC freigeben"})
+                else:
+                    self._json(200, {"id": rid})
                 return
             if u.path == "/api/umfrage":  # Abstimmen: ohne Steuer-Code, nur mit dem Stichwort der Abstimmung
                 try:

@@ -717,10 +717,30 @@ class SetupPage(QWidget):
 
         for w in (*checks.values(), auto):
             w.toggled.connect(save)
-        hint = QLabel("Zugang nur mit Code aus dem QR-Code")
+        hint = QLabel("Zugang mit dem Code aus dem QR-Code – oder ohne Code: das Handy bittet um Freigabe, "
+                      "AluPC fragt hier „Erlauben / Ablehnen“.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         lay.addWidget(hint)
+        devices = QLabel()
+        devices.setWordWrap(True)
+        forget = button("Alle Freigaben löschen", "trash")
+
+        def show_devices():
+            devs = self.controller.cast.devices()
+            devices.setText("Freigegeben: " + ", ".join(f"{d.get('name', 'Handy')} ({d.get('added', '')})"
+                                                         for d in devs) if devs else "Noch kein Gerät freigegeben.")
+            forget.setEnabled(bool(devs))
+
+        def do_forget():
+            self.controller.cast.forget_devices()
+            show_devices()
+
+        forget.clicked.connect(do_forget)
+        self.controller.access_requested.connect(lambda *_: QTimer.singleShot(500, show_devices))
+        show_devices()
+        lay.addWidget(devices)
+        lay.addWidget(forget, 0, Qt.AlignLeft)
         return box
 
     def _camera_group(self):

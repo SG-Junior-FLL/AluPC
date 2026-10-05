@@ -393,6 +393,8 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
 - **Hotspot-Kachel** (0.97): eigenes WLAN an/aus, Name/Passwort/QR über den Pfeil.
 - **Spiele-WLAN** (0.97, Minispiele-Fenster): offen, Handys bekommen beim Verbinden die Anmeldeseite mit
   „Mitspielen“ und „AluPC steuern“ (nur mit Code); geht aus, wenn die Minispiele enden. Anmeldeseite nur Linux.
+- **Handy freigeben** (0.98): statt Code „Am PC freigeben lassen“ → am PC „Erlauben / Ablehnen“; erlaubte Geräte
+  steuern danach ohne Code (Setup → Handy & Kamera: Freigaben löschen).
 - **Minispiele**: neu **Quiz** (A/B/C/D, schneller = mehr Punkte), **Lichtrenner** (Leuchtspuren wie „Tron“),
   **Schere, Stein, Papier** (alle gegen alle). Spiele-Fenster → **WLAN / Hotspot**: eigenes WLAN starten
   (Linux: NetworkManager; Windows: Mobiler Hotspot) oder vorhandenes WLAN eintragen – die Lobby zeigt dann

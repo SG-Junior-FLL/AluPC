@@ -220,6 +220,10 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
   <p>Den 6-stelligen Code zeigt AluPC unter dem QR-Code an.</p>
   <input type="text" id="code" class="big" inputmode="numeric" maxlength="7" autocomplete="off">
   <button class="primary" style="width:100%;margin-top:10px" onclick="saveCode()">Verbinden</button>
+  <p style="margin:16px 0 8px;text-align:center">– oder ohne Code –</p>
+  <input type="text" id="devname" maxlength="30" placeholder="Name dieses Handys" autocomplete="off">
+  <button style="width:100%;margin-top:10px" onclick="askAccess()">Am PC freigeben lassen</button>
+  <p id="waitmsg" style="text-align:center;margin-top:10px"></p>
 </div>
 
 <div id="main">
@@ -517,6 +521,26 @@ function showLogin(on) {
 function forget() {  // falscher/alter Code: nicht weiter damit anfragen (sonst sperrt AluPC das Handy)
   code = ""; store.set("alucast-code", ""); showLogin(true);
 }
+async function askAccess() {  // ohne Code: am PC erscheint „Erlauben / Ablehnen“
+  const name = $("devname").value.trim() || "Handy"; store.set("alucast-name", name);
+  const msg = $("waitmsg");
+  try {
+    const r = await fetch("/api/freigabe", {method: "POST", headers: {"Content-Type": "application/json"},
+                                           body: JSON.stringify({name})});
+    const d = await r.json();
+    if (!r.ok) { msg.textContent = d.error || "Geht gerade nicht"; return; }
+    msg.textContent = "Warte auf Freigabe am PC …";
+    const poll = async () => {
+      const q = await (await fetch("/api/freigabe?id=" + encodeURIComponent(d.id))).json();
+      if (q.state === "ok") { code = q.key; store.set("alucast-code", code); msg.textContent = ""; refresh(); }
+      else if (q.state === "no") msg.textContent = "Am PC abgelehnt.";
+      else if (q.state === "wait") setTimeout(poll, 1500);
+      else msg.textContent = "Anfrage abgelaufen – bitte nochmal.";
+    };
+    poll();
+  } catch (e) { msg.textContent = "Keine Verbindung zu AluPC"; }
+}
+if ($("devname")) $("devname").value = store.get("alucast-name");
 function saveCode() { code = $("code").value.replace(/\D/g, ""); store.set("alucast-code", code); refresh(); }
 function buzz() { if (navigator.vibrate) navigator.vibrate(12); }
 
