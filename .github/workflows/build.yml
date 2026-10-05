@@ -208,6 +208,8 @@ jobs:
           $out = python -c "from alupc import hotspot as h; c, o = h._ps(h._PS_STATE, timeout=60); print(o.replace(chr(10), ' | ')); print('MELDUNG', h.windows_message(o)[1])"
           Write-Output "::notice title=Hotspot (Windows)::$($out -join ' ')"
           if (($out -join ' ') -match 'ParserError|Unexpected token|MissingEndCurlyBrace') { Write-Output "::error title=Hotspot::PowerShell-Skript kaputt"; exit 1 }
+      - name: Anmeldeseite echt (hosts + portproxy, Runner ist Administrator)
+        run: python tests/portal_windows_check.py
       - name: Tests (Logik + Windows-Strukturen)
         shell: pwsh
         run: |

@@ -8,8 +8,11 @@
 Linux: NetworkManager (nmcli), PC-Adresse im Hotspot meist 10.42.0.1. Die Anmeldeseite braucht eine
 Weiterleitung (Port 80 → AluPC) – das darf nur root: einmal Passwort (pkexec) beim Start, ein kleiner Wächter
 nimmt die Regel wieder raus, sobald der Hotspot aus ist oder AluPC endet.
-Windows: „Mobiler Hotspot“ (WinRT über PowerShell), Passwort ist dort Pflicht, Adresse 192.168.137.1. Eine
-Anmeldeseite geht unter Windows nicht (Windows lässt fremden Verkehr nicht umleiten) – dann helfen die QR-Codes.
+Damit es auch ohne Internet am PC klappt, beantwortet der Hotspot die Prüf-Adressen der Handys selbst
+(dnsmasq-Eintrag „interface-name“ – zeigt auf die eigene Adresse im Hotspot).
+Windows: „Mobiler Hotspot“ (WinRT über PowerShell), Passwort ist dort Pflicht, Adresse 192.168.137.1. Die
+Anmeldeseite geht genauso: einmal „Ja“ (Administrator), dann zeigen die Prüf-Adressen über die hosts-Datei auf
+den PC (der Hotspot fragt beim PC nach), Port 80 → AluPC per „netsh portproxy“; ein Wächter räumt danach auf.
 
 Achtung: Viele WLAN-Karten können nicht gleichzeitig Hotspot sein UND mit einem anderen WLAN verbunden – dann ist
 der PC während des Hotspots ohne Internet (über Kabel geht beides). Alle Funktionen geben (ok, Meldung) zurück.
@@ -131,38 +134,125 @@ def _linux_active(run=_run) -> str:
 
 # ---- Anmeldeseite (Captive Portal): Port 80 aus dem Hotspot → AluPC
 def portal_flag() -> Path:
-    base = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp")
+    import tempfile
+
+    base = Path(os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir())
     return base / f"alupc-portal-{os.getuid() if hasattr(os, 'getuid') else 0}"
 
 
+# Adressen, mit denen Handys/Laptops prüfen, ob sie „im Internet“ sind (Android, Hersteller, iPhone, Firefox, Linux)
+PORTAL_HOSTS = ["connectivitycheck.gstatic.com", "connectivitycheck.android.com", "clients3.google.com",
+                "connect.rom.miui.com",
+                "connectivitycheck.platform.hicloud.com", "captive.apple.com", "www.appleiana.com",
+                "www.itools.info", "www.ibook.info", "www.airport.us", "www.thinkdifferent.us",
+                "detectportal.firefox.com", "nmcheck.gnome.org", "connectivity-check.ubuntu.com"]
+# Nur im Linux-Hotspot: Windows-Laptops als Gäste. Unter Windows nicht – sonst hielte sich der PC selbst für „im Hotel“.
+WINDOWS_CHECK_HOSTS = ["www.msftconnecttest.com", "www.msftncsi.com"]
+DNSMASQ_CONF = "/etc/NetworkManager/dnsmasq-shared.d/alupc-portal.conf"
+
+
 def portal_script(dev: str, port: int, flag: Path, pid: int) -> str:
-    """Root-Skript: Weiterleitung setzen, warten bis Flagge weg oder AluPC beendet, Weiterleitung entfernen."""
+    """Root-Skript (Linux): Prüf-Adressen auf den Hotspot zeigen lassen (dnsmasq), Port 80 → AluPC, „bereit“
+    melden, warten bis Flagge weg oder AluPC beendet, alles wieder entfernen. Läuft VOR dem Start des Hotspots,
+    damit dnsmasq die Einträge beim Start liest."""
     rule = f"-i {dev} -p tcp --dport 80 -j REDIRECT --to-ports {int(port)} -m comment --comment alupc-portal"
-    return (f"iptables -t nat -I PREROUTING {rule} || exit 1; "
+    lines = "\\n".join(f"interface-name={h},{dev}" for h in PORTAL_HOSTS + WINDOWS_CHECK_HOSTS)
+    return (f"mkdir -p {Path(DNSMASQ_CONF).parent} && printf '{lines}\\n' > {DNSMASQ_CONF}; "
+            f"iptables -t nat -I PREROUTING {rule} || {{ rm -f {DNSMASQ_CONF}; exit 1; }}; "
+            f"echo ok > '{flag}.ok'; "
             f"while [ -e '{flag}' ] && kill -0 {int(pid)} 2>/dev/null; do sleep 2; done; "
-            f"iptables -t nat -D PREROUTING {rule}")
+            f"iptables -t nat -D PREROUTING {rule}; rm -f {DNSMASQ_CONF}")
 
 
-def start_portal(dev: str, port: int = PORTAL_PORT, spawn=None) -> tuple[bool, str]:
+def portal_script_windows(ip: str, port: int, flag: Path, pid: int) -> str:
+    """Administrator-Skript (Windows): hosts-Einträge für die Prüf-Adressen (der Mobile Hotspot fragt beim PC
+    nach und der beachtet die hosts-Datei), Port 80 → AluPC (portproxy), Firewall auf, „bereit“ melden, warten,
+    alles wieder entfernen – auch wenn AluPC abstürzt."""
+    names = ",".join(f"'{h}'" for h in PORTAL_HOSTS)
+    return rf"""
+$ErrorActionPreference = 'Continue'
+$hosts = "$env:SystemRoot\System32\drivers\etc\hosts"
+$mark = '# alupc-portal'
+$ip = '{ip}'
+$flag = '{flag}'
+function Clean {{
+  try {{
+    $keep = @(Get-Content -LiteralPath $hosts -ErrorAction Stop | Where-Object {{ $_ -notlike "*$mark*" }})
+    Set-Content -LiteralPath $hosts -Value $keep -Encoding ASCII
+  }} catch {{}}
+  netsh interface portproxy delete v4tov4 listenport=80 listenaddress=$ip | Out-Null
+  netsh advfirewall firewall delete rule name=AluPC-Portal | Out-Null
+  ipconfig /flushdns | Out-Null
+}}
+try {{
+  Clean
+  Add-Content -LiteralPath $hosts -Value (@({names}) | ForEach-Object {{ "$ip $_ $mark" }}) -Encoding ASCII
+  netsh interface portproxy add v4tov4 listenport=80 listenaddress=$ip connectport={int(port)} connectaddress=$ip | Out-Null
+  netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=TCP localport=80 | Out-Null
+  ipconfig /flushdns | Out-Null
+  Set-Content -LiteralPath "$flag.ok" -Value 'ok'
+  while ((Test-Path -LiteralPath $flag) -and (Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue)) {{ Start-Sleep 2 }}
+}} finally {{ Clean }}
+"""
+
+
+def _wait_ready(flag: Path, proc=None, timeout: float = 120, sleep=None) -> bool:
+    """Bis der Wächter „bereit“ meldet (Passwort/„Ja“ eingegeben) – oder abgebrochen wurde."""
+    import time
+
+    ok = Path(f"{flag}.ok")
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        if ok.exists():
+            ok.unlink(missing_ok=True)
+            return True
+        if proc is not None and proc.poll() is not None and not ok.exists():
+            return False  # Passwort-Abfrage abgebrochen / Fehler
+        (sleep or time.sleep)(0.3)
+    return False
+
+
+def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_ready,
+                 ip: str = WINDOWS_IP) -> tuple[bool, str]:
+    """Anmeldeseite einschalten (Linux: vor dem Hotspot-Start, Windows: danach). Fragt einmal nach dem
+    Passwort (Linux, pkexec) bzw. „Ja“ (Windows, Administrator)."""
+    flag = portal_flag()
+    Path(f"{flag}.ok").unlink(missing_ok=True)
     if IS_WINDOWS:
-        return False, "Anmeldeseite geht unter Windows nicht – die Handys nehmen den QR-Code."
+        import base64
+
+        script = portal_script_windows(ip, port, flag, os.getpid())
+        enc = base64.b64encode(script.encode("utf-16-le")).decode()
+        launcher = ("try { Start-Process powershell -Verb RunAs -WindowStyle Hidden -ErrorAction Stop -ArgumentList "
+                    f"'-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','{enc}' }} catch {{ exit 1 }}")
+        flag.write_text("an")
+        code, out = (spawn or _ps)(launcher)
+        if code != 0:
+            flag.unlink(missing_ok=True)
+            return False, "Anmeldeseite aus („Ja“ nicht bestätigt) – Handys nehmen den QR-Code."
+        if not wait(flag, None, 60):
+            flag.unlink(missing_ok=True)
+            return False, "Anmeldeseite ging nicht – Handys nehmen den QR-Code."
+        return True, "Anmeldeseite an: Handys öffnen die Spielsteuerung beim Verbinden selbst."
     if not (shutil.which("pkexec") and shutil.which("iptables")):
         return False, "Anmeldeseite braucht pkexec und iptables."
-    flag = portal_flag()
     flag.write_text("an")
     cmd = ["pkexec", "sh", "-c", portal_script(dev, port, flag, os.getpid())]
     try:
-        (spawn or subprocess.Popen)(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.DEVNULL, start_new_session=True)
+        proc = (spawn or subprocess.Popen)(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                           stderr=subprocess.DEVNULL, start_new_session=True)
     except OSError as exc:
         flag.unlink(missing_ok=True)
         return False, f"Anmeldeseite ging nicht: {exc}"
+    if not wait(flag, proc, 120):
+        flag.unlink(missing_ok=True)  # Wächter (falls doch noch gestartet) räumt dann sofort auf
+        return False, "Anmeldeseite aus (Passwort nicht eingegeben) – Handys nehmen den QR-Code."
     return True, "Anmeldeseite an: Handys öffnen die Spielsteuerung beim Verbinden selbst."
 
 
 def stop_portal() -> None:
     try:
-        portal_flag().unlink(missing_ok=True)  # der Wächter nimmt die Regel in ≤ 2 s raus
+        portal_flag().unlink(missing_ok=True)  # der Wächter nimmt alles in ≤ 2 s wieder raus
     except OSError:
         pass
 
@@ -256,8 +346,16 @@ class Hotspot:
             return False, why
         if self.running and self.kind != kind:
             self.stop()  # nur ein Hotspot auf einmal (eine WLAN-Karte)
+        portal_msg = ""
+        self.portal = False
         if sys.platform.startswith("linux"):
+            if portal:  # vor dem Start: dnsmasq liest die Prüf-Adressen nur beim Hotspot-Start
+                dev = wifi_device()
+                self.portal, portal_msg = start_portal(dev) if dev else (False, "")
             ok, msg, ip = _linux_start(ssid, password, kind=kind, hidden=hidden)
+            if not ok and self.portal:
+                stop_portal()
+                self.portal, portal_msg = False, ""
         else:
             password = password if len(password or "") >= 8 else new_password()
             code, out = _ps(_PS_START, {"ALUPC_SSID": ssid, "ALUPC_PW": password})
@@ -265,16 +363,13 @@ class Hotspot:
             if ok and hidden:  # Windows kann den Namen des Mobilen Hotspots nicht verstecken
                 msg += " (Unsichtbar geht unter Windows nicht – der Name ist in der WLAN-Liste zu sehen.)"
             ip = WINDOWS_IP if ok else ""
+            if ok and portal:
+                self.portal, portal_msg = start_portal(ip=ip)
         self.running, self.ip, self.message = ok, ip, msg
         self.kind, self.ssid, self.password = (kind, ssid, password) if ok else ("", "", "")
         self.hidden = bool(ok and hidden and not IS_WINDOWS)
-        self.portal = False
-        if ok and portal:
-            dev = wifi_device() if sys.platform.startswith("linux") else ""
-            p_ok, p_msg = start_portal(dev) if dev else (False, "")
-            self.portal = p_ok
-            if p_msg:
-                self.message = msg = f"{msg} {p_msg}"
+        if ok and portal_msg:
+            self.message = msg = f"{msg} {portal_msg}"
         return ok, msg
 
     def stop(self) -> tuple[bool, str]:

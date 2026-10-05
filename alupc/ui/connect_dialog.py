@@ -145,7 +145,8 @@ class HotspotDialog(QDialog):
         self.state.setObjectName("Muted")
         self.state.setWordWrap(True)
         bl.addWidget(self.state)
-        hint = QLabel(("Linux: beim Start einmal das PC-Passwort (für die Anmeldeseite). " if games else "")
+        hint = QLabel(("Beim Start einmal bestätigen (Linux: Passwort, Windows: „Ja“) – für die Anmeldeseite. "
+                       if games else "")
                       + "Das normale WLAN des PCs kann dabei getrennt werden.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)

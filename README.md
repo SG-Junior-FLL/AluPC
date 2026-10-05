@@ -383,6 +383,12 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   Handy nicht erreicht (VPN, WSL, virtuelle Netze). AluPC nimmt jetzt automatisch die WLAN-Adresse; im
   Handy-Fenster lässt sich die Adresse auch von Hand wählen.
 
+## Neu in 0.100: Anmeldeseite auch unter Windows, besserer Abgleich
+- **Spiele-WLAN mit Anmeldeseite unter Linux und Windows** (einmal Passwort bzw. „Ja“) – klappt auch ohne Internet
+  am PC. Hotspot und Spiele-WLAN sind unter Linux unsichtbar (QR-Code oder Name + Passwort).
+- **Dual-Boot-Abgleich** führt einzelne Einträge zusammen, übersetzt Bild-/Video-Pfade zwischen Windows und Linux und
+  kopiert Dateien, die nur auf einem System liegen, in den Sync-Ordner. Neu dabei: Sprache, Spiele, Hotspot, Extras.
+
 ## Neu in 0.96/0.97: PC steuern, Programme, Hotspot, Spiele-WLAN
 
 - **Den ganzen PC steuern** (Sprache, Befehlssuche `Strg+K`, Handy-Karte „PC“): „lauter“, „Lautstärke auf 30“,
@@ -394,7 +400,7 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
 - **Programme auf der Startseite** (0.97): Startseite anpassen → „Programm …“ → Kachel im Bereich „Programme“.
 - **Hotspot-Kachel** (0.97): eigenes WLAN an/aus, Name/Passwort/QR über den Pfeil.
 - **Spiele-WLAN** (0.97, Minispiele-Fenster): offen, Handys bekommen beim Verbinden die Anmeldeseite mit
-  „Mitspielen“ und „AluPC steuern“ (nur mit Code); geht aus, wenn die Minispiele enden. Anmeldeseite nur Linux.
+  „Mitspielen“ und „AluPC steuern“ (nur mit Code); geht aus, wenn die Minispiele enden. Anmeldeseite seit 0.100 auch unter Windows.
 - **Handy freigeben** (0.98): statt Code „Am PC freigeben lassen“ → am PC „Erlauben / Ablehnen“; erlaubte Geräte
   steuern danach ohne Code (Setup → Handy & Kamera: Freigaben löschen).
 - **Minispiele**: neu **Quiz** (A/B/C/D, schneller = mehr Punkte), **Lichtrenner** (Leuchtspuren wie „Tron“),

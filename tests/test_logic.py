@@ -1417,3 +1417,88 @@ def test_nvidia_stream_reads_continuous_output(tmp_path):
         time.sleep(0.05)
     stream.stop()
     assert gpu is not None and gpu.name == "GeForce RTX 4070" and gpu.load == 42 and gpu.temp == 55
+
+
+def test_sync_merges_entries_not_whole_sections():
+    """Beide Systeme ändern Verschiedenes im selben Bereich → beides bleibt (früher: eine Seite verlor)."""
+    from alupc.settings_sync import merge_payload, merge_value
+
+    base = {"scenes": [{"name": "A", "x": 1}], "timer": {"minutes": 5, "size": 30}, "voice": {"wake": ["monitor"]}}
+    local = {"scenes": [{"name": "A", "x": 2}, {"name": "Linux-Szene"}], "timer": {"minutes": 9, "size": 30},
+             "voice": {"wake": ["monitor", "computer"]}}
+    remote = {"scenes": [{"name": "A", "x": 1}, {"name": "Windows-Szene"}], "timer": {"minutes": 5, "size": 40},
+              "voice": {"wake": ["monitor", "alupc"]}}
+    merged, conflicts = merge_payload(base, local, remote)
+    names = [s["name"] for s in merged["scenes"]]
+    assert names[0] == "A" and sorted(names[1:]) == ["Linux-Szene", "Windows-Szene"]
+    assert merged["scenes"][0]["x"] == 2 and merged["timer"] == {"minutes": 9, "size": 40}
+    assert merged["voice"]["wake"] == ["monitor", "computer", "alupc"] and conflicts == []
+    # gelöscht auf einer Seite, unverändert auf der anderen → bleibt gelöscht
+    v, c = merge_value([{"name": "A"}, {"name": "B"}], [{"name": "A"}], [{"name": "A"}, {"name": "B"}, {"name": "C"}])
+    assert [x["name"] for x in v] == ["A", "C"] and not c
+    # nur umsortiert auf der anderen Seite → deren Reihenfolge
+    v, _ = merge_value([{"id": 1}, {"id": 2}], [{"id": 1}, {"id": 2}, {"id": 3}], [{"id": 2}, {"id": 1}])
+    assert [x["id"] for x in v] == [2, 1, 3]
+    # wirklich dieselbe Stelle verschieden geändert → Konflikt, eigene gewinnt
+    v, c = merge_value({"minutes": 5}, {"minutes": 7}, {"minutes": 9})
+    assert v == {"minutes": 7} and c
+
+
+def test_sync_media_paths_work_on_both_systems(tmp_path, monkeypatch):
+    """Bilder/Videos: C:\\Bilder ↔ /media/…/Bilder; Dateien nur im Linux-Home werden in den Sync-Ordner kopiert."""
+    import os
+    from pathlib import Path
+
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    win_root = tmp_path / "C"  # Windows sieht das Laufwerk als C:\
+    (win_root / "Bilder").mkdir(parents=True)
+    (win_root / "Bilder" / "a.jpg").write_bytes(b"jpg")
+    lin_root = tmp_path / "media-win"  # Linux hat dasselbe Laufwerk woanders eingehängt
+    try:
+        os.symlink(win_root, lin_root, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("Verknüpfungen hier nicht erlaubt")
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "b.png").write_bytes(b"png-nur-linux")
+    win, lin = Config(tmp_path / "win.json"), Config(tmp_path / "lin.json")
+    win.data["sync"] = {**win.data["sync"], "enabled": True, "folder": str(win_root / ss.FOLDER_NAME)}
+    lin.data["sync"] = {**lin.data["sync"], "enabled": True, "folder": str(lin_root / ss.FOLDER_NAME)}
+    (win_root / ss.FOLDER_NAME).mkdir()
+
+    def on(system):
+        root = win_root if system is win else lin_root
+        monkeypatch.setattr(ss, "drive_root", lambda folder: root)
+        return system
+
+    win["media"] = {**win["media"], "saved": [str(win_root / "Bilder" / "a.jpg")]}
+    ss.sync_once(on(win))
+    raw = ss.sync_file(win_root / ss.FOLDER_NAME).read_text(encoding="utf-8")
+    assert "alupc-laufwerk:Bilder/a.jpg" in raw and str(win_root) not in raw  # laufwerksneutral gespeichert
+    ss.sync_once(on(lin))
+    assert lin["media"]["saved"] == [str(lin_root / "Bilder" / "a.jpg")]
+    # Linux legt eine Szene mit einem Bild aus dem Home an → wird kopiert, Windows findet es
+    lin["scenes"] = [{"name": "Urlaub", "sources": [{"type": "image", "path": str(home / "b.png")}]}]
+    assert "Gespeichert" in ss.sync_once(on(lin))[0]
+    ss.copy_thread.join(10)
+    copies = list((win_root / ss.FOLDER_NAME / ss.COPY_DIR).glob("*-b.png"))
+    assert len(copies) == 1 and copies[0].read_bytes() == b"png-nur-linux"
+    _msg, changed = ss.sync_once(on(win))
+    path = win["scenes"][0]["sources"][0]["path"]
+    assert "scenes" in changed and Path(path) == copies[0] and Path(path).is_file()
+    # Windows bleibt danach stabil (kein Hin-und-Her durch Pfad-Übersetzung)
+    assert ss.sync_once(on(win))[0] == "Alles aktuell." and ss.sync_once(on(lin))[0] == "Alles aktuell."
+
+
+def test_sync_covers_voice_games_extras(tmp_path):
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    cfg = Config(tmp_path / "c.json")
+    cfg["voice"] = {**cfg["voice"], "device": "alsa:hw:1", "custom": [{"say": "licht an", "do": "x"}]}
+    data = ss.payload(cfg)
+    for key in ("voice", "games", "hotspot", "welcome", "wheel", "start_content", "finger_shortcuts"):
+        assert key in data, key
+    assert "device" not in data["voice"] and data["voice"]["custom"][0]["say"] == "licht an"

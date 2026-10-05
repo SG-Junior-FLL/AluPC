@@ -236,7 +236,8 @@ def sync_group(page) -> QGroupBox:
     mount.clicked.connect(do_mount)
     now.clicked.connect(lambda: (controller.run_sync(), refresh()))
     controller.sync_status.connect(lambda _m: refresh())
-    note = QLabel("Mit: Startseite, Szenen, Design, Töne, Handy, RGB · Ohne: Monitore, Kameras, Fingerabdruck")
+    note = QLabel("Mit: Startseite, Szenen, Bilder/Videos, Design, Sprache, Spiele, Handy, RGB, Finger-Namen · "
+                  "Ohne: Monitore, Kameras, Mikrofon")
     note.setWordWrap(True)
     note.setObjectName("Muted")
     lay.addWidget(note)

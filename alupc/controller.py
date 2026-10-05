@@ -1975,6 +1975,10 @@ class Controller(QObject):
         if self.config.data["sync"].get("enabled"):
             self._sync_timer.stop()
             self.run_sync()
+            from . import settings_sync
+
+            if settings_sync.copy_thread is not None:  # Bilder/Videos fertig in den Sync-Ordner kopieren
+                settings_sync.copy_thread.join(20)
         if self._config_saved in self.config.listeners:
             self.config.listeners.remove(self._config_saved)
         from .ui.util import wait_for_background

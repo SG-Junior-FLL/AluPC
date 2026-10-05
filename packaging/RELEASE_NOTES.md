@@ -8,7 +8,28 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.99.0)
+### Neu in dieser Version (0.100.0)
+- **WLAN-Anmeldeseite jetzt auch unter Windows** – Linux und Windows machen es gleich: Spiele-WLAN starten →
+  einmal bestätigen (Linux: Passwort, Windows: „Ja“ für Administrator) → Handys, die sich verbinden, bekommen
+  „Im WLAN anmelden“ mit **Mitspielen** und **AluPC steuern** (Freigabe am PC). Nach dem Ausschalten (oder wenn
+  AluPC endet) räumt ein Wächter alles wieder auf.
+- **Anmeldeseite auch ohne Internet am PC:** Die Prüf-Adressen der Handys (Android, iPhone, Xiaomi, Huawei …)
+  beantwortet jetzt der PC selbst (Linux: Eintrag für den Hotspot, Windows: hosts-Datei).
+- **Besserer Dual-Boot-Abgleich:**
+  - Zusammenführen **bis auf einzelne Einträge**: Szene unter Windows angelegt, Kachel unter Linux → beides bleibt.
+    Nur wenn genau dieselbe Einstellung auf beiden Seiten verschieden geändert wurde, gewinnt die eigene (Sicherung
+    der anderen liegt daneben).
+  - **Bilder, Videos, Musik** funktionieren auf beiden Systemen: Pfade werden laufwerksneutral gespeichert
+    (C:\Bilder ↔ /media/…/Bilder). Dateien, die nur auf einem System liegen (z. B. Linux-Home), kopiert AluPC
+    im Hintergrund in den Sync-Ordner (Unterordner „Dateien“, bis 500 MB pro Datei).
+  - Mehr wird abgeglichen: **Sprachsteuerung** (Startwörter, eigene Befehle – ohne Mikrofon), **Minispiele, Hotspot,
+    Spiele-WLAN**, Begrüßung, Wetter, Glücksrad, Umfrage, Whiteboard, Finger-Kürzel, Video-Positionen, Start der App.
+- Ehrlich, nicht auf echter Hardware geprüft: ob Handys die Anmeldeseite wirklich von selbst öffnen (Linux und
+  Windows), ob der Windows-Hotspot die hosts-Datei an die Handys weitergibt, die „Ja“-Abfrage. Windows Defender kann
+  hosts-Änderungen melden. In der Windows-CI läuft das Skript echt (hosts, Port 80 → AluPC, Aufräumen).
+  Unter Windows bleibt das WLAN sichtbar und braucht ein Passwort (geht dort nicht anders).
+
+### Neu in Version 0.99.0
 - **Unsichtbare WLANs:** Hotspot und Spiele-WLAN senden ihren Namen nicht mehr (Linux). Verbinden nur per
   **WLAN-QR-Code** oder durch Eintippen von Name + Passwort. Abschaltbar im Hotspot-Fenster.
   Windows: der Mobile Hotspot kann seinen Namen nicht verstecken – dort bleibt er sichtbar (Hinweis im Fenster).

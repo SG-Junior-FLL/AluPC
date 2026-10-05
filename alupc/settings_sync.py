@@ -10,7 +10,14 @@ Revisionsnummer: Wer etwas ändert, schreibt die Datei mit der nächsten Nummer.
 AluPC eine höhere Nummer vom anderen System. Haben beide Seiten geändert (z. B. weil das Laufwerk nicht
 eingehängt war), gewinnt die eigene Änderung – die andere Fassung wird als Sicherung daneben gelegt.
 
-Nicht abgeglichen wird, was je System anders ist: Monitor-Namen, Kamera-IDs, Programmpfade,
+Haben beide Seiten geändert, wird bis auf einzelne Einträge zusammengeführt (eine Szene hier, eine Kachel dort →
+beides bleibt). Nur wenn wirklich dieselbe Einstellung auf beiden Seiten anders geändert wurde, gewinnt die eigene.
+
+Bilder, Videos, Musik: Pfade werden „laufwerksneutral“ gespeichert (C:\\Bilder\\a.jpg ↔ /media/…/Bilder/a.jpg).
+Liegt eine Datei nur auf diesem System (z. B. Linux-Home), kopiert AluPC sie in den Sync-Ordner (Unterordner
+„Dateien“) – dann findet das andere System sie auch.
+
+Nicht abgeglichen wird, was je System anders ist: Monitor-Namen, Kamera-IDs, Programmpfade, Mikrofon,
 Anmelde-Einstellungen, zuletzt gezeigter Inhalt. Beim Fingerabdruckmodul nur die Namen (Personen/Finger).
 """
 
@@ -25,8 +32,9 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from . import __version__
 from .config import DEFAULTS
@@ -40,7 +48,7 @@ SHARED_FS = {"ntfs", "ntfs3", "fuseblk", "exfat", "vfat", "msdos", "fat"}
 SECTIONS: dict[str, tuple[str, list[str]]] = {
     "startseite": ("Startseite (Kacheln, Reihenfolge, eigene Kacheln)", ["start_page"]),
     "szenen": ("Szenen", ["scenes"]),
-    "favoriten": ("Websites und Mediathek", ["websites", "media"]),
+    "favoriten": ("Websites und Mediathek", ["websites", "media", "video_positions"]),
     "tasten": ("Tastenkürzel", ["hotkeys"]),
     "aussehen": ("Darstellung und Übergänge", ["appearance", "transition"]),
     "schoner": ("Bildschirmschoner und Timer", ["screensaver", "timer"]),
@@ -50,7 +58,12 @@ SECTIONS: dict[str, tuple[str, list[str]]] = {
     "handy": ("Handy (Name, Code)", ["handy", "cast"]),
     "rgb": ("RGB-Beleuchtung", ["rgb"]),
     "overlays": ("Overlays", ["overlays"]),
-    "fingerabdruck": ("Fingerabdruck (Personen und Finger)", ["fingerprint_slots"]),
+    "fingerabdruck": ("Fingerabdruck (Personen und Finger)", ["fingerprint_slots", "finger_shortcuts"]),
+    "sprache": ("Sprachsteuerung (Startwörter, eigene Befehle)", ["voice"]),
+    "spiele": ("Minispiele, Hotspot, Spiele-WLAN", ["games", "hotspot"]),
+    "extras": ("Begrüßung, Wetter, Glücksrad, Umfrage, Whiteboard", ["welcome", "weather", "wheel", "poll",
+                                                                     "whiteboard"]),
+    "start": ("Start der App", ["start_content", "restore_last_content", "start_minimized"]),
 }
 # Nicht in der Einstellungsdatei, sondern eigene Dateien (siehe zw_fingerprint.sync_export/sync_import)
 EXTERNAL_KEYS = {"fingerprint_slots"}
@@ -76,6 +89,9 @@ def _portable(key: str, value):
         value = {}  # Kamera-IDs sind je System verschieden
     elif key == "rgb" and isinstance(value, dict):
         value.pop("openrgb_path", None)
+    elif key == "voice" and isinstance(value, dict):
+        value.pop("device", None)  # Mikrofon und System-Stimme heißen je System anders
+        value.pop("speak_voice", None)
     return value
 
 
@@ -87,7 +103,7 @@ def _external(key: str):
     return None
 
 
-def payload(config, keys: list[str] | None = None) -> dict:
+def payload(config, keys: list[str] | None = None, paths: "PathMap | None" = None) -> dict:
     data = {}
     for k in keys or all_keys():
         if k in EXTERNAL_KEYS:
@@ -96,7 +112,113 @@ def payload(config, keys: list[str] | None = None) -> dict:
                 data[k] = value
         elif k in config.data:
             data[k] = _portable(k, config.data[k])
-    return data
+    return paths.portable(data) if paths else data
+
+
+# --------------------------------------------------------------------------- Dateipfade für beide Systeme
+MEDIA_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".ico", ".mp4", ".mkv", ".webm", ".mov",
+             ".avi", ".m4v", ".mp3", ".wav", ".ogg", ".oga", ".flac", ".m4a", ".opus", ".pdf", ".html", ".htm"}
+TOKEN = "alupc-laufwerk:"
+COPY_DIR = "Dateien"
+COPY_LIMIT = 500 * 1024 * 1024  # größere Dateien nicht kopieren (dann gilt der Pfad nur auf diesem System)
+
+
+def drive_root(folder: str | Path) -> Path:
+    """Wurzel des Laufwerks, auf dem der Sync-Ordner liegt (Windows: „C:\\“, Linux: Einhängepunkt)."""
+    folder = Path(folder)
+    if IS_WINDOWS:
+        return Path(folder.anchor or folder)
+    return Path(mount_point_of(folder) or folder.parent)
+
+
+class PathMap:
+    """Übersetzt Medien-Pfade zwischen „dieses System“ und „laufwerksneutral“ (alupc-laufwerk:Bilder/a.jpg)."""
+
+    def __init__(self, folder: str | Path, root: str | Path | None = None):
+        self.folder = Path(folder)
+        self.root = Path(root) if root else drive_root(folder)
+        self.pending: dict[str, Path] = {}  # Quelle → Ziel im Sync-Ordner
+
+    def _is_media(self, s: str) -> bool:
+        return (len(s) < 1024 and not s.startswith(TOKEN) and os.path.isabs(s)
+                and os.path.splitext(s)[1].lower() in MEDIA_EXT)
+
+    def _token(self, s: str) -> str:
+        if not self._is_media(s):
+            return s
+        try:
+            return TOKEN + Path(s).relative_to(self.root).as_posix()
+        except ValueError:
+            pass
+        try:
+            size = os.path.getsize(s)
+        except OSError:
+            return s  # Datei fehlt → Pfad lassen, wie er ist
+        if size > COPY_LIMIT:
+            return s
+        digest = hashlib.sha256(s.encode("utf-8", "replace")).hexdigest()[:8]
+        dest = self.folder / COPY_DIR / f"{digest}-{Path(s).name}"
+        self.pending[s] = dest
+        try:
+            return TOKEN + dest.relative_to(self.root).as_posix()
+        except ValueError:
+            return s
+
+    def portable(self, value):
+        if isinstance(value, str):
+            return self._token(value)
+        if isinstance(value, list):
+            return [self.portable(v) for v in value]
+        if isinstance(value, dict):
+            return {self._token(k): self.portable(v) for k, v in value.items()}
+        return value
+
+    def _local(self, s: str) -> str:
+        if not s.startswith(TOKEN):
+            return s
+        rel = PurePosixPath(s[len(TOKEN):])
+        if rel.is_absolute() or ".." in rel.parts:
+            return s
+        return str(self.root.joinpath(*rel.parts))
+
+    def local(self, value):
+        if isinstance(value, str):
+            return self._local(value)
+        if isinstance(value, list):
+            return [self.local(v) for v in value]
+        if isinstance(value, dict):
+            return {self._local(k): self.local(v) for k, v in value.items()}
+        return value
+
+    def copy_pending(self) -> int:
+        """Dateien, die nur auf diesem System liegen, in den Sync-Ordner kopieren (nur wenn neu/geändert)."""
+        n = 0
+        for src, dest in list(self.pending.items()):
+            try:
+                st = os.stat(src)
+                if dest.exists() and dest.stat().st_size == st.st_size and dest.stat().st_mtime >= st.st_mtime:
+                    continue
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                tmp = dest.with_name(dest.name + ".tmp")
+                shutil.copy2(src, tmp)
+                os.replace(tmp, dest)
+                n += 1
+            except OSError:
+                continue
+        return n
+
+
+copy_thread: threading.Thread | None = None  # läuft im Hintergrund (große Videos sollen die App nicht anhalten)
+
+
+def _copy_in_background(paths: PathMap) -> None:
+    global copy_thread
+    if not paths.pending:
+        return
+    if copy_thread is not None and copy_thread.is_alive():
+        copy_thread.join()
+    copy_thread = threading.Thread(target=paths.copy_pending, name="alupc-sync-kopie", daemon=True)
+    copy_thread.start()
 
 
 def payload_hash(data: dict) -> str:
@@ -228,6 +350,96 @@ def merge(base: dict, local: dict, remote: dict) -> tuple[list[str], list[str]]:
     return take, conflicts
 
 
+_MISSING = object()
+
+
+def _list_key(*lists) -> str:
+    """Woran man Einträge einer Liste wiedererkennt (Szenen am Namen, Kacheln/Overlays an der id …)."""
+    items = [x for lst in lists for x in lst]
+    if not items or not all(isinstance(x, dict) for x in items):
+        return ""
+    for key in ("id", "name", "url", "say", "path", "title"):
+        if all(key in x for x in items) and all(len({json.dumps(x[key], sort_keys=True) for x in lst}) == len(lst)
+                                                for lst in lists):
+            return key
+    return ""
+
+
+def _merge_list(b, loc, r) -> tuple[list, bool] | None:
+    bl = b if isinstance(b, list) else []
+    hashable = all(isinstance(x, (str, int, float, bool)) for x in bl + loc + r)
+    key = _list_key(bl, loc, r)
+    if not hashable and not key:
+        return None
+
+    def ident(x):
+        return json.dumps(x[key], sort_keys=True) if key else json.dumps(x)
+
+    if hashable and (len(set(map(ident, loc))) != len(loc) or len(set(map(ident, r))) != len(r)):
+        return None  # doppelte Einträge → nicht sicher zusammenführbar
+    bm, lm, rm = ({ident(x): x for x in lst} for lst in (bl, loc, r))
+    ids_b, ids_l, ids_r = ([ident(x) for x in lst] for lst in (bl, loc, r))
+
+    def resorted(ids, m):
+        return [i for i in ids if i in bm] != [i for i in ids_b if i in m]
+
+    remote_only = resorted(ids_r, rm) and not resorted(ids_l, lm)
+    primary, other = (ids_r, ids_l) if remote_only else (ids_l, ids_r)  # wer umsortiert hat, bestimmt
+    order = list(primary)
+    for i, x in enumerate(other):  # Neues der anderen Seite hinter seinem Vorgänger einsortieren
+        if x not in order:
+            prev = next((o for o in reversed(other[:i]) if o in order), None)
+            if not any(o in order for o in other[i + 1:]):
+                pos = len(order)  # stand am Ende → bleibt am Ende
+            else:
+                pos = order.index(prev) + 1 if prev is not None else 0
+            while pos < len(order) and order[pos] not in ids_b and order[pos] not in other:
+                pos += 1  # hinter das, was die eigene Seite an derselben Stelle neu hat
+            order.insert(pos, x)
+    out, conflict = [], False
+    for i in order:
+        v, c = merge_value(bm.get(i, _MISSING), lm.get(i, _MISSING), rm.get(i, _MISSING))
+        conflict |= c
+        if v is not _MISSING:
+            out.append(v)
+    return out, conflict
+
+
+def merge_value(b, loc, r):
+    """Dreiwege-Zusammenführen bis in einzelne Einträge. Rückgabe: (Ergebnis, Konflikt?) – bei Konflikt
+    (dieselbe Stelle auf beiden Seiten verschieden geändert) gewinnt die eigene Seite."""
+    if loc == r or r == b:
+        return loc, False
+    if loc == b:
+        return r, False
+    if isinstance(loc, dict) and isinstance(r, dict):
+        bd = b if isinstance(b, dict) else {}
+        out, conflict = {}, False
+        for k in list(loc) + [k for k in r if k not in loc]:
+            v, c = merge_value(bd.get(k, _MISSING), loc.get(k, _MISSING), r.get(k, _MISSING))
+            conflict |= c
+            if v is not _MISSING:
+                out[k] = v
+        return out, conflict
+    if isinstance(loc, list) and isinstance(r, list):
+        merged = _merge_list(b, loc, r)
+        if merged is not None:
+            return merged
+    return loc, True
+
+
+def merge_payload(base: dict, local: dict, remote: dict) -> tuple[dict, list[str]]:
+    """Ganzer Stand: (zusammengeführt, Bereiche mit echtem Konflikt)."""
+    merged, conflicts = {}, []
+    for key in list(local) + [k for k in remote if k not in local]:
+        v, c = merge_value(base.get(key, _MISSING), local.get(key, _MISSING), remote.get(key, _MISSING))
+        if c:
+            conflicts.append(key)
+        if v is not _MISSING:
+            merged[key] = v
+    return merged, conflicts
+
+
 def resolve_folder(config, mount: bool = True) -> Path | None:
     """Sync-Ordner finden – auch wenn er woanders eingehängt ist als beim letzten Mal (Linux hängt Laufwerke
     je nach Name/UUID unter /run/media/… oder /media/… ein, Windows-Laufwerksbuchstaben können wechseln)."""
@@ -286,7 +498,8 @@ def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
     path = sync_file(folder)
     remote = _read(path) if path.exists() else None
     remote_rev = int(remote.get("rev", 0)) if remote else 0
-    local = payload(config)
+    paths = PathMap(folder)
+    local = payload(config, paths=paths)
     local_hash = payload_hash(local)
     base_rev, dirty = int(s.get("base_rev", 0)), local_hash != s.get("base_hash")
     first = not s.get("base_hash")  # zum ersten Mal verbunden → die vorhandenen Einstellungen übernehmen
@@ -294,30 +507,32 @@ def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
     changed: list[str] = []
     try:
         if remote and remote_rev > base_rev and (not dirty or first):
-            changed = apply_payload(config, remote["data"])
+            changed = apply_payload(config, paths.local(remote["data"]))
             _save_base(config, remote["data"])
-            _set_state(config, base_rev=remote_rev, base_hash=payload_hash(payload(config)), last=now,
-                       status=f"Übernommen von {remote.get('system', '?')} ({remote.get('written', '')}).")
+            _set_state(config, base_rev=remote_rev, base_hash=payload_hash(payload(config, paths=PathMap(folder))),
+                       last=now, status=f"Übernommen von {remote.get('system', '?')} ({remote.get('written', '')}).")
             return config.data["sync"]["status"], changed
         if dirty or not remote:
             note = ""
-            if remote and remote_rev > base_rev:  # beide Seiten haben geändert → je Bereich zusammenführen
-                take, conflicts = merge(_load_base(config), local, remote["data"])
+            if remote and remote_rev > base_rev:  # beide Seiten haben geändert → bis in Einträge zusammenführen
+                merged, conflicts = merge_payload(_load_base(config), local, remote["data"])
+                take = [k for k in merged if merged[k] != local.get(k)]
                 if take:
-                    changed = apply_payload(config, remote["data"], take)
-                    local = payload(config)
+                    changed = apply_payload(config, paths.local({k: merged[k] for k in take}), take)
+                    paths = PathMap(folder)
+                    local = payload(config, paths=paths)
                     local_hash = payload_hash(local)
                 if conflicts:
                     backup = folder / f"alupc-sync-sicherung-{remote_rev}-{remote.get('system', 'x')}.json"
                     shutil.copyfile(path, backup)
                     note = f" Die Änderungen von {remote.get('system', '?')} liegen als Sicherung daneben."
                 if take:
-                    note = f" Zusammengeführt: {len(take)} Bereich(e) von {remote.get('system', '?')} übernommen." \
-                        + note
+                    note = f" Zusammengeführt: {len(take)} Bereich(e) mit {remote.get('system', '?')}." + note
                 # Stand des anderen Systems ist jetzt bekannt – fürs nächste Zusammenführen merken
                 _save_base(config, remote["data"])
                 _set_state(config, base_rev=remote_rev)
             rev = max(remote_rev, base_rev) + 1
+            _copy_in_background(paths)  # Bilder/Videos, die nur hier liegen, in den Sync-Ordner
             _write(path, rev, local)
             _save_base(config, local)
             _set_state(config, base_rev=rev, base_hash=local_hash, last=now, status="Gespeichert." + note)
@@ -331,6 +546,7 @@ def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
                 msg = "Änderungen von Windows übernommen. " + msg
         _set_state(config, status=msg)
         return msg, changed
+    _copy_in_background(paths)  # z. B. Kopie war beim letzten Mal unterbrochen
     return "Alles aktuell.", []
 
 

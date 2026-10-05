@@ -169,8 +169,71 @@ def test_open_games_network_and_portal_script():
     assert ["nmcli", "connection", "up", "AluPC-Spiele"] in calls
     script = hotspot.portal_script("wlp4s0", 8765, hotspot.Path("/run/user/1000/alupc-portal-1000"), 4242)
     assert "-I PREROUTING -i wlp4s0 -p tcp --dport 80 -j REDIRECT --to-ports 8765" in script
-    assert "kill -0 4242" in script and script.rstrip().endswith("--comment alupc-portal")
-    assert "-D PREROUTING" in script  # Regel wird wieder entfernt
+    assert "kill -0 4242" in script and "-D PREROUTING" in script  # Regel wird wieder entfernt
+    assert "interface-name=connectivitycheck.gstatic.com,wlp4s0" in script  # klappt auch ohne Internet
+
+
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="sh-Skript")
+def test_portal_watchdog_really_runs(tmp_path, monkeypatch):
+    """Das Root-Skript echt ausführen (iptables als Attrappe): dnsmasq-Eintrag + Regel → „bereit“ → nach dem
+    Ausschalten ist alles wieder weg."""
+    import os
+    import subprocess
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "ipt.log"
+    fake = bin_dir / "iptables"
+    fake.write_text(f"#!/bin/sh\necho \"$@\" >> {log}\n")
+    fake.chmod(0o755)
+    conf = tmp_path / "nm" / "alupc-portal.conf"
+    monkeypatch.setattr(hotspot, "DNSMASQ_CONF", str(conf))
+    flag = tmp_path / "alupc-portal-test"
+    flag.write_text("an")
+    proc = subprocess.Popen(["sh", "-c", hotspot.portal_script("wlan0", 8765, flag, os.getpid())],
+                            env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"})
+    assert hotspot._wait_ready(flag, proc, 10)
+    text = conf.read_text()
+    assert "interface-name=captive.apple.com,wlan0" in text and "interface-name=www.msftconnecttest.com,wlan0" in text
+    assert "-I PREROUTING" in log.read_text()
+    flag.unlink()
+    proc.wait(10)
+    assert not conf.exists() and "-D PREROUTING" in log.read_text()
+
+
+def test_portal_start_order_and_cancel(monkeypatch, tmp_path):
+    """Linux: Anmeldeseite VOR dem Hotspot (dnsmasq liest beim Start). Passwort abgebrochen → Hotspot läuft trotzdem."""
+    order = []
+    monkeypatch.setattr(hotspot, "supported", lambda: (True, ""))
+    monkeypatch.setattr(hotspot, "wifi_device", lambda run=None: "wlan0")
+    monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
+    monkeypatch.setattr(hotspot.sys, "platform", "linux")
+    monkeypatch.setattr(hotspot, "_linux_start",
+                        lambda *a, **k: (order.append("hotspot"), (True, "Hotspot läuft.", "10.42.0.1"))[1])
+    monkeypatch.setattr(hotspot, "start_portal", lambda dev: (order.append("portal"), (True, "Anmeldeseite an."))[1])
+    hs = hotspot.Hotspot()
+    ok, msg = hs.start("AluPC-Spiele", "", portal=True)
+    assert ok and hs.portal and order == ["portal", "hotspot"] and "Anmeldeseite an" in msg
+    monkeypatch.setattr(hotspot, "start_portal", lambda dev: (False, "Anmeldeseite aus (Passwort nicht eingegeben)."))
+    ok, msg = hotspot.Hotspot().start("AluPC-Spiele", "", portal=True)
+    assert ok and "Passwort nicht eingegeben" in msg
+
+
+def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
+    """Windows: Skript enthält hosts/portproxy/Firewall + Aufräumen; Start über „Als Administrator“."""
+    script = hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77)
+    for part in ("drivers\\etc\\hosts", "portproxy add v4tov4 listenport=80 listenaddress=$ip connectport=8765",
+                 "portproxy delete", "firewall add rule name=AluPC-Portal", "finally { Clean }", "Get-Process -Id 77",
+                 "'captive.apple.com'"):
+        assert part in script, part
+    assert "msftconnecttest" not in script  # sonst hielte sich der PC selbst für „im Hotel-WLAN“
+    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
+    monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
+    seen = []
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (seen.append(cmd), (0, ""))[1], wait=lambda f, p, t: True)
+    assert ok and "-Verb RunAs" in seen[0] and "-EncodedCommand" in seen[0]
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (1, "abgebrochen"), wait=lambda f, p, t: True)
+    assert not ok and "QR-Code" in msg and not (tmp_path / "flag").exists()
 
 
 def test_portal_redirects_phone_checks_to_game(env, monkeypatch):  # noqa: F811
