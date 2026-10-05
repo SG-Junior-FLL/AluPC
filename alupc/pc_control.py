@@ -77,6 +77,8 @@ def pc_intent(words: list[str], alupc_words: set[str] | None = None) -> tuple[st
     „Timer“ …) – „öffne die Kamera“ bleibt dann AluPCs Kamera."""
     said = " ".join(words)
     ws = set(words)
+    if ws & {"widgets", "widget", "desktopwidgets"}:  # Desktop-Widgets an/aus
+        return "widgets", "Desktop-Widgets"
     pc = bool(ws & {"computer", "pc", "rechner", "laptop"})
     # --- Ein/Aus
     if pc and ws & {"herunterfahren", "runterfahren", "ausschalten", "abschalten", "ausmachen", "aus", "shutdown"} \

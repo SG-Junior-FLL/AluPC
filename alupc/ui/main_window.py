@@ -302,6 +302,15 @@ class MainWindow(QMainWindow):
         from PySide6.QtGui import QKeySequence, QShortcut
 
         QShortcut(QKeySequence("Ctrl+K"), self, activated=self.open_command_palette)
+        # Desktop-Widgets (Uhr, System, Musik, Sprach-/Lautstärke-Anzeige) auf Monitor 1
+        from .desktop_widgets import DesktopWidgets
+
+        self.desktop_widgets = DesktopWidgets(controller, lambda: (self.showNormal(), self.raise_(),
+                                                                   self.activateWindow(),
+                                                                   self.open_setup_section("Desktop-Widgets")))
+        controller.desktop_widgets = self.desktop_widgets
+        controller.widgets_toggle.connect(self.desktop_widgets.toggle)
+        QTimer.singleShot(0, self.desktop_widgets.apply)
         self._build_tray()
         controller.changed.connect(self.refresh)
         controller.games_changed.connect(self.refresh)

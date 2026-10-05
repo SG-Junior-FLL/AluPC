@@ -207,6 +207,7 @@ class SetupPage(QWidget):
         ("monitor", "Monitore", "Auflösung · Anordnung"),
         ("pip", "Monitor 2", "Maus · Sichtschutz · PiP"),
         ("palette", "Darstellung", "Design · Farbe"),
+        ("layers", "Desktop-Widgets", "Uhr · System · Anzeigen"),
         ("moon", "Bildschirmschoner", "Stil · Zeit"),
         ("timer", "Timer", "Dauer · Warnfarben"),
         ("sound", "Töne", "Bei Aktionen"),
@@ -228,6 +229,7 @@ class SetupPage(QWidget):
             "Monitore": [self._display_group],
             "Monitor 2": [self._output_group, self._privacy_group, self._pip_group],
             "Darstellung": [self._appearance_group],
+            "Desktop-Widgets": [self._widgets_group],
             "Bildschirmschoner": [self._screensaver_group],
             "Timer": [self._timer_group],
             "Töne": [self._sound_group],
@@ -662,6 +664,78 @@ class SetupPage(QWidget):
 
         self.hardware = HardwarePage(self.controller, scroll=False)
         return self.hardware
+
+    # ================================================================ Desktop-Widgets
+    def _widgets_group(self):
+        from .desktop_widgets import ITEMS, STYLES, settings
+
+        box = QGroupBox("Desktop-Widgets (Monitor 1)")
+        lay = QVBoxLayout(box)
+        cfg = settings(self.config)
+        intro = QLabel("Eigene, halb durchsichtige Anzeigen auf dem Desktop: Uhr, Systemstatus und Musik als Karten, "
+                       "dazu kurze Anzeigen für Sprache und Lautstärke. Mit der Maus verschieben, Rechtsklick = Menü.")
+        intro.setObjectName("Muted")
+        intro.setWordWrap(True)
+        lay.addWidget(intro)
+        self.widgets_on = QCheckBox("Desktop-Widgets an")
+        self.widgets_on.setChecked(bool(cfg["on"]))
+        lay.addWidget(self.widgets_on)
+        self.widget_boxes = {}
+        items = QWidget()
+        il = QHBoxLayout(items)
+        il.setContentsMargins(0, 0, 0, 0)
+        for key, label in ITEMS.items():
+            cb = QCheckBox(label)
+            cb.setChecked(bool(cfg["items"].get(key, True)))
+            il.addWidget(cb)
+            self.widget_boxes[key] = cb
+        il.addStretch(1)
+        lay.addWidget(items)
+        form = QFormLayout()
+        style = QComboBox()
+        for key, label in STYLES.items():
+            style.addItem(label, key)
+        style.setCurrentIndex(max(0, style.findData(cfg["style"])))
+        form.addRow("Aussehen:", style)
+        opacity = QSlider(Qt.Horizontal)
+        opacity.setRange(20, 100)
+        opacity.setValue(int(round(float(cfg["opacity"]) * 100)))
+        form.addRow("Deckkraft:", opacity)
+        top = QCheckBox("Immer im Vordergrund (sonst hinter den Fenstern, wie auf dem Desktop)")
+        top.setChecked(bool(cfg["top"]))
+        form.addRow("", top)
+        lay.addLayout(form)
+        reset = button("Positionen zurücksetzen", "refresh")
+        lay.addWidget(reset, 0, Qt.AlignLeft)
+        hint = QLabel("Wayland (KDE): Fenster-Positionen legt KWin fest – gemerkte Positionen gelten unter X11 und "
+                      "Windows. Ein/Aus auch per Sprache („Widgets an“) oder Befehlssuche.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+
+        def manager():
+            return getattr(self.controller, "desktop_widgets", None)
+
+        def save(rebuild=False):
+            cur = settings(self.config)
+            self.config["widgets"] = {**cur, "on": self.widgets_on.isChecked(),
+                                      "items": {k: cb.isChecked() for k, cb in self.widget_boxes.items()},
+                                      "style": style.currentData(), "opacity": opacity.value() / 100,
+                                      "top": top.isChecked()}
+            m = manager()
+            if m is not None:
+                m.apply(rebuild=rebuild)
+
+        self.widgets_on.toggled.connect(lambda _on: save())
+        for cb in self.widget_boxes.values():
+            cb.toggled.connect(lambda _on: save())
+        style.currentIndexChanged.connect(lambda _i: save())
+        opacity.valueChanged.connect(lambda _v: save())
+        top.toggled.connect(lambda _on: save(rebuild=True))
+        reset.clicked.connect(lambda: manager() and manager().reset_positions())
+        self.controller.widgets_toggle.connect(lambda: self.widgets_on.setChecked(
+            bool(settings(self.config)["on"])))
+        return box
 
     # ================================================================ Handy & Kamera
     def _phone_group(self):
