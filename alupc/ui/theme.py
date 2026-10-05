@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QGuiApplication, QPalette
 
 ACCENTS = {
+    "system": ("Wie das System", "#3b82f6"),  # Farbe kommt aus Windows/KDE (system_accent)
     "blau": ("Blau", "#3b82f6"),
     "violett": ("Violett", "#8b5cf6"),
     "gruen": ("Grün", "#10b981"),
@@ -78,6 +79,8 @@ SOURCE_COLORS = {
 }
 
 _current: Theme | None = None
+_sys_highlight: str = ""  # Markierungs- und Fensterfarbe des Systems, bevor AluPC die Palette überschreibt
+_sys_window: str = ""
 
 
 def system_prefers_dark() -> bool:
@@ -92,13 +95,113 @@ def system_prefers_dark() -> bool:
             return False
     except AttributeError:
         pass
+    if _sys_window:  # AluPC hat die Palette schon überschrieben → die des Systems vom Start nehmen
+        return QColor(_sys_window).lightness() < 128
     return app.palette().color(QPalette.Window).lightness() < 128
+
+
+
+
+def _windows_accent() -> str:
+    """Akzentfarbe aus Windows (Einstellungen → Personalisierung → Farben)."""
+    import winreg
+
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\DWM") as key:
+        for name, abgr in (("AccentColor", True), ("ColorizationColor", False)):
+            try:
+                v = int(winreg.QueryValueEx(key, name)[0]) & 0xFFFFFFFF
+            except OSError:
+                continue
+            r, g, b = (v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF) if abgr else \
+                ((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+            return f"#{r:02x}{g:02x}{b:02x}"
+    return ""
+
+
+def _kde_accent(path=None) -> str:
+    """Akzentfarbe aus KDE Plasma (~/.config/kdeglobals, [General] AccentColor=r,g,b)."""
+    import configparser
+    import os
+    from pathlib import Path
+
+    path = path or Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "kdeglobals"
+    cp = configparser.ConfigParser(interpolation=None, strict=False)
+    try:
+        cp.read(path, encoding="utf-8")
+        for section, key in (("General", "AccentColor"), ("Colors:Selection", "BackgroundNormal")):
+            raw = cp.get(section, key, fallback="").strip()
+            parts = [int(x) for x in raw.split(",")[:3]] if raw else []
+            if len(parts) == 3:
+                return "#{:02x}{:02x}{:02x}".format(*parts)
+    except (OSError, ValueError, configparser.Error):
+        pass
+    return ""
+
+
+# GNOME 47+: Einstellungen → Darstellung → Akzentfarbe (Namen aus gsettings, Farben wie in libadwaita)
+GNOME_ACCENTS = {"blue": "#3584e4", "teal": "#2190a4", "green": "#3a944a", "yellow": "#c88800",
+                 "orange": "#ed5b00", "red": "#e62d42", "pink": "#d56199", "purple": "#9141ac", "slate": "#6f8396"}
+
+
+def _gnome_accent(run=None) -> str:
+    import subprocess
+
+    def default_run(cmd):
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=2).stdout
+
+    try:
+        out = (run or default_run)(["gsettings", "get", "org.gnome.desktop.interface", "accent-color"])
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return GNOME_ACCENTS.get(out.strip().strip("'\""), "")
+
+
+def linux_desktop() -> str:
+    import os
+
+    d = (os.environ.get("XDG_CURRENT_DESKTOP") or os.environ.get("DESKTOP_SESSION") or "").lower()
+    return "kde" if "kde" in d or "plasma" in d else "gnome" if "gnome" in d or "unity" in d else d
+
+
+def system_accent() -> str:
+    """Akzentfarbe des Betriebssystems – Windows-Registry, KDE, GNOME oder Qt-Palette; sonst Blau."""
+    import sys
+
+    color = ""
+    try:
+        if sys.platform == "win32":
+            color = _windows_accent()
+        else:
+            desk = linux_desktop()
+            color = _gnome_accent() if desk == "gnome" else _kde_accent()
+    except Exception:  # noqa: BLE001 - nur Farbe, Fehler egal
+        color = ""
+    if not color:
+        color = _sys_highlight
+        app = QGuiApplication.instance()
+        if not color and app is not None:
+            color = app.palette().color(QPalette.Highlight).name()
+    c = QColor(color)
+    if not c.isValid() or c.hslSaturation() < 40:  # grau/kaputt → kein brauchbarer Akzent
+        return ACCENTS["blau"][1]
+    return c.name()
+
+
+def _partner(color: str) -> str:
+    """Zweite Verlaufsfarbe: Farbton ein Stück weiter gedreht."""
+    c = QColor(color)
+    h, s, v = c.hsvHue(), c.hsvSaturation(), c.value()
+    return QColor.fromHsv((max(h, 0) + 40) % 360, s, v).name()
 
 
 def make_theme(mode: str = "system", accent: str = "blau") -> Theme:
     dark = system_prefers_dark() if mode == "system" else mode == "dunkel"
     key = accent if accent in ACCENTS else "blau"
-    accent_hex, partner = ACCENTS[key][1], ACCENT_PARTNERS[key]
+    if key == "system":
+        accent_hex = system_accent()
+        partner = _partner(accent_hex)
+    else:
+        accent_hex, partner = ACCENTS[key][1], ACCENT_PARTNERS[key]
     if dark:  # ruhiges, fast neutrales Dunkelgrau-Blau
         return Theme(True, accent_hex, bg="#0b0e14", surface="#12161f", surface2="#1a1f2b",
                      border="#252b38", text="#eef1f6", muted="#8b93a3", accent2=partner)
@@ -146,8 +249,11 @@ def load_fonts(app) -> bool:
 
 def apply(app, mode: str = "system", accent: str = "blau") -> Theme:
     """Farbschema auf die ganze Anwendung anwenden (auch nachträglich)."""
-    global _current
+    global _current, _sys_highlight, _sys_window
     load_fonts(app)
+    if not _sys_highlight:
+        _sys_highlight = app.palette().color(QPalette.Highlight).name()
+        _sys_window = app.palette().color(QPalette.Window).name()
     t = _current = make_theme(mode, accent)
     if app.style().name().lower() != "fusion":
         app.setStyle("Fusion")
@@ -164,7 +270,81 @@ def apply(app, mode: str = "system", accent: str = "blau") -> Theme:
         pal.setColor(QPalette.Disabled, role, QColor(t.muted))
     app.setPalette(pal)
     app.setStyleSheet(stylesheet(t, _check_image(), _arrow_image(t)))
+    _install_title_bars(app, t)
     return t
+
+
+_sig_cache: tuple = (0.0, None)
+
+
+def system_signature() -> tuple:
+    """Was „Wie das System“ gerade bedeutet (hell/dunkel + Farbe) – ändert es sich, wird neu eingefärbt.
+    Höchstens alle 3 s wirklich nachsehen (mehrere Fenster teilen sich das Ergebnis)."""
+    import time
+
+    global _sig_cache
+    now = time.monotonic()
+    if _sig_cache[1] is None or now - _sig_cache[0] > 3:
+        _sig_cache = (now, (system_prefers_dark(), system_accent()))
+    return _sig_cache[1]
+
+
+# ------------------------------------------------------------------ Windows: Titelleiste passend zur App
+def title_bar(widget, t: Theme | None = None) -> bool:
+    """Windows 10/11: dunkle bzw. helle Titelleiste, Windows 11 zusätzlich in der App-Hintergrundfarbe."""
+    import sys
+
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+
+        t = t or current()
+        hwnd = int(widget.winId())
+        dwm = ctypes.windll.dwmapi
+
+        def setattr_(attr: int, value: int) -> bool:
+            v = ctypes.c_int(value)
+            return dwm.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(v), ctypes.sizeof(v)) == 0
+
+        def colorref(color: str) -> int:
+            c = QColor(color)
+            return c.red() | (c.green() << 8) | (c.blue() << 16)
+
+        ok = setattr_(20, int(t.dark)) or setattr_(19, int(t.dark))  # DWMWA_USE_IMMERSIVE_DARK_MODE (19: alte Win10)
+        setattr_(35, colorref(t.bg))    # DWMWA_CAPTION_COLOR (nur Windows 11)
+        setattr_(36, colorref(t.text))  # DWMWA_TEXT_COLOR
+        setattr_(34, colorref(t.border))  # DWMWA_BORDER_COLOR
+        return ok
+    except Exception:  # noqa: BLE001 - nur Optik
+        return False
+
+
+_title_filter = None
+
+
+def _install_title_bars(app, t: Theme) -> None:
+    import sys
+
+    if sys.platform != "win32":
+        return
+    from PySide6.QtCore import QEvent, QObject
+
+    global _title_filter
+    if _title_filter is None:
+        class _Filter(QObject):
+            def eventFilter(self, obj, event):  # noqa: N802 - Qt
+                if event.type() == QEvent.Show and getattr(obj, "isWindow", None) and obj.isWindow() \
+                        and not obj.property("alupc_titlebar"):
+                    obj.setProperty("alupc_titlebar", True)
+                    title_bar(obj)
+                return False
+
+        _title_filter = _Filter(app)
+        app.installEventFilter(_title_filter)
+    for w in app.topLevelWidgets():  # schon offene Fenster nach Design-Wechsel nachziehen
+        if w.isVisible():
+            title_bar(w, t)
 
 
 def round_popup(menu) -> None:

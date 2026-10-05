@@ -1755,14 +1755,15 @@ class Controller(QObject):
         self.message.emit("🎤 Ich höre zu – ohne Startwort" if on else "🎤 Mikrofon-Schalter aus")
         self.changed.emit()
 
-    def guest_wifi(self) -> tuple[str, str] | None:
-        """WLAN, in das Handys sollen: laufender Hotspot von AluPC oder das im Spiele-Fenster eingetragene WLAN."""
+    def guest_wifi(self) -> tuple[str, str, bool] | None:
+        """WLAN, in das Handys sollen: laufender Hotspot von AluPC oder das im Spiele-Fenster eingetragene WLAN.
+        (Name, Passwort, unsichtbar?)"""
         from .hotspot import hotspot
 
         if hotspot.running:
-            return hotspot.ssid, hotspot.password
+            return hotspot.ssid, hotspot.password, hotspot.hidden
         wifi = self.config["games"].get("wifi") or {}
-        return (wifi["ssid"], wifi.get("password", "")) if wifi.get("ssid") else None
+        return (wifi["ssid"], wifi.get("password", ""), False) if wifi.get("ssid") else None
 
     def set_hotspot(self, on: bool, kind: str = "normal") -> tuple[bool, str]:
         """Hotspot an/aus (blockiert einige Sekunden – aus einem Hintergrund-Thread aufrufen).
@@ -1771,7 +1772,8 @@ class Controller(QObject):
 
         if on:
             hs = settings(self.config, kind)
-            ok, msg = hotspot.start(hs["ssid"], hs["password"], kind=kind, portal=kind == "spiele")
+            ok, msg = hotspot.start(hs["ssid"], hs["password"], kind=kind, portal=kind == "spiele",
+                                    hidden=bool(hs.get("hidden", True)))
         else:
             ok, msg = hotspot.stop()
         self.message.emit(msg)

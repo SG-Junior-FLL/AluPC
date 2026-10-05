@@ -120,6 +120,9 @@ class Swatch(QAbstractButton):
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(self.color))
         p.drawEllipse(r)
+        if getattr(self, "system", False):  # „Wie das System“: kleines Monitor-Symbol in der Systemfarbe
+            s = int(r.width() * 0.62)
+            icons.icon("monitor", "#ffffff", s).paint(p, int(r.center().x() - s / 2), int(r.center().y() - s / 2), s, s)
         p.end()
 
 
@@ -589,12 +592,13 @@ class SetupPage(QWidget):
         swatches.setSpacing(8)
         self._swatches = {}
         for key, (label, color) in theme.ACCENTS.items():
-            b = Swatch(color, label)
+            b = Swatch(theme.system_accent() if key == "system" else color, label)
+            b.system = key == "system"
             b.clicked.connect(lambda _=False, k=key: self._set_accent(k))
             self._swatches[key] = b
             swatches.addWidget(b)
         swatches.addStretch(1)
-        self._style_swatches(a.get("accent", "blau"))
+        self._style_swatches(a.get("accent", "system"))
         from ..transitions import TRANSITIONS
 
         tr = self.config["transition"]
@@ -682,7 +686,7 @@ class SetupPage(QWidget):
         self.config["appearance"] = a
         if emit:
             self.theme_changed.emit()
-            self._style_swatches(a.get("accent", "blau"))
+            self._style_swatches(a.get("accent", "system"))
 
     # ================================================================ AluPC
     def _hardware_group(self):

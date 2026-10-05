@@ -47,6 +47,18 @@ def test_qr_scannable_with_real_decoder(qapp, tmp_path):
         assert [r.text for r in zx.read_barcodes(pil.open(path))] == [text]
 
 
+def test_hidden_wifi_qr_readable(qapp, tmp_path):
+    zx = pytest.importorskip("zxingcpp")
+    pil = pytest.importorskip("PIL.Image")
+    from alupc.sources import qr_pixmap
+
+    payload = wifi_payload("AluPC", "k7pm2qa9xr", hidden=True)
+    assert payload == "WIFI:T:WPA;S:AluPC;P:k7pm2qa9xr;H:true;;"
+    pm = qr_pixmap(payload, 120)
+    pm.save(str(tmp_path / "h.png"))
+    assert [r.text for r in zx.read_barcodes(pil.open(tmp_path / "h.png"))] == [payload]
+
+
 def test_wifi_payload_escapes():
     assert wifi_payload('a;b', 'p"w') == r'WIFI:T:WPA;S:a\;b;P:p\"w;;'
     assert wifi_payload("Offen", "") == "WIFI:T:nopass;S:Offen;P:;;"
@@ -75,8 +87,9 @@ def test_hotspot_settings_and_linux_commands(monkeypatch):
 
     ok, msg, ip = hotspot._linux_start("Party", "geheim123", run, kind="normal")
     assert ok and ip == "10.42.0.1" and "Party" in msg
-    assert ["nmcli", "device", "wifi", "hotspot", "ifname", "wlp4s0", "con-name", "AluPC-Hotspot", "ssid", "Party",
-            "password", "geheim123"] in calls
+    add = next(c for c in calls if c[:3] == ["nmcli", "connection", "add"])
+    assert "AluPC-Hotspot" in add and "Party" in add and add[add.index("wifi-sec.psk") + 1] == "geheim123"
+    assert ["nmcli", "connection", "up", "AluPC-Hotspot"] in calls
 
     def fail(cmd, timeout=25):
         if cmd[:4] == ["nmcli", "-t", "-f", "DEVICE,TYPE"]:
@@ -105,12 +118,12 @@ def test_server_url_uses_hotspot_ip(env):  # noqa: F811
         hs = hotspot.hotspot
         hs.running, hs.ip, hs.kind, hs.ssid, hs.password = True, "10.42.0.1", "spiele", "AluPC-Spiele", ""
         assert controller.cast.games_url().startswith("http://10.42.0.1:")
-        assert controller.guest_wifi() == ("AluPC-Spiele", "")
+        assert controller.guest_wifi() == ("AluPC-Spiele", "", False)
     finally:
         hotspot.hotspot.running, hotspot.hotspot.ip, hotspot.hotspot.kind = False, "", ""
     assert controller.guest_wifi() is None
     controller.config["games"] = {**controller.config["games"], "wifi": {"ssid": "Zuhause", "password": "x"}}
-    assert controller.guest_wifi() == ("Zuhause", "x")
+    assert controller.guest_wifi() == ("Zuhause", "x", False)
 
 
 def test_lobby_shows_two_readable_codes(env, tmp_path):  # noqa: F811
@@ -151,7 +164,8 @@ def test_open_games_network_and_portal_script():
     ok, _msg, ip = hotspot._linux_start("AluPC-Spiele", "", run, kind="spiele")
     assert ok and ip == "10.42.0.1"
     add = next(c for c in calls if c[:3] == ["nmcli", "connection", "add"])
-    assert "802-11-wireless.mode" in add and "ap" in add and "shared" in add and "password" not in add
+    assert "802-11-wireless.mode" in add and "ap" in add and "shared" in add and "wifi-sec.psk" not in add
+    assert add[add.index("802-11-wireless.hidden") + 1] == "yes"  # unsichtbar (Standard)
     assert ["nmcli", "connection", "up", "AluPC-Spiele"] in calls
     script = hotspot.portal_script("wlp4s0", 8765, hotspot.Path("/run/user/1000/alupc-portal-1000"), 4242)
     assert "-I PREROUTING -i wlp4s0 -p tcp --dport 80 -j REDIRECT --to-ports 8765" in script

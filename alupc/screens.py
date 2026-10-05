@@ -87,12 +87,13 @@ def describe_design(cfg: dict) -> str:
     return f"{label}: {title[:36]}" if title else label
 
 
-def wifi_payload(ssid: str, password: str) -> str:
-    """Inhalt für den WLAN-QR-Code (Handys verbinden sich damit direkt)."""
+def wifi_payload(ssid: str, password: str, hidden: bool = False) -> str:
+    """Inhalt für den WLAN-QR-Code (Handys verbinden sich damit direkt). hidden: unsichtbares WLAN (H:true) –
+    das Handy sucht dann gezielt nach dem Namen."""
     def esc(s: str) -> str:
         return "".join("\\" + ch if ch in "\\;,:\"" else ch for ch in s)
     kind = "WPA" if password else "nopass"
-    return f"WIFI:T:{kind};S:{esc(ssid)};P:{esc(password)};;"
+    return f"WIFI:T:{kind};S:{esc(ssid)};P:{esc(password)};{'H:true;' if hidden else ''};"
 
 
 def _font(px: float, bold: bool = False, weight: QFont.Weight | None = None) -> QFont:

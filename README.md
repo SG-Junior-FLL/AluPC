@@ -15,7 +15,9 @@ OBS-Studio-Fenster.
 
 - Eigenes, modernes Design mit **Seitenleiste**, **Statuskarte** („Was sehen die anderen gerade?“
   mit LIVE / STANDBILD / SCHWARZ) und großen Kacheln, die ihren Zustand zeigen („AKTIV“, „AN“).
-- **Dunkel, Hell oder wie das System**, dazu 5 **Akzentfarben** (Setup → Darstellung).
+- **Dunkel, Hell oder wie das System**, Akzentfarbe **wie das System** (Windows, KDE, GNOME – zieht live mit) oder
+  5 eigene (Setup → Darstellung). Unter Windows passt sich die Titelleiste an.
+- Hotspot und Spiele-WLAN sind **unsichtbar** (Linux): verbinden per QR-Code oder Name + Passwort.
 - Alle Symbole sind selbst gezeichnet – sehen unter Kubuntu und Windows gleich scharf aus
   (keine Emojis, die je nach System anders aussehen).
 - **Übergänge zwischen Szenen** auf Monitor 2: Überblenden, über Schwarz, Wegschieben, Wischen,

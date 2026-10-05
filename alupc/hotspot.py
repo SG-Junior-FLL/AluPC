@@ -94,24 +94,27 @@ def _linux_ip(dev: str, run=_run) -> str:
     return first.split("/")[0].strip() or "10.42.0.1"
 
 
-def _linux_start(ssid: str, password: str, run=_run, kind: str = "spiele") -> tuple[bool, str, str]:
+def _linux_start(ssid: str, password: str, run=_run, kind: str = "spiele",
+                 hidden: bool = True) -> tuple[bool, str, str]:
+    """Hotspot als eigene NetworkManager-Verbindung (AP-Modus, geteilt). hidden=True: Name wird nicht ausgestrahlt –
+    das WLAN taucht in keiner Liste auf, man kommt nur per QR-Code oder mit Name + Passwort hinein."""
     dev = wifi_device(run)
     if not dev:
         return False, "Keine WLAN-Karte gefunden.", ""
     con = CON_NAMES[kind]
+    run(["nmcli", "connection", "delete", con], 10)
+    cmd = ["nmcli", "connection", "add", "type", "wifi", "ifname", dev, "con-name", con, "autoconnect", "no",
+           "ssid", ssid, "802-11-wireless.mode", "ap", "802-11-wireless.band", "bg", "ipv4.method", "shared",
+           "802-11-wireless.hidden", "yes" if hidden else "no"]
     if password:
-        code, out = run(["nmcli", "device", "wifi", "hotspot", "ifname", dev, "con-name", con,
-                         "ssid", ssid, "password", password])
-    else:  # offenes WLAN (Spiele): eigene Verbindung im AP-Modus ohne Verschlüsselung
-        run(["nmcli", "connection", "delete", con], 10)
-        code, out = run(["nmcli", "connection", "add", "type", "wifi", "ifname", dev, "con-name", con,
-                         "autoconnect", "no", "ssid", ssid, "802-11-wireless.mode", "ap",
-                         "802-11-wireless.band", "bg", "ipv4.method", "shared"])
-        if code == 0:
-            code, out = run(["nmcli", "connection", "up", con])
+        cmd += ["wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", password]
+    code, out = run(cmd)
+    if code == 0:
+        code, out = run(["nmcli", "connection", "up", con])
     if code != 0:
         return False, f"Hotspot ging nicht: {out.splitlines()[-1] if out else 'unbekannter Fehler'}", ""
-    return True, f"Hotspot „{ssid}“ läuft (über {dev}).", _linux_ip(dev, run)
+    seen = "unsichtbar – nur per QR-Code oder Name + Passwort" if hidden else f"über {dev}"
+    return True, f"Hotspot „{ssid}“ läuft ({seen}).", _linux_ip(dev, run)
 
 
 def _linux_stop(run=_run, kind: str = "spiele") -> tuple[bool, str]:
@@ -241,10 +244,12 @@ class Hotspot:
         self.kind = ""
         self.ssid = ""
         self.password = ""
+        self.hidden = False
         self.portal = False
         self.message = ""
 
-    def start(self, ssid: str, password: str, kind: str = "spiele", portal: bool = False) -> tuple[bool, str]:
+    def start(self, ssid: str, password: str, kind: str = "spiele", portal: bool = False,
+              hidden: bool = True) -> tuple[bool, str]:
         ok, why = supported()
         if not ok:
             self.message = why
@@ -252,14 +257,17 @@ class Hotspot:
         if self.running and self.kind != kind:
             self.stop()  # nur ein Hotspot auf einmal (eine WLAN-Karte)
         if sys.platform.startswith("linux"):
-            ok, msg, ip = _linux_start(ssid, password, kind=kind)
+            ok, msg, ip = _linux_start(ssid, password, kind=kind, hidden=hidden)
         else:
             password = password if len(password or "") >= 8 else new_password()
             code, out = _ps(_PS_START, {"ALUPC_SSID": ssid, "ALUPC_PW": password})
             ok, msg = windows_message(out)
+            if ok and hidden:  # Windows kann den Namen des Mobilen Hotspots nicht verstecken
+                msg += " (Unsichtbar geht unter Windows nicht – der Name ist in der WLAN-Liste zu sehen.)"
             ip = WINDOWS_IP if ok else ""
         self.running, self.ip, self.message = ok, ip, msg
         self.kind, self.ssid, self.password = (kind, ssid, password) if ok else ("", "", "")
+        self.hidden = bool(ok and hidden and not IS_WINDOWS)
         self.portal = False
         if ok and portal:
             dev = wifi_device() if sys.platform.startswith("linux") else ""

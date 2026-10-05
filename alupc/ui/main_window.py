@@ -310,6 +310,7 @@ class MainWindow(QMainWindow):
         controller.presenter_requested.connect(self.open_presenter)
         controller.settings_imported.connect(self._settings_imported)
         controller.cast.state_changed.connect(self.refresh)  # Kachel „Handy-Steuerung“: LÄUFT an/aus
+        self._watch_system_theme()
         self.refresh()
 
     # ================================================================ Seitenleiste
@@ -1521,9 +1522,35 @@ class MainWindow(QMainWindow):
             self.apply_theme()
         self.refresh()
 
+    def _watch_system_theme(self):
+        """„Wie das System“: Wechsel von Hell/Dunkel oder Akzentfarbe in Windows/Linux sofort übernehmen."""
+        self._sys_sig = None
+
+        def check():
+            a = self.config["appearance"]
+            if not self.isVisible() or (a.get("mode", "system") != "system" and a.get("accent", "system") != "system"):
+                return
+            try:
+                sig = theme.system_signature()
+            except Exception:  # noqa: BLE001 - nur Optik
+                return
+            if self._sys_sig is not None and sig != self._sys_sig:
+                self.apply_theme()
+            self._sys_sig = sig
+
+        self._sys_timer = QTimer(self)
+        self._sys_timer.setInterval(4000)
+        self._sys_timer.timeout.connect(check)
+        self._sys_timer.start()
+        try:
+            QApplication.instance().styleHints().colorSchemeChanged.connect(lambda *_: QTimer.singleShot(300, check))
+        except AttributeError:  # Qt < 6.5
+            pass
+        check()
+
     def apply_theme(self):
         a = self.config["appearance"]
-        theme.apply(QApplication.instance(), a.get("mode", "system"), a.get("accent", "blau"))
+        theme.apply(QApplication.instance(), a.get("mode", "system"), a.get("accent", "system"))
         # Symbole in Knöpfen neu einfärben
         for b in self.findChildren(QPushButton):
             name = b.property("iconName")

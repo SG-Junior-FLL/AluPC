@@ -8,7 +8,20 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.98.0)
+### Neu in dieser Version (0.99.0)
+- **Unsichtbare WLANs:** Hotspot und Spiele-WLAN senden ihren Namen nicht mehr (Linux). Verbinden nur per
+  **WLAN-QR-Code** oder durch Eintippen von Name + Passwort. Abschaltbar im Hotspot-Fenster.
+  Windows: der Mobile Hotspot kann seinen Namen nicht verstecken – dort bleibt er sichtbar (Hinweis im Fenster).
+- **Aussehen wie das System (Windows + Linux):** neue Akzentfarbe **„Wie das System“** (jetzt Standard) –
+  übernimmt die Farbe aus Windows (Personalisierung → Farben), KDE Plasma oder GNOME. Wechselt man im System
+  Hell/Dunkel oder die Farbe, zieht AluPC nach ein paar Sekunden mit. Wer bisher Blau (alter Standard) hatte,
+  bekommt einmalig die Systemfarbe; andere Farben bleiben.
+- **Windows-Titelleiste passend:** dunkel im dunklen Design, unter Windows 11 in der App-Hintergrundfarbe.
+- Hotspot-Fenster aufgeräumt: Status „AN / AUS“, kürzere Hinweise, Eingabefelder nicht mehr gequetscht.
+- Ehrlich: Unsichtbares WLAN, Titelleiste und Systemfarbe aus Windows/GNOME sind nur im Test nachgespielt, nicht
+  auf echter Hardware geprüft. Unter Linux zeichnet KWin/GNOME die Titelleiste selbst (folgt dem System-Design).
+
+### Neu in Version 0.98.0
 - **Handy freigeben statt Code eintippen:** Auf der Handy-Seite (und der WLAN-Anmeldeseite → „AluPC steuern“)
   gibt es jetzt **„Am PC freigeben lassen“**. Am PC erscheint eine Benachrichtigung und die Frage **„Erlauben /
   Ablehnen“**. Erlaubte Geräte steuern ab dann ohne Code (gemerkt im Handy-Browser; am PC nur als Prüfsumme

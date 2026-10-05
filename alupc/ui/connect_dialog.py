@@ -44,7 +44,7 @@ def _qr_card(step: str, title: str, payload: str, lines: list[str]) -> QFrame:
 class ConnectDialog(QDialog):
     """url: Seite fürs Handy · wifi: (Name, Passwort) oder None · on_monitor: Knopf „Auf Monitor 2 zeigen“."""
 
-    def __init__(self, title: str, url: str, wifi: tuple[str, str] | None = None, hint: str = "",
+    def __init__(self, title: str, url: str, wifi: tuple | None = None, hint: str = "",
                  on_monitor=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -57,10 +57,11 @@ class ConnectDialog(QDialog):
         row.setSpacing(14)
         self.wifi_card = None
         if wifi and wifi[0]:
-            ssid, password = wifi
-            self.wifi_card = _qr_card("1", "WLAN verbinden", wifi_payload(ssid, password),
-                                      [f"WLAN: <b>{ssid}</b>", f"Passwort: <b>{password}</b>" if password else
-                                       "ohne Passwort"])
+            ssid, password = wifi[0], wifi[1]
+            hidden = bool(wifi[2]) if len(wifi) > 2 else False
+            self.wifi_card = _qr_card("1", "WLAN verbinden", wifi_payload(ssid, password, hidden),
+                                      [f"WLAN: <b>{ssid}</b>" + (" (unsichtbar)" if hidden else ""),
+                                       f"Passwort: <b>{password}</b>" if password else "ohne Passwort"])
             row.addWidget(self.wifi_card)
         self.link_card = _qr_card("2" if self.wifi_card else "", "Seite öffnen", url,
                                   [f"<span style='color:#60a5fa'>{url.split('?')[0]}</span>"])
@@ -112,8 +113,16 @@ class HotspotDialog(QDialog):
         self.pw = QLineEdit(hs["password"])
         self.pw.setMaxLength(63)
         self.pw.setPlaceholderText("mindestens 8 Zeichen")
+        for edit in (self.ssid, self.pw):
+            edit.setMinimumHeight(34)
         form.addRow("Name:", self.ssid)
         form.addRow("Passwort:", self.pw)
+        self.hidden = QCheckBox("Unsichtbar – nur per QR-Code oder mit Name + Passwort")
+        self.hidden.setChecked(bool(hs.get("hidden", True)))
+        self.hidden.setEnabled(not IS_WINDOWS)
+        if IS_WINDOWS:
+            self.hidden.setToolTip("Den Namen des Mobilen Hotspots kann Windows nicht verstecken")
+        form.addRow("", self.hidden)
         self.open_net = None
         if games and not IS_WINDOWS:  # offenes WLAN: ein Tippen, dann kommt die Anmeldeseite von selbst
             self.open_net = QCheckBox("Offen (ohne Passwort) – empfohlen für Spiele")
@@ -128,15 +137,16 @@ class HotspotDialog(QDialog):
         self.toggle.clicked.connect(self._toggle)
         row.addWidget(self.toggle)
         row.addStretch(1)
+        self.pill = QLabel()  # Status als Pille: grün „AN“ / grau „AUS“
+        self.pill.setAlignment(Qt.AlignCenter)
+        row.addWidget(self.pill)
         bl.addLayout(row)
         self.state = QLabel(why or hotspot.message)
         self.state.setObjectName("Muted")
         self.state.setWordWrap(True)
         bl.addWidget(self.state)
-        hint = QLabel(("Anmeldeseite (Linux): beim Start einmal das Passwort des PCs (für die Weiterleitung). "
-                       "Windows: Handys nehmen den QR-Code. " if games else "")
-                      + "Viele WLAN-Karten trennen dabei das normale WLAN – der PC hat dann (außer per Kabel) "
-                        "kein Internet.")
+        hint = QLabel(("Linux: beim Start einmal das PC-Passwort (für die Anmeldeseite). " if games else "")
+                      + "Das normale WLAN des PCs kann dabei getrennt werden.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         bl.addWidget(hint)
@@ -156,6 +166,8 @@ class HotspotDialog(QDialog):
             self.r_ssid = QLineEdit(wifi.get("ssid", ""))
             self.r_pw = QLineEdit(wifi.get("password", ""))
             self.r_pw.setEchoMode(QLineEdit.PasswordEchoOnEdit)
+            for edit in (self.r_ssid, self.r_pw):
+                edit.setMinimumHeight(34)
             form2.addRow("Name:", self.r_ssid)
             form2.addRow("Passwort:", self.r_pw)
             b2.addLayout(form2)
@@ -182,10 +194,15 @@ class HotspotDialog(QDialog):
             self.toggle.setText(("Spiele-WLAN" if self.kind == "spiele" else "Hotspot") +
                                 (" beenden" if on else " starten"))
             self.toggle.setIcon(icons.icon("x" if on else "play", theme.current().text, 18))
+            t = theme.current()
+            color = t.success if on else t.muted
+            self.pill.setText(("● AN" + (" · unsichtbar" if hotspot.hidden else "")) if on else "○ AUS")
+            self.pill.setStyleSheet(f"color:{color}; background:{t.soft(color, 0.14)}; border-radius:11px;"
+                                    "padding:3px 12px; font-weight:700;")
             self.qr.setVisible(on)
             if on:
                 dpr = self.devicePixelRatioF()
-                self.qr.setPixmap(qr_pixmap(wifi_payload(hotspot.ssid, hotspot.password), 220, dpr))
+                self.qr.setPixmap(qr_pixmap(wifi_payload(hotspot.ssid, hotspot.password, hotspot.hidden), 220, dpr))
         except RuntimeError:  # Dialog schon zu
             pass
 
@@ -198,7 +215,7 @@ class HotspotDialog(QDialog):
             pw = new_password()
             self.pw.setText(pw)
         default = "AluPC-Spiele" if self.kind == "spiele" else "AluPC"
-        hs = {"ssid": self.ssid.text().strip() or default, "password": pw}
+        hs = {"ssid": self.ssid.text().strip() or default, "password": pw, "hidden": self.hidden.isChecked()}
         if self.kind == "spiele":
             games = {**cfg["games"], "hotspot": hs}
             ssid = self.r_ssid.text().strip()

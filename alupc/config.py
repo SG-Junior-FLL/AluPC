@@ -154,7 +154,7 @@ DEFAULTS: dict = {
     "first_run_done": False,
     # Windows 11: AluPC-Symbol wurde für diesen Programmpfad schon direkt in die Taskleiste gelegt
     "tray": {"promoted_for": ""},
-    "appearance": {"mode": "system", "accent": "blau", "fade": True},
+    "appearance": {"mode": "system", "accent": "system", "accent_v2": True, "fade": True},
     # Übergang zwischen Inhalten/Szenen auf Monitor 2 (Art siehe transitions.py); Szenen können
     # einen eigenen Übergang haben
     "transition": {"type": "blende", "ms": 400},
@@ -220,6 +220,11 @@ class Config:
                     v["wake_v2"] = True
                     if isinstance(v.get("wake"), list) and "computer" not in v["wake"]:
                         v["wake"] = [*v["wake"], "computer"]
+                ap = self.data.get("appearance")
+                if isinstance(ap, dict) and not (raw.get("appearance") or {}).get("accent_v2"):  # 0.99: Systemfarbe
+                    ap["accent_v2"] = True
+                    if ap.get("accent") == "blau":  # alte Voreinstellung → Farbe von Windows/KDE übernehmen
+                        ap["accent"] = "system"
         except FileNotFoundError:
             pass
         except (OSError, ValueError):
