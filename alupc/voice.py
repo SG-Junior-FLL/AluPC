@@ -97,12 +97,9 @@ COMMANDS: list[tuple[tuple[str, ...], str, str]] = [
 
 # „Spiel Pong“ → Spiel auswählen (gesprochene Namen der Spiele)
 GAME_NAMES = {
-    "schaetzen": ("schätzen", "schätz spiel"), "malen": ("malen", "malen und raten", "zeichnen"),
-    "stroop": ("farb chaos", "farbchaos", "farben"), "simon": ("simon", "simon sagt"),
-    "tauziehen": ("tauziehen", "tau ziehen"), "pong": ("pong", "ping pong"), "ballon": ("ballon", "luftballon"),
-    "schlangen": ("schlangen", "schlange", "snake"), "reaktion": ("schnellster finger", "reaktion"),
-    "rennen": ("tipp rennen", "rennen", "wettrennen"), "quiz": ("quiz", "quizz"),
-    "lichtrenner": ("lichtrenner", "tron", "licht rennen"),
+    "schlangen": ("snake", "schlangen", "schlange"), "tictactoe": ("tic tac toe", "tik tak to", "drei gewinnt"),
+    "pong": ("pong", "ping pong"), "ballon": ("ballon", "luftballon"),
+    "rennen": ("tipp rennen", "rennen", "wettrennen"), "simon": ("simon", "simon sagt"),
     "ssp": ("schere stein papier", "schnick schnack schnuck"),
 }
 
@@ -124,12 +121,12 @@ abstimmung umfrage ergebnis bestenliste airplay iphone ipad handy spiegeln erwei
 pause weiter zurück nächste nächstes nächster vorherige vorheriges letzte szene szenen timer minute minuten sekunde
 sekunden stunde stunden halbe countdown stoppuhr start los neu plus minus länger kürzer zeichnungen computer rechner
 mikrofon spät uhrzeit tag datum warm temperatur prozessor grafikkarte speicher geht dir witz danke hilfe frage
-runde teams mischen töne lobby pong schätzen malen raten simon tauziehen ballon schlangen rennen reaktion
+runde teams mischen töne lobby pong simon ballon schlangen schlange snake rennen tic tac toe tik tak to gewinnt
 eins zwei drei vier fünf sechs sieben acht neun zehn elf zwölf fünfzehn zwanzig dreißig vierzig fünfzig sechzig
 achtzig hundert prozent lauter leiser lautstärke laut stumm ton fenster schließen minimieren maximieren screenshot
 bildschirmfoto herunterfahren herunter runter fahr ruhezustand öffnen firefox chrome browser youtube google suche
 such nach spotify discord steam nein abbrechen taschenrechner explorer dateien einstellungen editor wikipedia netflix
-wechseln quiz lichtrenner schere stein papier
+wechseln schere stein papier schnick schnack schnuck
 """.split()
 
 

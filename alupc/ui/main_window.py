@@ -1107,7 +1107,7 @@ class MainWindow(QMainWindow):
         hub = c.cast.games
         menu.addAction(icons.icon("sliders", col, 18), "Steuerfenster …", self.open_games_window)
         menu_header(menu, "Spiel wählen")
-        current = hub.game_key if hub else c.config["games"].get("last", "schaetzen")
+        current = hub.game_key if hub else c.config["games"].get("last", "schlangen")
         running = hub is not None and hub.phase == "running"
         for key, spec in GAMES.items():
             act = menu.addAction(icons.icon("gamepad", col, 18), spec.title.replace("&", "&&"),
@@ -1920,7 +1920,7 @@ class MainWindow(QMainWindow):
         self.sidebar.setFixedWidth(76 if compact else 224)
         for w in (*self.brand_texts, self.version_label):
             w.setVisible(not compact)
-        self.brand_layout.setContentsMargins(19 if compact else 14, 0, 8, 18)
+        self.brand_layout.setContentsMargins(*((11, 0, 0, 18) if compact else (14, 0, 8, 18)))  # Logo mittig, nicht abgeschnitten
         for b in (*self.nav_group.buttons(), self.lock_button, self.mic_button, self.search_button):
             b.set_compact(compact)
         self.side_monitor.set_compact(compact)

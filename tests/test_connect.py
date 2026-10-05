@@ -132,7 +132,7 @@ def test_lobby_shows_only_game_code(env, tmp_path):  # noqa: F811
     pil = pytest.importorskip("PIL.Image")
     controller, _window, _ = env
     controller.config["games"] = {**controller.config["games"], "wifi": {"ssid": "Zuhause", "password": "geheim99"}}
-    controller.start_games("schaetzen")
+    controller.start_games("schlangen")
     from alupc.game_source import GameSource
 
     src = GameSource({})
@@ -269,7 +269,7 @@ def test_portal_redirects_phone_checks_to_game(env, monkeypatch):  # noqa: F811
 
     controller, _window, _ = env
     controller.cast.start()
-    controller.start_games("quiz")
+    controller.start_games("ssp")
     hs = hotspot.hotspot
     try:
         hs.running, hs.kind, hs.portal, hs.ip = True, "spiele", True, "127.0.0.1"
@@ -297,7 +297,7 @@ def test_games_wifi_stops_with_games(env, monkeypatch):  # noqa: F811
     stopped = []
     monkeypatch.setattr(hotspot.hotspot, "stop", lambda: stopped.append(1) or (True, "aus"))
     hs = hotspot.hotspot
-    controller.start_games("quiz")
+    controller.start_games("ssp")
     try:
         hs.running, hs.kind = True, "normal"
         controller.game_action("aus")  # normaler Hotspot bleibt an
@@ -305,7 +305,7 @@ def test_games_wifi_stops_with_games(env, monkeypatch):  # noqa: F811
 
         time.sleep(0.2)
         assert stopped == []
-        controller.start_games("quiz")
+        controller.start_games("ssp")
         hs.running, hs.kind = True, "spiele"
         controller.game_action("aus")
         end = time.time() + 3
@@ -371,3 +371,55 @@ def test_normal_hotspot_also_gets_login_page(env, monkeypatch):  # noqa: F811
     monkeypatch.setattr(hotspot.hotspot, "start", lambda *a, **k: (seen.update(k), (True, "läuft"))[1])
     controller.set_hotspot(True, "normal")
     assert seen["portal"] is True and seen["kind"] == "normal"
+
+
+def test_login_page_has_name_and_both_ways(env):  # noqa: F811
+    """WLAN-Anmeldeseite wie im Hotel-WLAN: Name eingeben → Mitspielen (direkt in der Steuerung) oder AluPC steuern."""
+    from alupc.cast_server import portal_page
+
+    controller, _window, _ = env
+    page = portal_page(controller.cast)
+    assert 'id="n"' in page and "Gerade keine Minispiele" in page and "disabled" in page
+    controller.start_games("tictactoe")
+    page = portal_page(controller.cast)
+    assert "Tic-Tac-Toe" in page and controller.cast.games_url() + '" + "&name=' in page and "?frei=" in page
+    from alupc.game_page import GAME_PAGE
+    from alupc.cast_page import PAGE
+
+    assert 'get("name")' in GAME_PAGE and 'params.get("frei")' in PAGE  # Name kommt mit → gleich dabei
+    controller.game_action("aus")
+
+
+def test_games_start_games_wifi_and_lobby_shows_one_wlan_code(env, tmp_path, monkeypatch):  # noqa: F811
+    zx = pytest.importorskip("zxingcpp")
+    pil = pytest.importorskip("PIL.Image")
+    controller, _window, _ = env
+    monkeypatch.delenv("ALUPC_NO_AUTO_WIFI", raising=False)
+    monkeypatch.setattr(hotspot, "supported", lambda: (True, ""))
+    started = []
+    monkeypatch.setattr(controller, "set_hotspot", lambda on, kind="normal": started.append((on, kind)))
+    controller.start_games("schlangen")
+    for _ in range(50):
+        if started:
+            break
+        import time
+        time.sleep(0.02)
+    assert started == [(True, "spiele")]  # Minispiele = eigenes WLAN
+    controller.game_action("aus")
+    controller.config["games"] = {**controller.config["games"], "auto_wifi": False}
+    started.clear()
+    controller.start_games("schlangen")
+    assert started == []
+    hs = hotspot.hotspot
+    for k, v in (("running", True), ("kind", "spiele"), ("ssid", "AluPC-Spiele"), ("password", ""), ("hidden", True)):
+        monkeypatch.setattr(hs, k, v)
+    from alupc.game_source import GameSource
+
+    src = GameSource({})
+    src.resize(1280, 720)
+    path = tmp_path / "lobby-wlan.png"
+    src.grab().save(str(path))
+    texts = [r.text for r in zx.read_barcodes(pil.open(path))]
+    assert texts == [wifi_payload("AluPC-Spiele", "", hidden=True)]  # nur EIN Code: das WLAN
+    src.stop()
+    controller.game_action("aus")

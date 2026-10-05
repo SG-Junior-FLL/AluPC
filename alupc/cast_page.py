@@ -541,6 +541,8 @@ async function askAccess() {  // ohne Code: am PC erscheint „Erlauben / Ablehn
   } catch (e) { msg.textContent = "Keine Verbindung zu AluPC"; }
 }
 if ($("devname")) $("devname").value = store.get("alucast-name");
+// Von der WLAN-Anmeldeseite („AluPC steuern“): Name mitgebracht → gleich am PC anfragen
+if (params.get("frei") && $("devname") && !code) { $("devname").value = params.get("frei").slice(0, 30); setTimeout(askAccess, 0); }
 function saveCode() { code = $("code").value.replace(/\D/g, ""); store.set("alucast-code", code); refresh(); }
 function buzz() { if (navigator.vibrate) navigator.vibrate(12); }
 

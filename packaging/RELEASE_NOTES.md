@@ -8,7 +8,26 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.101.0)
+### Neu in dieser Version (0.102.0)
+- **Minispiele = eigenes WLAN:** Mit den Minispielen startet das Spiele-WLAN (einmal bestätigen: Linux Passwort,
+  Windows „Ja“). Die Lobby zeigt dann **einen** Code: das WLAN. Scannen → das Handy öffnet die
+  **WLAN-Anmeldeseite** wie im Hotel → **Name eingeben** → **Mitspielen** (gleich in der Spielsteuerung) oder
+  **AluPC steuern** (Anfrage erscheint am PC: Erlauben/Ablehnen). Abschaltbar unter „Spiele-WLAN …“.
+- **Spiele neu sortiert:** **Snake** (der Rand ist jetzt tödlich), **Tic-Tac-Toe** (neu: Team Rot ✕ gegen Team
+  Blau ◯, das Team stimmt per Handy ab), **Pong**, **Ballon**, **Tipp-Rennen**, **Simon sagt**,
+  **Schere, Stein, Papier**. Entfernt: Schätzen, Malen & Raten, Farb-Chaos, Tauziehen, Schnellster Finger, Quiz,
+  Lichtrenner. Steuerfenster mit Symbolen und Anzeige, ob das Spiele-WLAN läuft.
+- **„Alle Daten löschen“ repariert:** Nach dem Neustart holte der Dual-Boot-Abgleich die Einstellungen vom anderen
+  System zurück – es sah aus, als wäre nichts gelöscht. Jetzt (Häkchen, Standard an) werden auch die abgeglichenen
+  Einstellungen im Sync-Ordner gelöscht und der Abgleich bleibt aus, bis man ihn wieder einschaltet. Dateien, die
+  beim Löschen noch blockiert sind, löscht der Neustart als Allererstes.
+- **Sync-Seite neu:** Status-Karte (Verbunden / Aus / Ordner nicht erreichbar, letzter Abgleich), **Bereiche einzeln
+  an/aus** (abgewählte werden weder geschickt noch übernommen), **Verlauf** der letzten Abgleiche, „Jetzt abgleichen“.
+- **Design:** dezenter Farbschimmer im Hauptbereich, Logo in der schmalen Seitenleiste nicht mehr abgeschnitten.
+- Ehrlich, nicht auf echter Hardware geprüft: ob Handys die Anmeldeseite von selbst öffnen (Linux und Windows), ob
+  der Windows-Hotspot die Umleitung an die Handys weitergibt, der echte Dual-Boot-Abgleich nach dem Zurücksetzen.
+
+### Neu in Version 0.101.0
 - **WLAN-QR-Code auf Monitor 2:** Hotspot-Kachel → Pfeil → „WLAN-QR-Code auf Monitor 2“ (oder im Hotspot-Fenster
   „QR auf Monitor 2“). Groß, mit Name und Passwort – Handys scannen ihn von dort.
 - **Minispiele ohne WLAN-QR-Code:** Lobby auf Monitor 2 und „QR groß“ zeigen nur noch den Spiel-Code.

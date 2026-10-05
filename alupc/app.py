@@ -166,8 +166,9 @@ def main(argv=None) -> int:
     if args.befehl and args.befehl != "zeigen":
         print("AluPC läuft nicht – Befehl wird nach dem Start ausgeführt.", file=sys.stderr)
 
-    from . import bug_report
+    from . import bug_report, reset
 
+    reset.cleanup_pending()  # Reste von „Alle Daten löschen“ – bevor Protokolle wieder Dateien öffnen
     bug_report.install()  # Programmfehler/Abstürze mitschreiben (für „Fehlerbericht“)
     from .config import Config
     from .controller import Controller

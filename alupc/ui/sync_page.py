@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from .. import settings_sync as ss
 from .util import error_box, run_async
 from . import theme
-from .widgets import Banner, button, page_header
+from .widgets import button, flow_row, page_header
 
 
 class SectionPicker(QDialog):
@@ -118,49 +118,129 @@ def backup_group(page) -> QGroupBox:
 
 
 def sync_group(page) -> QGroupBox:
-    """Dual-Boot: Windows ↔ Linux automatisch abgleichen."""
+    """Dual-Boot: Windows ↔ Linux automatisch abgleichen – Status-Karte, Bereiche zum An-/Abwählen, Verlauf."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QFrame
+
+    from . import icons
+
     config = page.config
     controller = page.controller
     box = QGroupBox("Dual-Boot-Abgleich")
     lay = QVBoxLayout(box)
-    how = QLabel(
-        "<b>1.</b> Einschalten · Windows-Laufwerk wählen<br>"
-        "<b>2.</b> Auf dem anderen System: „Automatisch suchen“<br>"
-        "Danach automatisch: beim Start, nach jeder Änderung und jede Minute. Findet AluPC beim Start den "
-        "Ordner des anderen Systems, verbindet es sich selbst.")
-    how.setWordWrap(True)
-    lay.addWidget(how)
-    status = Banner("", "info")
-    lay.addWidget(status)
-    enabled = QCheckBox("Automatisch abgleichen")
-    lay.addWidget(enabled)
-    row = QGridLayout()
-    row.setHorizontalSpacing(8)
-    row.setVerticalSpacing(8)
-    pick = button("Laufwerk/Ordner wählen …", "window", primary=True)
+    lay.setSpacing(12)
+    # ---- Status-Karte
+    card = QFrame()
+    card.setObjectName("Card")
+    cl = QHBoxLayout(card)
+    cl.setContentsMargins(16, 14, 16, 14)
+    cl.setSpacing(14)
+    badge = QLabel()
+    badge.setFixedSize(52, 52)
+    badge.setAlignment(Qt.AlignCenter)
+    cl.addWidget(badge, 0, Qt.AlignTop)
+    texts = QVBoxLayout()
+    texts.setSpacing(2)
+    title = QLabel()
+    title.setStyleSheet("font-size: 17px; font-weight: 800;")
+    sub = QLabel()
+    sub.setObjectName("Muted")
+    sub.setWordWrap(True)
+    sub.setTextInteractionFlags(Qt.TextSelectableByMouse)
+    texts.addWidget(title)
+    texts.addWidget(sub)
+    cl.addLayout(texts, 1)
+    enabled = QCheckBox("An")
+    enabled.setToolTip("Automatisch abgleichen: beim Start, nach jeder Änderung, jede Minute und beim Beenden")
+    cl.addWidget(enabled, 0, Qt.AlignTop)
+    lay.addWidget(card)
+    now = button("Jetzt abgleichen", "sync", primary=True)
+    pick = button("Ordner wählen …", "window")
     search = button("Automatisch suchen", "refresh")
     mount = button("Windows-Laufwerk einhängen …", "plus")
-    now = button("Jetzt abgleichen", "sync")
-    for i, b in enumerate((pick, search, mount, now)):
-        row.addWidget(b, i // 2, i % 2)
-    row.setColumnStretch(2, 1)
-    lay.addLayout(row)
     mount.setVisible(not ss.IS_WINDOWS)
+    lay.addWidget(flow_row(now, pick, search, mount))
+    # ---- Bereiche
+    what = QLabel("<b>Was abgeglichen wird</b>")
+    lay.addWidget(what)
+    short = {"startseite": "Startseite", "szenen": "Szenen", "favoriten": "Websites & Medien",
+             "tasten": "Tastenkürzel", "aussehen": "Darstellung", "schoner": "Schoner & Timer", "toene": "Töne",
+             "monitor2": "Monitor 2", "handy": "Handy", "rgb": "RGB", "overlays": "Overlays",
+             "fingerabdruck": "Fingerabdruck", "sprache": "Sprache", "spiele": "Spiele & WLAN", "extras": "Extras",
+             "start": "App-Start"}
+    section_boxes: dict[str, QCheckBox] = {}
+    for name, (label, _keys) in ss.SECTIONS.items():
+        cb = QCheckBox(short.get(name, label.split(" (")[0]).replace("&", "&&"))  # & sonst = Tastenkürzel
+        cb.setToolTip(label)
+        section_boxes[name] = cb
+    lay.addWidget(flow_row(*section_boxes.values(), spacing=14))
+    never = QLabel("Nie dabei: Monitore, Kameras, Mikrofon, Programmpfade – die sind je System anders.")
+    never.setObjectName("Muted")
+    never.setWordWrap(True)
+    lay.addWidget(never)
+    # ---- Verlauf
+    lay.addWidget(QLabel("<b>Zuletzt</b>"))
+    history = QLabel()
+    history.setObjectName("Muted")
+    history.setWordWrap(True)
+    history.setTextInteractionFlags(Qt.TextSelectableByMouse)
+    lay.addWidget(history)
+    how = QLabel("So geht's: hier einschalten und das Windows-Laufwerk wählen. Auf dem anderen System verbindet "
+                 "sich AluPC beim Start selbst (oder „Automatisch suchen“).")
+    how.setObjectName("Muted")
+    how.setWordWrap(True)
+    lay.addWidget(how)
+
+    def set_badge(color: str, icon_name: str):
+        badge.setStyleSheet(f"background: {theme.current().soft(color, 0.16)}; border-radius: 16px;")
+        badge.setPixmap(icons.pixmap(icon_name, color, 28))
 
     def refresh():
+        t = theme.current()
         s = config.data["sync"]
         enabled.blockSignals(True)
         enabled.setChecked(bool(s.get("enabled")))
         enabled.blockSignals(False)
+        status_text = s.get("status", "")
+        bad = any(w in status_text for w in ("nicht", "fehlgeschlagen", "nur lesbar"))
         if not s.get("folder"):
-            status.set("Noch kein gemeinsamer Ordner gewählt.", "info")
+            title.setText("Noch nicht eingerichtet")
+            sub.setText("Einschalten und das Windows-Laufwerk wählen – das andere System findet den Ordner dann selbst.")
+            set_badge(t.muted, "sync")
+        elif not s.get("enabled"):
+            title.setText("Aus")
+            sub.setText(f"Ordner: {s['folder']}")
+            set_badge(t.muted, "sync")
+        elif bad:
+            reachable = "erreichbar" not in status_text
+            title.setText("Problem beim Abgleich" if reachable else "Ordner nicht erreichbar")
+            hint = status_text if reachable else ("Windows-Laufwerk einhängen oder „Automatisch suchen“."
+                                                  if not ss.IS_WINDOWS else "Ist das Laufwerk da?")
+            sub.setText(f"{hint}\nOrdner: {s['folder']}")
+            set_badge(t.warning, "sync")
         else:
-            text = f"Ordner: {s['folder']}"
-            if s.get("status"):
-                text += f"\n{s['status']}" + (f" (zuletzt {s['last']})" if s.get("last") else "")
-            bad = any(w in s.get("status", "") for w in ("nicht", "fehlgeschlagen", "Sicherung"))
-            status.set(text, "warn" if bad else ("ok" if s.get("enabled") else "info"))
+            title.setText("Verbunden ✓")
+            last = f"Zuletzt: {s['last']} · " if s.get("last") else ""
+            sub.setText(f"{last}{status_text}\nOrdner: {s['folder']}")
+            set_badge(t.success, "sync")
+        skip = set(s.get("skip") or [])
+        for name, cb in section_boxes.items():
+            cb.blockSignals(True)
+            cb.setChecked(name not in skip)
+            cb.blockSignals(False)
+        lines = list(reversed(s.get("history") or []))[:6]
+        history.setText("\n".join(lines) if lines else "Noch nichts abgeglichen.")
         now.setEnabled(bool(s.get("folder")) and bool(s.get("enabled")))
+
+    def set_section(name: str, on: bool):
+        skip = set(config.data["sync"].get("skip") or [])
+        (skip.discard if on else skip.add)(name)
+        config.data["sync"] = {**config.data["sync"], "skip": sorted(skip)}
+        config.save()
+        refresh()
+
+    for name, cb in section_boxes.items():
+        cb.toggled.connect(lambda on, n=name: set_section(n, on))
 
     def use_folder(folder: Path):
         folder = ss.folder_for(folder)
@@ -226,7 +306,13 @@ def sync_group(page) -> QGroupBox:
         # selbst ausgeschaltet → beim Start nicht wieder automatisch verbinden
         config.data["sync"] = {**config.data["sync"], "enabled": bool(on), "declined": not on}
         config.save()
-        if on and config.data["sync"].get("folder"):
+        if on and not config.data["sync"].get("folder"):
+            hits = ss.find_existing()
+            if hits:
+                use_folder(hits[0])
+                return
+            do_pick()
+        elif on:
             controller.run_sync()
         refresh()
 
@@ -236,11 +322,6 @@ def sync_group(page) -> QGroupBox:
     mount.clicked.connect(do_mount)
     now.clicked.connect(lambda: (controller.run_sync(), refresh()))
     controller.sync_status.connect(lambda _m: refresh())
-    note = QLabel("Mit: Startseite, Szenen, Bilder/Videos, Design, Sprache, Spiele, Handy, RGB, Finger-Namen · "
-                  "Ohne: Monitore, Kameras, Mikrofon")
-    note.setWordWrap(True)
-    note.setObjectName("Muted")
-    lay.addWidget(note)
     refresh()
     box.refresh = refresh
     return box

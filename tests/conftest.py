@@ -3,7 +3,8 @@ import sys
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("ALUPC_NO_ANIMATION", "1")  # Tests prüfen Zustände, nicht Übergänge (eigener Test dafür)
+os.environ.setdefault("ALUPC_NO_ANIMATION", "1")
+os.environ.setdefault("ALUPC_NO_AUTO_WIFI", "1")  # Tests starten kein echtes Spiele-WLAN  # Tests prüfen Zustände, nicht Übergänge (eigener Test dafür)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Chromium (QtWebEngine) verweigert als root den Start mit Sandbox – nur im Test-Container relevant

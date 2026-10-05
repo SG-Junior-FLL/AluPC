@@ -73,6 +73,12 @@ def all_keys() -> list[str]:
     return [k for _label, keys in SECTIONS.values() for k in keys]
 
 
+def synced_keys(config) -> list[str]:
+    """Was der Dual-Boot-Abgleich mitnimmt: alle Bereiche außer den abgewählten (Setup → Sichern & Sync)."""
+    skip = set((config.data.get("sync") or {}).get("skip") or [])
+    return [k for name, (_label, keys) in SECTIONS.items() if name not in skip for k in keys]
+
+
 def _portable(key: str, value):
     """Nur das, was auf beiden Systemen gleich gilt (ohne Pfade/Geräte-IDs dieses PCs)."""
     value = copy.deepcopy(value)
@@ -101,6 +107,12 @@ def _external(key: str):
 
         return sync_export()
     return None
+
+
+def _labels(keys: list[str]) -> str:
+    """Schlüssel → lesbare Bereichsnamen („Szenen, Darstellung“)."""
+    names = [label.split(" (")[0] for _n, (label, ks) in SECTIONS.items() if any(k in keys for k in ks)]
+    return ", ".join(names) or "Einstellungen"
 
 
 def payload(config, keys: list[str] | None = None, paths: "PathMap | None" = None) -> dict:
@@ -314,6 +326,13 @@ def _set_state(config, **changes) -> None:
     config.save()
 
 
+def _log(config, text: str) -> None:
+    """Verlauf (die letzten 8 Abgleiche) – auf der Sync-Seite sichtbar."""
+    history = list((config.data["sync"].get("history") or []))[-7:]
+    history.append(f"{time.strftime('%d.%m. %H:%M')} · {text}")
+    _set_state(config, history=history)
+
+
 def _base_path(config) -> Path:
     """Stand des letzten Abgleichs (für das Zusammenführen, wenn beide Seiten geändert haben)."""
     p = Path(config.path)
@@ -499,7 +518,8 @@ def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
     remote = _read(path) if path.exists() else None
     remote_rev = int(remote.get("rev", 0)) if remote else 0
     paths = PathMap(folder)
-    local = payload(config, paths=paths)
+    keys = synced_keys(config)
+    local = payload(config, keys, paths=paths)
     local_hash = payload_hash(local)
     base_rev, dirty = int(s.get("base_rev", 0)), local_hash != s.get("base_hash")
     first = not s.get("base_hash")  # zum ersten Mal verbunden → die vorhandenen Einstellungen übernehmen
@@ -507,20 +527,24 @@ def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
     changed: list[str] = []
     try:
         if remote and remote_rev > base_rev and (not dirty or first):
-            changed = apply_payload(config, paths.local(remote["data"]))
+            changed = apply_payload(config, paths.local(remote["data"]), keys)
             _save_base(config, remote["data"])
-            _set_state(config, base_rev=remote_rev, base_hash=payload_hash(payload(config, paths=PathMap(folder))),
+            _set_state(config, base_rev=remote_rev,
+                       base_hash=payload_hash(payload(config, keys, paths=PathMap(folder))),
                        last=now, status=f"Übernommen von {remote.get('system', '?')} ({remote.get('written', '')}).")
+            if changed:
+                _log(config, f"von {remote.get('system', '?')} übernommen: {_labels(changed)}")
             return config.data["sync"]["status"], changed
         if dirty or not remote:
             note = ""
             if remote and remote_rev > base_rev:  # beide Seiten haben geändert → bis in Einträge zusammenführen
-                merged, conflicts = merge_payload(_load_base(config), local, remote["data"])
+                remote_data = {k: v for k, v in remote["data"].items() if k in keys}
+                merged, conflicts = merge_payload(_load_base(config), local, remote_data)
                 take = [k for k in merged if merged[k] != local.get(k)]
                 if take:
                     changed = apply_payload(config, paths.local({k: merged[k] for k in take}), take)
                     paths = PathMap(folder)
-                    local = payload(config, paths=paths)
+                    local = payload(config, keys, paths=paths)
                     local_hash = payload_hash(local)
                 if conflicts:
                     backup = folder / f"alupc-sync-sicherung-{remote_rev}-{remote.get('system', 'x')}.json"
@@ -533,9 +557,14 @@ def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
                 _set_state(config, base_rev=remote_rev)
             rev = max(remote_rev, base_rev) + 1
             _copy_in_background(paths)  # Bilder/Videos, die nur hier liegen, in den Sync-Ordner
-            _write(path, rev, local)
+            out = dict(local)
+            if remote:  # abgewählte Bereiche des anderen Systems unverändert lassen
+                out.update({k: v for k, v in remote["data"].items() if k not in keys})
+            _write(path, rev, out)
             _save_base(config, local)
             _set_state(config, base_rev=rev, base_hash=local_hash, last=now, status="Gespeichert." + note)
+            _log(config, ("zusammengeführt mit " + str(remote.get("system", "?")) + ": " + _labels(changed))
+                 if changed else "gespeichert")
             return config.data["sync"]["status"], changed
     except OSError as exc:
         msg = f"Schreiben nicht möglich: {exc.strerror or exc}"

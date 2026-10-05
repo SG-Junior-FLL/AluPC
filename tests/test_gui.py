@@ -3176,7 +3176,7 @@ def test_reset_all_data_button(env, monkeypatch):
              if b.title() == "Zurücksetzen"]
     assert boxes, "Bereich „Zurücksetzen“ fehlt"
     requested = []
-    monkeypatch.setattr(reset, "request", lambda config: requested.append(config))
+    monkeypatch.setattr(reset, "request", lambda config, **kw: requested.append(config))
     monkeypatch.setattr(reset_page.ResetDialog, "exec", lambda self: QDialog.Rejected)
     reset_page.reset_all(setup)
     assert not requested  # abgebrochen
@@ -3813,7 +3813,7 @@ def test_games_end_to_end(env):
     pump()
     gw = window.games_window
     hub = controller.cast.games
-    assert gw.isVisible() and isinstance(controller.output.content, GameSource) and hub.game_key == "schaetzen"
+    assert gw.isVisible() and isinstance(controller.output.content, GameSource) and hub.game_key == "schlangen"
     base = f"http://127.0.0.1:{controller.cast.port}"
     status, body = _http("GET", base + "/spiel")
     assert status == 200 and b"Mitspielen" in body and b"/ws/spiel" in body
@@ -3843,10 +3843,10 @@ def test_games_end_to_end(env):
     assert op == 1 and state["joined"] and state["ui"]["status"].startswith("Warte auf den Start am PC")
     _until(lambda: gw.players.count() == 2)
     assert "Lena" in gw.players.item(0).text()
-    # Steuerfenster: Taste 5 = Tauziehen, Leertaste = Start
+    # Steuerfenster: Taste 5 = Tipp-Rennen, Leertaste = Start
     gw.activateWindow()
     QTest.keyClick(gw, Qt.Key_5)
-    assert hub.game_key == "tauziehen" and gw.cards["tauziehen"].isChecked()
+    assert hub.game_key == "rennen" and gw.cards["rennen"].isChecked()
     QTest.keyClick(gw, Qt.Key_Space)
     assert hub.phase == "running"
     _until(lambda: window.t_games.badge == "LÄUFT")
@@ -3855,7 +3855,7 @@ def test_games_end_to_end(env):
     for _ in range(3):
         _ws_send(sock, {"tap": 1})
         time.sleep(0.07)
-    _until(lambda: hub.game.taps[lena["p"]] == 3)
+    _until(lambda: hub.game.progress[lena["p"]] == 3)
     assert post({"action": "input", "p": mia["p"], "tap": 1})[0] == 200  # Rückweg ohne WebSocket
     assert post({"action": "input", "p": "fremd", "tap": 1})[0] == 404
     QTest.keyClick(gw, Qt.Key_E)  # E = Ergebnis
@@ -4061,10 +4061,11 @@ def test_board_sounds_and_voice_in_app(env, monkeypatch):
     hub = controller.cast.games
     gw = window.games_window
     lena, noah = hub.join("Lena"), hub.join("Noah")
+    hub.set_game("rennen")
     controller.game_action("start")
     hub.intro_until = hub.clock()
     controller._games_tick()
-    hub.game.score = {lena.pid: 3, noah.pid: 1}
+    hub.game.progress = {lena.pid: 3, noah.pid: 1}
     controller.game_action("ende")
     controller._games_tick()
     saved = controller.config["games"]["board"]

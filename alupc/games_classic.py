@@ -1,4 +1,4 @@
-"""Minispiele (1): Schlangen-Party, Schnellster Finger, Tipp-Rennen."""
+"""Minispiele (1): Snake (Wände sind tödlich), Tipp-Rennen."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from .games_base import Game, clock_text
 DIRS = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}
 
 
-# --------------------------------------------------------------------------- Schlangen-Party
+# --------------------------------------------------------------------------- Snake
 class SnakeGame(Game):
     W, H = 40, 22
     STEP = 0.12  # Sekunden pro Feld
@@ -50,8 +50,8 @@ class SnakeGame(Game):
         busy = self._occupied() | self.food
         for _ in range(200):
             x, y = self.rng.randrange(4, self.W - 4), self.rng.randrange(2, self.H - 2)
-            d = self.rng.choice(list(DIRS.values()))
-            cells = [((x - d[0] * k) % self.W, (y - d[1] * k) % self.H) for k in range(3)]
+            d = (1, 0) if x < self.W / 2 else (-1, 0)  # Wände sind tödlich: immer Richtung Feldmitte starten
+            cells = [(x - d[0] * k, y) for k in range(3)]
             if not busy & set(cells):
                 break
         s["body"] = deque(cells)
@@ -98,12 +98,13 @@ class SnakeGame(Game):
                 continue
             s["dir"] = s["next"]
             hx, hy = s["body"][0]
-            heads[pid] = ((hx + s["dir"][0]) % self.W, (hy + s["dir"][1]) % self.H)
+            heads[pid] = (hx + s["dir"][0], hy + s["dir"][1])
         bodies = {c for s in self.snakes.values() if s["alive"] for c in list(s["body"])[:-1]}
         crashed = set()
         for pid, head in heads.items():
             others = [p for p, h in heads.items() if h == head and p != pid]
-            if head in bodies or others:
+            wall = not (0 <= head[0] < self.W and 0 <= head[1] < self.H)  # Rand = Wand: tödlich
+            if wall or head in bodies or others:
                 crashed.add(pid)
         for pid, head in heads.items():
             s = self.snakes[pid]
@@ -111,7 +112,9 @@ class SnakeGame(Game):
                 s["alive"] = False
                 s["respawn"] = now + self.RESPAWN
                 self.food |= set(list(s["body"])[::3])  # was übrig bleibt, wird Futter
-                self.emit(now, "crash", pid=pid, cell=head)
+                s["score"] = s["score"] // 2  # Crash kostet die Hälfte der Punkte
+                cell = (min(self.W - 1, max(0, head[0])), min(self.H - 1, max(0, head[1])))
+                self.emit(now, "crash", pid=pid, cell=cell, wall=cell != head)
                 continue
             s["body"].appendleft(head)
             if head in self.food:
@@ -134,94 +137,6 @@ class SnakeGame(Game):
             return {"ui": "msg", "big": "👀", "status": "Zuschauen"}
         status = f"{s['score']} Punkte" if s["alive"] else f"Crash! Gleich wieder da · {s['score']} Punkte"
         return {"ui": "pad", "status": status}
-
-
-# --------------------------------------------------------------------------- Schnellster Finger
-class ReactionGame(Game):
-    GO_WINDOW = 3.0
-    RESULT = 2.5
-
-    def __init__(self, players, now, rng=None, opts=None):
-        super().__init__(players, now, rng, opts)
-        self.rounds = int(self.opts.get("runden", 5))
-        self.score = {pid: 0 for pid in self.players}
-        self.round = 0
-        self.last: list[tuple[str, float]] = []  # (pid, Reaktionszeit) der letzten Runde
-        self.early: set[str] = set()
-        self._next_round(now)
-
-    def join(self, pid, player, now):
-        super().join(pid, player, now)
-        self.score.setdefault(pid, 0)
-        return True
-
-    def leave(self, pid, now):
-        super().leave(pid, now)
-        self.score.pop(pid, None)
-
-    def _next_round(self, now):
-        self.round += 1
-        self.phase = "warte"
-        self.go_at = now + self.rng.uniform(2.0, 5.0)
-        self.taps: list[tuple[str, float]] = []
-        self.early = set()
-        self.until = 0.0
-
-    def input(self, pid, data, now):
-        if pid not in self.score or not data.get("tap"):
-            return
-        if self.phase == "warte" and now < self.go_at:
-            if pid not in self.early:  # zu früh – einmal pro Runde ein Minuspunkt
-                self.early.add(pid)
-                self.score[pid] -= 1
-                self.emit(now, "early", pid=pid)
-        elif self.phase == "los" and pid not in self.early and all(p != pid for p, _ in self.taps):
-            self.taps.append((pid, now - self.go_at))
-
-    def update(self, now):
-        if self.over:
-            return
-        if self.phase == "warte" and now >= self.go_at:
-            self.phase = "los"
-            self.emit(now, "go")
-        elif self.phase == "los":
-            everyone = len(self.taps) + len(self.early) >= len(self.score)
-            if everyone or now >= self.go_at + self.GO_WINDOW:
-                for rank, (pid, _t) in enumerate(self.taps[:3]):
-                    self.score[pid] += 3 - rank
-                self.last = list(self.taps)
-                self.phase = "ergebnis"
-                self.until = now + self.RESULT
-        elif self.phase == "ergebnis" and now >= self.until:
-            if self.round >= self.rounds:
-                self.over = True
-            else:
-                self._next_round(now)
-
-    def skip(self, now):
-        if self.phase == "ergebnis":
-            self.until = now
-            return True
-        return False
-
-    def scores(self):
-        return dict(self.score)
-
-    def info(self, now):
-        return f"Runde {self.round} / {self.rounds}"
-
-    def phone(self, pid, now):
-        if pid not in self.score:
-            return {"ui": "msg", "big": "👀", "status": "Zuschauen"}
-        if self.phase == "warte":
-            return {"ui": "tap", "label": "warte …", "tone": "wait",
-                    "status": "Zu früh! −1" if pid in self.early else "Warte auf GRÜN …"}
-        if self.phase == "los":
-            tapped = any(p == pid for p, _ in self.taps)
-            return {"ui": "tap", "label": "JETZT!", "tone": "go", "status": "Getippt ✓" if tapped else "TIPPEN!"}
-        place = next((i for i, (p, _) in enumerate(self.last) if p == pid), None)
-        return {"ui": "msg", "big": f"Platz {place + 1}" if place is not None else "–",
-                "status": f"{self.score[pid]} Punkte"}
 
 
 # --------------------------------------------------------------------------- Tipp-Rennen

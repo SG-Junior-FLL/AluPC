@@ -191,8 +191,8 @@ def test_custom_and_game_commands():
     assert voice.match("monitor pause machn", [], custom=custom)[0] == "szene:Pause"  # kleine Hörfehler
     assert voice.match("monitor schwarz", [], custom=custom)[0] == "kachel:abc"  # eigene vor eingebauten
     assert voice.match("alu pc spiel pong", [])[0] == "spiel:pong"
-    assert voice.match("alu pc spiel schätzen", [])[0] == "spiel:schaetzen"
-    assert voice.match("monitor spiel malen und raten", [])[0] == "spiel:malen"
+    assert voice.match("alu pc spiel snake", [])[0] == "spiel:schlangen"
+    assert voice.match("monitor spiel tic tac toe", [])[0] == "spiel:tictactoe"
     assert voice.match("alu pc spiel starten", [])[0] == "spiel_start"  # kein Spielname
     assert voice.match("alu pc nächste frage", [])[0] == "spiel_weiter"
     assert voice.match("alu pc ergebnis zeigen", [])[0] == "spiel_ende"

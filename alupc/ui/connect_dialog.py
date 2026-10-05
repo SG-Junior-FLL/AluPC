@@ -123,6 +123,11 @@ class HotspotDialog(QDialog):
         if IS_WINDOWS:
             self.hidden.setToolTip("Den Namen des Mobilen Hotspots kann Windows nicht verstecken")
         form.addRow("", self.hidden)
+        self.auto = None
+        if games:
+            self.auto = QCheckBox("Mit den Minispielen automatisch starten")
+            self.auto.setChecked(bool(controller.config["games"].get("auto_wifi", True)))
+            form.addRow("", self.auto)
         self.open_net = None
         if games and not IS_WINDOWS:  # offenes WLAN: ein Tippen, dann kommt die Anmeldeseite von selbst
             self.open_net = QCheckBox("Offen (ohne Passwort) – empfohlen für Spiele")
@@ -223,7 +228,7 @@ class HotspotDialog(QDialog):
         default = "AluPC-Spiele" if self.kind == "spiele" else "AluPC"
         hs = {"ssid": self.ssid.text().strip() or default, "password": pw, "hidden": self.hidden.isChecked()}
         if self.kind == "spiele":
-            games = {**cfg["games"], "hotspot": hs}
+            games = {**cfg["games"], "hotspot": hs, "auto_wifi": self.auto.isChecked()}
             ssid = self.r_ssid.text().strip()
             games["wifi"] = {"ssid": ssid, "password": self.r_pw.text()} if ssid else {}
             cfg["games"] = games

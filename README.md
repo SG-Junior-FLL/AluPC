@@ -147,21 +147,22 @@ Außerdem:
   **Steuerfenster** am PC, Monitor 2 zeigt die Lobby mit QR-Code. Jeder scannt, gibt einen Namen ein und spielt mit –
   ohne App und **ohne** den Code der Handy-Steuerung (der QR-Code erlaubt nur Mitspielen). Bis 16 Spieler.
   **Gestartet wird nur am PC** – Handys können nichts starten oder umstellen.
-  - **Schätzen:** knapp 300 Fragen aus 8 Themen (Erde & Weltall, Tiere, Körper, Technik, Geschichte, Sport,
-    Alltag, Deutschland). Zahl auf dem Handy eintippen, Auflösung auf einem Zahlenstrahl.
-  - **Malen & Raten:** einer malt auf dem Handy (live auf Monitor 2), alle anderen tippen ihren Tipp ein.
-  - **Farb-Chaos:** Farbe oder Wort tippen – wer falsch liegt, ist raus. Alle gleichzeitig, es wird immer schneller.
-  - **Simon sagt:** Farbfolge merken und nachtippen – alle gleichzeitig, ein Fehler und man ist raus.
-  - **Tauziehen:** Team Rot gegen Team Blau, so schnell tippen wie möglich.
+  - **Snake:** alle gleichzeitig, Punkte fressen – **der Rand ist tödlich** (Crash = halbe Punkte, kurz darauf
+    geht's weiter).
+  - **Tic-Tac-Toe:** Team Rot (X) gegen Team Blau (O). Wer im Team ist, hat dasselbe Zeichen; ist das Team dran,
+    tippt jeder ein Feld an – das Feld mit den meisten Stimmen wird gesetzt. Ist ein Team leer, spielt der PC.
   - **Pong:** Teams mit bis zu 3 Schlägern pro Seite, Finger hoch und runter ziehen.
   - **Ballon:** aufpumpen und rechtzeitig sichern – alle Ballons platzen an derselben (geheimen) Stelle.
-  - **Schlangen-Party**, **Schnellster Finger**, **Tipp-Rennen**.
+  - **Tipp-Rennen**, **Simon sagt** (Farbfolge merken), **Schere, Stein, Papier** (alle gegen alle).
+  - **Spiele-WLAN** (0.102): startet mit den Minispielen. Die Lobby zeigt dann den WLAN-Code – scannen, die
+    WLAN-Anmeldeseite öffnet sich von selbst, Name eingeben, **Mitspielen** (direkt die Steuerung) oder
+    **AluPC steuern** (am PC freigeben). Abschaltbar im Fenster „Spiele-WLAN …“.
   - Jedes Spiel mit 3-2-1, Animationen und Siegertreppchen (bei Teams: Team-Ergebnis).
   - **Schnelle Steuerung:** Die Handys sind per WebSocket verbunden – Eingaben gehen ohne Umweg raus. Klappt das
     nicht, fällt die Seite automatisch auf normale Abfragen zurück (grüner Punkt oben rechts = schnelle Verbindung).
   - **Steuerfenster mit Tasten:** Leertaste = Start, N = Weiter, E = Ergebnis, L = Lobby, T = Teams mischen,
     M = Monitor 2, Entf = Spieler entfernen, 1 … 0 = Spiel wählen, B = Bestenliste, S = Töne an/aus.
-    Dazu Einstellungen je Spiel (Fragen, Thema, Dauer, Runden, Tempo …).
+    Dazu Einstellungen je Spiel (Dauer, Runden, Bedenkzeit, Tempo …).
   - **Bestenliste des Abends** (neu in 0.79): Jedes Spiel bringt Punkte (Platz 1: 10, Platz 2: 7, 3: 5, 4: 4,
     5: 3, 6: 2, danach 1; Teams: Sieger 6, Verlierer 2, unentschieden 4). Taste B zeigt sie mit Animation auf
     Monitor 2; die Lobby zeigt die ersten drei. Ein „Abend“ geht bis 6 Uhr früh, danach beginnt eine neue Liste
@@ -173,11 +174,11 @@ Außerdem:
   - **Töne** (neu in 0.79): 3-2-1, Los, richtig/falsch, raus, Plopp, Treffer, Tor, Sieger-Fanfare und die
     Simon-Töne – über die Lautsprecher am PC (Lautstärke und Ausgabe wie unter Setup → Töne).
 
-  | Lobby | Schätzen | Malen & Raten |
+  | Lobby | Snake | Tic-Tac-Toe |
   |---|---|---|
-  | ![Lobby](docs/spiele-lobby.png) | ![Schätzen](docs/spiele-schaetzen.png) | ![Malen & Raten](docs/spiele-malen.png) |
-  | **Simon sagt** | **Tauziehen** | **Pong** |
-  | ![Simon sagt](docs/spiele-simon.png) | ![Tauziehen](docs/spiele-tauziehen.png) | ![Pong](docs/spiele-pong.png) |
+  | ![Lobby](docs/spiele-lobby.png) | ![Snake](docs/spiele-snake.png) | ![Tic-Tac-Toe](docs/spiele-tictactoe.png) |
+  | **Simon sagt** | **Pong** | |
+  | ![Simon sagt](docs/spiele-simon.png) | ![Pong](docs/spiele-pong.png) | |
 
   ![Steuerfenster](docs/spiele-steuerung.png)
 

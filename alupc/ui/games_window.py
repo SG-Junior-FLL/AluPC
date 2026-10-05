@@ -29,7 +29,7 @@ class GamesWindow(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 16, 20, 16)
         head = QHBoxLayout()
-        head.addWidget(page_header("Minispiele", "Handys scannen den QR-Code auf Monitor 2 – gestartet wird nur hier",
+        head.addWidget(page_header("Minispiele", "Handys scannen den Code auf Monitor 2 – gestartet wird nur hier",
                                    "gamepad"), 1)
         self.pill = QLabel()
         self.pill.setAlignment(Qt.AlignCenter)
@@ -45,10 +45,12 @@ class GamesWindow(QWidget):
         grid = QGridLayout()
         grid.setSpacing(8)
         self.cards: dict[str, QPushButton] = {}
-        from ..games import GAMES
+        from ..games import GAMES, ICONS
 
         for i, (key, spec) in enumerate(GAMES.items()):
-            b = QPushButton(f"{spec.title.replace('&', '&&')}\n{spec.short.replace('&', '&&')}")
+            num = f"   {KEYS[i]}" if i < len(KEYS) else ""
+            b = QPushButton(f"{ICONS.get(key, '🎮')}  {spec.title.replace('&', '&&')}{num}\n"
+                            f"{spec.short.replace('&', '&&')}")
             b.setCheckable(True)
             b.setFocusPolicy(Qt.NoFocus)
             b.setCursor(Qt.PointingHandCursor)
@@ -68,6 +70,12 @@ class GamesWindow(QWidget):
         self.help.setWordWrap(True)
         left.addWidget(self.help)
         left.addStretch(1)
+        # Spiele-WLAN: läuft es? (Minispiele = eigenes WLAN mit Anmeldeseite)
+        self.wlan = QLabel()
+        self.wlan.setWordWrap(True)
+        left.addWidget(self.wlan)
+        controller.hotspot_changed.connect(self._wlan_state)
+        self._wlan_state()
         # ---- rechts: Steuerung + Spieler
         right = QVBoxLayout()
         body.addLayout(right, 2)
@@ -270,6 +278,22 @@ class GamesWindow(QWidget):
             else:
                 text = f"{hub.spec.title}: {hub.game.info(now) if hub.game else ''}"
         self.info.setText(text)
+
+    def _wlan_state(self) -> None:
+        from ..hotspot import hotspot
+
+        try:
+            t = theme.current()
+            on = hotspot.running and hotspot.kind == "spiele"
+            color = t.success if on else t.muted
+            text = (f"📶  Spiele-WLAN „{hotspot.ssid}“ läuft – Handys scannen den WLAN-Code, die Anmeldeseite "
+                    "öffnet sich, Name eingeben, fertig." if on else
+                    "📶  Spiele-WLAN aus – Handys müssen im selben WLAN sein wie der PC (oder „Spiele-WLAN …“).")
+            self.wlan.setText(text)
+            self.wlan.setStyleSheet(f"color: {t.text}; background: {t.soft(color, 0.14)}; border: 1px solid "
+                                    f"{t.soft(color, 0.4)}; border-radius: 12px; padding: 10px 12px;")
+        except RuntimeError:  # Fenster schon zu
+            pass
 
     def refresh(self, force: bool = False) -> None:
         from ..games import GAMES, TEAM_NAMES, option_choices

@@ -3,9 +3,9 @@
 import random
 
 from alupc.games import GAMES, MAX_PLAYERS, GameHub, Player
-from alupc.games_classic import RaceGame, ReactionGame, SnakeGame
-from alupc.games_party import (BalloonGame, DrawGame, EstimateGame, PongGame, SimonGame, StroopGame, TugGame,
-                               format_number, normalize_word, parse_number)
+from alupc.games_board import TicTacToeGame, best_move, winner_of
+from alupc.games_classic import RaceGame, SnakeGame
+from alupc.games_party import BalloonGame, PongGame, SimonGame
 
 
 class Clock:
@@ -26,35 +26,6 @@ def players(*names, teams=None):
 
 
 # --------------------------------------------------------------------------- Hilfen
-def test_numbers():
-    assert parse_number("1.234,5") == 1234.5
-    assert parse_number("1.234") == 1234
-    assert parse_number("1.5") == 1.5
-    assert parse_number("2,5") == 2.5
-    assert parse_number("12 000") == 12000
-    assert parse_number(42) == 42
-    for bad in ("", "abc", "-5", "1e999", "1,2,3", True, None, "9" * 30):
-        assert parse_number(bad) is None, bad
-    assert format_number(8849, "m") == "8.849 m"
-    assert format_number(1969, "Jahr") == "1969"
-    assert format_number(753, "v. Chr.") == "753 v. Chr."
-    assert format_number(42.195, "km") == "42,2 km" or format_number(42.195, "km") == "42,19 km"
-    assert format_number(0.44, "km²") == "0,44 km²"
-    assert normalize_word(" Schildkröte! ") == "schildkroete"
-
-
-def test_question_data_is_sane():
-    from alupc.game_data import CATEGORIES, QUESTIONS, WORDS
-
-    assert len(QUESTIONS) >= 250 and len(WORDS) >= 200
-    texts = [q[1] for q in QUESTIONS]
-    assert len(texts) == len(set(texts))
-    for cat, text, answer, unit in QUESTIONS:
-        assert cat in CATEGORIES and text.endswith("?") and isinstance(answer, (int, float)) and answer > 0, text
-        assert parse_number(str(answer).replace(".", ",")) == answer
-    assert len(WORDS) == len(set(WORDS))
-
-
 # --------------------------------------------------------------------------- Klassiker
 def test_snake_moves_eats_and_crashes():
     g = SnakeGame(players("A", "B"), 0.0, random.Random(1))
@@ -83,27 +54,6 @@ def test_snake_moves_eats_and_crashes():
     assert g.over
 
 
-def test_reaction_scoring():
-    g = ReactionGame(players("A", "B", "C"), 0.0, random.Random(2), {"runden": 2})
-    go = g.go_at
-    g.input("c", {"tap": 1}, go - 0.5)
-    g.input("c", {"tap": 1}, go - 0.4)
-    assert g.score["c"] == -1 and g.phone("c", go - 0.3)["status"] == "Zu früh! −1"
-    g.update(go)
-    assert g.phase == "los" and g.phone("a", go)["tone"] == "go"
-    g.input("b", {"tap": 1}, go + 0.2)
-    g.input("a", {"tap": 1}, go + 0.3)
-    g.update(go + 0.5)
-    assert g.phase == "ergebnis" and g.score == {"a": 2, "b": 3, "c": -1}
-    assert g.skip(go + 0.6)
-    g.update(go + 0.6)
-    assert g.round == 2
-    g.update(g.go_at)
-    g.update(g.go_at + g.GO_WINDOW + 0.01)
-    g.update(g.go_at + g.GO_WINDOW + g.RESULT + 0.1)
-    assert g.over
-
-
 def test_race_finish_and_rate_limit():
     g = RaceGame(players("A", "B"), 0.0, opts={"ziel": 20})
     for i in range(20):
@@ -117,70 +67,7 @@ def test_race_finish_and_rate_limit():
 
 
 # --------------------------------------------------------------------------- Schätzen
-def test_estimate_rounds_and_points():
-    mem = set()
-    g = EstimateGame(players("A", "B", "C", "D"), 0.0, random.Random(3), {"fragen": 3, "_mem": mem})
-    assert len(g.questions) == 3 and len(mem) == 3
-    g.questions[0] = ("welt", "Wie hoch ist der Mount Everest?", 8849, "m")
-    assert g.phone("a", 0)["ui"] == "number"
-    g.input("a", {"num": "8.850"}, 1)  # 1 daneben → Volltreffer
-    g.input("a", {"num": "1"}, 2)  # nur die erste Zahl zählt
-    g.input("b", {"num": "9000"}, 2)
-    g.input("c", {"num": "9000"}, 3)  # gleich weit → gleicher Platz
-    g.input("d", {"num": "kaputt"}, 3)
-    assert set(g.guesses) == {"a", "b", "c"}
-    g.update(g.ASK + 0.1)
-    assert g.phase == "aufloesung"
-    assert g.gained == {"a": 5 + 3, "b": 3, "c": 3}
-    assert g.phone("a", 30)["big"] == "+8" and "8.849 m" in g.phone("a", 30)["status"]
-    assert g.phone("d", 30)["big"] == "0"
-    g.update(g.ASK + g.REVEAL + 0.2)
-    assert g.phase == "frage" and g.index == 1
-    g.questions[1] = ("geschichte", "Mondlandung?", 1969, "Jahr")
-    g.input("a", {"num": "1970"}, 40)  # bei Jahreszahlen nur genau = Volltreffer
-    g.input("b", {"num": "1969"}, 40)
-    g.input("c", {"num": "1900"}, 40)
-    g.input("d", {"num": "2000"}, 40)
-    g.update(41)  # alle haben geschätzt → sofort Auflösung
-    assert g.gained == {"b": 8, "a": 3, "d": 2, "c": 1}
-    assert g.skip(42) and g.index == 2
-    g.skip(43)
-    g.skip(44)
-    assert g.over
-    # zweites Spiel derselben Sitzung: andere Fragen
-    g2 = EstimateGame(players("A"), 0.0, random.Random(3), {"fragen": 3, "_mem": mem})
-    assert not {q[1] for q in g2.questions} & {q[1] for q in g.questions[2:]}
-
-
 # --------------------------------------------------------------------------- Farb-Chaos / Simon
-def test_stroop_elimination():
-    g = StroopGame(players("A", "B", "C"), 0.0, random.Random(5))
-    target = g.target
-    wrong = next(c for c in g.choices if c != target)
-    ph = g.phone("a", 0.1)
-    assert ph["ui"] == "buttons" and {b["id"] for b in ph["buttons"]} == set(g.choices)
-    g.input("a", {"btn": target}, 0.5)
-    g.input("b", {"btn": wrong}, 0.6)
-    g.input("b", {"btn": target}, 0.7)  # nur die erste Antwort zählt
-    g.update(g.until)  # C hat nicht geantwortet → auch raus
-    assert g.alive == {"a"} and g.out_round == {"b": 1, "c": 1}
-    assert g.phone("b", 3)["big"] == "RAUS"
-    g.update(g.until + 0.01)
-    assert g.over and g.scores()["a"] > g.scores()["b"]
-    # alle falsch → keiner fliegt
-    g = StroopGame(players("A", "B"), 0.0, random.Random(6))
-    wrong = next(c for c in g.choices if c != g.target)
-    g.input("a", {"btn": wrong}, 0.2)
-    g.input("b", {"btn": wrong}, 0.2)
-    g.update(0.3)
-    assert g.alive == {"a", "b"} and g.all_failed
-    assert g.phone("a", 0.4)["status"].startswith("Alle falsch")
-    # Zeitfenster wird kürzer
-    first = g.window
-    g.update(g.until + 0.01)
-    assert g.round == 2 and g.window < first
-
-
 def test_simon_sequence_and_elimination():
     g = SimonGame(players("A", "B", "C"), 0.0, random.Random(7))
     assert len(g.seq) == 3 and g.phase == "zeigen"
@@ -218,23 +105,6 @@ def test_simon_all_fail_keeps_everyone_and_sequence():
 
 
 # --------------------------------------------------------------------------- Tauziehen / Pong / Ballon
-def test_tug_teams():
-    g = TugGame(players("A", "B", "C", teams=[0, 1, 1]), 0.0, opts={"dauer": 30})
-    g.input("a", {"tap": 1}, 0.1)
-    g.input("a", {"tap": 1}, 0.12)  # zu schnell
-    assert g.pos < 0 and g.taps["a"] == 1
-    before = g.pos
-    g.input("b", {"tap": 1}, 0.2)
-    assert abs((g.pos - before) - g.PULL / 2) < 1e-9  # großes Team: weniger pro Zug
-    t = 1.0
-    while not g.over:
-        g.input("a", {"tap": 1}, t)
-        g.update(t)
-        t += 0.06
-    assert g.winner == 0 and g.scores()["a"] > 1000 > g.scores()["b"]
-    assert g.phone("c", t)["color"] == "#3b82f6"
-
-
 def test_pong_hits_goals_and_win():
     g = PongGame(players("A", "B", "C", teams=[0, 1, 0]), 0.0, random.Random(9), {"punkte": 2})
     assert g.paddles["a"]["slot"] == 0 and g.paddles["c"]["slot"] == 1
@@ -286,43 +156,10 @@ def test_balloon_pump_bank_burst():
 
 
 # --------------------------------------------------------------------------- Malen & Raten
-def test_draw_guess_and_strokes():
-    g = DrawGame(players("A", "B", "C"), 0.0, random.Random(11), {"zeit": 60})
-    drawer = g.drawer
-    guessers = g.guessers()
-    g.word = "Schildkröte"
-    g.reveal_order = list(range(len(g.word)))
-    assert g.phone(drawer, 1)["ui"] == "draw" and g.phone(drawer, 1)["word"] == "Schildkröte"
-    assert g.phone(guessers[0], 1)["ui"] == "text"
-    assert g.hint(1) == "_ _ _ _ _ _ _ _ _ _ _" and g.hint(50).startswith("S c")
-    g.input(drawer, {"stroke": {"c": "#ff0000", "w": 8, "p": [0.1, 0.2]}}, 1)
-    g.input(drawer, {"pts": [[0.2, 0.3], [5, -1], ["x", 1]]}, 1)
-    assert g.strokes[0]["pts"] == [(0.1, 0.2), (0.2, 0.3), (1.0, 0.0)]
-    g.input(drawer, {"stroke": {"c": "javascript:alert(1)", "w": 9999, "p": [0.5, 0.5]}}, 1)
-    assert g.strokes[1]["c"] == "#111827" and g.strokes[1]["w"] == 40
-    g.input(drawer, {"undo": 1}, 1)
-    assert len(g.strokes) == 1
-    g.input(guessers[0], {"guess": "Schildkrote"}, 2)  # ein Buchstabe falsch → knapp
-    assert g.phone(guessers[0], 3)["feedback"] == "Ganz knapp!" and not g.guessed
-    g.input(guessers[0], {"guess": "schildkroete"}, 4)
-    assert g.guessed == {guessers[0]: 4} and g.score[guessers[0]] == 10
-    g.input(guessers[1], {"guess": "Haus"}, 5)
-    assert g.feed[-1][2] == "Haus"
-    g.input(guessers[1], {"guess": "Schildkröte"}, 6)
-    g.update(6)  # alle haben es → Auflösung
-    assert g.phase == "wort" and g.score[guessers[1]] == 8 and g.score[drawer] == 6
-    g.input(drawer, {"clear": 1}, 7)  # nach der Runde zählt nichts mehr
-    assert g.strokes
-    g.update(6 + g.REVEAL)
-    assert g.turn == 1 and g.drawer != drawer and not g.strokes
-    g.leave(g.drawer, 20)  # wer malt, geht → Auflösung
-    assert g.phase == "wort"
-
-
 # --------------------------------------------------------------------------- Spielrunde (Hub)
 def test_hub_lobby_start_and_rounds():
     clock = Clock()
-    hub = GameHub("reaktion", clock, random.Random(3))
+    hub = GameHub("schlangen", clock, random.Random(3))
     lena = hub.join("  Lena<script> ")
     lena2 = hub.join("Lena")
     assert lena.name == "Lenascript" and lena2.name == "Lena" and lena.color != lena2.color
@@ -338,36 +175,36 @@ def test_hub_lobby_start_and_rounds():
     assert hub.start() and hub.phase == "running"
     assert hub.state_for(lena.pid)["ui"]["big"] == "3"  # 3-2-1
     assert not hub.start()
-    hub.input(lena.pid, {"tap": 1})  # während 3-2-1 zählt nichts
-    assert hub.game.score[lena.pid] == 0
+    before = hub.game.snakes[lena.pid]["next"]
+    hub.input(lena.pid, {"dir": "up" if before[1] == 0 else "left"})  # während 3-2-1 zählt nichts
+    assert hub.game.snakes[lena.pid]["next"] == before
     clock.t = hub.intro_until
     hub.tick()
     late = hub.join("Mia")
-    assert late.pid in hub.game.score
-    assert hub.state_for(lena.pid)["ui"]["ui"] == "tap"
+    assert late.pid in hub.game.snakes
+    assert hub.state_for(lena.pid)["ui"]["ui"] == "pad"
     hub.finish()
     assert hub.phase == "over" and hub.state_for(lena.pid)["ui"]["big"].startswith("Platz")
     hub.set_game("gibtsnicht")
-    assert hub.game_key == "reaktion" and hub.phase == "lobby"
+    assert hub.game_key == "schlangen" and hub.phase == "lobby"
 
 
 def test_hub_options_kick_teams_next():
     clock = Clock()
-    hub = GameHub("schaetzen", clock, random.Random(4))
+    hub = GameHub("tictactoe", clock, random.Random(4))
     ps = [hub.join(n) for n in ("A", "B", "C", "D")]
-    hub.set_option("fragen", 5)
-    hub.set_option("fragen", 999)  # nicht erlaubt → bleibt
-    hub.set_option("kategorie", "sport")
-    assert hub.options["schaetzen"] == {"fragen": 5, "kategorie": "sport"}
+    hub.set_option("runden", 5)
+    hub.set_option("runden", 999)  # nicht erlaubt → bleibt
+    hub.set_option("zeit", 6)
+    assert hub.options["tictactoe"] == {"runden": 5, "zeit": 6}
     assert hub.start()
     clock.t = hub.intro_until
     hub.tick()
-    assert len(hub.game.questions) == 5 and all(q[0] == "sport" for q in hub.game.questions)
-    assert hub.next() and hub.game.phase == "aufloesung"
-    assert hub.kick(ps[0].pid) and ps[0].pid not in hub.game.score and not hub.kick("x")
+    assert hub.game.rounds == 5 and hub.game.think == 6
+    assert hub.kick(ps[0].pid) and ps[0].pid not in hub.game.players and not hub.kick("x")
     assert not hub.state_for(ps[0].pid)["joined"]
     hub.to_lobby()
-    hub.set_game("tauziehen")
+    hub.set_game("pong")
     hub.set_team(ps[1].pid, 0)
     hub.set_team(ps[2].pid, 0)
     hub.set_team(ps[3].pid, 0)
@@ -394,7 +231,7 @@ def test_hub_full_and_every_game_runs():
         hub.tick()
         for p in ps:
             ui = hub.state_for(p.pid)["ui"]
-            assert ui["ui"] in ("msg", "tap", "pad", "buttons", "number", "text", "draw", "paddle", "balloon"), key
+            assert ui["ui"] in ("msg", "tap", "pad", "buttons", "board", "paddle", "balloon"), key
         hub.finish()
         assert hub.phase == "over" and len(hub.ranking) == 3, key
 
@@ -402,22 +239,23 @@ def test_hub_full_and_every_game_runs():
 # --------------------------------------------------------------------------- Bestenliste / Töne
 def test_board_over_the_evening():
     clock = Clock()
-    hub = GameHub("reaktion", clock, random.Random(1))
+    hub = GameHub("rennen", clock, random.Random(1))
     a, b, c = (hub.join(n) for n in ("Lena", "Noah", "Mia"))
     assert hub.board_ranking() == [] and hub.board_games == 0
     hub.start()
     clock.t = hub.intro_until
     hub.tick()
-    hub.game.score = {a.pid: 5, b.pid: 5, c.pid: 1}  # Gleichstand auf Platz 1
+    hub.game.progress = {a.pid: 5, b.pid: 5, c.pid: 1}  # Gleichstand auf Platz 1
     hub.finish()
     assert hub.last_award == {"Lena": 10, "Noah": 10, "Mia": 5} and hub.board_games == 1
     # Team-Spiel: Sieger 6, Verlierer 2
-    hub.set_game("tauziehen")
+    hub.set_game("tictactoe")
     a.team, b.team, c.team = 0, 1, 0
     hub.start()
     clock.t = hub.intro_until
     hub.tick()
-    hub.game.pos = -1.0
+    hub.game.wins = [2, 0]
+    hub.game._finish()
     hub.tick()
     assert hub.phase == "over" and hub.last_award == {"Lena": 6, "Noah": 2, "Mia": 6}
     assert hub.board == {"Lena": 16, "Noah": 12, "Mia": 11} and hub.board_games == 2
@@ -509,35 +347,6 @@ def test_avatars_and_vibration():
 
 
 # --------------------------------------------------------------------------- Klassiker
-def test_tron_crash_into_trail_and_round_points():
-    from alupc.games_retro import TronGame
-
-    g = TronGame(players("A", "B", "C"), 0.0, random.Random(3), {"runden": 2})
-    assert g.phase == "bereit" and g.phone("a", 0.0)["ui"] == "pad"
-    g.update(g.READY)
-    assert g.phase == "fahren"
-    # A fährt geradeaus in die Spur von B, die quer davor liegt
-    a, b, c = g.riders["a"], g.riders["b"], g.riders["c"]
-    g.trail.clear()
-    a.update(pos=(10, 10), dir=(1, 0), next=(1, 0))
-    b.update(pos=(30, 20), dir=(0, 1), next=(0, 1))
-    c.update(pos=(50, 5), dir=(0, 1), next=(0, 1))
-    for x in range(5, 40):
-        g.trail[(x, 11)] = "b"  # Spur unter A
-    g.trail[(11, 10)] = "b"  # direkt vor A
-    g.input("a", {"dir": "left"}, g.READY)  # umdrehen geht nicht
-    assert a["next"] == (1, 0)
-    g.update(g.READY + g.STEP + 0.001)
-    assert not a["alive"] and b["alive"] and c["alive"]
-    b["next"] = (1, 0)  # B und C fahren in den Rand / ineinander
-    b["pos"] = (g.W - 1, 20)
-    g.update(g.READY + 2 * g.STEP + 0.002)
-    assert not b["alive"] and g.phase == "ergebnis" and g.winner == "c"
-    assert g.score == {"a": 0, "b": 1, "c": 2}
-    assert g.phone("c", 99)["big"] == "🏆"
-    assert g.skip(99) and (g.update(99) or g.phase == "bereit") and g.round == 2
-
-
 def test_rps_all_against_all():
     from alupc.games_retro import RpsGame
 
@@ -565,38 +374,73 @@ def test_rps_all_against_all():
     assert g.over
 
 
-def test_quiz_points_for_right_and_fast():
-    from alupc.games_retro import QUIZ, QuizGame
-
-    for q, right, wrong in QUIZ:  # Daten: 3 falsche, keine doppelten Antworten
-        assert len(wrong) == 3 and right not in wrong and len(set(wrong)) == 3, q
-    g = QuizGame(players("A", "B", "C"), 0.0, random.Random(5), {"fragen": 3})
-    assert len(g.questions) == 3
-    ui = g.phone("a", 0.0)
-    assert ui["ui"] == "buttons" and len(ui["buttons"]) == 4 and ui["status"] == g.question
-    wrong = (g.right + 1) % 4
-    g.input("a", {"btn": str(g.right)}, 0.0)  # sofort richtig → 1000
-    g.input("b", {"btn": str(g.right)}, 7.5)  # halbe Zeit → 750
-    g.input("c", {"btn": str(wrong)}, 1.0)
-    g.input("c", {"btn": str(g.right)}, 2.0)  # zweiter Versuch zählt nicht
-    g.update(7.5)
-    assert g.phase == "aufloesung" and g.score == {"a": 1000, "b": 750, "c": 0}
-    assert g.phone("c", 8)["tone"] == "bad"
-    assert g.skip(8.0)
-    g.update(8.0)
-    assert g.phase == "frage" and g.index == 1
-    g.skip(9.0)
-    g.update(9.0)
-    g.skip(9.1)
-    g.update(9.1)
-    g.skip(9.2)
-    g.update(9.2)
-    g.skip(9.3)
-    g.update(9.3)
-    assert g.over
+# --------------------------------------------------------------------------- Snake: Wände sind tödlich
+def test_snake_wall_kills():
+    g = SnakeGame(players("A"), 0.0, random.Random(5))
+    a = g.snakes["a"]
+    a["body"].clear()
+    a["body"].extend([(g.W - 1, 5), (g.W - 2, 5), (g.W - 3, 5)])
+    a["dir"] = a["next"] = (1, 0)
+    a["score"] = 6
+    g.food = set()
+    g.update(g.STEP + 0.001)
+    assert not a["alive"] and a["score"] == 3  # gegen die Wand → Crash, halbe Punkte
+    crash = [e for e in g.events if e[2] == "crash"][-1]
+    assert crash[3]["wall"] and crash[3]["cell"] == (g.W - 1, 5)
+    for k in range(1, 30):  # kommt wieder – innerhalb des Felds
+        g.update(g.STEP + k * 0.1)
+    assert a["alive"] and all(0 <= x < g.W and 0 <= y < g.H for x, y in a["body"])
 
 
-def test_new_games_in_hub():
-    for key in ("quiz", "lichtrenner", "ssp"):
-        hub = GameHub(key)
-        assert hub.game_key == key and GAMES[key].title
+# --------------------------------------------------------------------------- Tic-Tac-Toe
+def test_tictactoe_team_votes_and_win():
+    ps = players("A", "B", "C", "D", teams=[0, 0, 1, 1])
+    g = TicTacToeGame(ps, 0.0, random.Random(1), {"runden": 1, "zeit": 10})
+    assert g.turn == 0 and g.phone("a", 0.0)["enabled"] and not g.phone("c", 0.0)["enabled"]
+    g.input("c", {"cell": 4}, 0.1)  # nicht dran → zählt nicht
+    assert g.votes == {}
+    g.input("a", {"cell": 4}, 0.2)
+    g.update(0.3)
+    assert g.cells[4] == ""  # B hat noch nicht abgestimmt
+    g.input("b", {"cell": 4}, 0.4)
+    g.update(0.5)
+    assert g.cells[4] == "X" and g.turn == 1
+    # Team Blau lässt die Zeit ablaufen → Zufallsfeld
+    g.update(0.5 + 10.1)
+    assert g.cells.count("O") == 1 and g.turn == 0
+    # Rot gewinnt über die Diagonale 0-4-8 bzw. eine freie Linie
+    free_line = next(line for line in ((0, 4, 8), (2, 4, 6), (1, 4, 7), (3, 4, 5))
+                     if all(g.cells[i] in ("", "X") for i in line))
+    t = 11.0
+    for cell in [i for i in free_line if not g.cells[i]]:
+        for pid in ("a", "b"):
+            g.input(pid, {"cell": cell}, t)
+        g.update(t)
+        t += 0.1
+        if g.result:
+            break
+        o_free = [i for i, v in enumerate(g.cells) if not v and i not in free_line]
+        for pid in ("c", "d"):
+            g.input(pid, {"cell": o_free[0]}, t)
+        g.update(t)
+        t += 0.1
+    assert g.result == "X" and g.wins == [1, 0] and g.line is not None
+    assert g.phone("a", t)["status"].startswith("Gewonnen") and g.phone("c", t)["status"] == "Verloren"
+    g.update(t + g.PAUSE + 0.1)
+    assert g.over and g.winner == 0 and g.scores() == {"a": 1, "b": 1, "c": 0, "d": 0}
+
+
+def test_tictactoe_pc_plays_empty_team_and_draws():
+    g = TicTacToeGame(players("A", teams=[0]), 0.0, random.Random(2), {"runden": 2, "zeit": 6})
+    t = 0.0
+    while not g.over and t < 200:
+        if g.turn == 0 and not g.result:
+            free = [i for i, v in enumerate(g.cells) if not v]
+            g.input("a", {"cell": free[0]}, t)
+        t += 0.5
+        g.update(t)
+    assert g.over and g.round == 2 and sum(g.wins) <= 2
+    assert winner_of(["X", "X", "X", "", "", "", "", "", ""])[0] == "X"
+    assert best_move(["O", "O", "", "X", "X", "", "", "", ""], "X", random.Random(0)) == 5  # gewinnen
+    assert best_move(["O", "O", "", "X", "", "", "", "", ""], "X", random.Random(0)) == 2  # verhindern
+

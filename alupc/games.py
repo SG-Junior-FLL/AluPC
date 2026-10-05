@@ -19,10 +19,10 @@ import time
 from typing import NamedTuple
 
 from .games_base import TEAM_COLORS, TEAM_NAMES, Game
-from .games_classic import RaceGame, ReactionGame, SnakeGame
-from .games_retro import QuizGame, RpsGame, TronGame
-from .games_party import (BalloonGame, DrawGame, EstimateGame, PongGame, SimonGame, StroopGame, TugGame,
-                          format_number)
+from .games_board import TicTacToeGame
+from .games_classic import RaceGame, SnakeGame
+from .games_party import BalloonGame, PongGame, SimonGame
+from .games_retro import RpsGame
 
 
 class GameSpec(NamedTuple):
@@ -33,55 +33,33 @@ class GameSpec(NamedTuple):
     opts: dict  # Name → (Beschriftung, [(Wert, Text), …], Standard)
 
 
-def _category_choices():
-    from .game_data import CATEGORIES
-
-    return [(k, v) for k, v in CATEGORIES.items()]
-
-
 GAMES: dict[str, GameSpec] = {
-    "schaetzen": GameSpec("Schätzen", "Wer schätzt am besten?",
-                          "Zahl eintippen – wer am nächsten dran ist, bekommt die meisten Punkte",
-                          EstimateGame, {"fragen": ("Fragen", [(5, "5"), (8, "8"), (12, "12"), (20, "20")], 8),
-                                         "kategorie": ("Thema", None, "alle")}),
-    "malen": GameSpec("Malen & Raten", "Einer malt, alle raten",
-                      "Wer dran ist, malt auf dem Handy – alle anderen tippen ihren Tipp ein",
-                      DrawGame, {"runden": ("Runden", [(1, "1× malen"), (2, "2× malen")], 1),
-                                 "zeit": ("Zeit", [(60, "60 s"), (80, "80 s"), (100, "100 s")], 80)}),
-    "stroop": GameSpec("Farb-Chaos", "Farbe oder Wort? Wer falsch tippt, ist raus",
-                       "Tippe die FARBE des Wortes (oder was dasteht, wenn „WORT“ angesagt wird) – falsch = raus",
-                       StroopGame, {"tempo": ("Tempo", [("normal", "normal"), ("schnell", "schnell")], "normal")}),
-    "simon": GameSpec("Simon sagt", "Farbfolge merken – alle gleichzeitig",
-                      "Merk dir die Farben auf dem Bildschirm und tippe sie nach – ein Fehler und du bist raus",
-                      SimonGame, {"tempo": ("Tempo", [("normal", "normal"), ("schnell", "schnell")], "normal")}),
-    "tauziehen": GameSpec("Tauziehen", "Team Rot gegen Team Blau",
-                          "So schnell tippen wie möglich – zieht das Seil auf eure Seite",
-                          TugGame, {"dauer": ("Dauer", [(30, "30 s"), (45, "45 s"), (60, "60 s")], 45)}),
+    "schlangen": GameSpec("Snake", "Snake für alle – der Rand ist tödlich",
+                          "Steuerkreuz oder wischen · Punkte fressen · nicht gegen Wände oder Schlangen",
+                          SnakeGame, {"dauer": ("Dauer", [(60, "60 s"), (90, "90 s"), (120, "120 s")], 90)}),
+    "tictactoe": GameSpec("Tic-Tac-Toe", "Rot (X) gegen Blau (O)",
+                          "Euer Team ist dran: Feld antippen – das Feld mit den meisten Stimmen wird gesetzt",
+                          TicTacToeGame, {"runden": ("Runden", [(1, "1"), (3, "3"), (5, "5")], 3),
+                                          "zeit": ("Bedenkzeit", [(6, "6 s"), (10, "10 s"), (15, "15 s")], 10)}),
     "pong": GameSpec("Pong", "Teams mit bis zu 3 Schlägern",
                      "Finger hoch und runter ziehen – lass den Ball nicht durch",
                      PongGame, {"punkte": ("Bis", [(5, "5 Tore"), (7, "7 Tore"), (11, "11 Tore")], 7)}),
     "ballon": GameSpec("Ballon", "Aufpumpen – aber nicht zu weit",
                        "Pumpen bringt Punkte – „Sichern“, bevor er platzt! Alle Ballons platzen an der gleichen Stelle",
                        BalloonGame, {"runden": ("Runden", [(3, "3"), (5, "5")], 3)}),
-    "schlangen": GameSpec("Schlangen-Party", "Snake für alle",
-                          "Steuerkreuz oder wischen · Punkte fressen · nicht anstoßen",
-                          SnakeGame, {"dauer": ("Dauer", [(60, "60 s"), (90, "90 s"), (120, "120 s")], 90)}),
-    "reaktion": GameSpec("Schnellster Finger", "Bei Grün zuerst tippen",
-                         "Erst rot, dann GRÜN: sofort tippen · zu früh = Minuspunkt",
-                         ReactionGame, {"runden": ("Runden", [(3, "3"), (5, "5"), (8, "8")], 5)}),
     "rennen": GameSpec("Tipp-Rennen", "Wer zuerst im Ziel ist",
                        "So schnell tippen wie möglich · wer zuerst im Ziel ist, gewinnt",
                        RaceGame, {"ziel": ("Ziel", [(40, "40 Tipps"), (60, "60 Tipps"), (100, "100 Tipps")], 60)}),
-    "quiz": GameSpec("Quiz", "Vier Antworten – wer weiß es zuerst?",
-                     "Frage lesen, A/B/C/D tippen · richtig = Punkte, schneller = mehr",
-                     QuizGame, {"fragen": ("Fragen", [(5, "5"), (10, "10"), (15, "15")], 10)}),
-    "lichtrenner": GameSpec("Lichtrenner", "Leuchtspuren – wer fährt am längsten?",
-                            "Steuerkreuz oder wischen · nicht gegen Spuren oder den Rand fahren",
-                            TronGame, {"runden": ("Runden", [(3, "3"), (5, "5"), (7, "7")], 3)}),
+    "simon": GameSpec("Simon sagt", "Farbfolge merken – alle gleichzeitig",
+                      "Merk dir die Farben auf dem Bildschirm und tippe sie nach – ein Fehler und du bist raus",
+                      SimonGame, {"tempo": ("Tempo", [("normal", "normal"), ("schnell", "schnell")], "normal")}),
     "ssp": GameSpec("Schere, Stein, Papier", "Alle gegen alle, gleichzeitig",
                     "Geheim wählen · jeder geschlagene Gegner = 1 Punkt",
                     RpsGame, {"runden": ("Runden", [(3, "3"), (5, "5"), (8, "8")], 5)}),
 }
+DEFAULT_GAME = "schlangen"
+ICONS = {"schlangen": "🐍", "tictactoe": "⭕", "pong": "🏓", "ballon": "🎈", "rennen": "👆", "simon": "🟢",
+         "ssp": "✊"}
 
 COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ec4899", "#06b6d4", "#f97316", "#84cc16",
           "#eab308", "#14b8a6", "#e11d48", "#6366f1", "#10b981", "#f43f5e", "#0ea5e9"]
@@ -96,8 +74,7 @@ NAME_RE = re.compile(r"[^\w .\-!?äöüÄÖÜß]", re.UNICODE)
 
 
 def option_choices(key: str, opt: str) -> list[tuple]:
-    choices = GAMES[key].opts[opt][1]
-    return _category_choices() if choices is None else choices
+    return GAMES[key].opts[opt][1]
 
 
 class Player:
@@ -119,8 +96,8 @@ class GameHub:
     LOBBY_TIMEOUT = 25.0  # so lange ohne Lebenszeichen → aus der Lobby
     INTRO = 3.0  # 3-2-1 vor jedem Spiel
 
-    def __init__(self, game: str = "schaetzen", clock=time.monotonic, rng: random.Random | None = None):
-        self.game_key = game if game in GAMES else "schaetzen"
+    def __init__(self, game: str = DEFAULT_GAME, clock=time.monotonic, rng: random.Random | None = None):
+        self.game_key = game if game in GAMES else DEFAULT_GAME
         self.clock = clock
         self.rng = rng or random.Random()
         self.token = secrets.token_urlsafe(6)
@@ -454,6 +431,6 @@ class GameHub:
             return data
 
 
-__all__ = ["AVATARS", "GAMES", "GameHub", "Player", "MAX_PLAYERS", "COLORS", "TEAM_COLORS", "TEAM_NAMES", "format_number",
-           "option_choices", "SnakeGame", "ReactionGame", "RaceGame", "EstimateGame", "DrawGame", "StroopGame",
-           "SimonGame", "TugGame", "PongGame", "BalloonGame"]
+__all__ = ["AVATARS", "GAMES", "GameHub", "Player", "MAX_PLAYERS", "COLORS", "TEAM_COLORS", "TEAM_NAMES",
+           "option_choices", "SnakeGame", "RaceGame", "SimonGame", "PongGame", "BalloonGame", "TicTacToeGame",
+           "RpsGame", "DEFAULT_GAME", "ICONS"]

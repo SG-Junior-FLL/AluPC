@@ -138,7 +138,7 @@ class Controller(QObject):
         from .cast_server import cast_server
 
         self.cast = cast_server(config)
-        # WLAN-QR-Code nicht mehr in der Spiele-Lobby – dafür „WLAN-QR-Code zeigen“ (Hotspot-Kachel/-Fenster)
+        self.cast.wifi_provider = self.games_wifi  # Spiele-WLAN läuft → Lobby zeigt dessen WLAN-Code
         self.cast.request.connect(self._cast_request)
         from PySide6.QtCore import QTimer as _QTimer
 
@@ -1755,6 +1755,14 @@ class Controller(QObject):
         self.message.emit("🎤 Ich höre zu – ohne Startwort" if on else "🎤 Mikrofon-Schalter aus")
         self.changed.emit()
 
+    def games_wifi(self) -> tuple[str, str, bool] | None:
+        """Nur das Spiele-WLAN (für die Lobby): scannen → im WLAN → Anmeldeseite mit Name und Steuerung."""
+        from .hotspot import hotspot
+
+        if hotspot.running and hotspot.kind == "spiele":
+            return hotspot.ssid, hotspot.password, hotspot.hidden
+        return None
+
     def guest_wifi(self) -> tuple[str, str, bool] | None:
         """WLAN, in das Handys sollen: laufender Hotspot von AluPC oder das im Spiele-Fenster eingetragene WLAN.
         (Name, Passwort, unsichtbar?)"""
@@ -1779,6 +1787,24 @@ class Controller(QObject):
         self.message.emit(msg)
         self.hotspot_changed.emit()
         return ok, msg
+
+    def _auto_games_wifi(self) -> bool:
+        """Minispiele = eigenes WLAN: mit den Spielen startet das Spiele-WLAN (abschaltbar im Spiele-WLAN-Fenster).
+        Handys scannen den WLAN-Code in der Lobby → die Anmeldeseite öffnet sich → Name → mitspielen."""
+        import os
+        import threading
+
+        from .hotspot import hotspot, supported
+
+        if not self.config["games"].get("auto_wifi", True) or os.environ.get("ALUPC_NO_AUTO_WIFI"):
+            return False
+        if hotspot.running and hotspot.kind == "spiele":
+            return False
+        if not supported()[0]:
+            return False
+        self.message.emit("Spiele-WLAN startet …")
+        threading.Thread(target=lambda: self.set_hotspot(True, "spiele"), name="spiele-wlan-an", daemon=True).start()
+        return True
 
     def show_wifi_qr(self) -> bool:
         """WLAN-QR-Code des laufenden Hotspots groß auf Monitor 2."""
@@ -1808,7 +1834,7 @@ class Controller(QObject):
         key = key if key in GAMES else None
         cfg = self.config["games"]
         if self.cast.games is None:
-            hub = GameHub(key or cfg.get("last") or "schaetzen")
+            hub = GameHub(key or cfg.get("last") or "schlangen")
             for game, opts in (cfg.get("options") or {}).items():
                 for opt, value in (opts or {}).items():
                     if game in GAMES:
@@ -1818,6 +1844,7 @@ class Controller(QObject):
                 hub.board = {str(k): int(v) for k, v in (board.get("punkte") or {}).items()}
                 hub.board_games = int(board.get("spiele", 0))
             self.cast.games = hub
+            self._auto_games_wifi()
         elif key:
             self.cast.games.set_game(key)
         if key:

@@ -357,27 +357,41 @@ class CastServer(QObject):
 
 
 def portal_page(server) -> str:
-    """Seite, die das Handy nach dem Verbinden mit dem Hotspot/Spiele-WLAN selbst öffnet („Im WLAN anmelden“).
-    Mitspielen geht ohne Code; AluPC steuern führt auf die Handy-Steuerung, die den 6-stelligen Code verlangt
-    (steht am PC unter dem QR-Code) – wer nur im WLAN ist, kann also nichts am PC verändern."""
+    """WLAN-Anmeldeseite („Im WLAN anmelden“): öffnet sich auf dem Handy von selbst, sobald es im Hotspot ist –
+    wie im Hotel-WLAN. Name eingeben, dann Mitspielen (direkt in der Spielsteuerung) oder AluPC steuern (am PC
+    freigeben lassen). Wer nur im WLAN ist, kann ohne Freigabe nichts am PC verändern."""
     import html
 
     games = server.games
-    game_btn = (f'<a class="b g" href="{html.escape(server.games_url())}">🎮 Mitspielen<small>'
-                f'{html.escape(games.spec.title)}</small></a>' if games is not None else
-                '<div class="b off">🎮 Gerade keine Minispiele<small>Am PC starten</small></div>')
+    game_url = html.escape(server.games_url()) if games is not None else ""
+    game_title = html.escape(games.spec.title) if games is not None else ""
     return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>AluPC</title>
-<style>body{{margin:0;font-family:system-ui,sans-serif;background:#0b1020;color:#f1f5f9;display:flex;
-flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:20px;box-sizing:border-box}}
-h1{{margin:0 0 6px;font-size:28px}}p{{margin:0 0 10px;color:#94a3b8;text-align:center}}
-.b{{display:block;width:100%;max-width:380px;box-sizing:border-box;padding:22px;border-radius:20px;font-size:22px;
-font-weight:800;text-align:center;text-decoration:none;color:#fff;background:#1e293b;border:2px solid #334155}}
-.b small{{display:block;font-size:14px;font-weight:600;color:#cbd5e1;margin-top:4px}}
-.g{{background:linear-gradient(135deg,#6366f1,#ec4899);border:0}}.off{{opacity:.55}}</style></head>
-<body><h1>AluPC</h1><p>Du bist im WLAN von AluPC. Was möchtest du?</p>{game_btn}
-<a class="b" href="{html.escape(server.base())}">🔒 AluPC steuern<small>Am PC freigeben lassen (oder Code)</small></a>
-</body></html>"""
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>AluPC – WLAN-Anmeldung</title>
+<style>*{{box-sizing:border-box}}body{{margin:0;font-family:system-ui,sans-serif;background:radial-gradient(circle at 50% 0%,#1e293b,#0b1020 70%);
+color:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px}}
+.card{{width:100%;max-width:400px;display:flex;flex-direction:column;gap:14px}}
+.logo{{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#6366f1,#06b6d4);display:flex;
+align-items:center;justify-content:center;font-size:34px;margin:0 auto}}
+h1{{margin:0;text-align:center;font-size:26px}}p{{margin:0;color:#94a3b8;text-align:center;font-size:15px}}
+input{{width:100%;font-size:20px;padding:16px;border-radius:16px;border:2px solid #334155;background:#0f172a;color:#fff}}
+input:focus{{outline:none;border-color:#6366f1}}
+button{{width:100%;padding:20px;border-radius:18px;border:0;font-size:21px;font-weight:800;color:#fff;cursor:pointer}}
+button small{{display:block;font-size:13px;font-weight:600;opacity:.85;margin-top:3px}}
+.g{{background:linear-gradient(135deg,#6366f1,#ec4899)}}.c{{background:#1e293b;border:2px solid #334155}}
+button:disabled{{opacity:.45}}</style></head>
+<body><div class="card"><div class="logo">📶</div><h1>AluPC-WLAN</h1>
+<p>Du bist verbunden. Wie heißt du?</p>
+<input id="n" maxlength="16" placeholder="Dein Name" autocomplete="off" enterkeyhint="go">
+<button class="g" id="play" {"" if games is not None else "disabled"}>🎮 Mitspielen<small>{game_title or "Gerade keine Minispiele – am PC starten"}</small></button>
+<button class="c" id="ctl">🔒 AluPC steuern<small>Am PC freigeben lassen</small></button>
+</div><script>
+const n = document.getElementById("n");
+try {{ n.value = localStorage.getItem("alupc-name") || ""; }} catch (e) {{}}
+function name() {{ const v = n.value.trim(); try {{ localStorage.setItem("alupc-name", v); }} catch (e) {{}} return v; }}
+document.getElementById("play").onclick = () => {{ location.href = "{game_url}" + "&name=" + encodeURIComponent(name() || "Spieler"); }};
+document.getElementById("ctl").onclick = () => {{ location.href = "{html.escape(server.base())}?frei=" + encodeURIComponent(name() || "Handy"); }};
+n.addEventListener("keydown", e => {{ if (e.key === "Enter") document.getElementById({"'play'" if games is not None else "'ctl'"}).click(); }});
+</script></body></html>"""
 
 
 def _make_handler(server: CastServer):

@@ -268,8 +268,7 @@ def understand(words: list[str], scenes: list[str] | None = None,
                                                          or len(core) == 1):
             from .games import GAMES
 
-            if not (key == "malen" and has(words, "whiteboard")):
-                return f"spiel:{key}", f"Minispiel: {GAMES[key].title}"
+            return f"spiel:{key}", f"Minispiel: {GAMES[key].title}"
     # 4) Szene per Name
     if any(_like(w, "szene") for w in words) and scenes:
         folded = {fold(n): n for n in scenes}

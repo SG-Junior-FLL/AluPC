@@ -72,19 +72,48 @@ def wipe(dirs: list[Path] | None = None) -> list[str]:
     return problems
 
 
-_pending = {"on": False}
+_pending = {"on": False, "sync_folder": ""}
 LEFTOVER_FILE = "nicht-geloescht.txt"
+RETRY_FILE = "alupc-reset-rest.txt"  # im Temp-Ordner: was der Neustart noch löschen soll
+
+
+def _retry_path() -> Path:
+    import tempfile
+
+    return Path(tempfile.gettempdir()) / RETRY_FILE
+
+
+def clear_sync_folder(folder: str | Path) -> list[str]:
+    """Abgeglichene Einstellungen im Sync-Ordner löschen – sonst holt AluPC sie nach dem Neustart vom anderen
+    System zurück (dann wirkt „Alle Daten löschen“, als hätte es nichts getan)."""
+    problems = []
+    folder = Path(folder)
+    if not folder.is_dir():
+        return problems
+    for item in list(folder.glob("alupc-sync*.json")) + [folder / "Dateien"]:
+        try:
+            if item.is_dir():
+                shutil.rmtree(item)
+            elif item.exists():
+                item.unlink()
+        except OSError as exc:
+            problems.append(f"{item}: {exc}")
+    return problems
 
 
 def pending() -> bool:
     return _pending["on"]
 
 
-def request(config) -> None:
+def request(config, clear_sync: bool = False) -> None:
     """Zurücksetzen anstoßen: nichts mehr speichern, AluPC beenden. Gelöscht wird nach dem Beenden
-    (siehe app.main → finish_and_restart), dann startet AluPC neu – mit der Ersteinrichtung."""
+    (siehe app.main → finish_and_restart), dann startet AluPC neu – mit der Ersteinrichtung.
+    clear_sync: auch die abgeglichenen Einstellungen im Dual-Boot-Ordner löschen und den Abgleich auslassen."""
     from PySide6.QtWidgets import QApplication
 
+    sync = config.data.get("sync") or {}
+    _pending["sync_folder"] = str(sync.get("folder") or "") if clear_sync else ""
+    _pending["clear_sync"] = clear_sync
     config.frozen = True
     _pending["on"] = True
     QApplication.quit()
@@ -105,6 +134,19 @@ def finish_and_restart(attempts: int = 6, pause: float = 0.5) -> None:
             break
         time.sleep(pause)
         problems = wipe()
+    if _pending.get("clear_sync"):
+        if _pending.get("sync_folder"):
+            problems += clear_sync_folder(_pending["sync_folder"])
+        try:  # Abgleich bleibt aus, bis man ihn im Setup wieder einschaltet (sonst richtet er sich selbst ein)
+            config_dir().mkdir(parents=True, exist_ok=True)
+            (config_dir() / "config.json").write_text('{"sync": {"declined": true}}', encoding="utf-8")
+        except OSError as exc:
+            problems.append(f"Einstellungen: {exc}")
+    if problems:  # was jetzt noch klemmt, löscht der Neustart als Allererstes (bevor er Dateien öffnet)
+        try:
+            _retry_path().write_text("\n".join(str(d) for d in data_dirs()), encoding="utf-8")
+        except OSError:
+            pass
     if problems:  # der neue Start zeigt, was nicht ging
         try:
             config_dir().mkdir(parents=True, exist_ok=True)
@@ -121,6 +163,40 @@ def finish_and_restart(attempts: int = 6, pause: float = 0.5) -> None:
         env = {**os.environ, "PYINSTALLER_RESET_ENVIRONMENT": "1"}
         subprocess.Popen(launch_command(), cwd=os.path.expanduser("~"), creationflags=flags, env=env,
                          start_new_session=not sys.platform.startswith("win"))
+    except OSError:
+        pass
+
+
+def cleanup_pending() -> None:
+    """Beim Start (noch bevor AluPC Protokolle öffnet): Reste vom letzten „Alle Daten löschen“ entfernen."""
+    path = _retry_path()
+    if not path.is_file():
+        return
+    try:
+        dirs = [Path(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        path.unlink()
+    except OSError:
+        return
+    keep = None
+    cfg = config_dir() / "config.json"
+    try:  # die frisch geschriebene „Abgleich aus“-Einstellung behalten
+        keep = cfg.read_text(encoding="utf-8") if cfg.is_file() and cfg.stat().st_size < 200 else None
+    except OSError:
+        keep = None
+    problems = [p for p in wipe([d for d in dirs if is_alupc_dir(d)]) if not p.startswith("Autostart")]
+    if keep is not None:
+        try:
+            config_dir().mkdir(parents=True, exist_ok=True)
+            cfg.write_text(keep, encoding="utf-8")
+        except OSError:
+            pass
+    leftover = config_dir() / LEFTOVER_FILE
+    try:
+        if problems:
+            config_dir().mkdir(parents=True, exist_ok=True)
+            leftover.write_text("\n".join(problems), encoding="utf-8")
+        elif leftover.exists():
+            leftover.unlink()  # beim zweiten Versuch ging alles → keine Fehlermeldung zeigen
     except OSError:
         pass
 

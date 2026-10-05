@@ -424,7 +424,8 @@ QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {edge};
 
 #Sidebar {{ background: {t.surface if not t.dark else t.mix(t.bg, t.surface, 0.55).name()};
              border-right: 1px solid {t.border}; }}
-#Content {{ background: {t.bg}; }}
+#Content {{ background: qradialgradient(cx:0.92, cy:0.0, radius:1.0, fx:0.92, fy:0.0,
+                stop:0 {t.accent_soft(0.13 if t.dark else 0.09)}, stop:0.55 {t.bg}, stop:1 {t.bg}); }}
 #PageIcon {{ background: {grad}; border-radius: 14px; }}
 #Brand {{ font-size: 15pt; font-weight: 800; }}
 #BrandSub, #Muted, QLabel[muted="true"] {{ color: {t.muted}; }}

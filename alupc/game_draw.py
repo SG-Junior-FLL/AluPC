@@ -324,16 +324,14 @@ def lobby(c) -> None:
         text(p, QRectF(m, h - m - h * 0.1, left_w, h * 0.05), line, h * 0.03, "#fbbf24", True,
              Qt.AlignLeft | Qt.AlignVCenter)
     wifi = getattr(c, "wifi", None)
-    if wifi:  # eigenes WLAN/Hotspot: erst WLAN-Code, dann Spiel-Code (kein Abtippen)
-        side = int(min(h * 0.33, qr_side))
-        qx = w - m - side
-        y1 = m + h * 0.07
-        text(p, QRectF(qx - m * 2, y1 - h * 0.065, side + 3 * m, h * 0.05), f"① WLAN „{wifi[0]}“", h * 0.03, TEXT,
-             True)
-        qr_card(c, qx, y1, side, caption=False, image=c.wifi_qr())
-        y2 = y1 + side + h * 0.12
-        text(p, QRectF(qx - m * 2, y2 - h * 0.065, side + 3 * m, h * 0.05), "② Mitspielen", h * 0.03, TEXT, True)
-        qr_card(c, qx, y2, side, caption=False)
+    if wifi:  # Spiele-WLAN: EIN Code – Handy ist im WLAN, die Anmeldeseite (Name → mitspielen) öffnet sich selbst
+        qx, qy = w - m - qr_side, (h - qr_side) / 2 - h * 0.02
+        text(p, QRectF(qx - m, qy - h * 0.11, qr_side + 2 * m, h * 0.06), "WLAN scannen", h * 0.04, TEXT, True)
+        qr_card(c, qx, qy, qr_side, caption=False, image=c.wifi_qr())
+        text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.03, qr_side + 4 * m, h * 0.045),
+             f"„{wifi[0]}“ · Anmeldung öffnet sich", h * 0.026, "#67e8f9", True)
+        text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.075, qr_side + 4 * m, h * 0.04),
+             "Name eingeben → mitspielen", h * 0.024, MUTED)
         return
     # Der Code steht still (auch kein „Wippen“): bewegte Codes lesen manche Handy-Kameras schlecht
     qx, qy = w - m - qr_side, (h - qr_side) / 2 - h * 0.03
@@ -514,7 +512,7 @@ def board(c) -> None:
 def score_label(key: str, score) -> str:
     if key == "rennen":
         return "Im Ziel" if score >= 1000 else f"{int(score)} Tipps"
-    if key in ("stroop", "simon"):
+    if key == "simon":
         return f"Runde {int(score)}"
     if key == "ballon":
         return f"{int(score)} gepumpt"
@@ -547,7 +545,7 @@ def _team_result(c, m, t):
              Qt.AlignLeft | Qt.AlignVCenter)
         members = sorted((pid for pid, pl in hub.players.items() if pl.team == team and pid in scores),
                          key=lambda pid: -scores[pid])
-        unit = "Treffer" if hasattr(game, "goals") else "Züge"
+        unit = getattr(game, "unit", "Treffer" if hasattr(game, "goals") else "Züge")
         for i, pid in enumerate(members[:7]):
             appear = ease_out((t - 0.4 - i * 0.08) / 0.4)
             if appear <= 0:
@@ -557,166 +555,7 @@ def _team_result(c, m, t):
     _board_footer(c, m)
 
 
-# =========================================================================== Schätzen
-def schaetzen(c, g, events) -> None:
-    from .games_party import format_number
-
-    p, w, h, now = c.p, c.w, c.h, c.now
-    m = max(14, int(min(w, h) * 0.045))
-    cat, question, answer, unit = g.question
-    from .game_data import CATEGORIES
-
-    side_w = w * 0.22
-    main_w = w - 3 * m - side_w
-    tag(c, m, m, main_w, f"SCHÄTZEN · FRAGE {g.index + 1} / {len(g.questions)} · {CATEGORIES.get(cat, '').upper()}")
-    scoreboard(c, QRectF(w - m - side_w, m + h * 0.07, side_w, h * 0.8), g.scores())
-    for _n, t, kind, data in events:
-        if kind == "guess":
-            c.fx.born[("guess", data["pid"])] = t
-    if g.phase == "frage":
-        t = now - g.started
-        slide = ease_out(t / 0.55)
-        card = QRectF(m, m + h * 0.09 + (1 - slide) * h * 0.08, main_w, h * 0.5)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255, int(16 * slide)))
-        p.drawRoundedRect(card, 24, 24)
-        text(p, card.adjusted(m, m, -m, -h * 0.12), question, h * 0.07, qc("#ffffff", slide), True, wrap=True)
-        if unit and unit not in ("Jahr",):
-            text(p, QRectF(card.x(), card.bottom() - h * 0.11, card.width(), h * 0.05), f"Antwort in: {unit}",
-                 h * 0.032, qc(MUTED, slide))
-        part = (g.until - now) / g.ASK
-        time_bar(c, QRectF(card.x() + m, card.bottom() - h * 0.045, card.width() - 2 * m, h * 0.018), part)
-        text(p, QRectF(card.right() - m - h * 0.12, card.bottom() - h * 0.11, h * 0.12, h * 0.05),
-             clock_text(g.until - now), h * 0.034, TEXT, True, Qt.AlignRight | Qt.AlignVCenter)
-        # wer schon geschätzt hat
-        pids = list(g.score)
-        cols = 4
-        cw = (main_w - m * 0.4 * (cols - 1)) / cols
-        for i, pid in enumerate(pids[:16]):
-            r, col = divmod(i, cols)
-            rect = QRectF(m + col * (cw + m * 0.4), card.bottom() + h * 0.04 + r * h * 0.065, cw, h * 0.052)
-            done = pid in g.guesses
-            born = c.fx.born.get(("guess", pid))
-            s = 1.0 if born is None else 1 + 0.25 * max(0.0, 1 - (now - born) / 0.3)
-            p.save()
-            p.translate(rect.center())
-            p.scale(s, s)
-            p.translate(-rect.center())
-            chip(p, rect, name_of(c, pid), color_of(c, pid), avatar=avatar_of(c, pid), mark="✓" if done else "…", dim=1.0 if done else 0.45)
-            p.restore()
-        return
-    # ---- Auflösung: Zahlenstrahl
-    t = now - g.revealed
-    text(p, QRectF(m, m + h * 0.06, main_w, h * 0.12), question, h * 0.042, TEXT, True, wrap=True)
-    shown = answer * ease_out(t / 1.2)
-    num = format_number(shown if t < 1.2 else answer, unit)
-    p.save()
-    p.translate(m + main_w / 2, h * 0.3)
-    s = ease_back(min(1.0, t / 0.5))
-    p.scale(s, s)
-    text(p, QRectF(-main_w / 2, -h * 0.08, main_w, h * 0.16), num, h * 0.11, "#fbbf24", True)
-    p.restore()
-    axis_y = h * 0.58
-    x0, x1 = m + main_w * 0.06, m + main_w * 0.94
-    cx = (x0 + x1) / 2
-    half = (x1 - x0) / 2
-    p.setPen(QPen(QColor(255, 255, 255, 60), max(2, h * 0.004)))
-    p.drawLine(QPointF(x0, axis_y), QPointF(x1, axis_y))
-    text(p, QRectF(x0, axis_y + h * 0.17, half * 0.6, h * 0.04), "← zu wenig", h * 0.026, MUTED,
-         align=Qt.AlignLeft | Qt.AlignVCenter)
-    text(p, QRectF(x1 - half * 0.6, axis_y + h * 0.17, half * 0.6, h * 0.04), "zu viel →", h * 0.026, MUTED,
-         align=Qt.AlignRight | Qt.AlignVCenter)
-    errs = sorted(abs(v - answer) for v, _t in g.guesses.values())
-    span = max(abs(answer) * 0.05, 1.0)
-    if errs:
-        median = errs[len(errs) // 2]
-        span = max(span, min(errs[-1], max(median, span) * 4) * 1.15)
-    # Lösung
-    drop = ease_out(t / 0.6)
-    p.setPen(QPen(qc("#fbbf24"), max(3, h * 0.006)))
-    p.drawLine(QPointF(cx, axis_y - h * 0.12 * drop), QPointF(cx, axis_y + h * 0.12 * drop))
-    order = sorted(g.guesses.items(), key=lambda kv: abs(kv[1][0] - answer))
-    # Beschriftungen auf Zeilen verteilen (oben/unten abwechselnd, keine Überlappung)
-    label_w = w * 0.15
-    rows: dict[int, list[float]] = {}
-    slot = {}
-    for pid, (value, _tt) in sorted(g.guesses.items(), key=lambda kv: kv[1][0]):
-        fx_ = cx + max(-1.0, min(1.0, (value - answer) / span)) * half
-        for r in (0, 1, 2, 3, 4, 5, 6, 7):
-            if all(abs(fx_ - other) >= label_w for other in rows.get(r, [])):
-                rows.setdefault(r, []).append(fx_)
-                slot[pid] = r
-                break
-        else:
-            slot[pid] = len(slot) % 8
-    for i, (pid, (value, _tt)) in enumerate(order):
-        rel = max(-1.0, min(1.0, (value - answer) / span))
-        k = ease_out((t - 0.8 - i * 0.12) / 0.7)
-        if k <= 0:
-            continue
-        x = (x0 if value < answer else x1) + ((cx + rel * half) - (x0 if value < answer else x1)) * k
-        r = slot.get(pid, 0)
-        up = r % 2 == 0
-        y = axis_y + (-1 if up else 1) * h * (0.05 + 0.045 * (r // 2))
-        p.setPen(QPen(qc(color_of(c, pid), 0.6), 2))
-        p.drawLine(QPointF(x, axis_y), QPointF(x, y))
-        p.setPen(Qt.NoPen)
-        p.setBrush(qc(color_of(c, pid)))
-        p.drawEllipse(QPointF(x, axis_y), h * 0.013, h * 0.013)
-        label = f"{name_of(c, pid)}: {format_number(value, unit)}"
-        text(p, QRectF(x - label_w / 2, y - h * 0.035 if up else y, label_w, h * 0.035), label, h * 0.024, TEXT,
-             True)
-        pts = g.gained.get(pid, 0)
-        if pts and k >= 1:
-            key = ("pts", pid, g.index)
-            if key not in c.fx.born:
-                c.fx.born[key] = now
-                if i == 0:
-                    burst(c.fx, x, axis_y, color_of(c, pid), now, n=26)
-            float_text(c, x, axis_y - h * 0.02, f"+{pts}", "#4ade80", c.fx.born[key], 1.6, h * 0.04)
-
-
-# =========================================================================== Farb-Chaos
-def stroop(c, g, events) -> None:
-    from .games_party import STROOP_COLORS
-
-    p, w, h, now = c.p, c.w, c.h, c.now
-    m = max(14, int(min(w, h) * 0.045))
-    colors = dict(STROOP_COLORS)
-    for _n, t, kind, data in events:
-        if kind == "word":
-            c.fx.born["word"] = t
-        elif kind == "out":
-            c.fx.born[("out", data["pid"])] = t
-    tag(c, m, m, w * 0.6, f"FARB-CHAOS · RUNDE {g.round} · NOCH {len(g.alive)} IM SPIEL")
-    rule = "Welche FARBE hat das Wort?" if g.rule == "farbe" else "Was STEHT da?"
-    rule_color = "#a5b4fc" if g.rule == "farbe" else "#fb923c"
-    text(p, QRectF(0, h * 0.1, w, h * 0.08), rule, h * 0.055, rule_color, True)
-    stage = QRectF(w * 0.1, h * 0.2, w * 0.8, h * 0.4)
-    if g.phase == "zeigen":
-        t = now - c.fx.born.get("word", now)
-        s = ease_back(t / 0.3)
-        shake = math.sin(now * 40) * h * 0.004 if t < 0.25 else 0
-        p.save()
-        p.translate(stage.center().x() + shake, stage.center().y())
-        p.scale(s, s)
-        text(p, QRectF(-stage.width() / 2, -stage.height() / 2, stage.width(), stage.height()), g.word[0], h * 0.26,
-             g.ink[1], True)
-        p.restore()
-        time_bar(c, QRectF(w * 0.2, h * 0.63, w * 0.6, h * 0.02), (g.until - now) / g.window)
-    else:
-        target = g.target
-        text(p, QRectF(stage.x(), stage.y(), stage.width(), stage.height() * 0.6), g.word[0], h * 0.16,
-             qc(g.ink[1], 0.5), True)
-        swatch = QRectF(w / 2 - h * 0.05, stage.y() + stage.height() * 0.62, h * 0.1, h * 0.1)
-        p.setPen(Qt.NoPen)
-        p.setBrush(qc(colors.get(target, "#ffffff")))
-        p.drawRoundedRect(swatch, h * 0.02, h * 0.02)
-        msg = "Alle falsch – keiner fliegt raus!" if g.all_failed else f"Richtig: {target}"
-        text(p, QRectF(0, swatch.bottom() + h * 0.01, w, h * 0.06), msg, h * 0.045, TEXT, True)
-    _alive_strip(c, g, h * 0.7, m, answered=getattr(g, "answers", {}))
-
-
+# =========================================================================== Ausscheiden (Simon)
 def _alive_strip(c, g, top, m, answered=None, progress=None, seq_len=0) -> None:
     """Spieler-Kacheln unten: wer ist noch drin, wer ist raus (mit Wackeln und rotem Blitz)."""
     p, w, h, now = c.p, c.w, c.h, c.now
@@ -830,170 +669,6 @@ def simon(c, g, events) -> None:
             p.setPen(Qt.NoPen)
             p.setBrush(qc(color_of(c, pid), 0.35))
             p.drawRoundedRect(QRectF(rect.x(), rect.bottom() - 4, rect.width() * part, 4), 2, 2)
-
-
-# =========================================================================== Tauziehen
-def tauziehen(c, g, events) -> None:
-    p, w, h, now = c.p, c.w, c.h, c.now
-    m = max(14, int(min(w, h) * 0.045))
-    shown = c.fx.vals.get("pos", 0.0)
-    shown += (g.pos - shown) * 0.18
-    c.fx.vals["pos"] = shown
-    # Seiten einfärben
-    for team, rect in ((0, QRectF(0, 0, w / 2, h)), (1, QRectF(w / 2, 0, w / 2, h))):
-        grad = QLinearGradient(rect.topLeft() if team == 0 else rect.topRight(), rect.center())
-        grad.setColorAt(0, qc(TEAM_COLORS[team], 0.22))
-        grad.setColorAt(1, qc(TEAM_COLORS[team], 0.0))
-        p.fillRect(rect, grad)
-    tag(c, m, m, w * 0.6, "TAUZIEHEN")
-    text(p, QRectF(0, m, w, h * 0.06), clock_text(g.remaining(now)), h * 0.05,
-         "#fbbf24" if g.remaining(now) < 10 else TEXT, True)
-    taps = [sum(n for pid, n in g.taps.items() if g.team_of(pid) == t) for t in (0, 1)]
-    for team in (0, 1):
-        align = Qt.AlignLeft if team == 0 else Qt.AlignRight
-        text(p, QRectF(m, h * 0.1, w - 2 * m, h * 0.07), TEAM_NAMES[team], h * 0.055, TEAM_COLORS[team], True,
-             align | Qt.AlignVCenter)
-        text(p, QRectF(m, h * 0.17, w - 2 * m, h * 0.05), f"{taps[team]} Züge", h * 0.032, MUTED,
-             align=align | Qt.AlignVCenter)
-    rope_y = h * 0.52
-    span = w * 0.32  # so weit wandert die Mitte bis zum Sieg
-    knot_x = w / 2 + shown * span
-    # Gewinnlinien
-    for side in (-1, 1):
-        x = w / 2 + side * span
-        pen = QPen(QColor(255, 255, 255, 70), 3, Qt.DashLine)
-        p.setPen(pen)
-        p.drawLine(QPointF(x, rope_y - h * 0.2), QPointF(x, rope_y + h * 0.2))
-    pen = QPen(QColor(255, 255, 255, 40), 2)
-    p.setPen(pen)
-    p.drawLine(QPointF(w / 2, rope_y - h * 0.12), QPointF(w / 2, rope_y + h * 0.12))
-    # Seil mit Streifen, die mitwandern
-    thick = h * 0.03
-    p.setPen(Qt.NoPen)
-    p.setBrush(QColor("#a16207"))
-    rope = QRectF(m, rope_y - thick / 2, w - 2 * m, thick)
-    p.drawRoundedRect(rope, thick / 2, thick / 2)
-    p.setPen(QPen(QColor("#713f12"), max(2, thick * 0.18)))
-    step = thick * 1.2
-    off = (shown * span) % step
-    x = rope.x() + off
-    while x < rope.right() - thick:
-        p.drawLine(QPointF(x, rope.top() + 2), QPointF(x + thick * 0.6, rope.bottom() - 2))
-        x += step
-    # Knoten / Fähnchen
-    wobble = math.sin(now * 9) * h * 0.006
-    p.setPen(Qt.NoPen)
-    p.setBrush(QColor("#ffffff"))
-    p.drawRect(QRectF(knot_x - 2, rope_y - h * 0.14, 4, h * 0.14))
-    flag = QPainterPath(QPointF(knot_x + 2, rope_y - h * 0.14))
-    flag.lineTo(QPointF(knot_x + 2 + h * 0.08, rope_y - h * 0.115 + wobble))
-    flag.lineTo(QPointF(knot_x + 2, rope_y - h * 0.09))
-    p.setBrush(qc(TEAM_COLORS[0] if shown < 0 else TEAM_COLORS[1]))
-    p.drawPath(flag)
-    p.setBrush(QColor("#fde68a"))
-    p.drawEllipse(QPointF(knot_x, rope_y), thick * 0.9, thick * 0.9)
-    # Spieler am Seil
-    for team in (0, 1):
-        members = [pid for pid in g.taps if g.team_of(pid) == team]
-        for i, pid in enumerate(members[:8]):
-            dist = (i + 1) * w * 0.045 + w * 0.04
-            x = knot_x - dist if team == 0 else knot_x + dist
-            recent = now - g.last_tap.get(pid, -9) < 0.15
-            lean = (-1 if team == 0 else 1) * (h * 0.012 if recent else 0)
-            y = rope_y + (h * 0.07 if i % 2 else -h * 0.07) + math.sin(now * 6 + i) * h * 0.004
-            r = h * 0.03 * (1.15 if recent else 1.0)
-            p.setPen(QPen(QColor(255, 255, 255, 90), 2))
-            p.drawLine(QPointF(x, y), QPointF(x, rope_y))
-            p.setPen(Qt.NoPen)
-            p.setBrush(qc(color_of(c, pid)))
-            p.drawEllipse(QPointF(x + lean, y), r, r)
-            text(p, QRectF(x - w * 0.06, y + (r if i % 2 else -r - h * 0.035), w * 0.12, h * 0.035),
-                 name_of(c, pid), h * 0.024, TEXT, True)
-
-
-# =========================================================================== Malen & Raten
-def malen(c, g, events) -> None:
-    p, w, h, now = c.p, c.w, c.h, c.now
-    m = max(14, int(min(w, h) * 0.035))
-    for _n, t, kind, data in events:
-        if kind == "correct":
-            c.fx.born[("ok", data["pid"])] = t
-        elif kind == "turn":
-            c.fx.born["turn"] = t
-    side_w = w * 0.26
-    area_w = w - 3 * m - side_w
-    top = m + h * 0.12
-    ch = h - top - m
-    cw = min(area_w, ch * 4 / 3)
-    ch = cw * 3 / 4
-    canvas = QRectF(m + (area_w - cw) / 2, top, cw, ch)
-    drawer = name_of(c, g.drawer)
-    tag(c, m, m, area_w, f"MALEN & RATEN · BILD {g.turn + 1} / {len(g.order)}")
-    text(p, QRectF(m, m + h * 0.04, area_w * 0.6, h * 0.07), f"{drawer} malt", h * 0.05, color_of(c, g.drawer), True,
-         Qt.AlignLeft | Qt.AlignVCenter)
-    if g.phase == "malen":
-        text(p, QRectF(m + area_w * 0.3, m + h * 0.035, area_w * 0.7 - h * 0.1, h * 0.08), g.hint(now), h * 0.05,
-             "#ffffff", True, Qt.AlignRight | Qt.AlignVCenter)
-        ring(c, QPointF(m + area_w - h * 0.035, m + h * 0.075), h * 0.032, (g.until - now) / g.turn_time)
-    # Leinwand
-    p.setPen(Qt.NoPen)
-    p.setBrush(QColor("#ffffff"))
-    p.drawRoundedRect(canvas, 18, 18)
-    p.save()
-    p.setClipRect(canvas)
-    for s in g.strokes:
-        pts = s["pts"]
-        if not pts:
-            continue
-        pen = QPen(qc(s["c"]), max(1.0, s["w"] / 1000 * canvas.width()))
-        pen.setCapStyle(Qt.RoundCap)
-        pen.setJoinStyle(Qt.RoundJoin)
-        p.setPen(pen)
-        path = QPainterPath(QPointF(canvas.x() + pts[0][0] * canvas.width(), canvas.y() + pts[0][1] * canvas.height()))
-        if len(pts) == 1:
-            path.lineTo(path.currentPosition() + QPointF(0.1, 0.1))
-        for x, y in pts[1:]:
-            path.lineTo(QPointF(canvas.x() + x * canvas.width(), canvas.y() + y * canvas.height()))
-        p.setBrush(Qt.NoBrush)
-        p.drawPath(path)
-    p.restore()
-    if not g.strokes and g.phase == "malen":
-        text(p, canvas, f"{drawer} malt gleich …", h * 0.04, "#94a3b8")
-    if g.phase == "wort":
-        t = now - (g.until - g.REVEAL)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(11, 16, 32, int(190 * ease_out(t / 0.3))))
-        p.drawRoundedRect(canvas, 18, 18)
-        p.save()
-        p.translate(canvas.center())
-        s = ease_back(t / 0.45)
-        p.scale(s, s)
-        text(p, QRectF(-canvas.width() / 2, -h * 0.1, canvas.width(), h * 0.14), g.word, h * 0.1, "#fbbf24", True)
-        p.restore()
-        text(p, QRectF(canvas.x(), canvas.center().y() + h * 0.06, canvas.width(), h * 0.06),
-             f"{len(g.guessed)} von {len(g.guessers())} haben es erraten", h * 0.035, TEXT)
-    # rechts: Punkte + Tipps
-    side = QRectF(w - m - side_w, m + h * 0.05, side_w, h * 0.38)
-    scoreboard(c, side, g.scores(), limit=6, marks={pid: "✓" for pid in g.guessed})
-    feed_top = side.bottom() + h * 0.03
-    text(p, QRectF(side.x(), feed_top, side_w, h * 0.04), "Tipps", h * 0.028, MUTED, True,
-         Qt.AlignLeft | Qt.AlignVCenter)
-    items = g.feed[-7:]
-    for i, (t, pid, msg, kind) in enumerate(items):
-        y = feed_top + h * 0.05 + i * h * 0.062
-        age = now - t
-        slide = ease_out(age / 0.3)
-        rect = QRectF(side.x() + (1 - slide) * side_w * 0.3, y, side_w, h * 0.054)
-        color = {"ok": "#16a34a", "close": "#b45309"}.get(kind, "#1e293b")
-        p.setPen(Qt.NoPen)
-        p.setBrush(qc(color, 0.9 * slide))
-        p.drawRoundedRect(rect, h * 0.015, h * 0.015)
-        label = f"{name_of(c, pid)} {msg}" if kind != "guess" else f"{name_of(c, pid)}: {msg}"
-        text(p, rect.adjusted(h * 0.015, 0, -h * 0.01, 0), label, h * 0.026, qc(TEXT, slide),
-             align=Qt.AlignLeft | Qt.AlignVCenter)
-        if kind == "ok" and ("okfx", t) not in c.fx.born:
-            c.fx.born[("okfx", t)] = now
-            burst(c.fx, rect.center().x(), rect.center().y(), "#4ade80", now, n=20, speed=220)
 
 
 # =========================================================================== Pong
@@ -1163,7 +838,7 @@ def ballon(c, g, events) -> None:
             float_text(c, cx, cy - rad, f"+{st['pumps']}", "#4ade80", bank_t, 1.4, h * 0.045)
 
 
-# =========================================================================== Klassiker
+# =========================================================================== Snake, Tipp-Rennen
 def schlangen(c, g, events) -> None:
     p, w, h, now = c.p, c.w, c.h, c.now
     m = max(10, int(min(w, h) * 0.03))
@@ -1180,13 +855,23 @@ def schlangen(c, g, events) -> None:
             burst(c.fx, q[0], q[1], "#fbbf24", now, n=10, speed=160, size=4, gravity=0, life=0.5)
         elif kind == "crash":
             burst(c.fx, q[0], q[1], color_of(c, data["pid"]), now, n=30, speed=300, size=6)
-    tag(c, m, m, area.width(), "SCHLANGEN-PARTY")
+            if data.get("wall"):
+                c.fx.born["wall"] = t
+    tag(c, m, m, area.width(), "SNAKE")
     left = g.remaining(now)
     text(p, QRectF(m, m, area.width(), h * 0.05), clock_text(left), h * 0.04, "#fbbf24" if left < 10 else TEXT, True,
          Qt.AlignRight | Qt.AlignVCenter)
     p.setPen(Qt.NoPen)
     p.setBrush(QColor(255, 255, 255, 10))
     p.drawRoundedRect(board.adjusted(-4, -4, 4, 4), 10, 10)
+    # Wand: der Rand ist tödlich – rot leuchtend (blitzt kurz auf, wenn jemand dagegen fährt)
+    hit = c.fx.born.get("wall")
+    flash = 1 - (now - hit) / 0.5 if hit is not None and now - hit < 0.5 else 0.0
+    wall = max(3.0, cell * 0.22)
+    p.setPen(QPen(qc("#ef4444", 0.55 + 0.45 * flash), wall))
+    p.setBrush(Qt.NoBrush)
+    p.drawRoundedRect(board.adjusted(-wall / 2 - 2, -wall / 2 - 2, wall / 2 + 2, wall / 2 + 2), 10, 10)
+    p.setPen(Qt.NoPen)
     p.setBrush(QColor("#fbbf24"))
     pulse = 0.32 + 0.06 * math.sin(now * 6)
     for fx_, fy in g.food:
@@ -1210,51 +895,6 @@ def schlangen(c, g, events) -> None:
     x, y = w - m - side_w / 2 - q / 2, h - m - q - q * 0.06 - h * 0.04
     qr_card(c, x, y, q, caption=False)
     text(p, QRectF(w - m - side_w, h - m - h * 0.035, side_w, h * 0.035), "Einsteigen", h * 0.022, MUTED)
-
-
-def reaktion(c, g, events) -> None:
-    p, w, h, now = c.p, c.w, c.h, c.now
-    m = max(14, int(min(w, h) * 0.04))
-    for _n, t, kind, data in events:
-        if kind == "go":
-            c.fx.born["go"] = t
-    if g.phase in ("warte", "los"):
-        p.fillRect(QRectF(0, 0, w, h), QColor("#16a34a" if g.phase == "los" else "#991b1b"))
-        if g.phase == "los":
-            age = now - c.fx.born.get("go", now)
-            if age < 0.4:
-                p.fillRect(QRectF(0, 0, w, h), qc("#ffffff", 0.5 * (1 - age / 0.4)))
-    side_w = w * 0.24
-    main = QRectF(m, m, w - 3 * m - side_w, h - 2 * m)
-    tag(c, m, m, main.width(), f"SCHNELLSTER FINGER · RUNDE {g.round} / {g.rounds}", "#ffffff")
-    if g.phase == "ergebnis":
-        text(p, QRectF(main.x(), main.y() + h * 0.08, main.width(), h * 0.1),
-             "Am schnellsten:" if g.last else "Keiner war schnell genug!", h * 0.06, TEXT, True,
-             Qt.AlignLeft | Qt.AlignVCenter)
-        row_h = h * 0.1
-        start = g.until - g.RESULT
-        for i, (pid, t) in enumerate(g.last[:5]):
-            k = ease_out((now - start - i * 0.12) / 0.35)
-            if k <= 0:
-                continue
-            pts = f"+{3 - i}  ·  " if i < 3 else ""
-            chip(p, QRectF(main.x() - (1 - k) * 80, main.y() + h * 0.22 + i * row_h, main.width() * 0.9, row_h * 0.8),
-                 name_of(c, pid), color_of(c, pid), f"{pts}{t:.3f} s".replace(".", ","), dim=k)
-    else:
-        big = "JETZT!" if g.phase == "los" else "Warte …"
-        s = 1.0
-        if g.phase == "los":
-            s = ease_back((now - c.fx.born.get("go", now)) / 0.3)
-        else:
-            s = 1 + 0.03 * math.sin(now * 4)
-        p.save()
-        p.translate(main.center())
-        p.scale(s, s)
-        text(p, QRectF(-main.width() / 2, -h * 0.15, main.width(), h * 0.3), big, h * 0.26, "#ffffff", True)
-        p.restore()
-        hint = "Tippen!" if g.phase == "los" else "Erst bei GRÜN tippen – zu früh = −1"
-        text(p, QRectF(main.x(), main.center().y() + h * 0.16, main.width(), h * 0.06), hint, h * 0.035, "#ffffff")
-    scoreboard(c, QRectF(w - m - side_w, m + h * 0.07, side_w, h * 0.8), g.scores())
 
 
 def rennen(c, g, events) -> None:
@@ -1303,87 +943,7 @@ def rennen(c, g, events) -> None:
                        QColor("#111827"))
 
 
-# =========================================================================== Klassiker
-def lichtrenner(c, g, events) -> None:
-    p, w, h, now = c.p, c.w, c.h, c.now
-    m = max(10, int(min(w, h) * 0.03))
-    side_w = w * 0.2
-    area = QRectF(m, m + h * 0.06, w - 3 * m - side_w, h - 2 * m - h * 0.06)
-    cell = min(area.width() / g.W, area.height() / g.H)
-    bx = area.x() + (area.width() - cell * g.W) / 2
-    by = area.y() + (area.height() - cell * g.H) / 2
-    board = QRectF(bx, by, cell * g.W, cell * g.H)
-    for _n, t, kind, data in events:
-        if kind == "crash":
-            x, y = data["cell"]
-            burst(c.fx, bx + (x + 0.5) * cell, by + (y + 0.5) * cell, color_of(c, data["pid"]), now, n=34, speed=320,
-                  size=5)
-        elif kind == "win":
-            c.fx.born["tron_win"] = t
-    tag(c, m, m, area.width(), f"LICHTRENNER · RUNDE {g.round} / {g.rounds}", "#67e8f9")
-    # Spielfeld: dunkles Raster mit Neon-Rand
-    p.setPen(Qt.NoPen)
-    p.setBrush(QColor("#020617"))
-    p.drawRoundedRect(board.adjusted(-3, -3, 3, 3), 8, 8)
-    # Raster und Spuren ohne Kantenglättung: dünne Linien/Rechtecke sehen gleich aus, kosten aber ein Vielfaches
-    # (Full HD: Raster mit Glättung ~11 ms je Bild, ohne < 1 ms)
-    p.setRenderHint(QPainter.Antialiasing, False)
-    grid = QColor(56, 189, 248, 22)
-    for gx in range(0, g.W + 1, 4):  # 1-Pixel-Rechtecke statt Linien: schneller als drawLine
-        p.fillRect(QRectF(round(bx + gx * cell), by, 1, g.H * cell), grid)
-    for gy in range(0, g.H + 1, 4):
-        p.fillRect(QRectF(bx, round(by + gy * cell), g.W * cell, 1), grid)
-    p.setRenderHint(QPainter.Antialiasing, True)
-    p.setPen(QPen(qc("#22d3ee", 0.55 + 0.2 * math.sin(now * 3)), 2))
-    p.setBrush(Qt.NoBrush)
-    p.drawRoundedRect(board.adjusted(-2, -2, 2, 2), 6, 6)
-    p.setPen(Qt.NoPen)
-    p.setRenderHint(QPainter.Antialiasing, False)
-    for (x, y), pid in g.trail.items():  # Spuren (ausgeschiedene verblassen)
-        r = g.riders.get(pid)
-        alive = r is not None and r["alive"]
-        p.setBrush(qc(color_of(c, pid), 0.95 if alive else 0.28))
-        p.drawRect(QRectF(bx + x * cell + cell * 0.08, by + y * cell + cell * 0.08, cell * 0.84, cell * 0.84))
-    p.setRenderHint(QPainter.Antialiasing, True)
-    for pid, r in g.riders.items():  # Köpfe mit Leuchten
-        if not r["alive"]:
-            continue
-        x, y = r["pos"]
-        cx, cy = bx + (x + 0.5) * cell, by + (y + 0.5) * cell
-        glow = QRadialGradient(QPointF(cx, cy), cell * 2.2)
-        glow.setColorAt(0, qc(color_of(c, pid), 0.75))
-        glow.setColorAt(1, qc(color_of(c, pid), 0.0))
-        p.setBrush(glow)
-        p.drawEllipse(QPointF(cx, cy), cell * 2.2, cell * 2.2)
-        p.setBrush(QColor("#ffffff"))
-        p.drawEllipse(QPointF(cx, cy), cell * 0.42, cell * 0.42)
-        label = QRectF(cx - cell * 4, cy - cell * 1.9, cell * 8, cell * 1.1)
-        text(p, label, name_of(c, pid), cell * 0.85, "#ffffff", True)
-    if g.phase == "bereit":
-        left = max(0.0, g.until - now)
-        n = int(left) + 1
-        k = 1 - (left % 1)
-        p.save()
-        p.translate(board.center())
-        s = 1.4 - 0.4 * ease_out(k)
-        p.scale(s, s)
-        text(p, QRectF(-board.width() / 2, -h * 0.15, board.width(), h * 0.3), str(n), h * 0.22, qc("#ffffff", 1 - k * 0.6),
-             True)
-        p.restore()
-    elif g.phase == "ergebnis":
-        t = now - c.fx.born.get("tron_win", now)
-        msg = f"{name_of(c, g.winner)} gewinnt die Runde!" if g.winner else "Unentschieden!"
-        p.setBrush(QColor(2, 6, 23, 170))
-        p.drawRect(board)
-        text(p, QRectF(board.x(), board.center().y() - h * 0.08, board.width(), h * 0.16), msg,
-             h * 0.07 * ease_back(min(1.0, t / 0.4)), color_of(c, g.winner) if g.winner else TEXT, True)
-    scoreboard(c, QRectF(w - m - side_w, m + h * 0.06, side_w, h * 0.62), g.scores(), limit=8)
-    q = min(side_w * 0.5, h * 0.18)
-    qr_card(c, w - m - side_w / 2 - q / 2, h - m - q - q * 0.06 - h * 0.04, q, caption=False)
-    text(p, QRectF(w - m - side_w, h - m - h * 0.035, side_w, h * 0.035), "Einsteigen (nächste Runde)", h * 0.02,
-         MUTED)
-
-
+# =========================================================================== Schere, Stein, Papier
 def ssp(c, g, events) -> None:
     from .games_retro import RPS
 
@@ -1437,68 +997,111 @@ def ssp(c, g, events) -> None:
     scoreboard(c, QRectF(w - m - side_w, m + h * 0.07, side_w, h * 0.8), g.scores())
 
 
-def quiz(c, g, events) -> None:
-    from .games_retro import ANSWER_COLORS, LETTERS
+# =========================================================================== Tic-Tac-Toe
+def _mark(p, rect: QRectF, mark: str, grow: float = 1.0, alpha: float = 1.0) -> None:
+    r = rect.adjusted(rect.width() * 0.2, rect.height() * 0.2, -rect.width() * 0.2, -rect.height() * 0.2)
+    if grow < 1:
+        k = (1 - grow) * r.width() / 2
+        r = r.adjusted(k, k, -k, -k)
+    color = TEAM_COLORS[0] if mark == "X" else TEAM_COLORS[1]
+    pen = QPen(qc(color, alpha), max(4.0, rect.width() * 0.11))
+    pen.setCapStyle(Qt.RoundCap)
+    p.setPen(pen)
+    p.setBrush(Qt.NoBrush)
+    if mark == "X":
+        p.drawLine(r.topLeft(), r.bottomRight())
+        p.drawLine(r.topRight(), r.bottomLeft())
+    else:
+        p.drawEllipse(r)
 
+
+def tictactoe(c, g, events) -> None:
     p, w, h, now = c.p, c.w, c.h, c.now
-    m = max(14, int(min(w, h) * 0.045))
+    m = max(10, int(min(w, h) * 0.03))
     for _n, t, kind, data in events:
-        if kind == "question":
-            c.fx.born[("q", g.index)] = t
-        elif kind == "reveal":
-            c.fx.born[("r", g.index)] = t
-    side_w = w * 0.24
-    main = QRectF(m, m, w - 3 * m - side_w, h - 2 * m)
-    tag(c, m, m, main.width(), f"QUIZ · FRAGE {g.index + 1} / {len(g.questions)}", "#c4b5fd")
-    t = now - c.fx.born.get(("q", g.index), now)
-    slide = ease_out(min(1.0, t / 0.5))
+        if kind == "place":
+            c.fx.born[f"ttt{data['cell']}"] = t
+        elif kind == "line":
+            c.fx.born["tttline"] = t
+            confetti(c.fx, w, h, now, n=90, colors=[TEAM_COLORS[data["team"]], "#ffffff"])
+    side = min(h * 0.72, w * 0.5)
+    board = QRectF((w - side) / 2, h * 0.17, side, side)
+    cs = side / 3
+    # Kopf: Teams, Stand, wer dran ist
+    text(p, QRectF(m, m, w * 0.3, h * 0.07), f"✕  {TEAM_NAMES[0]}", h * 0.042, TEAM_COLORS[0], True,
+         Qt.AlignLeft | Qt.AlignVCenter)
+    text(p, QRectF(w - m - w * 0.3, m, w * 0.3, h * 0.07), f"{TEAM_NAMES[1]}  ◯", h * 0.042, TEAM_COLORS[1], True,
+         Qt.AlignRight | Qt.AlignVCenter)
+    text(p, QRectF(w * 0.35, m, w * 0.3, h * 0.07), f"{g.wins[0]} : {g.wins[1]}", h * 0.06, TEXT, True)
+    text(p, QRectF(w * 0.35, m + h * 0.065, w * 0.3, h * 0.04), f"Runde {g.round} / {g.rounds}", h * 0.026, MUTED)
+    if g.result == "draw":
+        status, color = "Unentschieden!", TEXT
+    elif g.result:
+        team = 0 if g.result == "X" else 1
+        status, color = f"{TEAM_NAMES[team]} gewinnt die Runde!", TEAM_COLORS[team]
+    else:
+        status, color = f"{TEAM_NAMES[g.turn]} ist dran", TEAM_COLORS[g.turn]
+    text(p, QRectF(0, board.bottom() + h * 0.02, w, h * 0.06), status, h * 0.045, color, True)
+    if not g.result:  # Bedenkzeit
+        part = g.time_left(now) / max(0.1, g.think)
+        time_bar(c, QRectF(board.x(), board.bottom() + h * 0.085, board.width(), h * 0.012), part)
+        # leuchtender Rand in der Farbe des Teams, das dran ist
+        glow = 0.25 + 0.15 * math.sin(now * 4)
+        p.setPen(QPen(qc(TEAM_COLORS[g.turn], glow), max(4, side * 0.02)))
+        p.setBrush(Qt.NoBrush)
+        p.drawRoundedRect(board.adjusted(-side * 0.03, -side * 0.03, side * 0.03, side * 0.03), 18, 18)
     p.setPen(Qt.NoPen)
-    p.setBrush(QColor(255, 255, 255, 16))
-    qbox = QRectF(main.x(), main.y() + h * 0.07, main.width(), h * 0.22)
-    p.drawRoundedRect(qbox.translated(0, (1 - slide) * -h * 0.05), h * 0.03, h * 0.03)
-    text(p, qbox.adjusted(m, 0, -m, 0).translated(0, (1 - slide) * -h * 0.05), g.question, h * 0.05,
-         qc(TEXT, slide), True, wrap=True)
-    if g.phase == "frage":
-        ring(c, QPointF(main.right() - h * 0.06, main.y() + h * 0.02), h * 0.035, (g.until - now) / g.ASK,
-             str(max(0, int(g.until - now + 0.999))))
-    reveal_t = now - c.fx.born.get(("r", g.index), now) if g.phase == "aufloesung" else -1
-    box_w = (main.width() - m) / 2
-    box_h = h * 0.17
-    for i, answer in enumerate(g.answers):
-        r_, col = divmod(i, 2)
-        k = ease_back(min(1.0, max(0.0, (t - 0.15 - i * 0.08) / 0.35)))
-        rect = QRectF(main.x() + col * (box_w + m), main.y() + h * 0.34 + r_ * (box_h + m * 0.8), box_w, box_h)
-        right = g.phase == "aufloesung" and i == g.right
-        dim = 0.25 if g.phase == "aufloesung" and not right else 1.0
-        p.save()
-        p.translate(rect.center())
-        p.scale(k * (1.05 if right and reveal_t < 0.5 else 1.0), k)
-        p.translate(-rect.center())
-        p.setBrush(qc(ANSWER_COLORS[i], 0.85 * dim))
-        p.drawRoundedRect(rect, box_h * 0.22, box_h * 0.22)
-        if right:
-            p.setPen(QPen(QColor("#ffffff"), max(3, h * 0.006)))
-            p.setBrush(Qt.NoBrush)
-            p.drawRoundedRect(rect.adjusted(-4, -4, 4, 4), box_h * 0.25, box_h * 0.25)
-            p.setPen(Qt.NoPen)
-        text(p, QRectF(rect.x() + box_h * 0.15, rect.y(), box_h * 0.5, rect.height()), LETTERS[i], box_h * 0.38,
-             qc("#ffffff", 0.8 * dim + 0.2), True)
-        text(p, QRectF(rect.x() + box_h * 0.7, rect.y(), rect.width() - box_h * 0.85, rect.height()), answer,
-             box_h * 0.26, qc("#ffffff", dim), True, Qt.AlignLeft | Qt.AlignVCenter, wrap=True)
-        if g.phase == "aufloesung":  # wer hat was getippt
-            pickers = [pid for pid, (ch, _t) in g.picks.items() if ch == i]
-            for j, pid in enumerate(pickers[:8]):
+    p.setBrush(QColor(255, 255, 255, 12))
+    p.drawRoundedRect(board, 16, 16)
+    grid = QPen(QColor(255, 255, 255, 70), max(3, side * 0.012))
+    grid.setCapStyle(Qt.RoundCap)
+    p.setPen(grid)
+    for k in (1, 2):
+        p.drawLine(QPointF(board.x() + k * cs, board.y() + cs * 0.12), QPointF(board.x() + k * cs, board.bottom() - cs * 0.12))
+        p.drawLine(QPointF(board.x() + cs * 0.12, board.y() + k * cs), QPointF(board.right() - cs * 0.12, board.y() + k * cs))
+    # Stimmen des Teams, das gerade dran ist (kleine Punkte im Feld)
+    counts: dict[int, list] = {}
+    for pid, cell in g.votes.items():
+        counts.setdefault(cell, []).append(pid)
+    for i in range(9):
+        cell = QRectF(board.x() + (i % 3) * cs, board.y() + (i // 3) * cs, cs, cs)
+        mark = g.cells[i]
+        if mark:
+            born = c.fx.born.get(f"ttt{i}")
+            grow = ease_back((now - born) / 0.35) if born is not None and now - born < 0.35 else 1.0
+            _mark(p, cell, mark, max(0.05, grow))
+        elif i in counts and not g.result:
+            for k, pid in enumerate(counts[i][:6]):
+                p.setPen(Qt.NoPen)
                 p.setBrush(qc(color_of(c, pid)))
-                p.drawEllipse(QPointF(rect.right() - box_h * 0.18 - j * box_h * 0.22, rect.bottom() - box_h * 0.17),
-                              box_h * 0.09, box_h * 0.09)
-        p.restore()
-    if g.phase == "frage":
-        done = len(g.picks)
-        text(p, QRectF(main.x(), main.bottom() - h * 0.05, main.width(), h * 0.05),
-             f"{done} / {len(g.score)} haben getippt", h * 0.03, MUTED, align=Qt.AlignLeft | Qt.AlignVCenter)
-    scoreboard(c, QRectF(w - m - side_w, m + h * 0.07, side_w, h * 0.8), g.scores())
+                r = cs * 0.07
+                p.drawEllipse(QPointF(cell.x() + cs * 0.2 + k * r * 2.6, cell.bottom() - cs * 0.16), r, r)
+            _mark(p, cell, "X" if g.turn == 0 else "O", 0.6, 0.18 + 0.1 * len(counts[i]))
+    if g.line:  # Gewinnlinie
+        born = c.fx.born.get("tttline", now)
+        part = min(1.0, (now - born) / 0.4)
+        a, b = g.line[0], g.line[2]
+
+        def center(i):
+            return QPointF(board.x() + (i % 3 + 0.5) * cs, board.y() + (i // 3 + 0.5) * cs)
+
+        pa, pb = center(a), center(b)
+        end = QPointF(pa.x() + (pb.x() - pa.x()) * part, pa.y() + (pb.y() - pa.y()) * part)
+        pen = QPen(QColor("#ffffff"), max(6, side * 0.03))
+        pen.setCapStyle(Qt.RoundCap)
+        p.setPen(pen)
+        p.drawLine(pa, end)
+    # Teams am Rand
+    for team in (0, 1):
+        members = [pid for pid in g.players if g.team_of(pid) == team]
+        x = m if team == 0 else w - m - w * 0.2
+        for k, pid in enumerate(members[:8]):
+            voted = pid in g.votes and g.turn == team and not g.result
+            chip(p, QRectF(x, h * 0.2 + k * h * 0.07, w * 0.2, h * 0.058), name_of(c, pid), color_of(c, pid),
+                 "✓" if voted else "")
+        if not members:
+            text(p, QRectF(x, h * 0.2, w * 0.2, h * 0.06), "PC spielt", h * 0.03, MUTED)
 
 
-DRAW = {"schaetzen": schaetzen, "stroop": stroop, "simon": simon, "tauziehen": tauziehen, "malen": malen,
-        "pong": pong, "ballon": ballon, "schlangen": schlangen, "reaktion": reaktion, "rennen": rennen,
-        "quiz": quiz, "lichtrenner": lichtrenner, "ssp": ssp}
+DRAW = {"simon": simon, "pong": pong, "ballon": ballon, "schlangen": schlangen, "rennen": rennen, "ssp": ssp,
+        "tictactoe": tictactoe}

@@ -15,7 +15,7 @@ WHAT = ("Einstellungen, Szenen, Startseite, Overlays, Tastenkürzel · vom Handy
 
 
 class ResetDialog(QDialog):
-    def __init__(self, fingerprint_module: bool, login_on: bool, parent=None):
+    def __init__(self, fingerprint_module: bool, login_on: bool, parent=None, sync_on: bool = False):
         super().__init__(parent)
         self.setWindowTitle("Alle Daten löschen")
         lay = QVBoxLayout(self)
@@ -33,6 +33,11 @@ class ResetDialog(QDialog):
         self.login.setChecked(True)
         self.login.setVisible(login_on)
         lay.addWidget(self.login)
+        self.sync = QCheckBox("Dual-Boot-Abgleich auch zurücksetzen (sonst holt AluPC die Einstellungen vom "
+                              "anderen System zurück)")
+        self.sync.setChecked(True)
+        self.sync.setVisible(sync_on)
+        lay.addWidget(self.sync)
         hint = QLabel("Tipp: Vorher unter „Sichern & Sync“ exportieren, wenn du etwas behalten willst.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
@@ -61,7 +66,8 @@ def reset_all(page) -> None:
     controller = page.controller
     backend = controller.fingerprint
     serial, login_on = _fingerprint_state(backend)
-    dlg = ResetDialog(serial, login_on, page)
+    sync = controller.config["sync"]
+    dlg = ResetDialog(serial, login_on, page, sync_on=bool(sync.get("enabled") or sync.get("folder")))
     if dlg.exec() != QDialog.Accepted:
         return
     if QMessageBox.warning(page, "Alle Daten löschen", "Wirklich alles löschen? Das lässt sich nicht "
@@ -90,7 +96,7 @@ def reset_all(page) -> None:
                 page, "Alle Daten löschen", "Nicht alles hat geklappt:\n\n" + "\n".join(problems)
                 + "\n\nTrotzdem die Daten von AluPC löschen?") != QMessageBox.Yes:
             return
-        reset.request(controller.config)
+        reset.request(controller.config, clear_sync=not dlg.sync.isHidden() and dlg.sync.isChecked())
 
     if login_off or clear_module:
         controller.message.emit("Fingerabdruck wird zurückgesetzt …")

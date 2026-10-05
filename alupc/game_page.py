@@ -45,29 +45,17 @@ button:disabled { opacity: .35; }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 420px; }
 .grid button { border-radius: 18px; background: #1e293b; border: 2px solid #334155; font-size: 26px; padding: 26px 8px; }
 .grid button.hit { background: #f1f5f9; color: #0b1020; }
-.grid.quiz, .grid.column { grid-template-columns: 1fr; gap: 10px; }
-.grid.quiz button { text-align: left; font-size: 21px; padding: 18px 16px; border-color: var(--b); background: color-mix(in srgb, var(--b) 28%, #0f172a); }
+.grid.column { grid-template-columns: 1fr; gap: 10px; }
+.ttt { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: min(92vw, 420px); aspect-ratio: 1; margin: 0 auto; }
+.ttt button { font-size: min(18vw, 84px); font-weight: 900; border-radius: 16px; border: 2px solid #334155; background: #1e293b; color: #fff; padding: 0; line-height: 1; }
+.ttt button.set.X { color: #ef4444; } .ttt button.set.O { color: #3b82f6; }
+.ttt button.vote { border-color: var(--c); color: color-mix(in srgb, var(--c) 60%, transparent); background: color-mix(in srgb, var(--c) 18%, #1e293b); }
+.ttt button.win { background: color-mix(in srgb, #facc15 30%, #1e293b); border-color: #facc15; }
+.ttt.off button:not(.set) { opacity: .45; }
 .grid.column button { font-size: 30px; padding: 22px 8px; }
 .simon { grid-template-columns: 1fr 1fr; gap: 14px; max-width: min(420px, 52vh); }
 .simon button { aspect-ratio: 1; border: 0; padding: 0; background: var(--b); filter: saturate(.75) brightness(.7); }
 .simon button.hit { filter: saturate(1.2) brightness(1.3); box-shadow: 0 0 40px var(--b); }
-.q { font-size: 21px; font-weight: 700; text-align: center; line-height: 1.3; max-width: 440px; }
-.display { font-size: 38px; font-weight: 800; background: #0f172a; border: 2px solid #334155; border-radius: 16px;
-  padding: 10px 16px; width: 100%; max-width: 420px; text-align: right; min-height: 64px; }
-.display small { font-size: 20px; color: #94a3b8; margin-left: 8px; }
-.keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; max-width: 420px; }
-.keys button { background: #1e293b; border-radius: 14px; font-size: 26px; padding: 14px 0; }
-.keys button.ok { grid-column: span 3; background: var(--c); font-size: 22px; }
-.keys button.hit { background: #334155; }
-.hint { font-size: 30px; font-weight: 800; letter-spacing: 4px; text-align: center; }
-.feedback { color: #fbbf24; font-weight: 800; min-height: 22px; }
-.canvasbox { width: 100%; max-width: 560px; }
-canvas { width: 100%; background: #fff; border-radius: 14px; touch-action: none; display: block; }
-.tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
-.tools button { width: 42px; height: 42px; border-radius: 50%; background: var(--b); border: 3px solid transparent; }
-.tools button.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--c); }
-.tools .txt { width: auto; padding: 0 14px; border-radius: 21px; background: #1e293b; font-size: 15px; }
-.word { font-size: 28px; font-weight: 900; color: #fbbf24; }
 .track { position: relative; width: min(52vw, 260px); height: min(62vh, 520px); border-radius: 28px; background: #1e293b;
   border: 2px solid #334155; touch-action: none; }
 .thumb { position: absolute; left: 8px; right: 8px; height: 26%; border-radius: 20px; background: var(--c);
@@ -148,6 +136,9 @@ async function join() {
   finally { $("joinbtn").disabled = false; }
 }
 $("joinbtn").onclick = join;
+// Von der WLAN-Anmeldeseite: Name ist schon eingegeben → gleich mitspielen
+const preName = new URLSearchParams(location.search).get("name");
+if (preName && !pid) { $("name").value = preName.slice(0, 16); setTimeout(join, 0); }
 // Avatar wählen (zufällig vorausgewählt)
 const AVATARS = ["🦊","🐼","🐸","🐯","🦁","🐨","🐷","🐵","🐙","🦄","🐲","🐧","🦉","🐝","🐢","🐬","🦖","🐱","🐶","🐰","🦀","🦋","🐻","🐮","🤖","👾","🚀","⚽"];
 let avatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
@@ -219,72 +210,29 @@ const BUILD = {
     return {};
   },
   buttons(ui, area) {
-    const g = el("div", "grid" + (["simon", "quiz", "column"].includes(ui.layout) ? " " + ui.layout : "")); area.append(g);
+    const g = el("div", "grid" + (["simon", "column"].includes(ui.layout) ? " " + ui.layout : "")); area.append(g);
     const btns = ui.buttons.map(spec => {
       const b = el("button", "", spec.label); if (spec.color) b.style.setProperty("--b", spec.color);
       press(b, () => { send({btn: spec.id}); vibrate(15); }); g.append(b); return b;
     });
     return {update(u) { for (const b of btns) b.disabled = !u.enabled; }};
   },
-  number(ui, area) {
-    const q = el("div", "q"), disp = el("div", "display"), keys = el("div", "keys");
-    area.append(q, disp, keys);
-    let raw = "";
-    const fmt = s => { if (!s) return ""; const [a, b] = s.split(","); return a.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + (b !== undefined ? "," + b : ""); };
-    const draw = u => { disp.replaceChildren(document.createTextNode(fmt(raw) || "0")); disp.append(el("small", "", u.unit === "Jahr" ? "" : (u.unit || ""))); };
-    const add = k => {
-      if (k === "⌫") raw = raw.slice(0, -1);
-      else if (k === ",") { if (!raw.includes(",")) raw = (raw || "0") + ","; }
-      else if (raw.replace(",", "").length < 15) raw = (raw === "0" ? "" : raw) + k;
-      draw(state.ui || ui);
-    };
-    for (const k of ["1","2","3","4","5","6","7","8","9",",","0","⌫"]) { const b = el("button", "", k); press(b, () => add(k)); keys.append(b); }
-    const z = el("button", "", "000"); press(z, () => { if (raw && !raw.includes(",")) add("000"); }); keys.append(z);
-    const ok = el("button", "ok", "Abgeben"); press(ok, () => { if (raw) send({num: raw}); }); keys.append(ok);
-    keys.children[12].style.gridColumn = "span 3";
-    return {update(u) { q.textContent = u.question; draw(u);
-      const done = !!u.done; keys.classList.toggle("hidden", done);
-      if (done) { disp.replaceChildren(document.createTextNode("✓ " + u.done)); } }};
-  },
-  text(ui, area) {
-    const hint = el("div", "hint"), inp = el("input"), b = el("button", "primary", "Raten"), fb = el("div", "feedback");
-    inp.placeholder = "Dein Tipp"; inp.maxLength = 40; inp.autocomplete = "off";
-    area.append(hint, inp, b, fb);
-    const go = () => { const t = inp.value.trim(); if (t) { send({guess: t}); inp.value = ""; inp.focus(); vibrate(10); } };
-    b.onclick = go; inp.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
-    return {update(u) { hint.textContent = u.hint; fb.textContent = u.feedback || ""; }};
-  },
-  draw(ui, area) {
-    const word = el("div", "word", ui.word), box = el("div", "canvasbox"), cv = el("canvas"), tools = el("div", "tools");
-    box.append(cv, tools); area.append(word, box);
-    const ctx = cv.getContext("2d");
-    let strokes = [], color = "#111827", width = 7, buf = [];
-    const size = () => { const r = window.devicePixelRatio || 1, w = box.clientWidth; cv.width = w * r; cv.height = w * 0.75 * r; redraw(); };
-    function line(s, a, b) { ctx.strokeStyle = s.c; ctx.lineWidth = s.w / 1000 * cv.width; ctx.lineCap = ctx.lineJoin = "round";
-      ctx.beginPath(); ctx.moveTo(a[0] * cv.width, a[1] * cv.height); ctx.lineTo(b[0] * cv.width, b[1] * cv.height); ctx.stroke(); }
-    function redraw() { ctx.clearRect(0, 0, cv.width, cv.height); for (const s of strokes) for (let i = 0; i < s.pts.length; i++) line(s, s.pts[Math.max(0, i - 1)], s.pts[i]); }
-    const pos = e => { const r = cv.getBoundingClientRect(); return [Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * 1000) / 1000,
-                                                                 Math.round(Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) * 1000) / 1000]; };
-    let down = false;
-    cv.addEventListener("pointerdown", e => { down = true; cv.setPointerCapture(e.pointerId); const p = pos(e);
-      const s = {c: color, w: width, pts: [p]}; strokes.push(s); line(s, p, p); flush(); send({stroke: {c: color, w: width, p}}); });
-    cv.addEventListener("pointermove", e => { if (!down) return; const s = strokes[strokes.length - 1], p = pos(e);
-      line(s, s.pts[s.pts.length - 1], p); s.pts.push(p); buf.push(p); });
-    const up = () => { down = false; flush(); };
-    cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
-    function flush() { if (buf.length) { send({pts: buf}); buf = []; } }
-    const timer = setInterval(flush, 40);
-    const colors = ["#111827", "#ef4444", "#3b82f6", "#22c55e", "#facc15", "#f97316", "#a855f7", "#92400e"];
-    const sel = b => { for (const x of tools.querySelectorAll("button")) x.classList.remove("sel"); b.classList.add("sel"); };
-    colors.forEach((c, i) => { const b = el("button"); b.style.setProperty("--b", c); if (!i) b.classList.add("sel");
-      b.onclick = () => { color = c; width = width > 20 ? 7 : width; sel(b); }; tools.append(b); });
-    const er = el("button", "txt", "Radierer"); er.onclick = () => { color = "#ffffff"; width = 40; sel(er); };
-    const thick = el("button", "txt", "Dick"); thick.onclick = () => { width = width === 7 ? 18 : 7; thick.textContent = width === 7 ? "Dick" : "Dünn"; };
-    const undo = el("button", "txt", "↶ Zurück"); undo.onclick = () => { strokes.pop(); redraw(); send({undo: 1}); };
-    const clear = el("button", "txt", "Alles weg"); clear.onclick = () => { strokes = []; redraw(); send({clear: 1}); };
-    tools.append(er, thick, undo, clear);
-    setTimeout(size, 0); window.addEventListener("resize", size);
-    return {update(u) { word.textContent = u.word; if (!document.body.contains(cv)) clearInterval(timer); }};
+  board(ui, area) {
+    const g = el("div", "ttt"); area.append(g);
+    const cells = [];
+    for (let i = 0; i < 9; i++) {
+      const b = el("button"); press(b, () => { if (!b.disabled) { send({cell: i}); vibrate(15); } });
+      g.append(b); cells.push(b);
+    }
+    return {update(u) {
+      cells.forEach((b, i) => {
+        const v = u.cells[i];
+        b.textContent = v === "X" ? "✕" : v === "O" ? "◯" : (u.vote === i ? (u.mark === "X" ? "✕" : "◯") : "");
+        b.className = (v ? "set " + v : (u.vote === i ? "vote" : "")) + ((u.line || []).includes(i) ? " win" : "");
+        b.disabled = !u.enabled || !!v;
+      });
+      g.classList.toggle("off", !u.enabled);
+    }};
   },
   paddle(ui, area) {
     const tr = el("div", "track"), th = el("div", "thumb"); tr.append(th); area.append(tr);

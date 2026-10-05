@@ -1526,3 +1526,82 @@ def test_sync_covers_voice_games_extras(tmp_path):
     for key in ("voice", "games", "hotspot", "welcome", "wheel", "start_content", "finger_shortcuts"):
         assert key in data, key
     assert "device" not in data["voice"] and data["voice"]["custom"][0]["say"] == "licht an"
+
+
+def test_reset_also_clears_dual_boot_sync(tmp_path, monkeypatch):
+    """„Alle Daten löschen“ wirkte wie wirkungslos: nach dem Neustart holte der Abgleich alles vom anderen System
+    zurück. Jetzt: Sync-Dateien weg, Abgleich bleibt aus (bis man ihn wieder einschaltet)."""
+    import json
+
+    from alupc import reset, settings_sync as ss
+    from alupc.config import Config
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "cfg"))
+    monkeypatch.setattr("alupc.platform.autostart.set_enabled", lambda on: None)
+    monkeypatch.setattr("tempfile.gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(reset, "data_dirs", lambda: [tmp_path / "cfg" / "AluPC"])  # nie echte Ordner löschen
+    shared = tmp_path / "C" / ss.FOLDER_NAME
+    shared.mkdir(parents=True)
+    other = Config(tmp_path / "anderes.json")  # das andere System hat schon abgeglichen
+    other.data["sync"] = {**other.data["sync"], "enabled": True, "folder": str(shared)}
+    other["timer"] = {**other["timer"], "minutes": 42}
+    ss.sync_once(other)
+    (shared / "Dateien").mkdir()
+    cfg = Config(tmp_path / "cfg" / "AluPC" / "config.json")
+    cfg.data["sync"] = {**cfg.data["sync"], "enabled": True, "folder": str(shared)}
+    reset._pending.update(on=True, clear_sync=True, sync_folder=str(shared))
+    with monkeypatch.context() as mp:
+        mp.setattr("subprocess.Popen", lambda cmd, **kw: None)  # kein echter Neustart
+        try:
+            reset.finish_and_restart(pause=0)
+        finally:
+            reset._pending.update(on=False, clear_sync=False, sync_folder="")
+    assert not list(shared.glob("alupc-sync*.json")) and not (shared / "Dateien").exists()
+    fresh = Config(tmp_path / "cfg" / "AluPC" / "config.json")
+    assert fresh["sync"]["declined"] and not fresh["sync"]["enabled"]
+    monkeypatch.setattr(ss, "drives", lambda: [str(tmp_path / "C")])
+    ss.sync_once(other)  # anderes System schreibt wieder …
+    assert ss.auto_setup(fresh) is None and fresh["timer"]["minutes"] != 42  # … aber hier kommt nichts zurück
+    assert json.loads((tmp_path / "cfg" / "AluPC" / "config.json").read_text())["sync"]["declined"]
+
+
+def test_reset_retries_locked_leftovers_on_next_start(tmp_path, monkeypatch):
+    from alupc import reset
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "cfg"))
+    monkeypatch.setattr("alupc.platform.autostart.set_enabled", lambda on: None)
+    monkeypatch.setattr("tempfile.gettempdir", lambda: str(tmp_path))
+    data = tmp_path / "cfg" / "AluPC"
+    data.mkdir(parents=True)
+    (data / "absturz.log").write_text("x")
+    (data / reset.LEFTOVER_FILE).write_text("absturz.log: benutzt")
+    reset._retry_path().write_text(str(data))
+    reset.cleanup_pending()  # Neustart: Datei ist jetzt frei → weg, keine Fehlermeldung
+    assert not (data / "absturz.log").exists() and not (data / reset.LEFTOVER_FILE).exists()
+    assert not reset._retry_path().exists()
+
+
+def test_sync_sections_can_be_switched_off(tmp_path):
+    """Setup → Sichern & Sync: Bereiche abwählen – die werden weder geschickt noch übernommen, und die des anderen
+    Systems bleiben in der Sync-Datei erhalten. Verlauf zeigt, was passiert ist."""
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    shared = tmp_path / ss.FOLDER_NAME
+    shared.mkdir()
+    win, lin = Config(tmp_path / "win.json"), Config(tmp_path / "lin.json")
+    for cfg in (win, lin):
+        cfg.data["sync"] = {**cfg.data["sync"], "enabled": True, "folder": str(shared)}
+    win["scenes"] = [{"name": "Windows-Szene"}]
+    win["timer"] = {**win["timer"], "minutes": 9}
+    ss.sync_once(win)
+    lin.data["sync"] = {**lin.data["sync"], "skip": ["szenen"]}
+    _msg, changed = ss.sync_once(lin)
+    assert "scenes" not in changed and lin["scenes"] == [] and lin["timer"]["minutes"] == 9
+    lin["timer"] = {**lin["timer"], "minutes": 3}
+    ss.sync_once(lin)
+    data = ss._read(ss.sync_file(shared))["data"]
+    assert data["scenes"] == [{"name": "Windows-Szene"}] and data["timer"]["minutes"] == 3  # Szenen von Windows bleiben
+    assert any("übernommen" in h for h in lin["sync"]["history"]) and "gespeichert" in lin["sync"]["history"][-1]
