@@ -242,6 +242,7 @@ def main() -> int:
         flush=True)
     good, msg = hs_mod.start_portal(ip=IP, closed=True, then=start_hotspot)  # echter Weg: Administrator + Wächter
     ok(good, f"Anmeldeseite an (Port 53 übernommen, Administrator-Skript): {msg}")
+    print("::notice title=Port 53 (AluPC)::" + hs_mod.DNS_INFO, flush=True)
     owner = ps(f"(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
                f"Where-Object {{ $_.LocalAddress -in @('0.0.0.0', '{IP}') -and $_.OwningProcess -eq {os.getpid()} }}"
                f").LocalAddress")

@@ -117,6 +117,24 @@ def report(controller, probe: bool = True) -> str:
                      f"{saver.idle_seconds():.0f} s · {saver.keep_awake.describe()}")
 
     lines.append("")
+    lines.append("== WLAN / Anmeldeseite ==")
+    from . import hotspot as hs
+
+    h = hs.hotspot
+    lines.append(f"  Hotspot: {'an' if h.running else 'aus'} ({h.kind or '–'}) · {h.ssid or '–'} · {h.ip or '–'}"
+                 f" · Anmeldeseite: {'an' if h.portal else 'aus'}")
+    if h.message:
+        lines.append(f"  Meldung: {h.message}")
+    if hs.DNS_INFO:
+        lines.append(f"  {hs.DNS_INFO}")
+    if hs._dns is not None:
+        lines.append(f"  AluPC-DNS: {hs._dns.host}:{hs._dns.port} · Fragen bisher: {hs._dns.queries}"
+                     f" · Internet frei für: {', '.join(sorted(hs._dns.allowed)) or 'niemand'}")
+    if h.running:
+        nb = hs.neighbors()
+        lines.append(f"  Geräte im WLAN: {', '.join(f'{k} ({v})' for k, v in nb.items()) or 'keine gefunden'}")
+
+    lines.append("")
     lines.append("== AirPlay (iPhone) ==")
     ux = controller.airplay.binary()
     if handy.is_uxplay_windows(ux):

@@ -403,6 +403,7 @@ def neighbors(dev: str = "", ip: str = "") -> dict[str, str]:
 
 
 _dns = None  # laufender Anmeldeseiten-DNS
+DNS_INFO = ""  # Windows: wer Port 53 hatte, wo AluPC lauscht (für Meldungen/Diagnose)
 
 
 def start_dns(ip_provider, closed: bool = True, host: str = "0.0.0.0", port: int = DNS_PORT,
@@ -485,15 +486,19 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
             owner = ""
         # Port 53 auf allen Adressen, für AluPC allein (die Hotspot-Adresse gibt es erst nach dem Start). Hält ein
         # anderer Dienst 0.0.0.0:53, aber die Hotspot-Adresse gibt es schon: genau dort (genauer gewinnt).
-        dns_ok = False
-        for host in ("0.0.0.0", ip):
-            dns_ok = start_dns(lambda: hotspot.ip or ip, closed, host=host, port=53,
-                               check_hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS, restrict=True)
-            if dns_ok:
-                break
-        Path(f"{flag}.dns").write_text("ok" if dns_ok else "fehler")
+        def bind53() -> str:
+            for host in ("0.0.0.0", ip):
+                if start_dns(lambda: hotspot.ip or ip, closed, host=host, port=53,
+                             check_hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS, restrict=True):
+                    return host
+            return ""
+
+        bound = bind53()
+        Path(f"{flag}.dns").write_text("ok" if bound else "fehler")
         wait_file(Path(f"{flag}.bereit"), 30)
-        if not dns_ok:
+        global DNS_INFO
+        DNS_INFO = f"Port 53 vorher: {owner or '?'} · AluPC: {bound or 'nicht bekommen'}"
+        if not bound:
             who = owner.partition(":")[2] if owner.startswith("belegt:") else ""
             return fail("Anmeldeseite ging nicht: Port 53 ist belegt" + (f" ({who})." if who else "."))
         if then is not None and not then():
@@ -507,7 +512,13 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
                 return fail(f"Anmeldeseite aus: Port 80 ist schon belegt ({who}, z. B. ein Webserver).")
             return fail("Anmeldeseite ging nicht.")
         if not dns_selftest(ip):
-            return fail("Anmeldeseite ging nicht: Namensfragen an 192.168.137.1 kommen nicht bei AluPC an.")
+            # Hotspot-Start hat die Adresse neu angelegt (Socket hängt an der alten) → neu binden
+            stop_dns()
+            bound = bind53()
+            DNS_INFO += f" · nach Hotspot-Start neu: {bound or 'nicht bekommen'}"
+            if not bound or not dns_selftest(ip):
+                return fail("Anmeldeseite ging nicht: Namensfragen an 192.168.137.1 kommen nicht bei AluPC an "
+                            f"({DNS_INFO}).")
         return True, "Anmeldeseite an: Handys öffnen sie beim Verbinden selbst."
     if not (shutil.which("pkexec") and shutil.which("iptables")):
         return False, "Anmeldeseite braucht pkexec und iptables."
