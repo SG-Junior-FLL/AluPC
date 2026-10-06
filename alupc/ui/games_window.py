@@ -186,17 +186,13 @@ class GamesWindow(QWidget):
         c = self.controller
         if c.cast.games is None:
             c.start_games()
-        if c.games_wifi_only():  # nur über das Spiele-WLAN: WLAN-Code → Anmeldeseite öffnet sich
-            wifi = c.games_wifi()
-            if wifi is None:
-                from PySide6.QtWidgets import QMessageBox
+        wifi = c.games_wifi()  # einziger Weg: WLAN-Code → Anmeldeseite öffnet sich → Name → mitspielen
+        if wifi is None:
+            from PySide6.QtWidgets import QMessageBox
 
-                QMessageBox.information(self, "Spiele-WLAN", c.games_wifi_status()[1] or "Spiele-WLAN ist aus.")
-                return
-            ConnectDialog("Mitspielen", "", wifi, "WLAN-Code scannen – die Anmeldeseite öffnet sich, Name eingeben",
-                          parent=self).exec()
+            QMessageBox.information(self, "Spiele-WLAN", c.games_wifi_status()[1] or "Spiele-WLAN ist aus.")
             return
-        ConnectDialog("Mitspielen", c.cast.games_url(), None, "Handy-Kamera auf den Code halten",
+        ConnectDialog("Mitspielen", wifi, "WLAN-Code scannen – die Anmeldeseite öffnet sich, Name eingeben",
                       parent=self).exec()
 
     def open_wifi(self) -> None:
@@ -385,7 +381,9 @@ class GamesWindow(QWidget):
             if pl.pid == selected:
                 self.players.setCurrentItem(item)
         self.players_label.setText(f"SPIELER ({len(hub.players)})")
-        self.url.setText(self.controller.cast.games_url())
+        wifi = self.controller.games_wifi()
+        self.url.setText(f"Mitspielen: WLAN „{wifi[0]}“ → Anmeldeseite" if wifi else
+                         (self.controller.games_wifi_status()[1] or "Spiele-WLAN ist aus"))
         self._update_info(hub)
 
     def closeEvent(self, e):

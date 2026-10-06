@@ -8,9 +8,11 @@ Administrator“ gestartet, wie in der App).
 
 Spiele-WLAN (geschlossen):
   1. AluPC-DNS übernimmt 192.168.137.1:53 (Selbsttest) – jede Adresse zeigt auf den PC
+  0. Monitor 2 zeigt genau EINEN QR-Code: den WLAN-Code (echter Decoder)
   2. Android-/iPhone-Prüfung → 302 zur Anmeldeseite (über Port 80 → AluPC)
   3. Anmeldeseite mit Namensfeld → Spielseite → Beitreten → Spieler ist im Spiel
-  4. Kein Weg vorbei: fremder DNS (8.8.8.8) und Internet per IP (1.1.1.1:443) gesperrt
+  4. Kein Weg vorbei: fremder DNS (8.8.8.8) und Internet per IP (1.1.1.1:443) gesperrt; ein Handy aus einem
+     anderen Netz (Docker-NAT) bekommt überall 403 – auch nicht „AluPC steuern“
   5. Ausschalten → portproxy, Firewall, Sperre weg, Port 53 frei
 Normaler Hotspot (offen): Prüf-Adressen → PC, alles andere normal, Internet geht.
 
@@ -23,7 +25,6 @@ from __future__ import annotations
 import base64
 import json
 import os
-import re
 import socket
 import subprocess
 import sys
@@ -75,6 +76,10 @@ try { $o.inet_1111 = $c.ConnectAsync('1.1.1.1', 443).Wait(5000) -and $c.Connecte
 $c.Close()
 $a = Get-Url 'http://connectivitycheck.gstatic.com/generate_204'; $o.android = "$($a.s) $($a.l)"
 $i = Get-Url 'http://captive.apple.com/hotspot-detect.html'; $o.iphone = "$($i.s) $($i.l)"
+$base0 = 'http://192.168.137.1:8765'
+$o.remote_page = (Get-Url "$base0/").s
+try { Invoke-RestMethod -Uri "$base0/api/freigabe" -Method Post -ContentType 'application/json' -Body '{"name":"Handy"}' -UseBasicParsing | Out-Null; $o.ask_access = 200 }
+catch { $o.ask_access = [int]$_.Exception.Response.StatusCode }
 if ($MODE -eq 'spiele' -and $a.l) {
   $p = Get-Url $a.l
   $o.portal = $p.s; $o.portal_name = ($p.b -match 'id="n"') -and ($p.b -match 'Mitspielen')
@@ -110,6 +115,43 @@ def phone(mode: str, image: str, pump) -> dict:
     return {}
 
 
+OUTSIDER = r"""
+$ProgressPreference = 'SilentlyContinue'
+function Code($u, $body) {
+  $r = [Net.HttpWebRequest]::Create($u); $r.AllowAutoRedirect = $false; $r.Timeout = 8000; $r.Proxy = $null
+  if ($body) { $r.Method = 'POST'; $r.ContentType = 'application/json'; $b = [Text.Encoding]::UTF8.GetBytes($body)
+               $s = $r.GetRequestStream(); $s.Write($b, 0, $b.Length); $s.Close() }
+  try { $x = $r.GetResponse(); $c = [int]$x.StatusCode; $x.Close(); return $c }
+  catch [Net.WebException] { if ($_.Exception.Response) { return [int]$_.Exception.Response.StatusCode } return 0 }
+}
+$o = [ordered]@{}
+$o.root = Code "$BASE/" $null
+$o.spiel = Code "$BASE/spiel?u=$TOKEN" $null
+$o.anmelden = Code "$BASE/anmelden" $null
+$o.join = Code "$BASE/api/spiel" ('{"u":"' + $TOKEN + '","action":"join","name":"Fremd"}')
+$o.status = Code "$BASE/api/status" $null
+$o.freigabe = Code "$BASE/api/freigabe" '{"name":"x"}'
+'JSON:' + ($o | ConvertTo-Json -Compress)
+"""
+
+
+def outsider(image: str, base: str, token: str, pump) -> dict:
+    """Handy in einem ANDEREN Netz (Docker-NAT statt AluPC-WLAN) – darf nichts."""
+    script = f"$BASE = '{base}'\n$TOKEN = '{token}'\n" + OUTSIDER
+    enc = base64.b64encode(script.encode("utf-16-le")).decode()
+    proc = subprocess.Popen(["docker", "run", "--rm", image, "powershell", "-NoProfile", "-EncodedCommand", enc],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    end = time.time() + 400
+    while proc.poll() is None and time.time() < end:
+        pump(0.05)
+    out = proc.communicate()[0] if proc.poll() is not None else ""
+    for line in out.splitlines():
+        if line.startswith("JSON:"):
+            return json.loads(line[5:])
+    print(out[-1500:])
+    return {}
+
+
 def forwarding(alias: str) -> str:
     return ps(f"(Get-NetIPInterface -InterfaceAlias '{alias}' -AddressFamily IPv4).Forwarding")
 
@@ -122,6 +164,9 @@ def main() -> int:
     busy = ps("Get-NetTCPConnection -LocalPort 80 -State Listen -EA 0 | % { $_.LocalAddress }")
     if busy:  # Runner: IIS/http.sys – wie auf einem normalen PC ohne Webserver: anhalten
         ps("Stop-Service W3SVC,WAS -Force -EA 0")
+    # wie nach der Installation: AluPC darf in der Firewall Verbindungen annehmen (sonst kommt NICHTS an –
+    # dann wäre „abgelehnt“ von außen nicht prüfbar)
+    ps(f"New-NetFirewallRule -DisplayName AluPC-Test -Direction Inbound -Action Allow -Program '{sys.executable}'")
     from PySide6.QtWidgets import QApplication
 
     app = QApplication([])
@@ -148,7 +193,20 @@ def main() -> int:
     target = f"http://{IP}:{hs_mod.PORTAL_PORT}/anmelden"
 
     # ================= Spiele-WLAN: geschlossen
-    hs.running, hs.kind, hs.ssid, hs.password, hs.ip = True, "spiele", "AluPC-Spiele", "x", IP
+    hs.running, hs.kind, hs.ssid, hs.password, hs.ip = True, "spiele", "AluPC-Spiele", "k7m2p9qa", IP
+    # Monitor 2: genau EIN QR-Code – der WLAN-Code dieses WLANs (echter Decoder liest ihn)
+    import zxingcpp
+    from PIL import Image
+
+    from alupc.game_source import GameSource
+
+    src = GameSource({})
+    src.resize(1280, 720)
+    pump(0.3)
+    src.grab().save(str(tmp / "lobby.png"))
+    codes = [c.text for c in zxingcpp.read_barcodes(Image.open(tmp / "lobby.png"))]
+    ok(codes == [f"WIFI:T:WPA;S:{hs.ssid};P:{hs.password};;"], f"Monitor 2 (Lobby): genau 1 QR-Code = WLAN → {codes}")
+    src.stop()
     good, msg = hs_mod.start_portal(ip=IP, closed=True)  # echter Weg: „Als Administrator“ + Wächter
     ok(good and "eingeschränkt" not in msg, f"Anmeldeseite an (eigener DNS, Administrator-Skript): {msg}")
     hs.portal = good
@@ -164,10 +222,18 @@ def main() -> int:
     ok(r.get("portal") == 200 and r.get("portal_name"), "Anmeldeseite mit Namensfeld und „Mitspielen“")
     ok(r.get("game_page") == 200, f"Spielseite aus der Anmeldeseite öffnet ({r.get('game_page')})")
     ok(r.get("join") == 200, f"Beitreten aus dem Spiele-WLAN → {r.get('join')}")
+    ok(r.get("remote_page") == 200 and r.get("ask_access") == 200,
+       f"„AluPC steuern“ aus dem WLAN: Seite {r.get('remote_page')}, am PC um Erlaubnis fragen {r.get('ask_access')}")
     pump(0.3)
     ok(any(p.name == "Lena" for p in hub.players.values()), "„Lena“ ist im Spiel")
     ok(r.get("dns_8888") == "FEHLER", f"Fremder DNS-Server (8.8.8.8) gesperrt → {r.get('dns_8888')}")
     ok(r.get("inet_1111") is False, f"Internet per IP (1.1.1.1:443) gesperrt → {r.get('inet_1111')}")
+
+    nat_ip = ps("(Get-NetIPAddress -InterfaceAlias 'vEthernet (nat)' -AddressFamily IPv4).IPAddress").strip()
+    o = outsider(image, f"http://{nat_ip}:{hs_mod.PORTAL_PORT}", hub.token, pump)
+    ok(o and all(v == 403 for v in o.values()),
+       f"Handy aus anderem Netz ({nat_ip}): Steuerseite, Spielseite, Mitspielen, Status, Erlaubnis → {o}")
+    ok(not any(p.name == "Fremd" for p in hub.players.values()), "„Fremd“ ist NICHT im Spiel")
 
     hs_mod.stop_portal()
     clean = False

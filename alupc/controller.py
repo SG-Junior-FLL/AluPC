@@ -661,11 +661,27 @@ class Controller(QObject):
 
     # ------------------------------------------------------------ AluCast (Handy per Browser)
     def start_cast(self) -> None:
-        """QR-Code auf Monitor 2 zeigen – Handy scannt und kann senden."""
+        """Handy-Steuerung: WLAN-QR-Code auf Monitor 2 – EINZIGER Weg: Handy scannt → ist im AluPC-WLAN →
+        die Anmeldeseite öffnet sich → „AluPC steuern“ (am PC erlauben) oder mitspielen. Startet das WLAN, falls
+        noch keins von AluPC läuft."""
+        import os
+        import threading
+
+        from .hotspot import hotspot, supported
+
         if not self.cast.start():
-            self.message.emit("AluCast konnte nicht starten: Netzwerk-Anschluss belegt.")
+            self.message.emit("Handy-Steuerung konnte nicht starten: Netzwerk-Anschluss belegt.")
             return
         self._cast_snapshot()
+        if not hotspot.running and not os.environ.get("ALUPC_NO_AUTO_WIFI"):
+            ok, why = supported()
+            if not ok:
+                hotspot.message = why
+                self.message.emit(f"Handy-Steuerung geht nur übers AluPC-WLAN – {why}")
+            else:
+                self.message.emit("AluPC-WLAN startet …")
+                threading.Thread(target=lambda: self.set_hotspot(True, "normal"), name="alupc-wlan-an",
+                                 daemon=True).start()
         self.show_source({"type": "cast"})
 
     def stop_cast(self) -> None:
@@ -1775,8 +1791,7 @@ class Controller(QObject):
 
         if hotspot.running:
             return hotspot.ssid, hotspot.password, hotspot.hidden
-        wifi = self.config["games"].get("wifi") or {}
-        return (wifi["ssid"], wifi.get("password", ""), False) if wifi.get("ssid") else None
+        return None  # nur das AluPC-WLAN – kein anderes Netz (sonst gäbe es keine Anmeldeseite)
 
     def set_hotspot(self, on: bool, kind: str = "normal") -> tuple[bool, str]:
         """Hotspot an/aus (blockiert einige Sekunden – aus einem Hintergrund-Thread aufrufen).
@@ -1786,7 +1801,7 @@ class Controller(QObject):
         if on:
             hs = settings(self.config, kind)
             ok, msg = hotspot.start(hs["ssid"], hs["password"], kind=kind, portal=True,
-                                    hidden=bool(hs.get("hidden", True)))
+                                    hidden=False)
         else:
             ok, msg = hotspot.stop()
         self.message.emit(msg)
@@ -1801,8 +1816,7 @@ class Controller(QObject):
 
         from .hotspot import hotspot, supported
 
-        games = self.config["games"]
-        if not (games.get("auto_wifi", True) or games.get("wifi_only", True)) or os.environ.get("ALUPC_NO_AUTO_WIFI"):
+        if not self.config["games"].get("auto_wifi", True) or os.environ.get("ALUPC_NO_AUTO_WIFI"):
             return False
         if hotspot.running and hotspot.kind == "spiele":
             return False
@@ -1823,8 +1837,8 @@ class Controller(QObject):
         return True
 
     def games_wifi_only(self) -> bool:
-        """Mitspielen nur über das Spiele-WLAN und seine Anmeldeseite (Standard) – kein Link, kein anderer Weg."""
-        return bool(self.config["games"].get("wifi_only", True))
+        """Mitspielen nur über das Spiele-WLAN und seine Anmeldeseite – immer, es gibt keinen anderen Weg."""
+        return True
 
     def games_wifi_status(self) -> tuple[bool, str]:
         """(nur über WLAN?, Text statt des Codes, falls das Spiele-WLAN gerade nicht läuft)."""

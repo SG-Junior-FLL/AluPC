@@ -188,7 +188,7 @@ def main(argv=None) -> int:
     except Exception:  # noqa: BLE001 - Abgleich darf den Start nie verhindern
         pass
     appearance = config["appearance"]
-    theme.apply(app, appearance.get("mode", "system"), appearance.get("accent", "system"))
+    theme.apply(app, appearance.get("mode", "system"), appearance.get("accent", "alupc"))
     app.setWindowIcon(app_icon())
     controller = Controller(config)
     hotkeys = HotkeyManager()

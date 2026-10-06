@@ -972,96 +972,42 @@ def qr_pixmap(text: str, px: int, dpr: float = 1.0):
     return pm
 
 
-class CastSource(QWidget):
-    """Zeigt QR-Code, Adresse und Code für AluCast – Handy scannt und kann dann senden."""
-
-    def __init__(self, cfg, parent=None):
-        super().__init__(parent)
-        from .cast_server import cast_server
-
-        self.server = cast_server()
-        self.ok = self.server.start()
-        self._qr_for = ""
-        self._qr: QImage | None = None
-        self.server.state_changed.connect(self.update)
-        self.setAttribute(Qt.WA_OpaquePaintEvent)
-
-    def qr(self) -> QImage:
-        url = self.server.url()
-        if url != self._qr_for:
-            self._qr_for, self._qr = url, qr_image(url)
-        return self._qr
-
-    def paintEvent(self, _e):
-        from PySide6.QtGui import QLinearGradient
-
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        w, h = self.width(), self.height()
-        grad = QLinearGradient(0, 0, w, h)
-        grad.setColorAt(0, QColor("#0f172a"))
-        grad.setColorAt(1, QColor("#1e1b4b"))
-        p.fillRect(self.rect(), grad)
-        if not self.ok:
-            p.setPen(QColor("#e2e8f0"))
-            p.setFont(fitted_font(p, "x", w, max(14, h // 24)))
-            p.drawText(self.rect().adjusted(20, 20, -20, -20), Qt.AlignCenter | Qt.TextWordWrap,
-                       "AluCast konnte nicht starten (Netzwerk-Anschluss belegt).")
-            p.end()
-            return
-        side = int(min(h * 0.62, w * 0.42))
-        margin = max(12, h // 30)
-        horizontal = w > h * 1.25
-        if horizontal:
-            qr_rect = QRectF(w * 0.08, (h - side) / 2, side, side)
-            text_rect = QRectF(qr_rect.right() + w * 0.05, h * 0.15, w - qr_rect.right() - w * 0.1, h * 0.7)
-        else:
-            side = int(min(w * 0.7, h * 0.5))
-            qr_rect = QRectF((w - side) / 2, h * 0.08, side, side)
-            text_rect = QRectF(w * 0.08, qr_rect.bottom() + margin, w * 0.84, h - qr_rect.bottom() - 2 * margin)
-        pad = side * 0.05
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor("#ffffff"))
-        p.drawRoundedRect(qr_rect.adjusted(-pad, -pad, pad, pad), pad, pad)
-        draw_qr(p, qr_rect, self.qr())
-        # Text rechts bzw. unten
-        code = self.server.code()
-        lines = [("Handy → Monitor 2", "#ffffff", 0.11, True),
-                 ("QR-Code mit der Kamera-App scannen", "#cbd5e1", 0.055, False),
-                 ("Fotos, Videos, Links und Text senden – ohne App", "#94a3b8", 0.045, False),
-                 ("", "", 0.03, False),
-                 (self.server.url(with_code=False), "#93c5fd", 0.05, False),
-                 (f"Code: {code[:3]} {code[3:]}", "#fbbf24", 0.07, True),
-                 ("Handy und PC im selben WLAN", "#94a3b8", 0.04, False)]
-        y = text_rect.y()
-        unit = text_rect.height() if horizontal else text_rect.height() * 1.4
-        for text, color, size, bold in lines:
-            px = max(10, int(unit * size))
-            if text:
-                font = fitted_font(p, text, int(text_rect.width()), px)
-                font.setBold(bold)
-                p.setFont(font)
-                p.setPen(QColor(color))
-                p.drawText(QRectF(text_rect.x(), y, text_rect.width(), px * 1.5),
-                           (Qt.AlignLeft if horizontal else Qt.AlignHCenter) | Qt.AlignVCenter, text)
-            y += px * 1.55
-        p.end()
-
-    def stop(self):
-        pass
-
-
 class WifiQrSource(QWidget):
-    """WLAN-QR-Code des Hotspots groß auf Monitor 2: Handy scannt → ist im WLAN (auch wenn es unsichtbar ist)."""
+    """WLAN-QR-Code des Hotspots groß auf Monitor 2: Handy scannt → ist im WLAN → die Anmeldeseite öffnet sich
+    (Mitspielen oder AluPC steuern). Ohne Name in cfg: folgt dem laufenden AluPC-WLAN (startet es gerade, steht
+    das da)."""
 
     def __init__(self, cfg, parent=None):
         super().__init__(parent)
+        self.live = not cfg.get("ssid")
+        self.ssid, self.password, self.hidden, self._qr = "", "", False, None
+        self.note = ""
+        self._set(cfg.get("ssid", ""), cfg.get("password", ""), bool(cfg.get("hidden")))
+        self.setAttribute(Qt.WA_OpaquePaintEvent)
+        if self.live:
+            self._follow()
+            self._timer = QTimer(self)
+            self._timer.timeout.connect(self._follow)
+            self._timer.start(1000)
+
+    def _set(self, ssid, password, hidden):
         from .screens import wifi_payload
 
-        self.ssid, self.password = cfg.get("ssid", ""), cfg.get("password", "")
-        self.hidden = bool(cfg.get("hidden"))
-        self._qr = qr_image(wifi_payload(self.ssid, self.password, self.hidden)) if self.ssid else None
-        self.setAttribute(Qt.WA_OpaquePaintEvent)
+        if (ssid, password, hidden) == (self.ssid, self.password, self.hidden) and (self._qr or not ssid):
+            return False
+        self.ssid, self.password, self.hidden = ssid, password, hidden
+        self._qr = qr_image(wifi_payload(ssid, password, hidden)) if ssid else None
+        return True
+
+    def _follow(self):
+        from .hotspot import hotspot
+
+        changed = self._set(hotspot.ssid, hotspot.password, hotspot.hidden) if hotspot.running else \
+            self._set("", "", False)
+        note = "" if hotspot.running else (hotspot.message or "AluPC-WLAN startet … (am PC bestätigen)")
+        if changed or note != self.note:
+            self.note = note
+            self.update()
 
     def paintEvent(self, _e):
         from PySide6.QtGui import QLinearGradient
@@ -1074,9 +1020,10 @@ class WifiQrSource(QWidget):
         grad.setColorAt(1, QColor("#083344"))
         p.fillRect(self.rect(), grad)
         if self._qr is None:
+            msg = self.note or "Hotspot ist aus"
             p.setPen(QColor("#e2e8f0"))
-            p.setFont(fitted_font(p, "Hotspot ist aus", w // 2, max(14, h // 14)))
-            p.drawText(self.rect(), Qt.AlignCenter, "Hotspot ist aus")
+            p.setFont(fitted_font(p, msg[:40], int(w * 0.8), max(14, h // 16)))
+            p.drawText(self.rect().adjusted(w // 10, 0, -w // 10, 0), Qt.AlignCenter | Qt.TextWordWrap, msg)
             p.end()
             return
         horizontal = w > h * 1.25
@@ -1101,7 +1048,7 @@ class WifiQrSource(QWidget):
                  ("unsichtbar – nur per QR-Code oder Name + Passwort" if self.hidden else "", "#94a3b8", 0.05,
                   False),
                  ("", "", 0.03, False),
-                 ("Danach: Mitspielen oder AluPC steuern", "#e2e8f0", 0.06, True)]
+                 ("Anmeldeseite öffnet sich: Mitspielen oder AluPC steuern", "#e2e8f0", 0.06, True)]
         y = text_rect.y()
         unit = text_rect.height() if horizontal else text_rect.height() * 1.2
         for text, color, size, bold in lines:
@@ -1676,7 +1623,7 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             "screen": ScreenSource,
             "window": KWinWindowSource if kwin_window_mode() else WindowSource,
             "airplay": AirPlaySource,
-            "cast": CastSource,
+            "cast": WifiQrSource,  # früher Link-QR – jetzt nur noch übers AluPC-WLAN
             "wlan": WifiQrSource,
             "website": WebsiteSource,
             "image": ImageSource,

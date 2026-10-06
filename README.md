@@ -27,10 +27,10 @@ und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beide
 | | |
 |---|---|
 | 🖥️ **Monitor 2 mit einem Klick** | Spiegeln, Erweitern, Kamera, Programm, Website, Bild/Video, Text, Uhr, Timer, Whiteboard, 32 gestaltete Karten, eigene Szenen mit Übergängen, Overlays, Sichtschutz, Standbild |
-| 📱 **Handy = Fernbedienung** | QR-Code scannen, ohne App: Monitor 2 steuern, Live-Bild mit Laserpointer, zeichnen, Folien klicken, Touchpad, Fotos/Links senden – freigeben per „Erlauben“ am PC statt Code |
+| 📱 **Handy = Fernbedienung** | Nur übers AluPC-WLAN: WLAN-Code scannen → Anmeldeseite → „AluPC steuern“, ohne App: Monitor 2 steuern, Live-Bild mit Laserpointer, zeichnen, Folien klicken, Touchpad, Fotos/Links senden – freigeben per „Erlauben“ am PC statt Code |
 | 🎛️ **PC steuern** | Lautstärke, Musik, Fenster, Bildschirmfoto, Programme öffnen, Ausführen wie Win+R, Sperren – in der App, vom Handy, per Sprache („Alu PC, lauter“) oder Strg+K |
-| 🎮 **Minispiele = eigenes WLAN** | Snake, Tic-Tac-Toe, Pong, Ballon, Tipp-Rennen, Simon sagt, Schere-Stein-Papier – WLAN-Code scannen, Anmeldeseite öffnet sich, Name eingeben, mitspielen |
-| 📶 **Hotspot** | Der PC macht ein (unsichtbares) WLAN – QR-Code auf Monitor 2, Anmeldeseite wie im Hotel |
+| 🎮 **Minispiele = eigenes WLAN** | Snake, Tic-Tac-Toe, Pong, **Tetris** (alle dieselben Teile), Tipp-Rennen, Simon sagt, Schere-Stein-Papier – WLAN-Code scannen, Anmeldeseite öffnet sich, Name eingeben, mitspielen |
+| 📶 **AluPC-WLAN** | Der PC macht ein WLAN – EIN QR-Code auf Monitor 2, Anmeldeseite wie im Hotel. Der **einzige** Weg fürs Handy (Linux und Windows gleich) |
 | 🔁 **Dual-Boot-Abgleich** | Windows ↔ Linux: Einstellungen, Szenen, Bilder/Videos zusammenführen, Bereiche wählbar, Prüfen, Sicherungen |
 | 🗣️ **Sprache, offline** | Startwort „Alu PC“ oder „Computer“, ganze Sätze, Antwort per Stimme |
 | 🔐 **Fingerabdruck** | ZW101-Modul: Anmelden bei Windows/Linux, Finger als Schnelltaste, Begrüßung |
@@ -48,8 +48,8 @@ und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beide
 | Design-Karte | Abstimmung | WLAN-QR-Code |
 |---|---|---|
 | ![Neon](docs/screens/design-neon.png) | ![Abstimmung](docs/screens/abstimmung-m2.png) | ![WLAN](docs/screens/wlan-qr.png) |
-| **Tic-Tac-Toe** | **Snake** | **Minispiele – Lobby** |
-| ![Tic-Tac-Toe](docs/screens/spiel-tictactoe.png) | ![Snake](docs/screens/spiel-schlangen.png) | ![Lobby](docs/screens/spiele-lobby.png) |
+| **Tetris** | **Snake** | **Minispiele – Lobby** |
+| ![Tetris](docs/screens/spiel-tetris.png) | ![Snake](docs/screens/spiel-schlangen.png) | ![Lobby](docs/screens/spiele-lobby.png) |
 
 **Auf dem Handy** (im Browser, ohne App)
 
@@ -63,9 +63,11 @@ Alle Screens mit Erklärung: **[Handbuch (PDF)](docs/AluPC-Handbuch.pdf)**. Frü
 
 - Eigenes, modernes Design mit **Seitenleiste**, **Statuskarte** („Was sehen die anderen gerade?“
   mit LIVE / STANDBILD / SCHWARZ) und großen Kacheln, die ihren Zustand zeigen („AKTIV“, „AN“).
-- **Dunkel, Hell oder wie das System**, Akzentfarbe **wie das System** (Windows, KDE, GNOME – zieht live mit) oder
-  5 eigene (Setup → Darstellung). Unter Windows passt sich die Titelleiste an.
-- Hotspot und Spiele-WLAN sind **unsichtbar** (Linux): verbinden per QR-Code oder Name + Passwort.
+- **Eigenes AluPC-Theme** (Standard, 0.106): Logo-Blau → Indigo, leicht getönte Flächen – unter Windows und Linux
+  gleich. Dazu **Dunkel, Hell oder wie das System**, Akzentfarbe **wie das System** oder 5 eigene (Setup → Darstellung).
+  **„AluPC-Farben für den Desktop“**: KDE-Farbschema „AluPC“ bzw. Windows-Akzentfarbe, mit „Zurück“.
+  Unter Windows passt sich die Titelleiste an.
+- **Tastenkürzel gelten überall** – Windows und jetzt auch KDE (auch wenn AluPC im Hintergrund ist).
 - Alle Symbole sind selbst gezeichnet – sehen unter Kubuntu und Windows gleich scharf aus
   (keine Emojis, die je nach System anders aussehen).
 - **Übergänge zwischen Szenen** auf Monitor 2: Überblenden, über Schwarz, Wegschieben, Wischen,
@@ -84,7 +86,7 @@ Alle Screens mit Erklärung: **[Handbuch (PDF)](docs/AluPC-Handbuch.pdf)**. Frü
 | **Programm** | ein Programm zeigen: *Anzeigen (Aufnahme)* oder *Fenster wirklich verschieben* |
 | **Website** | Adresse eingeben oder gespeicherte Website wählen → Vollbild. Pfeil an der Kachel: gespeicherte Websites, **Browser steuern** (eigenes Fenster: Adresse, Zurück/Vor, Zoom, Scrollen, Live-Vorschau zum Klicken und Tippen, **Stift/Marker/Radierer zum Zeichnen auf der Website**; bei **Standbild** zeigt die Vorschau die echte Seite dahinter – schon weiterklicken, während das Publikum noch das Standbild sieht), aktuelle Seite **unter „Website“ speichern** |
 | **Bild / Video** | **Mediathek** mit Vorschaubildern: gespeicherte Bilder, Videos und Diashows, dazu automatisch „Zuletzt gezeigt“; Filter, Suche, Umbenennen. Pfeil an der Kachel: gespeicherte Einträge direkt starten. Läuft ein Video (auch in einer eigenen Szene), erscheint oben eine **Mediensteuerung**: Pause/Weiter, ±10 Sekunden, Zeitleiste zum Springen |
-| **Handy** | eigenes **Fenster „Handy“** mit zwei Wegen. **Jedes Handy** (QR-Code scannen, ohne App) – die Handy-Seite hat vier Reiter: **Start** (Live-Bild mit Laserpointer, Schwarz/Standbild/Spiegeln/Erweitern/Schoner, Kamera/iPhone/QR-Code/Timer zeigen, Szenen, Video, Lautstärke, **Timer mit Vorgaben** 1–15 min, RGB), **Zeichnen** (mit dem Finger **direkt auf Monitor 2**: Stift, Marker, Radierer, Laser, 7 Farben, Rückgängig, Vollbild), **Folien** (Präsentations-Klicker und **Touchpad für die PC-Maus** mit Klick, Rechtsklick und Scrollen) und **Senden** (Foto/Video, Link, Text). Lässt sich als **App auf den Home-Bildschirm** legen. Was Handys dürfen, stellt man in **Setup → Handy & Kamera** ein. **iPhone & iPad** per AirPlay (UxPlay; unter Windows „uxplay-windows“): Monitor 2 zeigt ohne iPhone schlicht **„AirPlay bereit“** (oder schwarz bzw. Anleitung, einstellbar), beim Verbinden legt AluPC das iPhone-Bild randlos darüber. **Richtet sich selbst ein** (Kubuntu: Pakete mit einem Passwort; Windows: uxplay-windows, Bonjour und Firewall-Freigabe) |
+| **Handy** | eigenes **Fenster „Handy“** mit zwei Wegen. **Jedes Handy** (nur übers AluPC-WLAN: WLAN-Code scannen → Anmeldeseite → „AluPC steuern“ → am PC erlauben, ohne App) – die Handy-Seite hat vier Reiter: **Start** (Live-Bild mit Laserpointer, Schwarz/Standbild/Spiegeln/Erweitern/Schoner, Kamera/iPhone/QR-Code/Timer zeigen, Szenen, Video, Lautstärke, **Timer mit Vorgaben** 1–15 min, RGB), **Zeichnen** (mit dem Finger **direkt auf Monitor 2**: Stift, Marker, Radierer, Laser, 7 Farben, Rückgängig, Vollbild), **Folien** (Präsentations-Klicker und **Touchpad für die PC-Maus** mit Klick, Rechtsklick und Scrollen) und **Senden** (Foto/Video, Link, Text). Lässt sich als **App auf den Home-Bildschirm** legen. Was Handys dürfen, stellt man in **Setup → Handy & Kamera** ein. **iPhone & iPad** per AirPlay (UxPlay; unter Windows „uxplay-windows“): Monitor 2 zeigt ohne iPhone schlicht **„AirPlay bereit“** (oder schwarz bzw. Anleitung, einstellbar), beim Verbinden legt AluPC das iPhone-Bild randlos darüber. **Richtet sich selbst ein** (Kubuntu: Pakete mit einem Passwort; Windows: uxplay-windows, Bonjour und Firewall-Freigabe) |
 | **Vorlagen** | nur beim Anlegen einer Szene (Szenen → „Neue Szene“): „Leer“ oder eine von **32 Karten** (Neon, Glitch, Synthwave, Poster, Now Playing, LIVE, Versus, Link-QR, Willkommen, Agenda, Pause, Quiz …) bzw. **24 Szenen-Vorlagen** (Stream-Overlay, Partynacht, Gaming-Duell …) – Text eintragen, im Editor anpassen, speichern. Nach Kategorien geordnet, mit Filter und Suche |
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
@@ -192,15 +194,18 @@ Außerdem:
   |---|---|---|
   | ![Abstimmung](docs/abstimmung.png) | ![Glücksrad](docs/gluecksrad.png) | ![Wetter & Uhr](docs/wetter.png) |
 - **Minispiele – Handy = Controller** (neu in 0.76, stark erweitert in 0.77): Kachel *Minispiele* öffnet das
-  **Steuerfenster** am PC, Monitor 2 zeigt die Lobby mit QR-Code. Jeder scannt, gibt einen Namen ein und spielt mit –
-  ohne App und **ohne** den Code der Handy-Steuerung (der QR-Code erlaubt nur Mitspielen). Bis 16 Spieler.
+  **Steuerfenster** am PC, Monitor 2 zeigt die Lobby mit **einem** QR-Code: dem WLAN-Code des Spiele-WLANs. Jeder
+  scannt, die Anmeldeseite öffnet sich, Name eingeben, mitspielen – ohne App. Einen anderen Weg (Link, anderes WLAN)
+  gibt es nicht. Bis 16 Spieler.
   **Gestartet wird nur am PC** – Handys können nichts starten oder umstellen.
   - **Snake:** alle gleichzeitig, Punkte fressen – **der Rand ist tödlich** (Crash = halbe Punkte, kurz darauf
     geht's weiter).
   - **Tic-Tac-Toe:** Team Rot (X) gegen Team Blau (O). Wer im Team ist, hat dasselbe Zeichen; ist das Team dran,
     tippt jeder ein Feld an – das Feld mit den meisten Stimmen wird gesetzt. Ist ein Team leer, spielt der PC.
   - **Pong:** Teams mit bis zu 3 Schlägern pro Seite, Finger hoch und runter ziehen.
-  - **Ballon:** aufpumpen und rechtzeitig sichern – alle Ballons platzen an derselben (geheimen) Stelle.
+  - **Tetris** (neu in 0.106): jeder hat sein Feld, **alle bekommen dieselben Teile** in derselben Reihenfolge,
+    mit der Zeit wird es schneller. Wer oben anstößt, ist raus – **wer am längsten durchhält, gewinnt**.
+    Handy: ◀ ▶, drehen, schneller, fallen lassen.
   - **Tipp-Rennen**, **Simon sagt** (Farbfolge merken), **Schere, Stein, Papier** (alle gegen alle).
   - **Spiele-WLAN** (0.102): startet mit den Minispielen. Die Lobby zeigt dann den WLAN-Code – scannen, die
     WLAN-Anmeldeseite öffnet sich von selbst, Name eingeben, **Mitspielen** (direkt die Steuerung) oder
@@ -219,7 +224,7 @@ Außerdem:
     (oder „Bestenliste zurücksetzen“).
   - **Avatare** (neu in 0.81): beim Beitreten ein Tier/Symbol wählen – erscheint auf Monitor 2 in Lobby, Punkten,
     Siegertreppchen und Bestenliste.
-  - **Vibration** (neu in 0.81): das Handy vibriert bei „raus“, falsch, Treffer, Tor, geplatztem Ballon, Sieg …
+  - **Vibration** (neu in 0.81): das Handy vibriert bei „raus“, falsch, Treffer, Tor, „raus“ bei Tetris, Sieg …
     (nur Android-Browser – iPhones erlauben das im Browser nicht).
   - **Töne** (neu in 0.79): 3-2-1, Los, richtig/falsch, raus, Plopp, Treffer, Tor, Sieger-Fanfare und die
     Simon-Töne – über die Lautsprecher am PC (Lautstärke und Ausgabe wie unter Setup → Töne).

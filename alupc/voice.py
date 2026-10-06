@@ -98,7 +98,7 @@ COMMANDS: list[tuple[tuple[str, ...], str, str]] = [
 # „Spiel Pong“ → Spiel auswählen (gesprochene Namen der Spiele)
 GAME_NAMES = {
     "schlangen": ("snake", "schlangen", "schlange"), "tictactoe": ("tic tac toe", "tik tak to", "drei gewinnt"),
-    "pong": ("pong", "ping pong"), "ballon": ("ballon", "luftballon"),
+    "pong": ("pong", "ping pong"), "tetris": ("tetris", "tetrisspiel"),
     "rennen": ("tipp rennen", "rennen", "wettrennen"), "simon": ("simon", "simon sagt"),
     "ssp": ("schere stein papier", "schnick schnack schnuck"),
 }
@@ -121,7 +121,7 @@ abstimmung umfrage ergebnis bestenliste airplay iphone ipad handy spiegeln erwei
 pause weiter zurück nächste nächstes nächster vorherige vorheriges letzte szene szenen timer minute minuten sekunde
 sekunden stunde stunden halbe countdown stoppuhr start los neu plus minus länger kürzer zeichnungen computer rechner
 mikrofon spät uhrzeit tag datum warm temperatur prozessor grafikkarte speicher geht dir witz danke hilfe frage
-runde teams mischen töne lobby pong simon ballon schlangen schlange snake rennen tic tac toe tik tak to gewinnt
+runde teams mischen töne lobby pong simon tetris schlangen schlange snake rennen tic tac toe tik tak to gewinnt
 eins zwei drei vier fünf sechs sieben acht neun zehn elf zwölf fünfzehn zwanzig dreißig vierzig fünfzig sechzig
 achtzig hundert prozent lauter leiser lautstärke laut stumm ton fenster schließen minimieren maximieren screenshot
 bildschirmfoto herunterfahren herunter runter fahr ruhezustand öffnen firefox chrome browser youtube google suche

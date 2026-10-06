@@ -245,15 +245,15 @@ class HandyPage(QWidget):
         c = self.controller
         if not c.cast.running():
             c.cast.start()
-        dlg = ConnectDialog("Handy verbinden", c.cast.url(), c.guest_wifi(),
-                            f"Code {c.cast.code()[:3]} {c.cast.code()[3:]} steckt schon im QR-Code",
+        dlg = ConnectDialog("Handy verbinden", c.guest_wifi(),
+                            "WLAN-Code scannen → Anmeldeseite → „AluPC steuern“ → am PC erlauben",
                             on_monitor=lambda: c.run_command("qr"), parent=self)
         dlg.exec()
 
     # ================================================================ AluCast
     def _cast_card(self) -> MethodCard:
-        card = MethodCard("qr", "#8b5cf6", "Jedes Handy", "Browser + QR-Code · ohne App")
-        card.body.addWidget(steps_label("QR-Code zeigen", "Mit dem Handy scannen", "Steuern · Zeichnen · Senden"))
+        card = MethodCard("qr", "#8b5cf6", "Jedes Handy", "AluPC-WLAN + Anmeldeseite · ohne App")
+        card.body.addWidget(steps_label("WLAN-Code zeigen", "Handy scannt → Anmeldeseite", "„AluPC steuern“ erlauben"))
         row = QHBoxLayout()
         self.qr = QLabel()
         self.qr.setFixedSize(132, 132)
@@ -278,12 +278,12 @@ class HandyPage(QWidget):
         self._fill_ip_box()
         self.cast_ip.currentIndexChanged.connect(self._save_ip)
         ip_row.addWidget(self.cast_ip, 1)
-        info.addLayout(ip_row)
+        self.cast_ip.hide()  # Adresse spielt keine Rolle mehr: Handys kommen nur übers AluPC-WLAN
         info.addWidget(self.cast_auto)
         info.addStretch(1)
         row.addLayout(info, 1)
         card.body.addLayout(row)
-        show = button("QR-Code zeigen", "qr", primary=True)
+        show = button("WLAN-Code zeigen", "qr", primary=True)
         show.clicked.connect(self.controller.start_cast)
         self.cast_toggle = button("Beenden", "x")
         self.cast_toggle.clicked.connect(self._toggle_cast)
@@ -396,20 +396,22 @@ class HandyPage(QWidget):
         # --- Jedes Handy (AluCast)
         cast = self.cards["cast"]
         on = c.cast.running()
-        code = c.cast.code()
-        if on:
-            url = c.cast.url()
-            if getattr(self, "_qr_for", "") != url:  # QR-Code nur neu berechnen, wenn sich die Adresse ändert
-                self._qr_for = url
-                self.qr.setPixmap(qr_pixmap(url, 120, self.devicePixelRatioF()))
-            cast.set_status("LÄUFT", LIVE, f"Adresse: <b>{c.cast.url(with_code=False)}</b> · Code <b>{code[:3]} "
-                                           f"{code[3:]}</b>")
+        c.cast.code()
+        wifi = c.guest_wifi()
+        if on and wifi:
+            from ..screens import wifi_payload
+
+            payload = wifi_payload(*wifi)
+            if getattr(self, "_qr_for", "") != payload:  # QR-Code nur neu berechnen, wenn sich das WLAN ändert
+                self._qr_for = payload
+                self.qr.setPixmap(qr_pixmap(payload, 120, self.devicePixelRatioF()))
+            cast.set_status("LÄUFT", LIVE, f"WLAN <b>{wifi[0]}</b> · Anmeldeseite → „AluPC steuern“")
         else:
             cast.set_status("BEREIT", READY, "Sofort nutzbar")
             if getattr(self, "_qr_for", None) != "":
                 self._qr_for = ""
                 self.qr.setPixmap(icons.pixmap("qr", "#94a3b8", 40))
-        self.cast_url.setText("Gleiches WLAN" if not on else "Code = Zugang")
+        self.cast_url.setText("Nur übers AluPC-WLAN" if not (on and wifi) else "Am PC erlauben = Zugang")
         self.cast_toggle.setText("Beenden" if on else "Starten")
         self.cast_toggle.setIcon(icons.icon("x" if on else "play", theme.current().text, 18))
         self.cast_auto.blockSignals(True)

@@ -32,6 +32,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 NS, PC_IF, PHONE_IF, PC_IP, PHONE_IP = "alupc-handy", "alupc-wlan0", "handy0", "10.42.0.1", "10.42.0.50"
+# zweites Handy in einem ANDEREN Netz (wie Router-WLAN/LAN) – darf nichts
+NS2, OUT_IF, OUT_PHONE_IF, OUT_PC_IP, OUT_PHONE_IP = "alupc-fremd", "alupc-lan0", "fremd0", "10.99.0.1", "10.99.0.50"
 results: list[tuple[bool, str]] = []
 
 
@@ -57,6 +59,12 @@ def setup_net() -> None:
     sh(f"ip netns exec {NS} ip addr add {PHONE_IP}/24 dev {PHONE_IF}")
     sh(f"ip netns exec {NS} ip link set {PHONE_IF} up && ip netns exec {NS} ip link set lo up")
     sh(f"ip netns exec {NS} ip route add default via {PC_IP}")
+    sh(f"ip netns add {NS2}")
+    sh(f"ip link add {OUT_IF} type veth peer name {OUT_PHONE_IF}")
+    sh(f"ip link set {OUT_PHONE_IF} netns {NS2}")
+    sh(f"ip addr add {OUT_PC_IP}/24 dev {OUT_IF} && ip link set {OUT_IF} up")
+    sh(f"ip netns exec {NS2} ip addr add {OUT_PHONE_IP}/24 dev {OUT_PHONE_IF}")
+    sh(f"ip netns exec {NS2} ip link set {OUT_PHONE_IF} up && ip netns exec {NS2} ip link set lo up")
     Path(f"/etc/netns/{NS}").mkdir(parents=True, exist_ok=True)
     Path(f"/etc/netns/{NS}/resolv.conf").write_text(f"nameserver {PC_IP}\n")  # wie per DHCP vom Hotspot
 
@@ -64,6 +72,8 @@ def setup_net() -> None:
 def teardown_net() -> None:
     sh(f"ip netns del {NS}", check=False)
     sh(f"ip link del {PC_IF}", check=False)
+    sh(f"ip netns del {NS2}", check=False)
+    sh(f"ip link del {OUT_IF}", check=False)
     shutil.rmtree(f"/etc/netns/{NS}", ignore_errors=True)
 
 
@@ -87,6 +97,14 @@ def get(url):
         return e.code, e.headers.get("Location", ""), e.read().decode("utf-8", "replace")
 out = {}
 out["dns_check"] = socket.gethostbyname("connectivitycheck.gstatic.com")
+base = "http://%s:%s" % (sys.argv[1], sys.argv[2])
+out["remote_page"] = get(base + "/")[0]
+req = urllib.request.Request(base + "/api/freigabe", method="POST", data=b'{"name":"Handy"}',
+                             headers={"Content-Type": "application/json"})
+try:
+    out["ask_access"] = urllib.request.urlopen(req, timeout=10).status
+except urllib.error.HTTPError as e:
+    out["ask_access"] = e.code
 out["dns_any"] = socket.gethostbyname("www.beispiel-irgendwas.de")
 out["android"] = get("http://connectivitycheck.gstatic.com/generate_204")[:2]
 out["iphone"] = get("http://captive.apple.com/hotspot-detect.html")[:2]
@@ -106,6 +124,26 @@ try:
     r = urllib.request.urlopen(req, timeout=10); out["join"] = r.status; out["pid"] = json.loads(r.read())["p"]
 except urllib.error.HTTPError as e:
     out["join"] = e.code
+print(json.dumps(out))
+'''
+
+OUTSIDER = r'''
+import json, sys, urllib.request
+ip, port, token = sys.argv[1], sys.argv[2], sys.argv[3]
+base = "http://%s:%s" % (ip, port)
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k): return None
+opener = urllib.request.build_opener(NoRedirect)
+def code(url, data=None):
+    req = urllib.request.Request(base + url, data=data, method="POST" if data else "GET",
+                                 headers={"Content-Type": "application/json"})
+    try:
+        return opener.open(req, timeout=10).status
+    except urllib.error.HTTPError as e:
+        return e.code
+out = {"/": code("/"), "/spiel": code("/spiel?u=" + token), "/anmelden": code("/anmelden"),
+       "join": code("/api/spiel", json.dumps({"u": token, "action": "join", "name": "Fremd"}).encode()),
+       "/api/status": code("/api/status"), "freigabe": code("/api/freigabe", b'{"name":"x"}')}
 print(json.dumps(out))
 '''
 
@@ -157,7 +195,7 @@ def main() -> int:
     controller.display.available = lambda: False
     controller.start_games("tictactoe")
     hs = hs_mod.hotspot
-    hs.running, hs.kind, hs.ssid, hs.password, hs.hidden, hs.ip = True, "spiele", "AluPC-Spiele", "", True, PC_IP
+    hs.running, hs.kind, hs.ssid, hs.password, hs.hidden, hs.ip = True, "spiele", "AluPC-Spiele", "k7m2p9qa", False, PC_IP
     flag = hs_mod.portal_flag()
     flag.write_text("an")
     if not hs_mod.start_dns(lambda: hs.ip, closed=True):
@@ -170,10 +208,29 @@ def main() -> int:
     rules = sh("iptables-save | grep alupc-portal", check=False)
     ok(rules.count("alupc-portal") == 7, f"7 Regeln aktiv (DNS, Port 80, Firewall, kein Internet) – {rules.count('alupc-portal')}")
 
+    # ---- Monitor 2: genau EIN QR-Code – der WLAN-Code dieses WLANs (echter Decoder liest ihn)
+    try:
+        import zxingcpp
+        from PIL import Image
+
+        from alupc.game_source import GameSource
+
+        src = GameSource({})
+        src.resize(1280, 720)
+        shot = tmp / "lobby.png"
+        pump(0.3)
+        src.grab().save(str(shot))
+        codes = [c.text for c in zxingcpp.read_barcodes(Image.open(shot))]
+        want = f"WIFI:T:WPA;S:{hs.ssid};P:{hs.password};;"
+        ok(codes == [want], f"Monitor 2 (Lobby): genau 1 QR-Code = WLAN „{hs.ssid}“ → {codes}")
+        src.stop()
+    except ImportError:
+        print("  · QR-Prüfung übersprungen (zxing-cpp/Pillow fehlen)")
+
     # ---- Handy: Prüfungen wie Android/iPhone + Anmeldeseite + Beitreten (HTTP)
     phone_py = tmp / "phone_http.py"
     phone_py.write_text(PHONE_HTTP)
-    proc = subprocess.Popen(f"ip netns exec {NS} {PHONE_ENV} {sys.executable} {phone_py}",
+    proc = subprocess.Popen(f"ip netns exec {NS} {PHONE_ENV} {sys.executable} {phone_py} {PC_IP} {hs_mod.PORTAL_PORT}",
                             shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     while proc.poll() is None:
         pump(0.05)
@@ -192,6 +249,8 @@ def main() -> int:
     ok(r.get("portal_status") == 200 and r.get("portal_has_name"), "Anmeldeseite mit Namensfeld und „Mitspielen“")
     ok(r.get("game_page") == 200, "Spielseite aus der Anmeldeseite öffnet")
     ok(r.get("join") == 200, f"Beitreten aus dem Spiele-WLAN → {r.get('join')}")
+    ok(r.get("remote_page") == 200 and r.get("ask_access") == 200,
+       f"„AluPC steuern“ aus dem WLAN: Seite {r.get('remote_page')}, am PC um Erlaubnis fragen {r.get('ask_access')}")
     pump(0.3)
     hub = controller.cast.games
     ok(any(p.name == "Lena" for p in hub.players.values()), "„Lena“ ist im Spiel")
@@ -221,19 +280,22 @@ def main() -> int:
     else:
         print("  · Browser-Teil übersprungen (kein node/Playwright)")
 
-    # ---- von außerhalb (ohne Spiele-WLAN): abgelehnt
-    import urllib.error
-    import urllib.request
-
-    req = urllib.request.Request(f"http://127.0.0.1:{hs_mod.PORTAL_PORT}/api/spiel", method="POST",
-                                 data=json.dumps({"u": hub.token, "action": "join", "name": "X"}).encode(),
-                                 headers={"Content-Type": "application/json"})
+    # ---- Handy in einem ANDEREN Netz (Router-WLAN/LAN, Link abgetippt): alles abgelehnt
+    outsider = tmp / "outsider.py"
+    outsider.write_text(OUTSIDER)
+    proc = subprocess.Popen(f"ip netns exec {NS2} {PHONE_ENV} {sys.executable} {outsider} {OUT_PC_IP} "
+                            f"{hs_mod.PORTAL_PORT} {hub.token}", shell=True, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True)
+    while proc.poll() is None:
+        pump(0.05)
+    out, err = proc.communicate()
     try:
-        urllib.request.urlopen(req, timeout=5)
-        code = 200
-    except urllib.error.HTTPError as e:
-        code = e.code
-    ok(code == 403, f"Mitspielen ohne Spiele-WLAN abgelehnt → {code}")
+        o = json.loads(out.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        o = {"error": err[-300:]}
+    ok(o and all(v == 403 for v in o.values()),
+       f"Handy aus anderem Netz: Steuerseite, Spielseite, Mitspielen, Status, Erlaubnis-Anfrage → {o}")
+    ok(not any(p.name == "Fremd" for p in hub.players.values()), "„Fremd“ ist NICHT im Spiel")
 
     # ---- Ausschalten: Regeln weg
     hs_mod.stop_portal()

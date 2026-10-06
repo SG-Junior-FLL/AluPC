@@ -40,6 +40,19 @@ jobs:
           sudo -E "$(which python)" tests/portal_linux_check.py 2>&1 | tee portal.log
           test "${PIPESTATUS[0]}" -eq 0 || { grep "✗" portal.log | sed 's/^/::error title=Anmeldeseite::/'; exit 1; }
           echo "::notice title=Anmeldeseite (Linux)::$(tail -1 portal.log)"
+      - name: Systemweite Tastenkürzel echt – KDE-Dienst kglobalaccel, Tasten per xdotool (AluPC im Hintergrund)
+        run: |
+          sudo apt-get install -y libkf5globalaccel-bin xdotool xvfb x11-xkb-utils > /dev/null
+          dbus-run-session -- bash -c 'Xvfb :56 -screen 0 1024x768x24 >/dev/null 2>&1 & X=$!; sleep 1; \
+            export DISPLAY=:56; setxkbmap us; kglobalaccel5 >/dev/null 2>&1 & K=$!; \
+            python tests/kde_hotkeys_check.py; c=$?; kill $X $K; exit $c' 2>&1 | tee kde.log
+          test "${PIPESTATUS[0]}" -eq 0 || { grep "✗" kde.log | sed 's/^/::error title=Tastenkürzel (KDE)::/'; exit 1; }
+          echo "::notice title=Tastenkürzel (KDE)::$(tail -1 kde.log)"
+      - name: Jede Einstellung echt bedienen – gespeichert, zurückstellbar, wirkt
+        run: |
+          python tests/settings_check.py > settings.log 2>&1 || {
+            grep -E "✗|Traceback" settings.log | head -30 | sed 's/^/::error title=Einstellungen::/'; exit 1; }
+          echo "::notice title=Einstellungen (Linux)::$(tail -1 settings.log)"
       - name: Rundgang – jede Seite, jedes Fenster, jede Monitor-2-Anzeige öffnen (Fehler = rot)
         run: |
           python tools/screens_tour.py "$RUNNER_TEMP/rundgang" hell > tour.log 2>&1 || {
@@ -215,7 +228,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Installieren
-        run: pip install -e .
+        run: pip install -e . zxing-cpp pillow
       - name: Mobilen Hotspot nachbauen (Windows-Internetfreigabe, Handy = Container)
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/windows/hotspot_sim.ps1
@@ -243,6 +256,17 @@ jobs:
           $out = python -c "from alupc import hotspot as h; c, o = h._ps(h._PS_STATE, timeout=60); print(o.replace(chr(10), ' | ')); print('MELDUNG', h.windows_message(o)[1])"
           Write-Output "::notice title=Hotspot (Windows)::$($out -join ' ')"
           if (($out -join ' ') -match 'ParserError|Unexpected token|MissingEndCurlyBrace') { Write-Output "::error title=Hotspot::PowerShell-Skript kaputt"; exit 1 }
+      - name: Jede Einstellung echt bedienen (Windows) – gespeichert, zurückstellbar, wirkt
+        shell: bash
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: utf-8
+        run: |
+          python tests/settings_check.py > settings.log 2>&1 || {
+            grep -E "✗|Traceback" settings.log | head -30 | sed 's/^/::error title=Einstellungen (Windows)::/'; exit 1; }
+          echo "::notice title=Einstellungen (Windows)::$(tail -1 settings.log)"
+      - name: AluPC-Farben für den Desktop echt (Registry setzen und zurückstellen)
+        run: python tests/desktop_theme_windows_check.py
       - name: Tests (Logik + Windows-Strukturen)
         shell: pwsh
         run: |

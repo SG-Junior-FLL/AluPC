@@ -5,7 +5,8 @@ import random
 from alupc.games import GAMES, MAX_PLAYERS, GameHub, Player
 from alupc.games_board import TicTacToeGame, best_move, winner_of
 from alupc.games_classic import RaceGame, SnakeGame
-from alupc.games_party import BalloonGame, PongGame, SimonGame
+from alupc.games_party import PongGame, SimonGame
+from alupc.games_tetris import TetrisGame
 
 
 class Clock:
@@ -104,7 +105,7 @@ def test_simon_all_fail_keeps_everyone_and_sequence():
     assert g.over
 
 
-# --------------------------------------------------------------------------- Tauziehen / Pong / Ballon
+# --------------------------------------------------------------------------- Pong / Tetris
 def test_pong_hits_goals_and_win():
     g = PongGame(players("A", "B", "C", teams=[0, 1, 0]), 0.0, random.Random(9), {"punkte": 2})
     assert g.paddles["a"]["slot"] == 0 and g.paddles["c"]["slot"] == 1
@@ -136,22 +137,66 @@ def test_pong_hits_goals_and_win():
     assert g.over and g.winner == 1 and g.scores()["b"] >= 1000
 
 
-def test_balloon_pump_bank_burst():
-    g = BalloonGame(players("A", "B", "C"), 0.0, random.Random(10), {"runden": 1})
-    g.limit = 5
-    for i in range(3):
-        g.input("a", {"pump": 1}, 1 + i * 0.1)
-    g.input("a", {"pump": 1}, 1.25)  # zu schnell
-    g.input("a", {"stop": 1}, 2)
-    assert g.state["a"] == {"pumps": 3, "st": "banked", "last": 1.2} and g.total["a"] == 3
-    for i in range(6):
-        g.input("b", {"pump": 1}, 1 + i * 0.1)
-    assert g.state["b"]["st"] == "burst" and g.state["b"]["pumps"] == 5
-    g.input("c", {"pump": 1}, 1)
-    g.update(g.until)  # Zeit um → C sichert automatisch
-    assert g.total == {"a": 3, "b": 0, "c": 1} and g.phase == "zeigen"
-    assert g.phone("b", g.until)["big"] == "+0"
-    g.update(g.until + 0.01)
+def test_tetris_same_pieces_for_everyone():
+    g = TetrisGame(players("A", "B", "C"), 0.0, random.Random(4))
+    seq = [g.piece_at(i) for i in range(14)]
+    assert sorted(seq[:7]) == sorted("IOTSZJL") and sorted(seq[7:14]) == sorted("IOTSZJL")  # 7er-Beutel
+    assert {b["kind"] for b in g.boards.values()} == {seq[0]}  # alle starten mit demselben Teil
+    g.input("a", {"move": "drop"}, 1.0)
+    g.input("a", {"move": "drop"}, 1.1)
+    g.input("b", {"move": "drop"}, 1.2)
+    assert g.boards["a"]["kind"] == seq[2] and g.boards["b"]["kind"] == seq[1]  # jeder in seinem Tempo, gleiche Folge
+    assert g.phone("a", 1.2)["next"] == seq[3] and g.phone("c", 1.2)["next"] == seq[1]
+
+
+def test_tetris_moves_rotate_walls_and_lines():
+    g = TetrisGame(players("A"), 0.0, random.Random(1))
+    b = g.boards["a"]
+    b["kind"], b["rot"], b["x"], b["y"] = "I", 0, 3, 5
+    for _ in range(10):
+        g.input("a", {"move": "left"}, 0.1)
+    assert b["x"] == 0  # bleibt an der Wand
+    g.input("a", {"move": "rotate"}, 0.1)
+    assert b["rot"] == 1 and g._fits(b, b["x"], b["y"], b["rot"])
+    # unterste Reihe bis auf 4 Felder voll → waagrechtes I rein → Reihe weg
+    b["cells"][19] = ["#"] * 6 + [""] * 4
+    b["kind"], b["rot"], b["x"], b["y"] = "I", 0, 6, 10
+    g.input("a", {"move": "drop"}, 0.2)
+    assert b["lines"] == 1 and b["cells"][19] == [""] * 10 and b["points"] == 1
+    assert any(kind == "lines" for _n, _t, kind, _d in g.events)
+
+
+def test_tetris_last_one_standing_wins_and_gravity():
+    g = TetrisGame(players("A", "B"), 0.0, random.Random(2))
+    y0 = g.boards["b"]["y"]
+    g.update(g.fall_time(0.0) * 2 + 0.01)
+    assert g.boards["b"]["y"] == y0 + 2  # Teile fallen von allein
+    assert g.fall_time(100) < g.fall_time(0)  # wird schneller
+    t = 1.0
+    while g.boards["a"]["alive"]:  # A stapelt bis oben
+        g.input("a", {"move": "drop"}, t)
+        t += 0.01
+    assert g.order_out == ["a"] and g.phone("a", t)["big"] == "Platz 2"
+    g.update(t)
+    assert g.end_at is not None and not g.over
+    g.update(t + g.END_DELAY)
+    assert g.over
+    sc = g.scores()
+    assert sc["b"] > sc["a"]  # wer länger durchhält, gewinnt
+    grid = g.view("b")
+    assert any(v and v.islower() for row in grid for v in row)  # Schatten: wo das Teil landen würde
+
+
+def test_tetris_alone_plays_until_out():
+    g = TetrisGame(players("A"), 0.0, random.Random(2))
+    g.update(30.0)
+    assert not g.over and g.boards["a"]["alive"]
+    t = 30.0
+    while g.boards["a"]["alive"]:
+        g.input("a", {"move": "drop"}, t)
+        t += 0.01
+    g.update(t)
+    g.update(t + g.END_DELAY)
     assert g.over
 
 
@@ -231,7 +276,7 @@ def test_hub_full_and_every_game_runs():
         hub.tick()
         for p in ps:
             ui = hub.state_for(p.pid)["ui"]
-            assert ui["ui"] in ("msg", "tap", "pad", "buttons", "board", "paddle", "balloon"), key
+            assert ui["ui"] in ("msg", "tap", "pad", "buttons", "board", "paddle", "tetris"), key
         hub.finish()
         assert hub.phase == "over" and len(hub.ranking) == 3, key
 
@@ -321,7 +366,7 @@ def test_avatars_and_vibration():
     from alupc.games import AVATARS
 
     clock = Clock()
-    hub = GameHub("ballon", clock, random.Random(3))
+    hub = GameHub("tetris", clock, random.Random(3))
     a = hub.join("Lena", "🦊")
     b = hub.join("Noah", "<script>")  # nur Avatare aus der Liste
     assert a.avatar == "🦊" and AVATARS[0] == "🦊" and b.avatar == ""
@@ -329,21 +374,16 @@ def test_avatars_and_vibration():
     hub.start()
     clock.t = hub.intro_until
     hub.tick()
-    g = hub.game
-    g.limit = 2
-    for i in range(3):
-        hub.input(b.pid, {"pump": 1})
-        clock.t += 0.2
-    hub.tick()  # Ballon von Noah geplatzt → nur Noahs Handy vibriert
-    nb = hub.state_for(b.pid)["buzz"]
-    assert nb[1] == [300] and hub.state_for(a.pid)["buzz"] is None
-    hub.input(a.pid, {"pump": 1})
-    hub.input(a.pid, {"stop": 1})
+    for _ in range(40):  # Noah stapelt bis oben → raus → nur Noahs Handy vibriert
+        hub.input(b.pid, {"move": "drop"})
     hub.tick()
-    assert hub.state_for(a.pid)["buzz"][1] == [40, 60, 40]
-    first = hub.state_for(a.pid)["buzz"][0]
-    hub.finish()  # Sieger (Lena) bekommt eine lange Vibration
-    assert hub.state_for(a.pid)["buzz"][0] > first and hub.state_for(a.pid)["buzz"][1][-1] == 300
+    nb = hub.state_for(b.pid)["buzz"]
+    la = hub.state_for(a.pid)["buzz"]
+    assert nb[1] == [200, 100, 200]  # Noah raus
+    assert la[1] == [100, 60, 100, 60, 300]  # Lena bleibt als Letzte übrig → Sieg
+    first = la[0]
+    hub.finish()  # Ende: Sieger (Lena) bekommt die lange Vibration (wieder)
+    assert hub.state_for(a.pid)["buzz"][0] >= first and hub.state_for(a.pid)["buzz"][1][-1] == 300
 
 
 # --------------------------------------------------------------------------- Klassiker

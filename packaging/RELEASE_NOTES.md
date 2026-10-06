@@ -8,7 +8,40 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.105.0)
+### Neu in dieser Version (0.106.0)
+- **Nur noch EIN Weg fürs Handy: das AluPC-WLAN mit Anmeldeseite.**
+  - Steuern und Mitspielen geht nur aus dem AluPC-WLAN: ein QR-Code (WLAN) → Anmeldeseite → Mitspielen oder
+    „AluPC steuern“ (am PC erlauben).
+  - Der Server lehnt alles andere ab (Link, Router-WLAN, LAN → „Nur über das AluPC-WLAN“).
+  - Entfernt: Link-QR-Codes, „vorhandenes WLAN“, der Schalter „nur über WLAN“, Adress-Auswahl.
+  - „Handy-Steuerung“ startet das AluPC-WLAN und zeigt dessen QR-Code.
+  - Abstimmungen bleiben per eigenem QR-Code (die steuern nichts).
+- **Tetris statt Ballon:** jeder hat sein Feld, alle bekommen dieselben Teile in derselben Reihenfolge, es wird
+  schneller – wer am längsten durchhält, gewinnt. Handy: ◀ ▶, drehen, schneller, fallen lassen.
+- **Eigenes AluPC-Theme** (Standard): Logo-Blau → Indigo, unter Windows und Linux gleich.
+  - Neu: „AluPC-Farben für den Desktop“ (KDE-Farbschema bzw. Windows-Akzentfarbe), mit „Zurück“.
+- **Windows und Linux gleicher:**
+  - Tastenkürzel gelten jetzt auch unter KDE überall (wie unter Windows).
+  - Hotspot auf beiden mit Passwort und sichtbarem Namen (dasselbe WLAN per Abgleich).
+  - „Anzeige-Einstellungen“-Knopf auf beiden.
+- **Geprüft vor der Auslieferung:**
+  - Neues Skript bedient jede Einstellung im Setup echt (gespeichert, zurückstellbar, wirkt) – Linux und Windows.
+    Dabei gefunden und behoben: ein altes Testfenster färbte das Theme um (nur Tests betroffen).
+  - Anmeldeseite echt (Linux-Netz bzw. Windows-Internetfreigabe + Container-Handy):
+    - Monitor 2 zeigt genau 1 QR-Code = WLAN (echter Decoder),
+    - Anmeldeseite → mitspielen, „AluPC steuern“ → am PC fragen,
+    - ein Handy aus einem anderen Netz bekommt überall 403.
+    Dabei gefunden und behoben: Geräte außerhalb des WLANs wurden zur Anmeldeseite umgeleitet.
+  - Tetris am Handy mit echtem Browser (Knöpfe bewegen/drehen/fallen lassen).
+  - Tastenkürzel mit dem echten KDE-Dienst, KDE-Farbschema mit dem echten KDE-Werkzeug,
+    Windows-Akzentfarbe in der Windows-Registry (setzen und zurück).
+- Ehrlich, nicht prüfbar ohne echte Hardware:
+  - echte WLAN-Karte, ob das Handy das Anmeldefenster von selbst öffnet,
+  - die „Ja“-Abfrage (UAC),
+  - wie Windows/KDE mit den neuen Farben aussehen.
+  - Ohne WLAN-Karte (oder wenn der Hotspot nicht startet) gibt es jetzt keinen Handy-Zugang mehr.
+
+### Neu in Version 0.105.0
 - **Windows wie Linux: Spiele-WLAN wie ein Hotel-WLAN.** Windows nutzt jetzt denselben Weg wie Linux:
   - AluPCs eigener DNS beantwortet **jede** Namensfrage der Handys im Mobilen Hotspot
     (lauscht auf 192.168.137.1:53, der Windows-Hotspot-DNS bekommt dann nichts mehr),

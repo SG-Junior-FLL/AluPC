@@ -60,12 +60,14 @@ button:disabled { opacity: .35; }
   border: 2px solid #334155; touch-action: none; }
 .thumb { position: absolute; left: 8px; right: 8px; height: 26%; border-radius: 20px; background: var(--c);
   box-shadow: 0 0 24px var(--c); top: 37%; }
-.balloon { width: 120px; height: 140px; border-radius: 50% 50% 48% 48%; background: radial-gradient(circle at 35% 30%,
-  color-mix(in srgb, var(--c) 60%, #fff), var(--c)); transition: transform .12s; transform-origin: 50% 100%; }
-.balloon.burst { background: transparent; border: 3px dashed #f87171; }
-.row { display: flex; gap: 12px; width: 100%; max-width: 420px; }
-.row button { flex: 1; border-radius: 18px; padding: 22px 0; font-size: 22px; }
-.pump { background: var(--c); } .stop { background: #1e293b; border: 2px solid #4ade80 !important; color: #4ade80; }
+.tet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: min(94vw, 440px); }
+.tet button { border-radius: 20px; background: #1e293b; border: 2px solid #334155; font-size: 34px; padding: 0;
+  height: min(17vh, 120px); touch-action: none; }
+.tet button.row { grid-column: span 3; height: min(11vh, 80px); }
+.tet button.wide { grid-column: span 3; height: min(13vh, 90px); font-size: 26px; font-weight: 800; background: var(--c); border-color: var(--c); }
+.tet button.hit { background: var(--c); border-color: var(--c); }
+.nextp { display: grid; grid-template-columns: repeat(4, 14px); grid-auto-rows: 14px; gap: 2px; }
+.nextp span { border-radius: 3px; } .nextrow { display: flex; align-items: center; gap: 10px; color: #94a3b8; font-size: 14px; }
 #area { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; min-height: 0; }
 .bbox { height: 34vh; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; }
 .avatars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; width: 100%; max-width: 380px; }
@@ -246,22 +248,41 @@ const BUILD = {
     tr.addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") move(e); });
     return {};
   },
-  balloon(ui, area) {
-    const ball = el("div", "balloon"), row = el("div", "row"), pump = el("button", "pump", "PUMPEN"), stop = el("button", "stop", "Sichern");
-    const bbox = el("div", "bbox"); bbox.append(ball);
-    row.append(pump, stop); area.append(bbox, row);
-    let local = 0;
-    press(pump, () => { send({pump: 1}); local++; vibrate(10); paint(state.ui || ui); });
-    stop.onclick = () => send({stop: 1});
-    const paint = u => { const n = Math.max(u.pumps || 0, local); ball.style.transform = "scale(" + Math.min(2.0, 0.6 + n * 0.035) + ")";
-      ball.classList.toggle("burst", u.state === "burst"); };
-    return {update(u) { if ((u.pumps || 0) < local - 4) local = u.pumps || 0; paint(u);
-      const on = u.state === "pump"; pump.disabled = stop.disabled = !on; }};
+  tetris(ui, area) {
+    const nrow = el("div", "nextrow"), nlabel = el("span", "", "Nächstes"), np = el("div", "nextp");
+    nrow.append(nlabel, np);
+    const g = el("div", "tet");
+    const mk = (label, move, cls, repeat) => {
+      const b = el("button", cls || "", label);
+      let t = null;
+      const go = () => { send({move}); vibrate(8); };
+      b.addEventListener("pointerdown", e => { e.preventDefault(); b.classList.add("hit"); go();
+        if (repeat) t = setInterval(go, 110); });
+      const stop = () => { b.classList.remove("hit"); if (t) { clearInterval(t); t = null; } };
+      for (const ev of ["pointerup", "pointercancel", "pointerleave"]) b.addEventListener(ev, stop);
+      g.append(b);
+    };
+    mk("◀", "left", "", true); mk("⟳", "rotate"); mk("▶", "right", "", true);
+    mk("▼", "down", "row", true); mk("⤓  FALLEN", "drop", "wide");
+    area.append(nrow, g);
+    const SH = {I: [[0,1],[1,1],[2,1],[3,1]], O: [[1,0],[2,0],[1,1],[2,1]], T: [[1,0],[0,1],[1,1],[2,1]],
+      S: [[1,0],[2,0],[0,1],[1,1]], Z: [[0,0],[1,0],[1,1],[2,1]], J: [[0,0],[0,1],[1,1],[2,1]], L: [[2,0],[0,1],[1,1],[2,1]]};
+    const COL = {I: "#22d3ee", O: "#facc15", T: "#a855f7", S: "#22c55e", Z: "#ef4444", J: "#3b82f6", L: "#f97316"};
+    let shown = "";
+    return {update(u) {
+      if (u.next === shown) return; shown = u.next; np.replaceChildren();
+      for (const [x, y] of SH[u.next] || []) { const c = el("span"); c.style.gridColumn = x + 1; c.style.gridRow = y + 1;
+        c.style.background = COL[u.next]; np.append(c); }
+    }};
   },
 };
 document.addEventListener("keydown", e => {
   const k = {ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right"}[e.key];
   if (k && state.ui && state.ui.ui === "pad") send({dir: k});
+  else if (state.ui && state.ui.ui === "tetris") {
+    const m = {ArrowLeft: "left", ArrowRight: "right", ArrowUp: "rotate", ArrowDown: "down", " ": "drop"}[e.key];
+    if (m) { e.preventDefault(); send({move: m}); }
+  }
   else if (e.key === " " && state.ui && state.ui.ui === "tap") send({tap: 1});
 });
 load(); connect();

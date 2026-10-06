@@ -67,8 +67,13 @@ def env(tmp_path, monkeypatch):
         presenter.hide()
     controller.shutdown()
     window.tray.hide()
+    window._sys_timer.stop()  # sonst färbt das alte (unsichtbare) Fenster die nächsten Tests um
+    window.hide()
     window.deleteLater()
     pump()
+    from PySide6.QtCore import QCoreApplication, QEvent
+
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
 def test_screens(env):
@@ -1941,12 +1946,18 @@ def test_alucast_end_to_end(env, tmp_path, monkeypatch):
     controller, window, _ = env
     port = _free_tcp_port()
     controller.config["cast"] = {**controller.config["cast"], "port": port, "code": "123456"}
+    from alupc import hotspot as hs_mod
+
+    hs = hs_mod.hotspot  # Handy-Steuerung zeigt den WLAN-Code des AluPC-WLANs (hier: so getan, als liefe es)
+    monkeypatch.setattr(hs, "running", True)
+    monkeypatch.setattr(hs, "ssid", "AluPC")
+    monkeypatch.setattr(hs, "password", "abcdefgh23")
     controller.start_cast()
     pump()
     assert controller.cast.running() and controller.content == {"type": "cast"}
     assert controller.config["cast"]["autostart"] is False  # startet nicht ungefragt beim nächsten Mal
     view = controller.output.content
-    assert view.qr().width() > 20
+    assert view._qr is not None and view.ssid == "AluPC" and view._qr.width() > 20
     img = view.grab().toImage()
     colors = {img.pixelColor(x, y).name() for x in range(0, img.width(), 8) for y in range(0, img.height(), 8)}
     assert "#ffffff" in colors and "#000000" in colors  # QR-Code ist zu sehen
@@ -2065,6 +2076,11 @@ def test_handy_page_cards_and_auto_setup(env, tmp_path, monkeypatch):
     page = window.handy_page
     assert list(page.cards) == ["cast", "airplay"]
     assert page.cards["cast"].pill.text_ == "BEREIT" and page.cast_toggle.text() == "Starten"
+    from alupc import hotspot as hs_mod
+
+    monkeypatch.setattr(hs_mod.hotspot, "running", True)  # nur mit AluPC-WLAN gibt es einen (WLAN-)Code
+    monkeypatch.setattr(hs_mod.hotspot, "ssid", "AluPC")
+    monkeypatch.setattr(hs_mod.hotspot, "password", "abcdefgh23")
     page._toggle_cast()
     assert controller.cast.running() and page.cards["cast"].pill.text_ == "LÄUFT"
     assert page.qr.pixmap().width() >= 80
@@ -3816,11 +3832,7 @@ def test_games_end_to_end(env):
     pump()
     gw = window.games_window
     hub = controller.cast.games
-    base = f"http://127.0.0.1:{controller.cast.port}"
-    blocked = _http("POST", base + "/api/spiel", json.dumps({"u": hub.token, "action": "join", "name": "X"}).encode(),
-                    {"Content-Type": "application/json"})
-    assert blocked[0] == 403  # Standard: nur über das Spiele-WLAN (hier läuft keins)
-    controller.config["games"] = {**controller.config["games"], "wifi_only": False}  # Rest: Spielablauf übers Netz
+    # Der PC selbst (127.0.0.1) darf – Handys nur übers AluPC-WLAN (geprüft in test_connect und echt im Netz)
     assert gw.isVisible() and isinstance(controller.output.content, GameSource) and hub.game_key == "schlangen"
     base = f"http://127.0.0.1:{controller.cast.port}"
     status, body = _http("GET", base + "/spiel")

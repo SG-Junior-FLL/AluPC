@@ -333,22 +333,17 @@ def lobby(c) -> None:
         text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.075, qr_side + 4 * m, h * 0.04),
              "Name eingeben → mitspielen", h * 0.024, MUTED)
         return
-    if getattr(c, "wifi_only", False):  # nur über das Spiele-WLAN: kein Link – stattdessen sagen, was los ist
-        box = QRectF(w - m - qr_side * 1.15, (h - qr_side) / 2, qr_side * 1.15, qr_side)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255, 14))
-        p.drawRoundedRect(box, 18, 18)
-        pulse = 0.55 + 0.45 * abs(math.sin(c.now * 2))
-        text(p, QRectF(box.x(), box.y() + box.height() * 0.12, box.width(), box.height() * 0.3), "📶",
-             box.height() * 0.18, qc("#67e8f9", pulse))
-        text(p, QRectF(box.x() + m * 0.6, box.y() + box.height() * 0.42, box.width() - m * 1.2,
-                       box.height() * 0.5), c.wifi_status or "Spiele-WLAN startet …", h * 0.028, TEXT, True,
-             wrap=True)
-        return
-    # Der Code steht still (auch kein „Wippen“): bewegte Codes lesen manche Handy-Kameras schlecht
-    qx, qy = w - m - qr_side, (h - qr_side) / 2 - h * 0.03
-    qr_card(c, qx, qy, qr_side)
-    text(p, QRectF(qx - m, qy - h * 0.1, qr_side + 2 * m, h * 0.06), "Scannen & mitspielen", h * 0.034, TEXT, True)
+    # sonst kein Link (einziger Weg ist das Spiele-WLAN) – stattdessen sagen, was los ist
+    box = QRectF(w - m - qr_side * 1.15, (h - qr_side) / 2, qr_side * 1.15, qr_side)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(255, 255, 255, 14))
+    p.drawRoundedRect(box, 18, 18)
+    pulse = 0.55 + 0.45 * abs(math.sin(c.now * 2))
+    text(p, QRectF(box.x(), box.y() + box.height() * 0.12, box.width(), box.height() * 0.3), "📶",
+         box.height() * 0.18, qc("#67e8f9", pulse))
+    text(p, QRectF(box.x() + m * 0.6, box.y() + box.height() * 0.42, box.width() - m * 1.2,
+                   box.height() * 0.5), c.wifi_status or "Spiele-WLAN startet …", h * 0.028, TEXT, True,
+         wrap=True)
 
 
 def _lobby_chip(c, rect, pl):
@@ -530,8 +525,8 @@ def score_label(key: str, score) -> str:
         return "Im Ziel" if score >= 1000 else f"{int(score)} Tipps"
     if key == "simon":
         return f"Runde {int(score)}"
-    if key == "ballon":
-        return f"{int(score)} gepumpt"
+    if key == "tetris":
+        return clock_text(score) + " durchgehalten"
     return f"{int(score)} Punkte"
 
 
@@ -770,88 +765,101 @@ def pong(c, g, events) -> None:
         float_text(c, w / 2, h * 0.45, "TOR!", TEAM_COLORS[c.fx.vals.get("goal_team", 0)], goal_born, 1.1, h * 0.12)
 
 
-# =========================================================================== Ballon
-def ballon(c, g, events) -> None:
+# =========================================================================== Tetris
+def _block(p, rect: QRectF, color: str, ghost: bool = False) -> None:
+    if ghost:
+        p.setPen(QPen(qc(color, 0.55), max(1.0, rect.width() * 0.08)))
+        p.setBrush(qc(color, 0.12))
+        p.drawRoundedRect(rect.adjusted(1, 1, -1, -1), rect.width() * 0.18, rect.width() * 0.18)
+        return
+    grad = QLinearGradient(rect.topLeft(), rect.bottomRight())
+    grad.setColorAt(0, QColor(color).lighter(135))
+    grad.setColorAt(1, QColor(color).darker(115))
+    p.setPen(Qt.NoPen)
+    p.setBrush(grad)
+    p.drawRoundedRect(rect.adjusted(0.6, 0.6, -0.6, -0.6), rect.width() * 0.18, rect.width() * 0.18)
+
+
+def tetris(c, g, events) -> None:
+    from .games_tetris import COLORS, H as TH, SHAPES, W as TW
+
     p, w, h, now = c.p, c.w, c.h, c.now
-    m = max(14, int(min(w, h) * 0.04))
+    m = max(12, int(min(w, h) * 0.03))
     for _n, t, kind, data in events:
-        if kind in ("burst", "bank"):
-            c.fx.born[(kind, data["pid"], g.round)] = t
-        elif kind == "round":
-            c.fx.born["round"] = t
-    tag(c, m, m, w * 0.7, f"BALLON · RUNDE {g.round} / {g.rounds} · ALLE PLATZEN BEI DERSELBEN ZAHL")
-    if g.phase == "pumpen":
-        text(p, QRectF(w - m - w * 0.2, m, w * 0.2, h * 0.05), clock_text(g.until - now), h * 0.04, TEXT, True,
-             Qt.AlignRight | Qt.AlignVCenter)
-    else:
-        t = now - (g.until - g.REVEAL)
-        s = ease_back(t / 0.4)
-        p.save()
-        p.translate(w / 2, h * 0.11)
-        p.scale(s, s)
-        text(p, QRectF(-w * 0.4, -h * 0.05, w * 0.8, h * 0.1), f"Geplatzt wäre er bei {g.limit}", h * 0.06,
-             "#fbbf24", True)
-        p.restore()
-    pids = list(g.state)
+        if kind in ("lines", "out", "win"):
+            c.fx.born[(kind, data["pid"], t)] = t
+    alive = len(g.alive())
+    tag(c, m, m, w * 0.7, f"TETRIS · ALLE DIESELBEN TEILE · NOCH {alive} VON {len(g.boards)} IM SPIEL")
+    text(p, QRectF(w - m - w * 0.25, m, w * 0.25, h * 0.045),
+         f"Stufe {g.level(now) + 1} · {clock_text(now - g.start)}", h * 0.034, TEXT, True,
+         Qt.AlignRight | Qt.AlignVCenter)
+    pids = list(g.boards)
     n = max(1, len(pids))
-    cols = min(n, 8)
-    rows = math.ceil(n / cols)
-    cell_w = (w - 2 * m) / cols
-    cell_h = (h - m - h * 0.18) / rows
+    top = m + h * 0.07
+    area_w, area_h = w - 2 * m, h - top - m
+    # Raster so wählen, dass die Felder (10 × 20 + Kopfzeile) möglichst groß werden
+    best = (0, 1, 1)
+    for cols in range(1, n + 1):
+        rows = math.ceil(n / cols)
+        cw, ch = area_w / cols, area_h / rows
+        cell = min((cw * 0.92) / (TW + 4.5), (ch * 0.86) / TH)
+        if cell > best[0]:
+            best = (cell, cols, rows)
+    cell, cols, rows = best
+    cw, ch = area_w / cols, area_h / rows
     for i, pid in enumerate(pids):
-        st = g.state[pid]
+        b = g.boards[pid]
         r, col = divmod(i, cols)
-        cx = m + (col + 0.5) * cell_w
-        base = h * 0.18 + (r + 1) * cell_h - h * 0.07
-        key = ("size", pid)
-        target = 0.3 + 0.7 * min(1.0, math.sqrt(st["pumps"] / 45))
-        size = c.fx.vals.get(key, 0.3)
-        size += (target - size) * 0.3
-        c.fx.vals[key] = size
-        if g.phase == "pumpen" and st["pumps"] == 0:
-            c.fx.vals[key] = size = 0.3
-        rad = min(cell_w * 0.42, cell_h * 0.36) * size
+        bw, bh = cell * TW, cell * TH
+        x0 = m + col * cw + (cw - bw - cell * 4.5) / 2
+        y0 = top + r * ch + ch * 0.1
         color = color_of(c, pid)
-        burst_t = c.fx.born.get(("burst", pid, g.round))
-        bank_t = c.fx.born.get(("bank", pid, g.round))
-        cy = base - h * 0.06 - rad
-        if st["st"] == "banked" and bank_t is not None:
-            cy -= min(1.0, (now - bank_t) / 0.6) * h * 0.02
-        text(p, QRectF(cx - cell_w / 2, base, cell_w, h * 0.04), name_of(c, pid), h * 0.028, TEXT, True)
-        label = {"pump": str(st["pumps"]), "banked": f"✓ {st['pumps']}", "burst": "0"}[st["st"]]
-        text(p, QRectF(cx - cell_w / 2, base + h * 0.035, cell_w, h * 0.035), label, h * 0.026,
-             "#4ade80" if st["st"] == "banked" else "#f87171" if st["st"] == "burst" else MUTED, True)
-        if st["st"] == "burst":
-            if burst_t is not None and ("burstfx", pid, g.round) not in c.fx.born:
-                c.fx.born[("burstfx", pid, g.round)] = now
-                burst(c.fx, cx, cy, color, now, n=40, speed=520, size=9)
-            if burst_t is not None:
-                float_text(c, cx, cy, "PENG!", "#f87171", burst_t, 1.2, h * 0.06)
-            p.setPen(QPen(QColor(255, 255, 255, 80), 2))
-            p.drawLine(QPointF(cx, base - h * 0.01), QPointF(cx, base - h * 0.06))
-            continue
-        wob = math.sin(now * 3 + i) * rad * 0.04
-        # Schnur
-        p.setPen(QPen(QColor(255, 255, 255, 110), 2))
-        path = QPainterPath(QPointF(cx, cy + rad * 1.1))
-        path.cubicTo(QPointF(cx + rad * 0.2, cy + rad * 1.4), QPointF(cx - rad * 0.2, base - h * 0.04),
-                     QPointF(cx, base - h * 0.01))
-        p.setBrush(Qt.NoBrush)
-        p.drawPath(path)
-        # Ballon
-        grad = QRadialGradient(QPointF(cx - rad * 0.35, cy - rad * 0.4), rad * 1.4)
-        grad.setColorAt(0, QColor(color).lighter(170))
-        grad.setColorAt(1, QColor(color))
-        p.setPen(Qt.NoPen)
-        p.setBrush(grad)
-        p.drawEllipse(QRectF(cx - rad + wob, cy - rad * 1.1, rad * 2 - 2 * wob, rad * 2.2))
-        knot = QPainterPath(QPointF(cx - rad * 0.1, cy + rad * 1.1))
-        knot.lineTo(QPointF(cx + rad * 0.1, cy + rad * 1.1))
-        knot.lineTo(QPointF(cx, cy + rad * 1.0))
-        p.setBrush(QColor(color).darker(130))
-        p.drawPath(knot)
-        if st["st"] == "banked" and bank_t is not None:
-            float_text(c, cx, cy - rad, f"+{st['pumps']}", "#4ade80", bank_t, 1.4, h * 0.045)
+        # Kopf: Name + Reihen
+        text(p, QRectF(x0, y0 - ch * 0.09, bw, ch * 0.08), name_of(c, pid), min(h * 0.03, ch * 0.06), TEXT, True,
+             Qt.AlignLeft | Qt.AlignVCenter)
+        field = QRectF(x0, y0, bw, bh)
+        p.setPen(QPen(qc(color, 0.9 if b["alive"] else 0.3), max(2.0, cell * 0.12)))
+        p.setBrush(QColor(10, 12, 28, 230))
+        p.drawRoundedRect(field.adjusted(-cell * 0.15, -cell * 0.15, cell * 0.15, cell * 0.15), cell * 0.3, cell * 0.3)
+        grid = g.view(pid)
+        for yy in range(TH):
+            for xx in range(TW):
+                v = grid[yy][xx]
+                if not v:
+                    continue
+                rect = QRectF(x0 + xx * cell, y0 + yy * cell, cell, cell)
+                _block(p, rect, COLORS.get(v.upper(), "#64748b") if b["alive"] else "#475569", ghost=v.islower())
+        # nächstes Teil (für alle gleich – nur je nach Tempo an anderer Stelle der Folge)
+        nx, ny, small = x0 + bw + cell * 0.8, y0, cell * 0.8
+        text(p, QRectF(nx, ny, cell * 3.6, cell), "NÄCHSTES", cell * 0.55, MUTED, True, Qt.AlignLeft)
+        if b["alive"]:
+            nk = g.piece_at(b["index"])
+            for px, py in SHAPES[nk][0]:
+                _block(p, QRectF(nx + px * small, ny + cell * 1.3 + py * small, small, small), COLORS[nk])
+        text(p, QRectF(nx, ny + cell * 4.4, cell * 3.6, cell * 1.2), str(b["lines"]), cell * 1.0, TEXT, True,
+             Qt.AlignLeft)
+        text(p, QRectF(nx, ny + cell * 5.5, cell * 3.6, cell * 0.9), "Reihen", cell * 0.5, MUTED, False,
+             Qt.AlignLeft)
+        text(p, QRectF(nx, ny + cell * 6.8, cell * 3.6, cell * 1.0), clock_text(g.survived(pid, now)),
+             cell * 0.75, TEXT, True, Qt.AlignLeft)
+        # Effekte
+        for key, t in list(c.fx.born.items()):
+            if not (isinstance(key, tuple) and len(key) == 3 and key[1] == pid):
+                continue
+            if key[0] == "lines" and now - t < 1.0:
+                float_text(c, x0 + bw / 2, y0 + bh * 0.5, "REIHE!", "#4ade80", t, 1.0, cell * 1.6)
+            elif key[0] == "out":
+                if ("outfx", pid) not in c.fx.born:
+                    c.fx.born[("outfx", pid)] = now
+                    burst(c.fx, x0 + bw / 2, y0 + bh * 0.2, color, now, n=30, speed=360, size=7)
+        if not b["alive"]:
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(0, 0, 0, 120))
+            p.drawRect(field)
+            place = len(g.boards) - g.order_out.index(pid) if pid in g.order_out else 1
+            text(p, QRectF(x0, y0 + bh * 0.4, bw, cell * 2.2), f"Platz {place}", cell * 1.5, "#f87171", True)
+        elif g.end_at is not None:
+            text(p, QRectF(x0, y0 + bh * 0.4, bw, cell * 2.2), "🏆", cell * 2.0, "#fbbf24", True)
 
 
 # =========================================================================== Snake, Tipp-Rennen
@@ -909,8 +917,8 @@ def schlangen(c, g, events) -> None:
     scoreboard(c, QRectF(w - m - side_w, m + h * 0.06, side_w, h * 0.62), g.scores(), limit=8)
     q = min(side_w * 0.5, h * 0.18)
     x, y = w - m - side_w / 2 - q / 2, h - m - q - q * 0.06 - h * 0.04
-    if c.wifi or not getattr(c, "wifi_only", False):  # nur über WLAN: WLAN-Code (oder gar keiner)
-        qr_card(c, x, y, q, caption=False, image=c.wifi_qr() if c.wifi else None)
+    if c.wifi:  # einsteigen nur übers Spiele-WLAN: WLAN-Code
+        qr_card(c, x, y, q, caption=False, image=c.wifi_qr())
         text(p, QRectF(w - m - side_w, h - m - h * 0.035, side_w, h * 0.035), "Einsteigen", h * 0.022, MUTED)
 
 
@@ -1120,5 +1128,5 @@ def tictactoe(c, g, events) -> None:
             text(p, QRectF(x, h * 0.2, w * 0.2, h * 0.06), "PC spielt", h * 0.03, MUTED)
 
 
-DRAW = {"simon": simon, "pong": pong, "ballon": ballon, "schlangen": schlangen, "rennen": rennen, "ssp": ssp,
+DRAW = {"simon": simon, "pong": pong, "tetris": tetris, "schlangen": schlangen, "rennen": rennen, "ssp": ssp,
         "tictactoe": tictactoe}

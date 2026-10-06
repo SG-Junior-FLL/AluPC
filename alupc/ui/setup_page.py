@@ -118,6 +118,10 @@ class Swatch(QAbstractButton):
             p.drawEllipse(QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5))
             r = r.adjusted(3, 3, -3, -3)
         p.setPen(Qt.NoPen)
+        if getattr(self, "brand", False):  # AluPC-Theme: das Logo selbst als Farbknopf
+            p.drawPixmap(r.toRect(), icons.app_icon().pixmap(int(r.width()), int(r.width())))
+            p.end()
+            return
         p.setBrush(QColor(self.color))
         p.drawEllipse(r)
         if getattr(self, "system", False):  # „Wie das System“: kleines Monitor-Symbol in der Systemfarbe
@@ -393,10 +397,10 @@ class SetupPage(QWidget):
         extend_btn.clicked.connect(self._system_extend)
         row2.addWidget(mirror_btn)
         row2.addWidget(extend_btn)
-        if IS_WINDOWS:
-            open_btn = button("Windows-Anzeigeeinstellungen", "sliders")
-            open_btn.clicked.connect(lambda: __import__("os").startfile("ms-settings:display"))
-            row2.addWidget(open_btn)
+        open_btn = button("Anzeige-Einstellungen", "sliders")
+        open_btn.setToolTip("Bildschirm-Einstellungen des Systems (Windows bzw. KDE/GNOME)")
+        open_btn.clicked.connect(self._open_display_settings)
+        row2.addWidget(open_btn)
         row2.addStretch(1)
         lay.addLayout(row2)
         for w in (apply_btn, mirror_btn, extend_btn, self.output_combo):
@@ -594,11 +598,12 @@ class SetupPage(QWidget):
         for key, (label, color) in theme.ACCENTS.items():
             b = Swatch(theme.system_accent() if key == "system" else color, label)
             b.system = key == "system"
+            b.brand = key == "alupc"
             b.clicked.connect(lambda _=False, k=key: self._set_accent(k))
             self._swatches[key] = b
             swatches.addWidget(b)
         swatches.addStretch(1)
-        self._style_swatches(a.get("accent", "system"))
+        self._style_swatches(a.get("accent", "alupc"))
         from ..transitions import TRANSITIONS
 
         tr = self.config["transition"]
@@ -639,6 +644,7 @@ class SetupPage(QWidget):
         mode.currentIndexChanged.connect(save_mode)
         form.addRow("Design:", mode)
         form.addRow("Akzentfarbe:", swatches)
+        form.addRow("Desktop:", self._desktop_theme_row())
         from .. import perf
 
         power = QComboBox()
@@ -664,6 +670,39 @@ class SetupPage(QWidget):
         form.addRow("", hint)
         return box
 
+    def _desktop_theme_row(self):
+        """AluPC-Farben auch für Windows bzw. KDE übernehmen – mit „Zurück“."""
+        from .. import desktop_theme as dt
+
+        row = QHBoxLayout()
+        self.desk_apply = button("AluPC-Farben für den Desktop", "palette")
+        self.desk_apply.setToolTip("Windows: Akzentfarbe · KDE: Farbschema „AluPC“ – vorherige Farben werden gemerkt")
+        self.desk_undo = button("Zurück", "undo")
+        self.desk_state = QLabel()
+        self.desk_state.setObjectName("Muted")
+        ok, why = dt.supported()
+
+        def refresh():
+            on = dt.active()
+            self.desk_undo.setEnabled(on)
+            self.desk_apply.setEnabled(ok)
+            self.desk_state.setText(why if not ok else ("an" if on else ""))
+
+        def do(action):
+            done, msg = action()
+            self.desk_state.setText(msg)
+            if not done:
+                error_box(self, msg)
+            self.desk_undo.setEnabled(dt.active())
+
+        self.desk_apply.clicked.connect(lambda: do(lambda: dt.apply(theme.current().dark)))
+        self.desk_undo.clicked.connect(lambda: do(dt.restore))
+        row.addWidget(self.desk_apply)
+        row.addWidget(self.desk_undo)
+        row.addWidget(self.desk_state, 1)
+        refresh()
+        return row
+
     def _try_transition(self):
         """Aktuellen Inhalt mit dem eingestellten Übergang neu zeigen."""
         c = self.controller
@@ -686,7 +725,7 @@ class SetupPage(QWidget):
         self.config["appearance"] = a
         if emit:
             self.theme_changed.emit()
-            self._style_swatches(a.get("accent", "system"))
+            self._style_swatches(a.get("accent", "alupc"))
 
     # ================================================================ AluPC
     def _hardware_group(self):
@@ -1515,6 +1554,12 @@ class SetupPage(QWidget):
         refresh()
         return box
 
+    def _open_display_settings(self):
+        from ..platform import open_display_settings
+
+        if not open_display_settings():
+            error_box(self, "Anzeige-Einstellungen des Systems nicht gefunden.")
+
     # ================================================================ Tastenkürzel
     def _hotkey_group(self):
         box = QGroupBox("Tastenkürzel")
@@ -1530,16 +1575,15 @@ class SetupPage(QWidget):
         more = QLabel("Szenen: im Szenen-Editor · Eigene Kacheln: „Startseite anpassen“")
         more.setWordWrap(True)
         form.addRow(more)
-        if IS_WINDOWS:
-            text = "Gelten überall in Windows"
-            form.addRow(QLabel(text))
+        if self.hotkeys is not None and getattr(self.hotkeys, "system_wide", False):
+            form.addRow(QLabel("Gelten überall – auch wenn AluPC im Hintergrund ist"))
         else:
-            text = ("Überall in KDE: Systemeinstellungen → Kurzbefehle → „AluPC“ · "
-                    "Befehl: <tt>alupc --befehl standbild</tt>")
-            hint = QLabel(text)
+            hint = QLabel("Gelten, wenn AluPC aktiv ist · überall: Befehl <tt>alupc --befehl standbild</tt> "
+                          "als Kurzbefehl im System eintragen")
             hint.setWordWrap(True)
             hint.setTextFormat(Qt.RichText)
             form.addRow(hint)
+        if not IS_WINDOWS:
             kde = button("KDE-Kurzbefehle öffnen", "keyboard")
             kde.clicked.connect(self._open_kde_shortcuts)
             form.addRow("", kde)

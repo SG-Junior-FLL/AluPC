@@ -193,3 +193,30 @@ def session_info() -> str:
 
         return "Linux (Wayland)" if is_wayland() else "Linux (X11)"
     return sys.platform
+
+
+def display_settings_command() -> list[str] | None:
+    """Befehl für die Bildschirm-Einstellungen des Systems (Windows, KDE 6/5, GNOME)."""
+    import shutil
+
+    if IS_WINDOWS:
+        return ["explorer.exe", "ms-settings:display"]
+    for cmd in (["systemsettings", "kcm_kscreen"], ["kcmshell6", "kcm_kscreen"], ["kcmshell5", "kcm_kscreen"],
+                ["gnome-control-center", "display"]):
+        if shutil.which(cmd[0]):
+            return cmd
+    return None
+
+
+def open_display_settings() -> bool:
+    import subprocess
+
+    cmd = display_settings_command()
+    if not cmd:
+        return False
+    try:
+        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=not IS_WINDOWS)
+        return True
+    except OSError:
+        return False

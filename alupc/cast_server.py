@@ -356,6 +356,17 @@ class CastServer(QObject):
             return False
 
 
+# Ohne AluPC-WLAN erreichbar: nur das App-Symbol und Abstimmungen (die haben ihr eigenes Stichwort, steuern nichts)
+PUBLIC_PATHS = {"/icon.png", "/apple-touch-icon.png", "/favicon.ico", "/manifest.json", "/abstimmung", "/api/umfrage"}
+BLOCKED_PAGE = """<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>AluPC</title>
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0c1a;
+color:#eef0ff;font:16px system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
+b{font-size:22px;display:block;margin-bottom:10px}</style></head><body><div>
+<b>📶 Nur über das AluPC-WLAN</b>Scanne den WLAN-Code auf Monitor 2 – dann öffnet sich die Anmeldeseite
+(Mitspielen oder AluPC steuern).</div></body></html>"""
+
+
 def portal_page(server) -> str:
     """WLAN-Anmeldeseite („Im WLAN anmelden“): öffnet sich auf dem Handy von selbst, sobald es im Hotspot ist –
     wie im Hotel-WLAN. Name eingeben, dann Mitspielen (direkt in der Spielsteuerung) oder AluPC steuern (am PC
@@ -430,6 +441,44 @@ def _make_handler(server: CastServer):
                 self._json(403, {"error": "Falscher Code"})
             return False
 
+        def _via_wlan(self) -> bool:
+            """Handys kommen NUR über das AluPC-WLAN (und damit seine Anmeldeseite) an AluPC – Steuern und Mitspielen.
+            Aus einem anderen Netz (Router-WLAN, LAN, Link) geht nichts. Der PC selbst (127.0.0.1) darf."""
+            import ipaddress
+
+            from .hotspot import hotspot
+
+            try:
+                ip = ipaddress.ip_address(self.client_address[0])
+                if getattr(ip, "ipv4_mapped", None):
+                    ip = ip.ipv4_mapped
+                if ip.is_loopback:
+                    return True
+                if not (hotspot.running and hotspot.portal and hotspot.ip):
+                    return False
+                return ip in ipaddress.ip_network(f"{hotspot.ip}/24", strict=False)
+            except ValueError:
+                return False
+
+        def _is_loopback(self) -> bool:
+            import ipaddress
+
+            try:
+                return ipaddress.ip_address(self.client_address[0]).is_loopback
+            except ValueError:
+                return False
+
+        def _blocked(self, path: str) -> bool:
+            """Nicht aus dem AluPC-WLAN → abgelehnt (nur Symbol/Abstimmung sind frei)."""
+            if path in PUBLIC_PATHS or self._via_wlan():
+                return False
+            self.close_connection = True
+            if path.startswith("/api/") or path.startswith("/ws/"):
+                self._json(403, {"error": "Nur über das AluPC-WLAN: WLAN-Code auf Monitor 2 scannen"})
+            else:
+                self._send(403, BLOCKED_PAGE.encode(), "text/html; charset=utf-8")
+            return True
+
         def _body_json(self) -> dict:
             n = int(self.headers.get("Content-Length") or 0)
             if n < 0 or n > 100_000:
@@ -446,8 +495,8 @@ def _make_handler(server: CastServer):
             anmelden“ und öffnet sie selbst."""
             from .hotspot import hotspot
 
-            if not hotspot.portal:
-                return False
+            if not hotspot.portal or not self._via_wlan() or self._is_loopback():
+                return False  # nur Handys im AluPC-WLAN – alle anderen bekommen unten „nur über das AluPC-WLAN“
             host = (self.headers.get("Host") or "").split(":")[0]
             if not host or host == hotspot.ip:
                 return False
@@ -463,6 +512,8 @@ def _make_handler(server: CastServer):
             if self._portal_redirect():
                 return
             path = urlparse(self.path).path
+            if self._blocked(path):
+                return
             if path in ("/", "/index.html"):
                 self._send(200, PAGE.encode(), "text/html; charset=utf-8")
             elif path == "/abstimmung":
@@ -560,36 +611,12 @@ def _make_handler(server: CastServer):
             ws.serve_game(self.connection, self.rfile, hub, q.get("p", [""])[0],
                           lambda: server.running() and server.games is hub)
 
-        def _from_games_wifi(self) -> bool:
-            """„Nur über das Spiele-WLAN“ (Standard): beitreten nur aus dem Netz des Spiele-WLANs."""
-            import ipaddress
-
-            from .hotspot import hotspot
-
-            provider = getattr(server, "wifi_status_provider", None)
-            try:
-                only = bool(provider()[0]) if provider else False
-            except Exception:  # noqa: BLE001
-                only = False
-            if not only:
-                return True
-            if not (hotspot.running and hotspot.kind == "spiele" and hotspot.ip):
-                return False
-            try:
-                net = ipaddress.ip_network(f"{hotspot.ip}/24", strict=False)
-                return ipaddress.ip_address(self.client_address[0]) in net
-            except ValueError:
-                return False
-
         def _game_post(self):
             data = self._body_json()
             hub = self._games(str(data.get("u", "")))
             if hub is None:
                 return
             action, pid = data.get("action"), str(data.get("p", ""))
-            if action == "join" and not self._from_games_wifi():
-                self._json(403, {"error": "Mitspielen geht nur über das Spiele-WLAN – WLAN-Code auf Monitor 2 scannen"})
-                return
             if action == "join":
                 player = hub.join(str(data.get("name", "")), str(data.get("avatar", "")))
                 if player is None:
@@ -606,6 +633,8 @@ def _make_handler(server: CastServer):
 
         def do_POST(self):
             u = urlparse(self.path)
+            if self._blocked(u.path):
+                return
             if u.path == "/api/spiel":  # Minispiele: ohne Steuer-Code, nur mit dem Stichwort der Runde
                 try:
                     self._game_post()

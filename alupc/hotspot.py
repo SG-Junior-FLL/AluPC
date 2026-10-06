@@ -2,7 +2,7 @@
 
 * **normal** – „Hotspot“-Kachel auf der Startseite: eigener Name/Passwort, an/aus wie ein Lichtschalter – auch mit
   Anmeldeseite (Mitspielen oder AluPC steuern mit Freigabe am PC).
-* **spiele** – Spiele-WLAN aus dem Minispiele-Fenster: offen (ohne Passwort, Linux) und mit **Anmeldeseite**:
+* **spiele** – Spiele-WLAN aus dem Minispiele-Fenster: mit Passwort (steckt im WLAN-QR-Code) und **Anmeldeseite**:
   Wer sich verbindet, bekommt vom Handy sofort die „Im WLAN anmelden“-Seite – und das ist direkt die
   Spielsteuerung. Geht automatisch aus, wenn die Minispiele beendet werden.
 
@@ -43,7 +43,8 @@ def new_password() -> str:
 
 
 def settings(config, kind: str = "spiele") -> dict:
-    """Name/Passwort des Hotspots (einmal erzeugt, dann gespeichert). Spiele-WLAN unter Linux: offen."""
+    """Name/Passwort des Hotspots (einmal erzeugt, dann gespeichert). Linux und Windows gleich: immer mit Passwort
+    (Windows kann es nicht anders) – per Abgleich ist es dann auf beiden Systemen dasselbe WLAN."""
     if kind == "spiele":
         hs = dict(config["games"].get("hotspot") or {})
     else:
@@ -51,9 +52,8 @@ def settings(config, kind: str = "spiele") -> dict:
     changed = False
     if not hs.get("ssid"):
         hs["ssid"], changed = DEFAULT_SSID[kind], True
-    need_pw = kind == "normal" or IS_WINDOWS or hs.get("password")
-    if "password" not in hs or (need_pw and len(hs.get("password") or "") < 8):
-        hs["password"], changed = (new_password() if need_pw else ""), True
+    if len(hs.get("password") or "") < 8:
+        hs["password"], changed = new_password(), True
     if changed:
         if kind == "spiele":
             config["games"] = {**config["games"], "hotspot": hs}

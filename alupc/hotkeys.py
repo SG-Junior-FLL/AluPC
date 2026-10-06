@@ -1,4 +1,4 @@
-"""Tastenkürzel: in AluPC immer, unter Windows zusätzlich systemweit (RegisterHotKey)."""
+"""Tastenkürzel: in AluPC immer, zusätzlich systemweit – Windows (RegisterHotKey) und Linux/KDE (kglobalaccel)."""
 
 from __future__ import annotations
 
@@ -75,6 +75,7 @@ class _WinHotkeyFilter(QAbstractNativeEventFilter):
 
 class HotkeyManager(QObject):
     triggered = Signal(str)
+    _kde_pressed = Signal(str)  # aus dem D-Bus-Thread → Qt-Hauptthread
 
     def __init__(self):
         super().__init__()
@@ -84,9 +85,23 @@ class HotkeyManager(QObject):
         self.shortcuts: list[QShortcut] = []
         self.win_ids: dict[int, str] = {}
         self._filter = None
+        self.kde = None
+        self.kde_ids: set[str] = set()
         if sys.platform.startswith("win"):
             self._filter = _WinHotkeyFilter(self._on_win_hotkey)
             QCoreApplication.instance().installNativeEventFilter(self._filter)
+        elif sys.platform.startswith("linux"):
+            from .platform.kde_shortcuts import KdeShortcuts
+
+            kde = KdeShortcuts(self._kde_pressed.emit)
+            if kde.available():
+                self.kde = kde
+                self._kde_pressed.connect(self.triggered.emit)
+
+    @property
+    def system_wide(self) -> bool:
+        """Gelten die Kürzel überall (nicht nur, wenn AluPC aktiv ist)?"""
+        return sys.platform.startswith("win") or self.kde is not None
 
     def pause(self) -> None:
         """Alle Kürzel kurz abschalten (z. B. während ein neues Kürzel aufgenommen wird)."""
@@ -94,6 +109,9 @@ class HotkeyManager(QObject):
         for sc in self.shortcuts:
             sc.setEnabled(False)
         self._unregister_windows()
+        if self.kde is not None:
+            self.kde.clear()
+            self.kde_ids = set()
 
     def resume(self) -> None:
         self._paused = False
@@ -119,6 +137,7 @@ class HotkeyManager(QObject):
             sc.deleteLater()
         self.shortcuts = []
         self._unregister_windows()
+        wanted: dict[str, tuple[str, str]] = {}
         seen: dict[str, str] = {}
         for i, (action, seq) in enumerate(hotkeys.items(), start=1):
             if not seq:
@@ -133,17 +152,32 @@ class HotkeyManager(QObject):
                 if self._register_windows(i, action, seq):
                     continue  # systemweit registriert → kein zusätzliches In-App-Kürzel nötig
                 problems.append(f"„{seq}“ ist in Windows schon belegt – gilt nur, wenn AluPC aktiv ist.")
-            if self.window is None:
-                continue
-            sc = QShortcut(QKeySequence(seq, QKeySequence.PortableText), self.window)
-            sc.setContext(Qt.ApplicationShortcut)
-            sc.activated.connect(lambda a=action: self.triggered.emit(a))
-            self.shortcuts.append(sc)
+            elif self.kde is not None and not self._paused:
+                wanted[action] = (seq, hotkey_label(action))
+                continue  # erst unten gesammelt bei KDE anmelden
+            self._in_app(action, seq)
+        if self.kde is not None:
+            done = self.kde.set(wanted) if not self._paused else (self.kde.clear() or {})
+            self.kde_ids = {a for a, good in done.items() if good}
+            for action, good in done.items():
+                if good:
+                    continue
+                seq = wanted[action][0]
+                problems.append(f"„{seq}“ ist in KDE schon belegt – gilt nur, wenn AluPC aktiv ist.")
+                self._in_app(action, seq)
         if self._paused:
             for sc in self.shortcuts:
                 sc.setEnabled(False)
             self._unregister_windows()
         return problems
+
+    def _in_app(self, action: str, seq: str) -> None:
+        if self.window is None:
+            return
+        sc = QShortcut(QKeySequence(seq, QKeySequence.PortableText), self.window)
+        sc.setContext(Qt.ApplicationShortcut)
+        sc.activated.connect(lambda a=action: self.triggered.emit(a))
+        self.shortcuts.append(sc)
 
     def _register_windows(self, hotkey_id: int, action: str, seq: str) -> bool:
         import ctypes

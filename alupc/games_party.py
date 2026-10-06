@@ -1,10 +1,10 @@
-"""Minispiele (2): Simon sagt, Pong, Ballon."""
+"""Minispiele (2): Simon sagt, Pong."""
 
 from __future__ import annotations
 
 import math
 
-from .games_base import TEAM_COLORS, TEAM_NAMES, Game, clock_text
+from .games_base import TEAM_COLORS, TEAM_NAMES, Game
 
 
 # --------------------------------------------------------------------------- Ausscheiden (Grundlage für Simon)
@@ -299,95 +299,3 @@ class PongGame(Game):
         team = p["team"]
         return {"ui": "paddle", "color": TEAM_COLORS[team],
                 "status": f"{TEAM_NAMES[team]} · {self.goals[team]} : {self.goals[1 - team]}"}
-
-
-# --------------------------------------------------------------------------- Ballon
-class BalloonGame(Game):
-    GAP = 0.09
-    ROUND_TIME = 25.0
-    REVEAL = 4.0
-
-    def __init__(self, players, now, rng=None, opts=None):
-        super().__init__(players, now, rng, opts)
-        self.rounds = int(self.opts.get("runden", 3))
-        self.total = {pid: 0 for pid in self.players}
-        self.round = 0
-        self._next(now)
-
-    def join(self, pid, player, now):
-        super().join(pid, player, now)
-        self.total.setdefault(pid, 0)
-        if self.phase == "pumpen":
-            self.state[pid] = {"pumps": 0, "st": "pump", "last": -1.0}
-        return True
-
-    def leave(self, pid, now):
-        super().leave(pid, now)
-        self.total.pop(pid, None)
-        self.state.pop(pid, None)
-
-    def _next(self, now):
-        self.round += 1
-        self.limit = self.rng.randint(8, 45)  # für alle gleich – wer traut sich am meisten?
-        self.state = {pid: {"pumps": 0, "st": "pump", "last": -1.0} for pid in self.total}
-        self.phase = "pumpen"
-        self.until = now + self.ROUND_TIME
-        self.emit(now, "round")
-
-    def input(self, pid, data, now):
-        s = self.state.get(pid)
-        if self.phase != "pumpen" or s is None or s["st"] != "pump":
-            return
-        if data.get("stop"):
-            if s["pumps"]:
-                s["st"] = "banked"
-                self.total[pid] += s["pumps"]
-                self.emit(now, "bank", pid=pid)
-            return
-        if not data.get("pump") or now - s["last"] < self.GAP:
-            return
-        s["last"] = now
-        s["pumps"] += 1
-        if s["pumps"] >= self.limit:
-            s["st"] = "burst"
-            self.emit(now, "burst", pid=pid)
-
-    def update(self, now):
-        if self.over:
-            return
-        if self.phase == "pumpen":
-            if now >= self.until or all(s["st"] != "pump" for s in self.state.values()):
-                for pid, s in self.state.items():  # Zeit um: was aufgepumpt ist, zählt
-                    if s["st"] == "pump":
-                        s["st"] = "banked"
-                        self.total[pid] += s["pumps"]
-                self.phase = "zeigen"
-                self.until = now + self.REVEAL
-                self.emit(now, "reveal")
-        elif self.phase == "zeigen" and now >= self.until:
-            if self.round >= self.rounds:
-                self.over = True
-            else:
-                self._next(now)
-
-    def skip(self, now):
-        self.until = now
-        return True
-
-    def scores(self):
-        return dict(self.total)
-
-    def info(self, now):
-        return f"Runde {self.round} / {self.rounds} · platzt bei {self.limit}"
-
-    def phone(self, pid, now):
-        s = self.state.get(pid)
-        if s is None:
-            return {"ui": "msg", "big": "👀", "status": "Zuschauen"}
-        if self.phase == "zeigen":
-            got = s["pumps"] if s["st"] == "banked" else 0
-            return {"ui": "msg", "big": f"+{got}", "tone": "good" if got else "bad",
-                    "status": f"Geplatzt wäre er bei {self.limit} · gesamt {self.total[pid]}"}
-        return {"ui": "balloon", "pumps": s["pumps"], "state": s["st"], "rid": self.round,
-                "status": {"pump": f"Runde {self.round} / {self.rounds} · {clock_text(self.until - now)}",
-                           "banked": f"Gesichert: {s['pumps']} Punkte", "burst": "PENG! Diese Runde 0"}[s["st"]]}

@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QGuiApplication, QPalette
 
 ACCENTS = {
+    "alupc": ("AluPC", "#5b76f2"),  # eigenes Theme: Farben aus dem Logo, eigene Flächen – Windows und Linux gleich
     "system": ("Wie das System", "#3b82f6"),  # Farbe kommt aus Windows/KDE (system_accent)
     "blau": ("Blau", "#3b82f6"),
     "violett": ("Violett", "#8b5cf6"),
@@ -16,7 +17,7 @@ ACCENTS = {
     "rosa": ("Rosa", "#ec4899"),
 }
 # Zweite Farbe je Akzent: Verläufe (Knöpfe, Navigation, Symbole) laufen von der Akzentfarbe zu dieser
-ACCENT_PARTNERS = {"blau": "#8b5cf6", "violett": "#ec4899", "gruen": "#06b6d4", "orange": "#ef4444",
+ACCENT_PARTNERS = {"alupc": "#7a4ff0", "blau": "#8b5cf6", "violett": "#ec4899", "gruen": "#06b6d4", "orange": "#ef4444",
                    "rosa": "#f97316"}
 MODES = {"system": "Wie das System", "dunkel": "Dunkel", "hell": "Hell"}
 
@@ -197,7 +198,13 @@ def _partner(color: str) -> str:
 
 def make_theme(mode: str = "system", accent: str = "blau") -> Theme:
     dark = system_prefers_dark() if mode == "system" else mode == "dunkel"
-    key = accent if accent in ACCENTS else "blau"
+    key = accent if accent in ACCENTS else "alupc"
+    if key == "alupc":  # AluPC-Theme: Flächen leicht ins Logo-Indigo getönt (nicht neutral grau)
+        if dark:
+            return Theme(True, "#6b84ff", bg="#0b0c1a", surface="#131429", surface2="#1b1d38",
+                         border="#2a2d52", text="#eef0ff", muted="#9a9dc8", accent2="#8b5cf6")
+        return Theme(False, "#4f6bef", bg="#f2f3fc", surface="#ffffff", surface2="#eceefb",
+                     border="#dcdff4", text="#14162e", muted="#5c6085", accent2="#7a4ff0")
     if key == "system":
         accent_hex = system_accent()
         partner = _partner(accent_hex)

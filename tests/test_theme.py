@@ -42,17 +42,49 @@ def test_system_accent_used_and_grey_falls_back(qapp, monkeypatch):
     assert theme.make_theme("hell", "system").accent == theme.ACCENTS["blau"][1]
 
 
-def test_old_default_blue_migrates_to_system(tmp_path):
+def test_old_defaults_migrate_to_alupc_theme(tmp_path):
     from alupc.config import Config
 
     p = tmp_path / "c.json"
     p.write_text(json.dumps({"appearance": {"mode": "dunkel", "accent": "blau"}}), encoding="utf-8")
-    assert Config(p)["appearance"]["accent"] == "system"
+    assert Config(p)["appearance"]["accent"] == "alupc"  # alte Voreinstellung → AluPC-Theme
+    p.write_text(json.dumps({"appearance": {"accent": "system", "accent_v2": True}}), encoding="utf-8")
+    assert Config(p)["appearance"]["accent"] == "alupc"
+    p.write_text(json.dumps({"appearance": {"accent": "system", "accent_v2": True, "accent_v3": True}}),
+                 encoding="utf-8")
+    assert Config(p)["appearance"]["accent"] == "system"  # danach bewusst „Wie das System“ → bleibt
     p.write_text(json.dumps({"appearance": {"accent": "blau", "accent_v2": True}}), encoding="utf-8")
     assert Config(p)["appearance"]["accent"] == "blau"  # bewusst gewählt → bleibt
     p.write_text(json.dumps({"appearance": {"accent": "gruen"}}), encoding="utf-8")
     assert Config(p)["appearance"]["accent"] == "gruen"
-    assert Config(tmp_path / "neu.json")["appearance"]["accent"] == "system"
+    assert Config(tmp_path / "neu.json")["appearance"]["accent"] == "alupc"
+
+
+def test_alupc_theme_same_everywhere_and_branded(qapp):
+    """AluPC-Theme: hängt nicht vom System ab (gleich unter Windows und Linux), Logo-Farben, lesbare Kontraste."""
+    from PySide6.QtGui import QColor
+
+    for mode in ("hell", "dunkel"):
+        t = theme.make_theme(mode, "alupc")
+        assert t == theme.make_theme(mode, "alupc")
+        blue, indigo = QColor(t.accent), QColor(t.accent2)
+        assert 220 <= blue.hslHue() <= 235 and 250 <= indigo.hslHue() <= 265  # Logo: Blau → Indigo
+        bg = QColor(t.bg)
+        assert bg.blue() > bg.red()  # Flächen leicht indigo getönt, nicht neutral grau
+
+        def lum(c):
+            def ch(v):
+                v /= 255
+                return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+            q = QColor(c)
+            return 0.2126 * ch(q.red()) + 0.7152 * ch(q.green()) + 0.0722 * ch(q.blue())
+
+        def contrast(a, b):
+            la, lb = sorted((lum(a), lum(b)), reverse=True)
+            return (la + 0.05) / (lb + 0.05)
+
+        assert contrast(t.text, t.bg) >= 12 and contrast(t.muted, t.surface) >= 4.5
+        assert contrast("#ffffff", t.accent) >= 3  # weiße Schrift auf Akzent-Knöpfen
 
 
 def test_title_bar_only_on_windows(qapp):
@@ -85,4 +117,5 @@ def test_system_swatch_in_setup(env):  # noqa: F811
     window.open_setup_section("Darstellung")
     pump()
     sw = window.setup._swatches
-    assert list(sw)[0] == "system" and sw["system"].system and sw["system"].isChecked()
+    assert list(sw)[:2] == ["alupc", "system"] and sw["system"].system and sw["alupc"].brand
+    assert sw["alupc"].isChecked() and not sw["system"].isChecked()  # Voreinstellung: AluPC-Theme

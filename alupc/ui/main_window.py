@@ -1530,7 +1530,7 @@ class MainWindow(QMainWindow):
 
         def check():
             a = self.config["appearance"]
-            if not self.isVisible() or (a.get("mode", "system") != "system" and a.get("accent", "system") != "system"):
+            if not self.isVisible() or (a.get("mode", "system") != "system" and a.get("accent", "alupc") != "system"):
                 return
             try:
                 sig = theme.system_signature()
@@ -1544,15 +1544,19 @@ class MainWindow(QMainWindow):
         self._sys_timer.setInterval(4000)
         self._sys_timer.timeout.connect(check)
         self._sys_timer.start()
-        try:
-            QApplication.instance().styleHints().colorSchemeChanged.connect(lambda *_: QTimer.singleShot(300, check))
+        self._sys_check = check
+        try:  # gebundene Methode: Qt trennt die Verbindung, wenn das Fenster weg ist (keine alten Fenster färben um)
+            QApplication.instance().styleHints().colorSchemeChanged.connect(self._system_scheme_changed)
         except AttributeError:  # Qt < 6.5
             pass
         check()
 
+    def _system_scheme_changed(self, *_):
+        QTimer.singleShot(300, self, self._sys_check)
+
     def apply_theme(self):
         a = self.config["appearance"]
-        theme.apply(QApplication.instance(), a.get("mode", "system"), a.get("accent", "system"))
+        theme.apply(QApplication.instance(), a.get("mode", "system"), a.get("accent", "alupc"))
         # Symbole in Knöpfen neu einfärben
         for b in self.findChildren(QPushButton):
             name = b.property("iconName")

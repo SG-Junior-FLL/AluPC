@@ -21,8 +21,9 @@ from typing import NamedTuple
 from .games_base import TEAM_COLORS, TEAM_NAMES, Game
 from .games_board import TicTacToeGame
 from .games_classic import RaceGame, SnakeGame
-from .games_party import BalloonGame, PongGame, SimonGame
+from .games_party import PongGame, SimonGame
 from .games_retro import RpsGame
+from .games_tetris import TetrisGame
 
 
 class GameSpec(NamedTuple):
@@ -44,9 +45,10 @@ GAMES: dict[str, GameSpec] = {
     "pong": GameSpec("Pong", "Teams mit bis zu 3 Schlägern",
                      "Finger hoch und runter ziehen – lass den Ball nicht durch",
                      PongGame, {"punkte": ("Bis", [(5, "5 Tore"), (7, "7 Tore"), (11, "11 Tore")], 7)}),
-    "ballon": GameSpec("Ballon", "Aufpumpen – aber nicht zu weit",
-                       "Pumpen bringt Punkte – „Sichern“, bevor er platzt! Alle Ballons platzen an der gleichen Stelle",
-                       BalloonGame, {"runden": ("Runden", [(3, "3"), (5, "5")], 3)}),
+    "tetris": GameSpec("Tetris", "Alle dieselben Teile – wer hält am längsten durch?",
+                       "◀ ▶ schieben · ⟳ drehen · ▼ schneller · ⤓ fallen lassen – volle Reihen verschwinden. "
+                       "Alle bekommen dieselben Teile. Wer oben anstößt, ist raus",
+                       TetrisGame, {"tempo": ("Tempo", [("normal", "normal"), ("schnell", "schnell")], "normal")}),
     "rennen": GameSpec("Tipp-Rennen", "Wer zuerst im Ziel ist",
                        "So schnell tippen wie möglich · wer zuerst im Ziel ist, gewinnt",
                        RaceGame, {"ziel": ("Ziel", [(40, "40 Tipps"), (60, "60 Tipps"), (100, "100 Tipps")], 60)}),
@@ -58,7 +60,7 @@ GAMES: dict[str, GameSpec] = {
                     RpsGame, {"runden": ("Runden", [(3, "3"), (5, "5"), (8, "8")], 5)}),
 }
 DEFAULT_GAME = "schlangen"
-ICONS = {"schlangen": "🐍", "tictactoe": "⭕", "pong": "🏓", "ballon": "🎈", "rennen": "👆", "simon": "🟢",
+ICONS = {"schlangen": "🐍", "tictactoe": "⭕", "pong": "🏓", "tetris": "🧱", "rennen": "👆", "simon": "🟢",
          "ssp": "✊"}
 
 COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ec4899", "#06b6d4", "#f97316", "#84cc16",
@@ -432,5 +434,5 @@ class GameHub:
 
 
 __all__ = ["AVATARS", "GAMES", "GameHub", "Player", "MAX_PLAYERS", "COLORS", "TEAM_COLORS", "TEAM_NAMES",
-           "option_choices", "SnakeGame", "RaceGame", "SimonGame", "PongGame", "BalloonGame", "TicTacToeGame",
+           "option_choices", "SnakeGame", "RaceGame", "SimonGame", "PongGame", "TetrisGame", "TicTacToeGame",
            "RpsGame", "DEFAULT_GAME", "ICONS"]

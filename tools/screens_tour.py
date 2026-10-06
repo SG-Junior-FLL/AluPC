@@ -42,7 +42,7 @@ from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
 app = QApplication([])
 from alupc.ui import theme  # noqa: E402
 
-theme.apply(app, MODE, "blau")
+theme.apply(app, MODE, "alupc")
 
 screens: list[dict] = []
 errors: list[str] = []
@@ -231,19 +231,29 @@ dialog("mediathek", "Mediathek", "Fenster", "Bilder und Videos sammeln und mit e
 dialog("programm", "Programm zeigen", "Fenster", "Ein Programmfenster auf Monitor 2 zeigen.",
        window.open_program_dialog)
 dialog("hotspot", "Hotspot", "Fenster",
-       "Der PC macht ein eigenes WLAN (unsichtbar, nur per QR-Code oder Name + Passwort). Handys bekommen die "
-       "Anmeldeseite: Mitspielen oder AluPC steuern.", lambda: window.open_hotspot_dialog("normal"))
+       "Der PC macht ein eigenes WLAN – der einzige Weg fürs Handy. Handys bekommen die Anmeldeseite: Mitspielen "
+       "oder AluPC steuern.", lambda: window.open_hotspot_dialog("normal"))
+def fake_wlan(on: bool):  # kein echtes WLAN im Rundgang: so tun, als liefe das AluPC-WLAN
+    from alupc import hotspot as hs_mod
+
+    hs = hs_mod.hotspot
+    hs.running, hs.kind, hs.ssid, hs.password, hs.hidden = on, "normal", "AluPC", "k7pm2qa9xr", False
+
+
 def connect_dialog():
     from alupc.ui.connect_dialog import ConnectDialog
 
     controller.cast.start()
-    ConnectDialog("Handy verbinden", controller.cast.url(), None, "Code steckt schon im QR-Code",
+    fake_wlan(True)
+    ConnectDialog("Handy verbinden", controller.guest_wifi(),
+                  "WLAN-Code scannen → Anmeldeseite → „AluPC steuern“ → am PC erlauben",
                   on_monitor=lambda: None, parent=window).exec()
+    fake_wlan(False)
 
 
 dialog("handy-verbinden", "Handy verbinden", "Fenster",
-       "Großer QR-Code für die Handy-Fernbedienung (der Code steckt schon drin) – oder auf Monitor 2 zeigen.",
-       connect_dialog)
+       "EIN QR-Code: das AluPC-WLAN. Scannen → die Anmeldeseite öffnet sich → „AluPC steuern“ (am PC erlauben) "
+       "oder mitspielen. Einen anderen Weg gibt es nicht.", connect_dialog)
 dialog("handy-fenster", "Handy auf Monitor 2", "Fenster",
        "AirPlay (iPhone), Miracast/Spiegeln (Android), AluCast im Browser – Status und Einrichtung.",
        window.open_handy_window)
@@ -275,19 +285,14 @@ print("Monitor 2")
 step(lambda: (controller.show_source({"type": "clock"}), monitor2("uhr", "Uhr", "Große Uhr mit Datum.")), "Uhr")
 step(lambda: (controller.show_source({"type": "system"}),
               monitor2("system-m2", "System-Dashboard", "Live-Werte des PCs groß auf Monitor 2.")), "System M2")
-step(lambda: (controller.start_cast(), monitor2("handy-qr", "Handy-QR-Code",
-                                                "QR-Code scannen → Fernbedienung im Handy-Browser (ohne App).")),
-     "QR")
-
-
 def wlan_qr():
-    from alupc import hotspot as hs_mod
-
-    hs = hs_mod.hotspot
-    hs.running, hs.kind, hs.ssid, hs.password, hs.hidden = True, "normal", "AluPC", "k7pm2qa9xr", True
-    controller.show_wifi_qr()
-    monitor2("wlan-qr", "WLAN-QR-Code", "Hotspot-WLAN per QR-Code beitreten – danach öffnet sich die Anmeldeseite.")
-    hs.running = False
+    fake_wlan(True)
+    controller.start_cast()  # Handy-Steuerung = WLAN-Code des AluPC-WLANs
+    pump(1.2)
+    monitor2("wlan-qr", "Handy-Steuerung: WLAN-QR-Code",
+             "Der einzige Weg fürs Handy: WLAN-Code scannen → die Anmeldeseite öffnet sich → mitspielen oder "
+             "„AluPC steuern“ (am PC erlauben).")
+    fake_wlan(False)
 
 
 step(wlan_qr, "WLAN-QR")
@@ -336,6 +341,14 @@ def games():
             for p in players:
                 if g.team_of(p.pid) == g.turn:
                     g.votes[p.pid] = 8
+        if key == "tetris":  # ein paar Teile stapeln, einer ist schon raus
+            moves = [["left"] * 4, ["right"] * 3, [], ["rotate", "left", "left"], ["right"] * 5, ["rotate"]]
+            for k, p in enumerate(players):
+                for j in range(30 if k == 3 else 5 + k * 2):
+                    for m in moves[(j + k) % len(moves)]:
+                        g.input(p.pid, {"move": m}, hub.clock())
+                    g.input(p.pid, {"move": "drop"}, hub.clock())
+            hub.tick()
         monitor2(f"spiel-{key}", f"Spiel: {GAMES[key].title}", GAMES[key].help)
         controller.game_action("ende")
         pump(0.3)

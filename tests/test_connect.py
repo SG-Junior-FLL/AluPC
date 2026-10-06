@@ -71,8 +71,9 @@ def test_hotspot_settings_and_linux_commands(monkeypatch):
     assert hotspot.settings(cfg, "normal") == hs  # bleibt gleich
     games = hotspot.settings(cfg, "spiele")
     assert games["ssid"] == "AluPC-Spiele" and cfg["games"]["hotspot"] == games
-    if not hotspot.IS_WINDOWS:
-        assert games["password"] == ""  # Spiele-WLAN unter Linux: offen
+    assert len(games["password"]) == 10  # Linux und Windows gleich: immer mit Passwort
+    old = {"games": {"hotspot": {"ssid": "Alt", "password": ""}}}  # früher offen (Linux) → bekommt Passwort
+    assert len(hotspot.settings(old, "spiele")["password"]) == 10
     calls = []
 
     def run(cmd, timeout=25):
@@ -123,12 +124,12 @@ def test_server_url_uses_hotspot_ip(env):  # noqa: F811
         hotspot.hotspot.running, hotspot.hotspot.ip, hotspot.hotspot.kind = False, "", ""
     assert controller.guest_wifi() is None
     controller.config["games"] = {**controller.config["games"], "wifi": {"ssid": "Zuhause", "password": "x"}}
-    assert controller.guest_wifi() == ("Zuhause", "x", False)
+    assert controller.guest_wifi() is None  # anderes WLAN zählt nicht: nur das AluPC-WLAN hat die Anmeldeseite
 
 
 def test_lobby_without_games_wifi_shows_no_link(env, tmp_path):  # noqa: F811
-    """Mitspielen nur über das Spiele-WLAN: läuft es nicht, zeigt die Lobby KEINEN Link (nur den Grund). Wer es
-    ausschaltet („nur über WLAN“ aus), bekommt wieder den Link-Code."""
+    """Mitspielen nur über das Spiele-WLAN: läuft es nicht, zeigt die Lobby KEINEN Code (nur den Grund) – auch
+    nicht mit einem eingetragenen anderen WLAN oder der alten Einstellung „nur über WLAN: aus“."""
     zx = pytest.importorskip("zxingcpp")
     pil = pytest.importorskip("PIL.Image")
     controller, _window, _ = env
@@ -144,7 +145,7 @@ def test_lobby_without_games_wifi_shows_no_link(env, tmp_path):  # noqa: F811
     assert texts == []  # kein anderer Weg als über das WLAN
     controller.config["games"] = {**controller.config["games"], "wifi_only": False}
     src.grab().save(str(path))
-    assert sorted(r.text for r in zx.read_barcodes(pil.open(path))) == [controller.cast.games_url()]
+    assert sorted(r.text for r in zx.read_barcodes(pil.open(path))) == []
     src.stop()
 
 
@@ -489,3 +490,23 @@ def test_games_start_games_wifi_and_lobby_shows_one_wlan_code(env, tmp_path, mon
     assert texts == [wifi_payload("AluPC-Spiele", "", hidden=True)]  # nur EIN Code: das WLAN
     src.stop()
     controller.game_action("aus")
+
+
+def test_only_alupc_wlan_reaches_alupc(monkeypatch):
+    """Einziger Weg für Handys: das AluPC-WLAN (Anmeldeseite). Aus anderen Netzen: 403. Der PC selbst darf."""
+    from alupc.cast_server import PUBLIC_PATHS, cast_server, _make_handler
+
+    H = _make_handler(cast_server())
+    h = H.__new__(H)
+    hs = hotspot.hotspot
+    monkeypatch.setattr(hs, "running", True)
+    monkeypatch.setattr(hs, "portal", True)
+    monkeypatch.setattr(hs, "ip", "10.42.0.1")
+    for ip, want in (("127.0.0.1", True), ("::1", True), ("10.42.0.57", True), ("192.168.178.20", False),
+                     ("10.43.0.5", False), ("::ffff:10.42.0.9", True), ("fe80::1", False)):
+        h.client_address = (ip, 5000)
+        assert h._via_wlan() is want, ip
+    monkeypatch.setattr(hs, "portal", False)  # ohne Anmeldeseite auch aus dem WLAN nicht
+    h.client_address = ("10.42.0.57", 5000)
+    assert not h._via_wlan()
+    assert "/" not in PUBLIC_PATHS and "/spiel" not in PUBLIC_PATHS and "/api/spiel" not in PUBLIC_PATHS
