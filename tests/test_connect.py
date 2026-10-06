@@ -282,23 +282,51 @@ def test_portal_start_order_and_cancel(monkeypatch, tmp_path):
 
 
 def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
-    """Windows: Skript enthält hosts/portproxy/Firewall + Aufräumen; Start über „Als Administrator“."""
+    """Windows wie Linux: eigener DNS (Firewall Port 53), portproxy 80, geschlossen = kein Weiterleiten; hosts nur
+    als Notlösung. Start über „Als Administrator“."""
     script = hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77)
-    for part in ("drivers\\etc\\hosts", "portproxy add v4tov4 listenport=80 listenaddress=$ip connectport=8765",
-                 "portproxy delete", "firewall add rule name=AluPC-Portal", "finally { Clean }", "Get-Process -Id 77",
-                 "'captive.apple.com'"):
+    for part in ("portproxy add v4tov4 listenport=80 listenaddress=$ip connectport=8765", "portproxy delete",
+                 "firewall add rule name=AluPC-Portal dir=in action=allow protocol=UDP localport=53",
+                 'localport="80,53,8765"', "-Forwarding Disabled", "-Forwarding Enabled", "$closed = $true",
+                 "finally { Clean }", "Get-Process -Id 77"):
         assert part in script, part
-    assert "msftconnecttest" not in script  # sonst hielte sich der PC selbst für „im Hotel-WLAN“
+    assert "'captive.apple.com'" not in script  # eigener DNS → keine hosts-Einträge (die träfen auch den PC selbst)
+    assert "$closed = $false" in hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, closed=False)
+    fallback = hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, hosts=True)
+    assert "'captive.apple.com'" in fallback and "msftconnecttest" not in fallback
     monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
     monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
+    started = []
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (started.append(k), True)[1])
+    monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: True)
     seen = []
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (seen.append(cmd), (0, ""))[1], wait=lambda f, p, t: True)
-    assert ok and "-Verb RunAs" in seen[0] and "-EncodedCommand" in seen[0]
+    assert ok and "-Verb RunAs" in seen[0] and "-EncodedCommand" in seen[0] and "eingeschränkt" not in msg
+    assert started[-1]["host"] == "192.168.137.1" and started[-1]["port"] == 53
+    import base64
+    sent = base64.b64decode(seen[0].split("'-EncodedCommand','")[1].split("'")[0]).decode("utf-16-le")
+    assert "captive.apple.com" not in sent and "$closed = $true" in sent
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (1, "abgebrochen"), wait=lambda f, p, t: True)
     assert not ok and "QR-Code" in msg and not (tmp_path / "flag").exists()
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: "belegt:System")
     assert not ok and "Port 80" in msg and "System" in msg
     assert "Get-NetTCPConnection -LocalPort 80" in script and "belegt:" in script
+    # Port 53 nicht zu bekommen → Notlösung über hosts, ehrlich als „eingeschränkt“ gemeldet
+    monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: False)
+    seen.clear()
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (seen.append(cmd), (0, ""))[1], wait=lambda f, p, t: True)
+    sent = base64.b64decode(seen[0].split("'-EncodedCommand','")[1].split("'")[0]).decode("utf-16-le")
+    assert ok and "eingeschränkt" in msg and "captive.apple.com" in sent and "$closed = $false" in sent
+
+
+def test_dns_selftest_sees_own_server():
+    """Selbsttest: Frage an die Adresse kommt bei AluPCs DNS an (wie unter Windows auf 192.168.137.1:53)."""
+    assert hotspot.start_dns(lambda: "127.0.0.1", True, host="127.0.0.1", port=18754)
+    try:
+        assert hotspot.dns_selftest("127.0.0.1", 18754)
+    finally:
+        hotspot.stop_dns()
+    assert not hotspot.dns_selftest("127.0.0.1", 18754, timeout=0.3)
 
 
 def test_portal_redirects_phone_checks_to_game(env, monkeypatch):  # noqa: F811

@@ -8,7 +8,31 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.104.0)
+### Neu in dieser Version (0.105.0)
+- **Windows wie Linux: Spiele-WLAN wie ein Hotel-WLAN.** Windows nutzt jetzt denselben Weg wie Linux:
+  - AluPCs eigener DNS beantwortet **jede** Namensfrage der Handys im Mobilen Hotspot
+    (lauscht auf 192.168.137.1:53, der Windows-Hotspot-DNS bekommt dann nichts mehr),
+  - jede Webseite (http) führt zur Anmeldeseite,
+  - das Spiele-WLAN leitet **nichts ins Internet** weiter (Weiterleitung am Hotspot aus; der Wächter hält sie aus).
+  - Keine Einträge mehr in der hosts-Datei (nur noch als Notlösung, falls Port 53 belegt ist – dann meldet
+    AluPC „eingeschränkt“).
+  - Beim normalen Hotspot bleibt das Internet an, nur die Prüf-Adressen führen zur Anmeldeseite.
+- **Geprüft vor der Auslieferung, auch unter Windows:**
+  - Neuer CI-Schritt baut den Mobilen Hotspot nach: echte Windows-Internetfreigabe mit 192.168.137.1 und
+    Windows-DNS; das „Handy“ ist ein Windows-Container im Hotspot-Netz.
+  - Durchgespielt mit dem echten AluPC und dem echten Administrator-Skript:
+    - Handy-DNS → PC,
+    - Android-/iPhone-Prüfung → Anmeldeseite,
+    - Name → Mitspielen → im Spiel,
+    - fremder DNS (8.8.8.8) und Internet per IP gesperrt,
+    - nach dem Ausschalten alles wieder weg,
+    - normaler Hotspot behält Internet.
+- Ehrlich, weiterhin nicht prüfbar ohne echte Hardware:
+  - die WLAN-Karte,
+  - ob das Handy das Anmeldefenster von selbst öffnet,
+  - die „Ja“-Abfrage (UAC).
+
+### Neu in Version 0.104.0
 - **Spiele-WLAN wie ein Hotel-WLAN (Linux), damit sich die Anmeldeseite wirklich öffnet:** Bisher zeigten nur
   einige Prüf-Adressen auf den PC – Handys mit eigener (verschlüsselter) Namensauflösung oder wenn der PC Internet
   hatte, gingen daran vorbei, und die Anmeldeseite kam nicht. Jetzt:
@@ -25,8 +49,7 @@
   abgelehnt, nach dem Ausschalten alle Regeln weg (17/17). Läuft jetzt bei jedem Build in der Linux-CI.
 - Ehrlich: Ob das Handy-Betriebssystem das Anmeldefenster dann **von selbst** öffnet, lässt sich ohne echtes Handy
   und WLAN-Karte nicht prüfen (iPhone meist sofort, Android oft erst über die Meldung „Im WLAN anmelden“).
-  **Windows:** dort kann AluPC den DNS des Mobilen Hotspots nicht übernehmen – unter Windows bleibt es beim
-  bisherigen Weg (hosts-Datei für die Prüf-Adressen), nicht so zuverlässig wie unter Linux.
+  Windows: in 0.104 noch der alte Weg (hosts-Datei) – seit 0.105 wie Linux.
 
 ### Neu in Version 0.103.0
 - **PC steuern wie mit einer Kontroll-App:** System-Seite → Karte **„PC steuern“**: Lautstärke-Regler, Stumm, Musik

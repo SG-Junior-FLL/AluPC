@@ -202,6 +202,30 @@ jobs:
             dist/AluPC-linux-x86_64-*.tar.gz
             dist/AluPC-installieren.sh
 
+  portal-windows:
+    # Eigener Job auf Windows Server 2022: dort liegt das Container-Abbild fürs „Handy“ schon bereit
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installieren
+        run: pip install -e .
+      - name: Mobilen Hotspot nachbauen (Windows-Internetfreigabe, Handy = Container)
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/windows/hotspot_sim.ps1
+      - name: WLAN-Anmeldeseite echt – Handy im Hotspot-Netz (DNS, Weiterleitung, Mitspielen, keine Umgehung)
+        shell: bash
+        run: |
+          python tests/portal_windows_check.py mcr.microsoft.com/windows/servercore:ltsc2022 2>&1 | tee portal.log
+          test "${PIPESTATUS[0]}" -eq 0 || { grep "FEHL" portal.log | sed 's/^/::error title=Anmeldeseite (Windows)::/'; exit 1; }
+          echo "::notice title=Anmeldeseite (Windows)::$(grep -E '^  (OK|FEHL)|bestanden' portal.log | tr -d '\r' | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
+
   build-windows:
     runs-on: windows-latest
     timeout-minutes: 45
@@ -219,8 +243,6 @@ jobs:
           $out = python -c "from alupc import hotspot as h; c, o = h._ps(h._PS_STATE, timeout=60); print(o.replace(chr(10), ' | ')); print('MELDUNG', h.windows_message(o)[1])"
           Write-Output "::notice title=Hotspot (Windows)::$($out -join ' ')"
           if (($out -join ' ') -match 'ParserError|Unexpected token|MissingEndCurlyBrace') { Write-Output "::error title=Hotspot::PowerShell-Skript kaputt"; exit 1 }
-      - name: Anmeldeseite echt (hosts + portproxy, Runner ist Administrator)
-        run: python tests/portal_windows_check.py
       - name: Tests (Logik + Windows-Strukturen)
         shell: pwsh
         run: |
@@ -383,7 +405,7 @@ jobs:
     if: >-
       startsWith(github.ref, 'refs/tags/v') ||
       (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release]'))
-    needs: [test-linux, build-linux, build-windows]
+    needs: [test-linux, build-linux, build-windows, portal-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

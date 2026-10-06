@@ -205,6 +205,8 @@ Außerdem:
   - **Spiele-WLAN** (0.102): startet mit den Minispielen. Die Lobby zeigt dann den WLAN-Code – scannen, die
     WLAN-Anmeldeseite öffnet sich von selbst, Name eingeben, **Mitspielen** (direkt die Steuerung) oder
     **AluPC steuern** (am PC freigeben). Abschaltbar im Fenster „Spiele-WLAN …“.
+    Linux und Windows gleich (0.105): AluPC beantwortet jede Namensfrage im Spiele-WLAN selbst, jede Webseite führt
+    zur Anmeldeseite, das WLAN leitet nichts ins Internet weiter – kein Weg an der Anmeldeseite vorbei.
   - Jedes Spiel mit 3-2-1, Animationen und Siegertreppchen (bei Teams: Team-Ergebnis).
   - **Schnelle Steuerung:** Die Handys sind per WebSocket verbunden – Eingaben gehen ohne Umweg raus. Klappt das
     nicht, fällt die Seite automatisch auf normale Abfragen zurück (grüner Punkt oben rechts = schnelle Verbindung).

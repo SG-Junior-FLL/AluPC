@@ -12,8 +12,9 @@ nimmt die Regel wieder raus, sobald der Hotspot aus ist oder AluPC endet.
 Damit es auch ohne Internet am PC klappt, beantwortet der Hotspot die Prüf-Adressen der Handys selbst
 (dnsmasq-Eintrag „interface-name“ – zeigt auf die eigene Adresse im Hotspot).
 Windows: „Mobiler Hotspot“ (WinRT über PowerShell), Passwort ist dort Pflicht, Adresse 192.168.137.1. Die
-Anmeldeseite geht genauso: einmal „Ja“ (Administrator), dann zeigen die Prüf-Adressen über die hosts-Datei auf
-den PC (der Hotspot fragt beim PC nach), Port 80 → AluPC per „netsh portproxy“; ein Wächter räumt danach auf.
+Anmeldeseite geht genauso wie unter Linux: AluPCs eigener DNS auf 192.168.137.1:53 beantwortet die Namensfragen
+der Handys (im Spiele-WLAN jede → PC), einmal „Ja“ (Administrator) für Port 80 → AluPC („netsh portproxy“),
+Firewall und (Spiele-WLAN) kein Weiterleiten ins Internet; ein Wächter räumt danach auf.
 
 Achtung: Viele WLAN-Karten können nicht gleichzeitig Hotspot sein UND mit einem anderen WLAN verbunden – dann ist
 der PC während des Hotspots ohne Internet (über Kabel geht beides). Alle Funktionen geben (ok, Meldung) zurück.
@@ -184,17 +185,24 @@ def portal_script(dev: str, port: int, flag: Path, pid: int, closed: bool = True
             f"{remove}")
 
 
-def portal_script_windows(ip: str, port: int, flag: Path, pid: int) -> str:
-    """Administrator-Skript (Windows): hosts-Einträge für die Prüf-Adressen (der Mobile Hotspot fragt beim PC
-    nach und der beachtet die hosts-Datei), Port 80 → AluPC (portproxy), Firewall auf, „bereit“ melden, warten,
-    alles wieder entfernen – auch wenn AluPC abstürzt."""
-    names = ",".join(f"'{h}'" for h in PORTAL_HOSTS)
+def portal_script_windows(ip: str, port: int, flag: Path, pid: int, closed: bool = True,
+                          hosts: bool = False) -> str:
+    """Administrator-Skript (Windows) – wie unter Linux ein Hotel-WLAN:
+    * Namensfragen der Handys beantwortet AluPCs eigener DNS (bindet 192.168.137.1:53 – genauer als der
+      Windows-Hotspot-DNS auf 0.0.0.0:53, bekommt also alle Fragen); hier nur die Firewall dafür öffnen,
+    * Webseiten (Port 80 an den PC) → Anmeldeseite von AluPC (portproxy),
+    * geschlossen: Hotspot-Schnittstelle leitet nichts ins Internet weiter (Forwarding aus),
+    * hosts=True nur als Notlösung, falls der eigene DNS nicht ging (dann nur die Prüf-Adressen → PC),
+    „bereit“ melden, warten, alles wieder entfernen – auch wenn AluPC abstürzt."""
+    names = ",".join(f"'{h}'" for h in PORTAL_HOSTS) if hosts else ""
     return rf"""
 $ErrorActionPreference = 'Continue'
 $hosts = "$env:SystemRoot\System32\drivers\etc\hosts"
 $mark = '# alupc-portal'
 $ip = '{ip}'
 $flag = '{flag}'
+$closed = ${str(bool(closed)).lower()}
+$alias = (Get-NetIPAddress -IPAddress $ip -ErrorAction SilentlyContinue | Select-Object -First 1).InterfaceAlias
 function Clean {{
   try {{
     $keep = @(Get-Content -LiteralPath $hosts -ErrorAction Stop | Where-Object {{ $_ -notlike "*$mark*" }})
@@ -202,13 +210,17 @@ function Clean {{
   }} catch {{}}
   netsh interface portproxy delete v4tov4 listenport=80 listenaddress=$ip | Out-Null
   netsh advfirewall firewall delete rule name=AluPC-Portal | Out-Null
+  if ($alias) {{ Set-NetIPInterface -InterfaceAlias $alias -AddressFamily IPv4 -Forwarding Enabled -ErrorAction SilentlyContinue }}
   ipconfig /flushdns | Out-Null
 }}
 try {{
   Clean
-  Add-Content -LiteralPath $hosts -Value (@({names}) | ForEach-Object {{ "$ip $_ $mark" }}) -Encoding ASCII
+  $names = @({names})
+  if ($names.Count -gt 0) {{ Add-Content -LiteralPath $hosts -Value ($names | ForEach-Object {{ "$ip $_ $mark" }}) -Encoding ASCII }}
   netsh interface portproxy add v4tov4 listenport=80 listenaddress=$ip connectport={int(port)} connectaddress=$ip | Out-Null
-  netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=TCP localport=80 | Out-Null
+  netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=TCP localport="80,53,{int(port)}" | Out-Null
+  netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=UDP localport=53 | Out-Null
+  if ($closed -and $alias) {{ Set-NetIPInterface -InterfaceAlias $alias -AddressFamily IPv4 -Forwarding Disabled -ErrorAction SilentlyContinue }}
   ipconfig /flushdns | Out-Null
   Start-Sleep -Milliseconds 800
   # Port 80 schon von einem anderen Dienst belegt (z. B. IIS/http.sys)? Dann kommt die Prüfung nie bei AluPC an.
@@ -221,7 +233,11 @@ try {{
     return
   }}
   Set-Content -LiteralPath "$flag.ok" -Value 'ok'
-  while ((Test-Path -LiteralPath $flag) -and (Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue)) {{ Start-Sleep 2 }}
+  while ((Test-Path -LiteralPath $flag) -and (Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue)) {{
+    # der Hotspot schaltet Forwarding beim Neustart evtl. wieder an → geschlossen halten
+    if ($closed -and $alias) {{ Set-NetIPInterface -InterfaceAlias $alias -AddressFamily IPv4 -Forwarding Disabled -ErrorAction SilentlyContinue }}
+    Start-Sleep 2
+  }}
 }} finally {{ Clean }}
 """
 
@@ -248,19 +264,40 @@ def _wait_ready(flag: Path, proc=None, timeout: float = 120, sleep=None) -> str:
     return ""
 
 
-_dns = None  # laufender Anmeldeseiten-DNS (Linux)
+_dns = None  # laufender Anmeldeseiten-DNS
 
 
-def start_dns(ip_provider, closed: bool = True) -> bool:
+def start_dns(ip_provider, closed: bool = True, host: str = "0.0.0.0", port: int = DNS_PORT,
+              check_hosts: list[str] | None = None) -> bool:
     global _dns
     from .portal_dns import PortalDNS
 
     stop_dns()
-    _dns = PortalDNS(ip_provider, closed=closed, hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS, port=DNS_PORT)
+    hosts = PORTAL_HOSTS + WINDOWS_CHECK_HOSTS if check_hosts is None else check_hosts
+    _dns = PortalDNS(ip_provider, closed=closed, hosts=hosts, port=port, host=host, exclusive=IS_WINDOWS)
     if not _dns.start():
         _dns = None
         return False
     return True
+
+
+def dns_selftest(ip: str, port: int = 53, timeout: float = 2.0) -> bool:
+    """Kommt eine Namensfrage an ip:port wirklich bei AluPCs DNS an (und nicht beim DNS des Windows-Hotspots)?"""
+    import socket
+    import struct
+
+    if _dns is None:
+        return False
+    before = _dns.queries
+    query = struct.pack(">HHHHHH", 0x4155, 0x0100, 1, 0, 0, 0) + b"\x10alupc-selbsttest\x07invalid\x00\x00\x01\x00\x01"
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(timeout)
+            sock.sendto(query, (ip, port))
+            sock.recvfrom(1500)
+    except OSError:
+        return False
+    return _dns.queries > before
 
 
 def stop_dns() -> None:
@@ -279,7 +316,13 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
     if IS_WINDOWS:
         import base64
 
-        script = portal_script_windows(ip, port, flag, os.getpid())
+        # Eigener DNS auf der Hotspot-Adresse (Port 53): wie unter Linux. Unter Windows normal: Zieladresse genauer
+        # als der Hotspot-DNS (0.0.0.0) → alle Fragen der Handys kommen bei AluPC an. Geprüft per Selbsttest.
+        dns_ok = start_dns(lambda: hotspot.ip or ip, closed, host=ip, port=53,
+                           check_hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS) and dns_selftest(ip)
+        if not dns_ok:
+            stop_dns()
+        script = portal_script_windows(ip, port, flag, os.getpid(), closed=closed and dns_ok, hosts=not dns_ok)
         enc = base64.b64encode(script.encode("utf-16-le")).decode()
         launcher = ("try { Start-Process powershell -Verb RunAs -WindowStyle Hidden -ErrorAction Stop -ArgumentList "
                     f"'-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','{enc}' }} catch {{ exit 1 }}")
@@ -287,17 +330,21 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
         code, out = (spawn or _ps)(launcher)
         if code != 0:
             flag.unlink(missing_ok=True)
+            stop_dns()
             return False, "Anmeldeseite aus („Ja“ nicht bestätigt) – Handys nehmen den QR-Code."
         state = wait(flag, None, 60)
         if state is True:
             state = "ok"
         if not state or str(state).startswith("belegt"):
             flag.unlink(missing_ok=True)
+            stop_dns()
             if str(state).startswith("belegt"):
                 who = str(state).partition(":")[2] or "ein anderes Programm"
                 return False, (f"Anmeldeseite aus: Port 80 ist schon belegt ({who}, z. B. ein Webserver) – "
                                "Handys nehmen den QR-Code.")
             return False, "Anmeldeseite ging nicht – Handys nehmen den QR-Code."
+        if not dns_ok:
+            return True, "Anmeldeseite an (eingeschränkt: Port 53 belegt – nur die Prüf-Adressen zeigen auf den PC)."
         return True, "Anmeldeseite an: Handys öffnen die Spielsteuerung beim Verbinden selbst."
     if not (shutil.which("pkexec") and shutil.which("iptables")):
         return False, "Anmeldeseite braucht pkexec und iptables."
@@ -432,8 +479,8 @@ class Hotspot:
             if ok and hidden:  # Windows kann den Namen des Mobilen Hotspots nicht verstecken
                 msg += " (Unsichtbar geht unter Windows nicht – der Name ist in der WLAN-Liste zu sehen.)"
             ip = WINDOWS_IP if ok else ""
-            if ok and portal:
-                self.portal, portal_msg = start_portal(ip=ip)
+            if ok and portal:  # nach dem Start (die Adresse 192.168.137.1 gibt es erst dann)
+                self.portal, portal_msg = start_portal(ip=ip, closed=kind == "spiele")
         self.running, self.ip, self.message = ok, ip, msg
         self.kind, self.ssid, self.password = (kind, ssid, password) if ok else ("", "", "")
         self.hidden = bool(ok and hidden and not IS_WINDOWS)
