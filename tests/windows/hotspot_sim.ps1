@@ -14,15 +14,8 @@ docker network create -d transparent --subnet=192.168.137.0/24 --gateway=192.168
   -o com.docker.network.windowsshim.interface="$($lb.Name)" hotspot | Out-Null
 Start-Sleep 8
 $priv = Get-NetAdapter | Where-Object { $_.Name -eq "vEthernet ($($lb.Name))" } | Select-Object -First 1
-$pubIdx = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort-Object RouteMetric | Select-Object -First 1).InterfaceIndex
-$pub = Get-NetAdapter -InterfaceIndex $pubIdx
-$m = New-Object -ComObject HNetCfg.HNetShare
-foreach ($c in $m.EnumEveryConnection) {
-  $n = $m.NetConnectionProps.Invoke($c).Name
-  if ($n -eq $pub.Name) { $m.INetSharingConfigurationForINetConnection.Invoke($c).EnableSharing(0) }
-  if ($n -eq $priv.Name) { $m.INetSharingConfigurationForINetConnection.Invoke($c).EnableSharing(1) }
-}
+& "$PSScriptRoot\ics_share.ps1" -Private $priv.Name
 for ($i = 0; $i -lt 30 -and -not (Get-NetIPAddress -IPAddress 192.168.137.1 -ErrorAction SilentlyContinue); $i++) { Start-Sleep 1 }
 $dns = Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | Where-Object LocalAddress -eq '0.0.0.0'
-"Hotspot nachgebaut: $($priv.Name) = 192.168.137.1, Internet über $($pub.Name), Windows-DNS: $(if ($dns) {'0.0.0.0:53'} else {'?'})"
+"Hotspot nachgebaut: $($priv.Name) = 192.168.137.1, Windows-DNS: $(if ($dns) {'0.0.0.0:53'} else {'?'})"
 if (-not (Get-NetIPAddress -IPAddress 192.168.137.1 -ErrorAction SilentlyContinue)) { throw 'ICS gab keine 192.168.137.1' }

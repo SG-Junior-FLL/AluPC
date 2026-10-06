@@ -45,6 +45,13 @@ def ok(cond, text: str) -> bool:
     return bool(cond)
 
 
+def start_hotspot() -> bool:
+    """Wie der Mobile Hotspot nach AluPCs Port-53-Übernahme: Internetfreigabe (neu) einschalten."""
+    out = ps(f"& '{ROOT / 'tests' / 'windows' / 'ics_share.ps1'}'")
+    print("::notice title=Hotspot (nach Port 53)::" + out.replace("\n", " | "), flush=True)
+    return True
+
+
 def ps(cmd: str, timeout: float = 120) -> str:
     r = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, text=True,
                        timeout=timeout)
@@ -233,7 +240,7 @@ def main() -> int:
         "\"$($_.LocalAddress) $p $((Get-Process -Id $p).ProcessName) \" + "
         "((Get-CimInstance Win32_Service -Filter \"ProcessId=$p\" | ForEach-Object Name) -join ',') }").replace("\n", " | "),
         flush=True)
-    good, msg = hs_mod.start_portal(ip=IP, closed=True)  # echter Weg: „Als Administrator“ + Wächter
+    good, msg = hs_mod.start_portal(ip=IP, closed=True, then=start_hotspot)  # echter Weg: Administrator + Wächter
     ok(good, f"Anmeldeseite an (Port 53 übernommen, Administrator-Skript): {msg}")
     owner = ps(f"(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
                f"Where-Object {{ $_.LocalAddress -in @('0.0.0.0', '{IP}') -and $_.OwningProcess -eq {os.getpid()} }}"
@@ -309,18 +316,19 @@ def main() -> int:
         released = False
     free.close()
     ok(released, "Port 53 wieder frei")
-    back = ""
-    for _ in range(30):  # Wächter startet den Windows-Dienst neu → sein DNS hat Port 53 wieder
+    mine = "x"
+    for _ in range(30):  # Wächter gibt Port 53 frei und startet den Windows-Dienst neu
         pump(0.5)
-        back = ps("(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
-                  "Where-Object LocalAddress -eq '0.0.0.0').OwningProcess")
-        if back and back.strip() != str(os.getpid()) and ps("(Get-Service SharedAccess).Status") == "Running":
+        mine = ps(f"Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
+                  f"Where-Object OwningProcess -eq {os.getpid()}")
+        if not mine and ps("(Get-Service SharedAccess).Status") == "Running":
             break
-    ok(back and back.strip() != str(os.getpid()), f"Port 53 wieder beim Windows-Dienst (Prozess {back or '–'})")
+    ok(not mine and ps("(Get-Service SharedAccess).Status") == "Running",
+       "Port 53 von AluPC freigegeben, Windows-Hotspot-Dienst läuft")
 
     # ================= normaler Hotspot: offen (Internet geht, Prüf-Adressen → Anmeldeseite)
     hs.kind = "normal"
-    good, msg = hs_mod.start_portal(ip=IP, closed=False)
+    good, msg = hs_mod.start_portal(ip=IP, closed=False, then=start_hotspot)
     ok(good and forwarding(alias) == "Enabled", f"Offene Variante (nicht mehr Standard): Anmeldeseite an, Internet bleibt ({msg})")
     r = phone("normal", image, pump)
     ok(r.get("dns_check") == IP, f"Normal: Prüf-Adresse → {r.get('dns_check')}")

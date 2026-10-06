@@ -2095,9 +2095,10 @@ class Controller(QObject):
     def shutdown(self) -> None:
         from .hotspot import hotspot, stop_portal
 
-        stop_portal()  # Anmeldeseiten-Weiterleitung fällt auch ohne das weg (Wächter prüft, ob AluPC noch läuft)
-        if hotspot.running and hotspot.kind == "spiele":
+        # Ohne AluPC gibt es im WLAN weder Namensauflösung noch Anmeldeseite → Hotspot mit beenden
+        if hotspot.running and (hotspot.kind == "spiele" or hotspot.portal):
             hotspot.stop()
+        stop_portal()
         self._timer_watch.stop()
         if self._games_timer is not None:
             self._games_timer.stop()

@@ -720,6 +720,7 @@ public:
 
     HRESULT Serialize(int forIndex, CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION* cs) {
         int idx = forIndex;
+        waitLift_ = true;  // erst wieder erkennen, wenn der Finger abgehoben wurde (sonst sofort zweite Anmeldung)
         if (!matched_.compare_exchange_strong(idx, -1)) return E_UNEXPECTED;  // nur einmal verwenden
         if (idx < 0 || idx >= (int)cfg_.users.size()) return E_UNEXPECTED;
         const UserEntry& u = cfg_.users[idx];
@@ -815,6 +816,11 @@ private:
                 m.Close();
                 continue;
             }
+            if (waitLift_) {  // nach einer Anmeldung: Finger liegt evtl. noch auf → erst abheben lassen
+                if (r != 0) waitLift_ = false;
+                Sleep(200);
+                continue;
+            }
             if (r != 0) {  // kein Finger
                 Sleep(200);
                 continue;
@@ -864,6 +870,7 @@ private:
     std::thread worker_;
     std::atomic<bool> stop_{false};
     std::atomic<int> matched_{-1};
+    std::atomic<bool> waitLift_{false};
 };
 
 IFACEMETHODIMP Credential::SetSelected(BOOL* autoLogon) {
