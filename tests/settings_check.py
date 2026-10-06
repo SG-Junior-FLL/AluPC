@@ -297,14 +297,17 @@ from alupc.config import HOTKEY_LABELS  # noqa: E402
 action = next(iter(HOTKEY_LABELS))
 setup._save_hotkey(action, "Ctrl+Alt+F7")
 pump(0.2)
-active = [sc.key().toString() for sc in hotkeys.shortcuts] + [hotkeys.win_ids.get(k, "") for k in hotkeys.win_ids]
-ok(config["hotkeys"][action] == "Ctrl+Alt+F7" and (any("F7" in a for a in active) or action in hotkeys.kde_ids),
-   f"Tastenkürzel „{HOTKEY_LABELS[action]}“ = Strg+Alt+F7 → aktiv")
+in_app = [sc for sc in hotkeys.shortcuts if sc.key().toString() == "Ctrl+Alt+F7"]
+system = [i for i, a in hotkeys.win_ids.items() if a == action]  # Windows: systemweit (RegisterHotKey)
+ok(config["hotkeys"][action] == "Ctrl+Alt+F7" and (in_app or system or action in hotkeys.kde_ids),
+   f"Tastenkürzel „{HOTKEY_LABELS[action]}“ = Strg+Alt+F7 → aktiv "
+   f"({'systemweit' if system or action in hotkeys.kde_ids else 'in AluPC'})")
 got = []
 hotkeys.triggered.connect(got.append)
-for sc in hotkeys.shortcuts:
-    if sc.key().toString() == "Ctrl+Alt+F7":
-        sc.activated.emit()
+for sc in in_app:
+    sc.activated.emit()
+for i in system:  # wie WM_HOTKEY von Windows
+    hotkeys._on_win_hotkey(i)
 pump(0.2)
 ok(action in got, f"Kürzel löst „{action}“ aus")
 
@@ -319,7 +322,8 @@ now_on = autostart.is_enabled()
 box.click()
 pump(0.3)
 ok(now_on != was and autostart.is_enabled() == was, f"Autostart an/aus → im System {'an' if now_on else 'aus'}, "
-   "danach wieder wie vorher")
+   f"danach wieder wie vorher (vorher {'an' if was else 'aus'}, Feld {'aktiv' if box.isEnabled() else 'gesperrt'}"
+   f"{', Meldungen: ' + ' | '.join(dialogs[-2:]) if dialogs else ''})")
 
 # Neustart: alles noch da?
 reloaded = Config(cfg_path)

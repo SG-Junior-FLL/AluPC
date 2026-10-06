@@ -17,7 +17,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "scenes": ("scenes", "Meine Szenen", "Eigene Szenen", "#ec4899", "anzeigen"),
     # Handy → Monitor 2: jeder Weg mit eigener Kachel
     "airplay": ("phone", "AirPlay", "iPhone & iPad", "#0ea5e9", "handy"),
-    "handy_remote": ("qr", "Handy-Steuerung", "Per QR-Code", "#8b5cf6", "handy"),
+    "handy_remote": ("qr", "Handy-Steuerung", "Übers AluPC-WLAN", "#8b5cf6", "handy"),
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),
     "black": ("eye_off", "Schwarz", "Sichtschutz", "#64748b", "schnell"),
     "pip": ("pip", "Bild-in-Bild", "Mini-Vorschau", "#8b5cf6", "schnell"),
