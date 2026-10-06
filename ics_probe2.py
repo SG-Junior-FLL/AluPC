@@ -22,6 +22,7 @@ print(ps("New-NetFirewallRule -DisplayName exp -Direction Inbound -Action Allow 
 
 PHONE = r"""
 $ErrorActionPreference='Continue'
+$ProgressPreference='SilentlyContinue'
 $o=[ordered]@{}
 $o.ip=(Get-NetIPAddress -AddressFamily IPv4 | ? IPAddress -ne '127.0.0.1' | % IPAddress) -join ','
 $o.dnsserver=(Get-DnsClientServerAddress -AddressFamily IPv4 | % ServerAddresses) -join ','
@@ -32,14 +33,16 @@ try { $o.dns_8888=(Resolve-DnsName example.org -Server 8.8.8.8 -Type A -DnsOnly 
 try { $r=Invoke-WebRequest http://connectivitycheck.gstatic.com/generate_204 -MaximumRedirection 0 -UseBasicParsing -TimeoutSec 8 -EA Stop; $o.android=''+$r.StatusCode } catch { $o.android='' + $_.Exception.Response.StatusCode.value__ + ' ' + $_.Exception.Response.Headers['Location'] + ' ' + $_.Exception.Message }
 try { $r=Invoke-WebRequest http://93.184.216.34/ -MaximumRedirection 0 -UseBasicParsing -TimeoutSec 8 -EA Stop; $o.raw_ip=''+$r.StatusCode } catch { $o.raw_ip='' + $_.Exception.Response.StatusCode.value__ + ' ' + $_.Exception.Message }
 $o.tcp_1111_443=(Test-NetConnection 1.1.1.1 -Port 443 -WarningAction SilentlyContinue).TcpTestSucceeded
-$o | ConvertTo-Json -Compress
+'JSON:' + ($o | ConvertTo-Json -Compress)
+'IPCONFIG:' + ((ipconfig /all) -join ' ; ')
 """
 import base64
 enc = base64.b64encode(PHONE.encode("utf-16-le")).decode()
 img = sys.argv[1]
 def phone(label):
     out = ps(f"docker run --rm --network tnet {img} powershell -NoProfile -EncodedCommand {enc}", 600)
-    print(f"== Handy ({label}):", out[-1500:], "| AluPC-DNS-Anfragen:", d.queries)
+    lines = [l for l in out.splitlines() if l.startswith(("JSON:", "IPCONFIG:"))]
+    print(f"== Handy ({label}):", "\n".join(lines) or out[-800:], "| AluPC-DNS-Anfragen:", d.queries)
 
 phone("Weiterleitung an")
 iface = ps(f"(Get-NetIPAddress -IPAddress {IP}).InterfaceAlias")
