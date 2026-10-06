@@ -295,7 +295,7 @@ def main() -> int:
     # ================= normaler Hotspot: offen (Internet geht, Prüf-Adressen → Anmeldeseite)
     hs.kind = "normal"
     good, msg = hs_mod.start_portal(ip=IP, closed=False)
-    ok(good and forwarding(alias) == "Enabled", f"Normaler Hotspot: Anmeldeseite an, Internet bleibt ({msg})")
+    ok(good and forwarding(alias) == "Enabled", f"Offene Variante (nicht mehr Standard): Anmeldeseite an, Internet bleibt ({msg})")
     r = phone("normal", image, pump)
     ok(r.get("dns_check") == IP, f"Normal: Prüf-Adresse → {r.get('dns_check')}")
     ok(r.get("dns_any") not in ("", IP, "FEHLER", None), f"Normal: andere Adressen echt → {r.get('dns_any')}")
