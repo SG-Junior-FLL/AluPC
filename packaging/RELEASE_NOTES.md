@@ -26,7 +26,10 @@
   - „Anzeige-Einstellungen“-Knopf auf beiden.
 - **Geprüft vor der Auslieferung:**
   - Neues Skript bedient jede Einstellung im Setup echt (gespeichert, zurückstellbar, wirkt) – Linux und Windows.
-    Dabei gefunden und behoben: ein altes Testfenster färbte das Theme um (nur Tests betroffen).
+    Dabei gefunden und behoben:
+    - Windows: Autostart ging nicht, wenn der „Run“-Eintrag in der Registry noch fehlte (neues Benutzerkonto).
+    - Fette Texte auf Monitor 2 wurden manchmal abgeschnitten.
+    - Ein altes Testfenster färbte das Theme um (nur Tests betroffen).
   - Anmeldeseite echt (Linux-Netz bzw. Windows-Internetfreigabe + Container-Handy):
     - Monitor 2 zeigt genau 1 QR-Code = WLAN (echter Decoder),
     - Anmeldeseite → mitspielen, „AluPC steuern“ → am PC fragen,

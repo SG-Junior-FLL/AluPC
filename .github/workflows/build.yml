@@ -267,6 +267,8 @@ jobs:
             tail -n 25 settings.log | tr -d '\r' | sed 's/^/::error title=Einstellungen (Windows, Ende)::/'; exit 1; }
           echo "::notice title=Einstellungen (Windows)::$(tail -1 settings.log)"
       - name: AluPC-Farben für den Desktop echt (Registry setzen und zurückstellen)
+        env:
+          PYTHONIOENCODING: utf-8
         run: python tests/desktop_theme_windows_check.py
       - name: Tests (Logik + Windows-Strukturen)
         shell: pwsh
