@@ -228,11 +228,17 @@ def main() -> int:
        f"-Program '{sys.executable}' | Out-Null")
     before53 = ps("(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
                   "Where-Object LocalAddress -eq '0.0.0.0').OwningProcess")
+    print("::notice title=Port 53 vorher::" + ps(
+        "Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | ForEach-Object { $p = $_.OwningProcess; "
+        "\"$($_.LocalAddress) $p $((Get-Process -Id $p).ProcessName) \" + "
+        "((Get-CimInstance Win32_Service -Filter \"ProcessId=$p\" | ForEach-Object Name) -join ',') }").replace("\n", " | "),
+        flush=True)
     good, msg = hs_mod.start_portal(ip=IP, closed=True)  # echter Weg: „Als Administrator“ + Wächter
     ok(good, f"Anmeldeseite an (Port 53 übernommen, Administrator-Skript): {msg}")
-    owner = ps("(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
-               "Where-Object LocalAddress -eq '0.0.0.0').OwningProcess")
-    ok(owner.strip() == str(os.getpid()), f"Port 53 gehört AluPC (vorher Prozess {before53 or '–'}, jetzt {owner})")
+    owner = ps(f"(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
+               f"Where-Object {{ $_.LocalAddress -in @('0.0.0.0', '{IP}') -and $_.OwningProcess -eq {os.getpid()} }}"
+               f").LocalAddress")
+    ok(owner.strip() != "", f"Port 53 gehört AluPC (vorher Prozess {before53 or '–'} auf 0.0.0.0, AluPC jetzt {owner})")
     ok(not ps("Get-NetFirewallRule -DisplayName 'AluPC Testsperre' -ErrorAction SilentlyContinue"),
        "Firewall-Sperre für AluPC entfernt")
     ok(ps("(Get-Service SharedAccess).Status") == "Running", "Windows-Hotspot-Dienst läuft wieder")

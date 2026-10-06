@@ -233,6 +233,14 @@ function Clean {{
   $a = Alias
   if ($a) {{ Set-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4 -Forwarding Enabled -ErrorAction SilentlyContinue }}
 }}
+function Owner53 {{  # wer hält Port 53 (für die Meldung, falls AluPC ihn nicht bekommt)
+  $e = @(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | Where-Object {{ $_.LocalAddress -in @('0.0.0.0', $ip) }})
+  if ($e.Count -eq 0) {{ return 'frei' }}
+  $p = $e[0].OwningProcess
+  $n = (Get-Process -Id $p -ErrorAction SilentlyContinue).ProcessName
+  $svc = @(Get-CimInstance Win32_Service -Filter "ProcessId=$p" -ErrorAction SilentlyContinue | ForEach-Object {{ $_.Name }}) -join ','
+  "belegt:$($e[0].LocalAddress) $n $svc".Trim()
+}}
 function WaitFile($path, $seconds) {{
   $end = (Get-Date).AddSeconds($seconds)
   while (-not (Test-Path -LiteralPath $path) -and (Get-Date) -lt $end) {{ Start-Sleep -Milliseconds 200 }}
@@ -253,7 +261,7 @@ try {{
   # Port 53 vom Windows-Hotspot-DNS freimachen und AluPC geben
   Stop-Service SharedAccess -Force -ErrorAction SilentlyContinue
   $took = $true
-  Set-Content -LiteralPath "$flag.frei" -Value 'frei'
+  Set-Content -LiteralPath "$flag.frei" -Value (Owner53)
   $null = WaitFile "$flag.dns" 30
   Remove-Item -LiteralPath "$flag.dns" -ErrorAction SilentlyContinue
   Start-Service SharedAccess -ErrorAction SilentlyContinue
@@ -471,13 +479,23 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
 
         if not wait_file(Path(f"{flag}.frei"), 90):
             return fail("Anmeldeseite ging nicht (Administrator-Skript hat nicht geantwortet).")
-        # Port 53 auf allen Adressen, für AluPC allein – die Hotspot-Adresse gibt es erst nach dem Start
-        dns_ok = start_dns(lambda: hotspot.ip or ip, closed, host="0.0.0.0", port=53,
-                           check_hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS, restrict=True)
+        try:
+            owner = Path(f"{flag}.frei").read_text(encoding="utf-8", errors="replace").strip().lstrip("\ufeff")
+        except OSError:
+            owner = ""
+        # Port 53 auf allen Adressen, für AluPC allein (die Hotspot-Adresse gibt es erst nach dem Start). Hält ein
+        # anderer Dienst 0.0.0.0:53, aber die Hotspot-Adresse gibt es schon: genau dort (genauer gewinnt).
+        dns_ok = False
+        for host in ("0.0.0.0", ip):
+            dns_ok = start_dns(lambda: hotspot.ip or ip, closed, host=host, port=53,
+                               check_hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS, restrict=True)
+            if dns_ok:
+                break
         Path(f"{flag}.dns").write_text("ok" if dns_ok else "fehler")
         wait_file(Path(f"{flag}.bereit"), 30)
         if not dns_ok:
-            return fail("Anmeldeseite ging nicht: Port 53 ist von einem anderen Programm belegt.")
+            who = owner.partition(":")[2] if owner.startswith("belegt:") else ""
+            return fail("Anmeldeseite ging nicht: Port 53 ist belegt" + (f" ({who})." if who else "."))
         if then is not None and not then():
             return fail("")
         state = wait(flag, None, 90)

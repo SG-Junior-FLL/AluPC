@@ -331,6 +331,7 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
     assert ok and "-Verb RunAs" in seen[0] and "-EncodedCommand" in seen[0], msg
     assert order == ["frei", "dns", "bereit", "ok", "hotspot"], order
     assert started[-1]["host"] == "0.0.0.0" and started[-1]["port"] == 53 and started[-1]["restrict"]
+    assert "Owner53" in script and "Get-NetUDPEndpoint -LocalPort 53" in script
     import base64
     sent = base64.b64decode(seen[0].split("'-EncodedCommand','")[1].split("'")[0]).decode("utf-16-le")
     assert "$closed = $true" in sent and "Stop-Service SharedAccess" in sent
@@ -341,9 +342,20 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True,
                                    wait_file=lambda p, t: False)
     assert not ok and "nicht geantwortet" in msg
-    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: False)
+    # 0.0.0.0:53 hält ein anderer Dienst → Hotspot-Adresse direkt
+    hosts = []
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (hosts.append(k["host"]), k["host"] != "0.0.0.0")[1])
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
-    assert not ok and "Port 53" in msg and (tmp_path / "flag.dns").read_text() == "fehler"
+    assert ok and hosts == ["0.0.0.0", "192.168.137.1"], (hosts, msg)
+
+    def frei(path, timeout):
+        if path.name.endswith(".frei"):
+            path.write_text("belegt:0.0.0.0 svchost hns")
+        return True
+
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: False)
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=frei)
+    assert not ok and "Port 53 ist belegt (0.0.0.0 svchost hns)" in msg and (tmp_path / "flag.dns").read_text() == "fehler"
     # Selbsttest scheitert → ehrlich „ging nicht“ (kein stilles „an“ mit Internet für alle)
     monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: True)
     monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: False)
