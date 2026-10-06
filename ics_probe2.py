@@ -16,7 +16,8 @@ class H(BaseHTTPRequestHandler):
 
 d = PortalDNS(lambda: IP, closed=True, port=53, host=IP, exclusive=True)
 print("DNS start:", d.start(), d.error)
-srv = ThreadingHTTPServer((IP, 80), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
+print(ps(f"Stop-Service W3SVC,WAS -Force -EA 0; netsh interface portproxy add v4tov4 listenport=80 listenaddress={IP} connectport=8765 connectaddress={IP}; netsh advfirewall firewall add rule name=exp80 dir=in action=allow protocol=TCP localport=80"))
+srv = ThreadingHTTPServer((IP, 8765), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
 print(ps("New-NetFirewallRule -DisplayName exp -Direction Inbound -Action Allow -Program '" + sys.executable + "' | Out-Null; 'fw ok'"))
 
 PHONE = r"""
