@@ -1,49 +1,29 @@
-name: ICS-Experiment
+name: Portal-Windows-Test
 on:
   push:
     branches: [win-ics-test]
 jobs:
-  ics:
+  portal-windows:
+    # Eigener Job auf Windows Server 2022: dort liegt das Container-Abbild fürs „Handy“ schon bereit
     runs-on: windows-2022
     timeout-minutes: 40
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: "3.12"}
-      - name: Loopback + transparentes Netz + ICS
+        with:
+          python-version: "3.12"
+      - name: Installieren
+        run: pip install -e .
+      - name: Mobilen Hotspot nachbauen (Windows-Internetfreigabe, Handy = Container)
         shell: powershell
-        run: |
-          & {
-          docker images
-          choco install devcon.portable -y --no-progress | Out-Null
-          devcon64.exe install "$env:windir\inf\netloop.inf" '*msloop'
-          Start-Sleep 5
-          $lb = Get-NetAdapter | ? InterfaceDescription -like '*Loopback*' | Select -First 1
-          "loopback=$($lb.Name)"
-          docker network create -d transparent --subnet=192.168.137.0/24 --gateway=192.168.137.1 -o com.docker.network.windowsshim.interface="$($lb.Name)" tnet
-          Start-Sleep 8
-          Get-NetAdapter | ft Name,InterfaceDescription,Status -AutoSize
-          $priv = Get-NetAdapter | ? { $_.Name -like 'vEthernet*' -and $_.Name -like "*$($lb.Name)*" } | Select -First 1
-          if (-not $priv) { $priv = $lb }
-          $pubIdx = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort RouteMetric | Select -First 1).InterfaceIndex
-          $pub = Get-NetAdapter -InterfaceIndex $pubIdx
-          "public=$($pub.Name) private=$($priv.Name)"
-          $m = New-Object -ComObject HNetCfg.HNetShare
-          foreach ($c in $m.EnumEveryConnection) {
-            $n = $m.NetConnectionProps.Invoke($c).Name
-            if ($n -eq $pub.Name) { $m.INetSharingConfigurationForINetConnection.Invoke($c).EnableSharing(0) }
-            if ($n -eq $priv.Name) { $m.INetSharingConfigurationForINetConnection.Invoke($c).EnableSharing(1) }
-          }
-          Start-Sleep 8
-          Get-NetIPAddress -AddressFamily IPv4 | ft InterfaceAlias,IPAddress -AutoSize
-          } *>&1 | Out-String -Width 200 | Set-Content setup.txt
-          Get-Content setup.txt
-      - name: Probe
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/windows/hotspot_sim.ps1
+      - name: WLAN-Anmeldeseite echt – Handy im Hotspot-Netz (DNS, Weiterleitung, Mitspielen, keine Umgehung)
         shell: bash
         run: |
-          IMG=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -i servercore | head -1)
-          echo "image=$IMG"
-          python ics_probe2.py "$IMG" > probe.txt 2>&1 || true
-          cat probe.txt
-          python -c "t=open('setup.txt',encoding='utf-8',errors='replace').read()[-4000:];print('::notice title=setup::'+t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
-          python -c "t=open('probe.txt',encoding='utf-8',errors='replace').read()[-6000:];print('::notice title=probe::'+t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
+          python tests/portal_windows_check.py mcr.microsoft.com/windows/servercore:ltsc2022 2>&1 | tee portal.log
+          test "${PIPESTATUS[0]}" -eq 0 || { grep "FEHL" portal.log | sed 's/^/::error title=Anmeldeseite (Windows)::/'; exit 1; }
+          echo "::notice title=Anmeldeseite (Windows)::$(tail -1 portal.log)"
+
