@@ -536,3 +536,37 @@ def test_only_alupc_wlan_reaches_alupc(monkeypatch):
     h.client_address = ("10.42.0.57", 5000)
     assert not h._via_wlan()
     assert "/" not in PUBLIC_PATHS and "/spiel" not in PUBLIC_PATHS and "/api/spiel" not in PUBLIC_PATHS
+
+
+def test_internet_per_device(env, monkeypatch, tmp_path):  # noqa: F811
+    """Hotspot-Fenster: Gerät „Internet“ geben (nach MAC) → seine aktuelle Adresse landet bei DNS und Firewall."""
+    controller, _window, _ = env
+    monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
+    hs = hotspot.hotspot
+    monkeypatch.setattr(hs, "running", True)
+    monkeypatch.setattr(hs, "portal", True)
+    monkeypatch.setattr(hs, "ip", "10.42.0.1")
+    monkeypatch.setattr(hotspot, "neighbors", lambda dev="", ip="": {"10.42.0.7": "aa:bb:cc:00:00:07",
+                                                                   "10.42.0.9": "aa:bb:cc:00:00:09"})
+    hotspot.note_name("10.42.0.7", "Lenas iPad")
+    devices = controller.wlan_devices()
+    assert [d["name"] for d in devices] == ["Lenas iPad", "Gerät"] and not any(d["internet"] for d in devices)
+    controller.set_device_internet("AA:BB:CC:00:00:07", "Lenas iPad", True)
+    assert (tmp_path / "flag.internet").read_text() == "10.42.0.7\n"
+    assert controller.wlan_devices()[0]["internet"] and controller.config["hotspot"]["internet"]
+    # neue Adresse (DHCP) → gleiche Freigabe, neue IP
+    monkeypatch.setattr(hotspot, "neighbors", lambda dev="", ip="": {"10.42.0.33": "aa:bb:cc:00:00:07"})
+    controller.sync_internet()
+    assert (tmp_path / "flag.internet").read_text() == "10.42.0.33\n"
+    controller.set_device_internet("aa:bb:cc:00:00:07", "Lenas iPad", False)
+    assert (tmp_path / "flag.internet").read_text() == ""
+
+
+def test_portal_dns_real_answers_only_for_allowed_devices():
+    from alupc.portal_dns import PortalDNS
+
+    dns = PortalDNS(lambda: "10.42.0.1", closed=True, port=0)
+    dns.allowed = {"10.42.0.7"}
+    assert dns.ip_for("www.example.com", 1, "10.42.0.9") == ["10.42.0.1"]  # nicht freigeschaltet: Anmeldeseite
+    real = dns.ip_for("localhost", 1, "10.42.0.7")  # freigeschaltet: echte Auflösung
+    assert real != ["10.42.0.1"] and (real is None or "127.0.0.1" in real)

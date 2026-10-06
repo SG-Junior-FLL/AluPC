@@ -113,11 +113,11 @@ class HotspotDialog(QDialog):
         form.addRow("Passwort:", self.pw)
         from ..hotspot import IS_WINDOWS
 
-        self.hidden = QCheckBox("Unsichtbar – nur per QR-Code (oder Name + Passwort) zu finden")
+        self.hidden = QCheckBox("Unsichtbar (nur per QR-Code)")
         self.hidden.setChecked(bool(hs.get("hidden", True)) and not IS_WINDOWS)
         self.hidden.setEnabled(not IS_WINDOWS)
         if IS_WINDOWS:
-            self.hidden.setText("Unsichtbar – geht unter Windows nicht (der Mobile Hotspot zeigt den Namen immer)")
+            self.hidden.setText("Unsichtbar – geht unter Windows nicht")
         form.addRow("", self.hidden)
         self.auto = None
         if games:
