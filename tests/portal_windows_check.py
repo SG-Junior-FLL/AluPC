@@ -7,8 +7,8 @@ echte AluPC (Controller, Webserver, Minispiele, eigener DNS) und das echte Admin
 Administrator“ gestartet, wie in der App).
 
 Spiele-WLAN (geschlossen):
-  1. AluPC übernimmt Port 53 vom Windows-Hotspot-DNS (Dienst SharedAccess kurz angehalten, wie auf echten PCs
-     nötig) – jede Adresse zeigt auf den PC; eine Firewall-Sperre für AluPC (weggeklickte Windows-Frage) wird entfernt
+  1. AluPC-DNS auf 192.168.137.1:53 (genauer als der Windows-DNS auf 0.0.0.0) – jede Adresse zeigt auf den PC;
+     eine Firewall-Sperre für AluPC (weggeklickte Windows-Frage) wird entfernt
   0. Monitor 2 zeigt genau EINEN QR-Code: den WLAN-Code (echter Decoder)
   2. Android-/iPhone-Prüfung → 302 zur Anmeldeseite (über Port 80 → AluPC)
   3. Anmeldeseite mit Namensfeld → Spielseite → Beitreten → Spieler ist im Spiel
@@ -16,6 +16,7 @@ Spiele-WLAN (geschlossen):
      anderen Netz (Docker-NAT) bekommt überall 403 – auch nicht „AluPC steuern“
   5. Ausschalten → portproxy, Firewall, Sperre weg, Port 53 wieder beim Windows-Dienst
 Normaler Hotspot (offen): Prüf-Adressen → PC, alles andere normal, Internet geht.
+Notweg (erzwungen): Windows-Dienst kurz anhalten, Port 53 nehmen, Dienst wieder starten → Anmeldeseite kommt.
 
 Nicht prüfbar hier: echte WLAN-Karte, ob das Handy-Betriebssystem das Anmeldefenster selbst öffnet, die UAC-Abfrage
 (Runner ist schon Administrator).
@@ -43,13 +44,6 @@ def ok(cond, text: str) -> bool:
     results.append((bool(cond), text))
     print(("  OK   " if cond else "  FEHL ") + text, flush=True)
     return bool(cond)
-
-
-def start_hotspot() -> bool:
-    """Wie der Mobile Hotspot nach AluPCs Port-53-Übernahme: Internetfreigabe (neu) einschalten."""
-    out = ps(f"& '{ROOT / 'tests' / 'windows' / 'ics_share.ps1'}'")
-    print("::notice title=Hotspot (nach Port 53)::" + out.replace("\n", " | "), flush=True)
-    return True
 
 
 def ps(cmd: str, timeout: float = 120) -> str:
@@ -240,7 +234,7 @@ def main() -> int:
         "\"$($_.LocalAddress) $p $((Get-Process -Id $p).ProcessName) \" + "
         "((Get-CimInstance Win32_Service -Filter \"ProcessId=$p\" | ForEach-Object Name) -join ',') }").replace("\n", " | "),
         flush=True)
-    good, msg = hs_mod.start_portal(ip=IP, closed=True, then=start_hotspot)  # echter Weg: Administrator + Wächter
+    good, msg = hs_mod.start_portal(ip=IP, closed=True)  # echter Weg: Administrator + Wächter
     ok(good, f"Anmeldeseite an (Port 53 übernommen, Administrator-Skript): {msg}")
     print("::notice title=Port 53 (AluPC)::" + hs_mod.DNS_INFO, flush=True)
     owner = ps(f"(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
@@ -329,7 +323,7 @@ def main() -> int:
 
     # ================= normaler Hotspot: offen (Internet geht, Prüf-Adressen → Anmeldeseite)
     hs.kind = "normal"
-    good, msg = hs_mod.start_portal(ip=IP, closed=False, then=start_hotspot)
+    good, msg = hs_mod.start_portal(ip=IP, closed=False)
     ok(good and forwarding(alias) == "Enabled", f"Offene Variante (nicht mehr Standard): Anmeldeseite an, Internet bleibt ({msg})")
     r = phone("normal", image, pump)
     ok(r.get("dns_check") == IP, f"Normal: Prüf-Adresse → {r.get('dns_check')}")
@@ -338,6 +332,20 @@ def main() -> int:
     ok(r.get("inet_1111") is True, f"Normal: Internet geht → {r.get('inet_1111')}")
     hs_mod.stop_portal()
     pump(4)
+
+    # ================= Notweg: Windows-DNS sitzt auf der Adresse → Dienst kurz anhalten (hier erzwungen)
+    hs.kind = "spiele"
+    os.environ["ALUPC_DNS_UEBERNEHMEN"] = "1"
+    good, msg = hs_mod.start_portal(ip=IP, closed=True)
+    os.environ.pop("ALUPC_DNS_UEBERNEHMEN", None)
+    print("::notice title=Port 53 (Notweg)::" + hs_mod.DNS_INFO, flush=True)
+    ok(good and "angehalten" in hs_mod.DNS_INFO, f"Notweg: Dienst angehalten, Port 53 genommen ({msg or hs_mod.DNS_INFO})")
+    r = phone("spiele", image, pump)
+    ok(r.get("dns_check") == IP and r.get("android") == f"302 {target}",
+       f"Notweg: Handy bekommt die Anmeldeseite (DNS {r.get('dns_check')}, Android {r.get('android')})")
+    hs_mod.stop_portal()
+    pump(6)
+    ok(ps("(Get-Service SharedAccess).Status") == "Running", "Notweg: Windows-Dienst danach wieder an")
     controller.shutdown()
     failed = [t for good, t in results if not good]
     print(f"\n{len(results) - len(failed)}/{len(results)} Prüfungen bestanden")

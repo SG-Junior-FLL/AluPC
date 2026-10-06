@@ -299,43 +299,71 @@ def test_portal_start_order_and_cancel(monkeypatch, tmp_path):
 
 
 def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
-    """Windows wie Linux: Port 53 vom Windows-Hotspot-DNS übernehmen (Dienst kurz anhalten), Firewall inkl.
-    Sperr-Regeln für AluPC weg, portproxy 80, geschlossen = kein Weiterleiten. Hotspot erst NACH der Übernahme."""
+    """Windows wie Linux: AluPC-DNS auf der Hotspot-Adresse (exklusiv); geht das nicht, Windows-Dienst kurz anhalten.
+    Firewall inkl. Sperr-Regeln für AluPC weg, portproxy 80, geschlossen = kein Weiterleiten."""
     script = hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, program=r"C:\Pro'gramme\AluPC.exe")
     for part in ("portproxy add v4tov4 listenport=80 listenaddress=$ip connectport=8765", "portproxy delete",
                  "firewall add rule name=AluPC-Portal dir=in action=allow protocol=UDP localport=53",
                  'localport="80,53,8765"', "-Forwarding Disabled", "-Forwarding Enabled", "$closed = $true",
                  "Get-Process -Id 77", "Stop-Service SharedAccess", "Start-Service SharedAccess",
-                 "Restart-Service SharedAccess", '"$flag.frei"', '"$flag.dns"', '"$flag.bereit"',
-                 "$_.Action -eq 'Block'", "Remove-NetFirewallRule", "$prog = 'C:\\Pro''gramme\\AluPC.exe'",
-                 'program="$prog"'):
+                 "Restart-Service SharedAccess", '"$flag.frei"', '"$flag.dns"', '"$flag.gestoppt"', '"$flag.bereit"',
+                 "$want -eq 'uebernehmen'", "$_.Action -eq 'Block'", "Remove-NetFirewallRule",
+                 "$prog = 'C:\\Pro''gramme\\AluPC.exe'", 'program="$prog"', "Owner53"):
         assert part in script, part
     assert "captive.apple.com" not in script and "drivers\\etc\\hosts" not in script  # keine hosts-Notlösung mehr
-    assert script.index("Stop-Service") < script.index('"$flag.frei"') < script.index("Start-Service SharedAccess")
+    # Dienst nur anhalten, wenn AluPC „uebernehmen“ meldet
+    assert script.index("$want -eq 'uebernehmen'") < script.index("Stop-Service SharedAccess")
     assert "$closed = $false" in hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, closed=False)
     monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
     monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
+    monkeypatch.delenv("ALUPC_DNS_UEBERNEHMEN", raising=False)
     started, order = [], []
-    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (started.append(k), order.append("dns"), True)[2])
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (started.append(k), order.append("bind"), True)[2])
     monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: True)
 
-    def files(path, timeout):  # das Administrator-Skript: gibt Port 53 frei, wartet auf AluPC, startet den Dienst
-        order.append(path.name.split(".")[-1])
-        if path.name.endswith(".bereit"):
-            order.append((tmp_path / "flag.dns").read_text())  # AluPC hat Port 53 → meldet „ok“
+    def files(path, timeout):  # das Administrator-Skript
+        name = path.name.split(".")[-1]
+        order.append(name)
+        if name == "frei":
+            path.write_text("belegt:0.0.0.0 svchost SharedAccess")
+        if name in ("gestoppt", "bereit"):
+            order.append((tmp_path / "flag.dns").read_text())
+        if name == "gestoppt":
+            path.write_text("frei")
         return True
 
     seen = []
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (seen.append(cmd), (0, ""))[1], wait=lambda f, p, t: True,
-                                   then=lambda: (order.append("hotspot"), True)[1], wait_file=files)
+                                   wait_file=files)
     assert ok and "-Verb RunAs" in seen[0] and "-EncodedCommand" in seen[0], msg
-    assert order == ["frei", "dns", "bereit", "ok", "hotspot"], order
-    assert started[-1]["host"] == "0.0.0.0" and started[-1]["port"] == 53 and started[-1]["restrict"]
-    assert started[-1]["exclusive"] is False  # exklusiv auf 0.0.0.0 scheitert neben Docker/WSL (172.x:53)
-    assert "Owner53" in script and "Get-NetUDPEndpoint -LocalPort 53" in script
+    assert order == ["frei", "bind", "bereit", "ok"], order  # Hotspot-Adresse klappt → Dienst bleibt an
+    assert started[-1] == {**started[-1], "host": "192.168.137.1", "port": 53, "restrict": True, "exclusive": True}
+    assert hotspot.DNS_INFO == "Port 53 vorher: belegt:0.0.0.0 svchost SharedAccess · AluPC: 192.168.137.1 exklusiv"
     import base64
     sent = base64.b64decode(seen[0].split("'-EncodedCommand','")[1].split("'")[0]).decode("utf-16-le")
     assert "$closed = $true" in sent and "Stop-Service SharedAccess" in sent
+    # Hotspot-Adresse nicht zu bekommen → Dienst anhalten lassen, dann binden
+    order.clear()
+    hosts = []
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (hosts.append((k["host"], k["exclusive"])),
+                                                                (tmp_path / "flag.gestoppt").exists())[1])
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
+    assert ok and order == ["frei", "gestoppt", "uebernehmen", "bereit", "ok"], (order, msg)
+    assert hosts == [("192.168.137.1", True), ("192.168.137.1", True)], hosts
+    assert "Windows-Dienst angehalten: frei · AluPC: 192.168.137.1 exklusiv" in hotspot.DNS_INFO
+    # gar nicht zu bekommen → klare Meldung mit dem Besitzer
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: False)
+    (tmp_path / "flag.gestoppt").unlink(missing_ok=True)
+
+    def files2(path, timeout):
+        if path.name.endswith(".frei") or path.name.endswith(".gestoppt"):
+            path.write_text("belegt:0.0.0.0 svchost hns")
+        return True
+
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files2)
+    assert not ok and "Port 53 ist belegt (0.0.0.0 svchost hns)" in msg and not (tmp_path / "flag").exists()
+    # Abbruch, Port 80 belegt, Skript antwortet nicht, Selbsttest scheitert
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: True)
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (1, "abgebrochen"), wait=lambda f, p, t: True, wait_file=files)
     assert not ok and "nicht bestätigt" in msg and not (tmp_path / "flag").exists()
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: "belegt:System", wait_file=files)
@@ -343,59 +371,23 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True,
                                    wait_file=lambda p, t: False)
     assert not ok and "nicht geantwortet" in msg
-    # 0.0.0.0:53 hält ein anderer Dienst → Hotspot-Adresse direkt
-    hosts = []
-    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (hosts.append(k["host"]), k["host"] != "0.0.0.0")[1])
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
-    assert ok and hosts == ["0.0.0.0", "192.168.137.1"], (hosts, msg)
-    # nach dem Hotspot-Start kommt nichts an (Adresse neu angelegt) → neu binden, jetzt Hotspot-Adresse zuerst
-    hosts.clear()
-    tests = iter([False, True])
-    monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: next(tests))
-    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (hosts.append((k["host"], k["exclusive"])), True)[1])
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
-    assert ok and hosts == [("0.0.0.0", False), ("192.168.137.1", True)], (hosts, msg)
-    assert "nach Hotspot-Start neu: 192.168.137.1 exklusiv" in hotspot.DNS_INFO
-    monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: True)
-
-    def frei(path, timeout):
-        if path.name.endswith(".frei"):
-            path.write_text("belegt:0.0.0.0 svchost hns")
-        return True
-
-    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: False)
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=frei)
-    assert not ok and "Port 53 ist belegt (0.0.0.0 svchost hns)" in msg and (tmp_path / "flag.dns").read_text() == "fehler"
-    # Selbsttest scheitert → ehrlich „ging nicht“ (kein stilles „an“ mit Internet für alle)
-    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: True)
     monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: False)
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
     assert not ok and "kommen nicht bei AluPC an" in msg
 
 
-def test_windows_hotspot_starts_after_port53(monkeypatch, tmp_path):
-    """Hotspot.start unter Windows: Hotspot erst, wenn Port 53 übernommen ist; ohne „Ja“ trotzdem Hotspot."""
+def test_windows_hotspot_then_portal(monkeypatch, tmp_path):
+    """Hotspot.start unter Windows: erst Hotspot (Adresse 192.168.137.1 entsteht), dann Anmeldeseite."""
     monkeypatch.setattr(hotspot, "supported", lambda: (True, ""))
     monkeypatch.setattr(hotspot.sys, "platform", "win32")
     monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
     calls = []
     monkeypatch.setattr(hotspot, "_ps", lambda script, env=None, timeout=40: (calls.append(env), (0, "STATUS:Success:"))[1])
-
-    def portal(ip, closed, then):
-        calls.append("portal")
-        assert then()
-        return True, "Anmeldeseite an."
-
-    monkeypatch.setattr(hotspot, "start_portal", portal)
-    monkeypatch.setattr(hotspot, "stop_portal", lambda: None)
+    monkeypatch.setattr(hotspot, "start_portal", lambda ip, closed: (calls.append("portal"), (True, "Anmeldeseite an."))[1])
     hs = hotspot.Hotspot()
     ok, msg = hs.start("AluPC-Spiele", "k7m2p9qa", portal=True, hidden=False)
-    assert ok and hs.portal and calls[0] == "portal" and calls[1]["ALUPC_SSID"] == "AluPC-Spiele" and len(calls) == 2
+    assert ok and hs.portal and calls[0]["ALUPC_SSID"] == "AluPC-Spiele" and calls[1] == "portal"
     assert "Anmeldeseite an" in msg and hs.ip == "192.168.137.1"
-    calls.clear()
-    monkeypatch.setattr(hotspot, "start_portal", lambda ip, closed, then: (False, "Anmeldeseite aus („Ja“ …)."))
-    ok, msg = hotspot.Hotspot().start("AluPC-Spiele", "k7m2p9qa", portal=True, hidden=False)
-    assert ok and len(calls) == 1 and "Anmeldeseite aus" in msg
 
 
 def test_windows_arp_any_language(monkeypatch):

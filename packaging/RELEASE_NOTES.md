@@ -10,19 +10,22 @@
 
 ### Neu in dieser Version (0.109.0)
 - **Windows: Anmeldeseite repariert** (Handys bekamen Internet statt der Anmeldeseite):
-  - Der eigene DNS des Windows-Hotspots hielt Port 53 fest – die Handys fragten Windows statt AluPC. Jetzt hält
-    AluPC den Windows-Dienst „Internetverbindungsfreigabe“ kurz an, übernimmt Port 53 und startet danach den Hotspot.
-    Beim Ausschalten bekommt Windows den Port zurück. Weiter nur ein „Ja“ (Administrator).
+  - Fragen die Handys Windows' eigenen Hotspot-DNS statt AluPC, gibt es keine Anmeldeseite (und Internet für
+    alle). AluPC nimmt Port 53 jetzt genau auf der Hotspot-Adresse; geht das nicht, hält AluPC den Windows-Dienst
+    „Internetverbindungsfreigabe“ kurz an, nimmt Port 53 und startet ihn wieder. Weiter nur ein „Ja“.
   - Wurde die Windows-Frage „Zugriff zulassen?“ für AluPC einmal weggeklickt, sperrte die Firewall die Handys.
     Diese Sperre für AluPC wird jetzt entfernt.
   - Klappt es trotzdem nicht, sagt AluPC das klar („Anmeldeseite ging nicht …“) statt still „an“ zu melden.
 - **Windows: „Geräte im WLAN“ (Internet pro Gerät) war leer** – deutsches Windows schreibt „dynamisch“ statt
   „dynamic“. Geht jetzt in jeder Sprache.
 - Unsichtbares WLAN mit unsichtbaren Zeichen (Windows) wieder entfernt. Unter Windows ist der Name sichtbar.
-- Geprüft: Windows-CI mit echtem Windows-Dienst (anhalten, Port 53, wieder starten), Firewall-Sperre, Handy-
-  Container (Android-/iPhone-Prüfung → Anmeldeseite, Internet pro Gerät), Linux 25/25, alle Tests.
-- Ehrlich, nicht geprüft: echter Mobiler Hotspot mit echtem Android-Handy – bitte testen. Falls das Anhalten des
-  Dienstes den Hotspot stört, startet AluPC ihn erst danach – das ist so gebaut, aber nur nachgestellt geprüft.
+- „Diagnose kopieren“ zeigt jetzt „WLAN / Anmeldeseite“: wer Port 53 hatte, wo AluPC lauscht, wie viele
+  Namensfragen ankamen, Geräte im WLAN – bitte schicken, falls es nicht geht.
+- Fingerabdruck-Anmeldung (Windows): Finger muss nach einer Anmeldung erst abgehoben werden (sonst evtl. doppelt).
+- Geprüft: Windows-CI mit nachgebautem Hotspot (Handy-Container: Anmeldeseite, Internet pro Gerät, Firewall-
+  Sperre, Notweg mit angehaltenem Dienst), Linux 25/25, alle Tests.
+- Ehrlich, nicht geprüft: echter Mobiler Hotspot mit echtem Android-Handy – bitte testen. Beim Notweg (Dienst
+  angehalten) ist offen, ob „Internet pro Gerät“ danach noch geht.
 
 ### Neu in Version 0.108.0
 - **AluPC ist jetzt ins System eingebunden** (Linux und Windows gleich; Einstellungen → Allgemein → „Im System“,
