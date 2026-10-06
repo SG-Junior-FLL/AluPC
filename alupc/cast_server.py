@@ -259,7 +259,7 @@ class CastServer(QObject):
         handler = _make_handler(self)
         for port in range(first, first + 10):
             try:
-                self.httpd = ThreadingHTTPServer(("0.0.0.0", port), handler)
+                self.httpd = _QuietServer(("0.0.0.0", port), handler)
                 break
             except OSError:
                 continue
@@ -376,6 +376,18 @@ color:#eef0ff;font:16px system-ui,sans-serif;text-align:center;padding:24px;box-
 b{font-size:22px;display:block;margin-bottom:10px}</style></head><body><div>
 <b>📶 Nur über das AluPC-WLAN</b>Scanne den WLAN-Code auf Monitor 2 – dann öffnet sich die Anmeldeseite
 (Mitspielen oder AluPC steuern).</div></body></html>"""
+
+
+class _QuietServer(ThreadingHTTPServer):
+    """Handy bricht eine Verbindung ab (Seite gewechselt, WLAN weg) → kein Fehler-Stapel in der Konsole."""
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        import sys
+
+        if isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
 
 
 def portal_page(server) -> str:

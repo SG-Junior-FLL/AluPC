@@ -1683,7 +1683,15 @@ class Controller(QObject):
             return
         allowed = self.internet_allowed()
         try:
-            set_internet([ip for ip, mac in neighbors().items() if mac in allowed] if allowed else [])
+            # letzte bekannte Adresse je Gerät merken: schläft ein Handy kurz (fehlt in der ARP-Tabelle), behält es
+            # seine Freigabe; bekommt es eine neue Adresse, zieht die Freigabe mit
+            seen = getattr(self, "_mac_ip", {})
+            for ip, mac in neighbors().items():
+                for old in [m for m, i in seen.items() if i == ip and m != mac]:
+                    del seen[old]  # Adresse gehört jetzt einem anderen Gerät
+                seen[mac] = ip
+            self._mac_ip = seen
+            set_internet([seen[mac] for mac in allowed if mac in seen])
         except Exception:  # noqa: BLE001 - nächster Versuch in 3 s
             pass
 
