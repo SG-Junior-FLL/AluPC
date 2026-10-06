@@ -40,7 +40,7 @@ import base64
 enc = base64.b64encode(PHONE.encode("utf-16-le")).decode()
 img = sys.argv[1]
 def phone(label):
-    out = ps(f"docker run --rm --network tnet {img} powershell -NoProfile -EncodedCommand {enc}", 600)
+    out = ps(f"docker run --rm --network tnet --ip 192.168.137.50 --dns 192.168.137.1 {img} powershell -NoProfile -EncodedCommand {enc}", 600)
     lines = [l for l in out.splitlines() if l.startswith(("JSON:", "IPCONFIG:"))]
     print(f"== Handy ({label}):", "\n".join(lines) or out[-800:], "| AluPC-DNS-Anfragen:", d.queries)
 

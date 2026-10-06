@@ -20,7 +20,7 @@ jobs:
           Start-Sleep 5
           $lb = Get-NetAdapter | ? InterfaceDescription -like '*Loopback*' | Select -First 1
           "loopback=$($lb.Name)"
-          docker network create -d transparent -o com.docker.network.windowsshim.interface="$($lb.Name)" tnet
+          docker network create -d transparent --subnet=192.168.137.0/24 --gateway=192.168.137.1 -o com.docker.network.windowsshim.interface="$($lb.Name)" tnet
           Start-Sleep 8
           Get-NetAdapter | ft Name,InterfaceDescription,Status -AutoSize
           $priv = Get-NetAdapter | ? { $_.Name -like 'vEthernet*' -and $_.Name -like "*$($lb.Name)*" } | Select -First 1
