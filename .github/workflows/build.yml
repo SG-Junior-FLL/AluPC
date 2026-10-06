@@ -238,6 +238,7 @@ jobs:
       - name: WLAN-Anmeldeseite echt – Handy im Hotspot-Netz (DNS, Weiterleitung, Mitspielen, keine Umgehung)
         shell: bash
         run: |
+          set +e +o pipefail  # sonst endet der Schritt vor der Fehlerausgabe
           python -X faulthandler -u tests/portal_windows_check.py mcr.microsoft.com/windows/servercore:ltsc2022 2>&1 | tee portal.log
           test "${PIPESTATUS[0]}" -eq 0 || { grep "FEHL" portal.log | sed 's/^/::error title=Anmeldeseite (Windows)::/'
             tail -n 25 portal.log | tr -d '\r' | sed 's/^/::error title=Anmeldeseite (Windows, Ende)::/'; exit 1; }
