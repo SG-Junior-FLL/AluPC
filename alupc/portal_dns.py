@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import socket
 import struct
+import sys
 import threading
 
 PORT = 8753
@@ -52,12 +53,15 @@ def answer(query: bytes, ip_for: callable) -> bytes | None:
 
 
 class PortalDNS:
-    def __init__(self, ip_provider, closed: bool = True, hosts: list[str] | None = None, port: int = PORT):
-        self.ip_provider, self.closed, self.port = ip_provider, closed, port
+    def __init__(self, ip_provider, closed: bool = True, hosts: list[str] | None = None, port: int = PORT,
+                 host: str = "0.0.0.0", exclusive: bool = False):
+        self.ip_provider, self.closed, self.port, self.host = ip_provider, closed, port, host
+        self.exclusive = exclusive  # Windows: Port für sich allein (SO_EXCLUSIVEADDRUSE)
         self.hosts = {h.lower() for h in (hosts or [])}
         self.udp: socket.socket | None = None
         self.tcp: socket.socket | None = None
         self.queries = 0
+        self.error = ""
 
     def ip_for(self, name: str, qtype: int):
         if self.closed or name in self.hosts:
@@ -75,14 +79,16 @@ class PortalDNS:
         if self.udp is not None:
             return True
         try:
-            udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            udp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            udp.bind(("0.0.0.0", self.port))
-            tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            tcp.bind(("0.0.0.0", self.port))
+            udp = self._socket(socket.SOCK_DGRAM)
+        except OSError as exc:
+            self.error = str(exc)
+            return False
+        try:
+            tcp = self._socket(socket.SOCK_STREAM)
             tcp.listen(16)
-        except OSError:
+        except OSError as exc:
+            udp.close()
+            self.error = str(exc)
             return False
         udp.settimeout(1.0)  # damit stop() die Schleifen sicher beendet
         tcp.settimeout(1.0)
@@ -90,6 +96,19 @@ class PortalDNS:
         threading.Thread(target=self._serve_udp, name="alupc-dns-udp", daemon=True).start()
         threading.Thread(target=self._serve_tcp, name="alupc-dns-tcp", daemon=True).start()
         return True
+
+    def _socket(self, kind):
+        sock = socket.socket(socket.AF_INET, kind)
+        try:
+            if self.exclusive and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            elif not sys.platform.startswith("win"):  # unter Windows hieße REUSEADDR: fremden Port mitbenutzen
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((self.host, self.port))
+        except OSError:
+            sock.close()
+            raise
+        return sock
 
     def _reply(self, data: bytes) -> bytes | None:
         self.queries += 1

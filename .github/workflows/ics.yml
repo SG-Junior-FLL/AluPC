@@ -1,0 +1,38 @@
+name: ICS-Experiment
+on:
+  push:
+    branches: [win-ics-test]
+jobs:
+  ics:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Loopback-Adapter + ICS
+        shell: powershell
+        run: |
+          choco install devcon.portable -y --no-progress | Out-Null
+          devcon64.exe install "$env:windir\inf\netloop.inf" '*msloop'
+          Start-Sleep 5
+          $lb = Get-NetAdapter | ? InterfaceDescription -like '*Loopback*' | Select -First 1
+          $pubIdx = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort RouteMetric | Select -First 1).InterfaceIndex
+          $pub = Get-NetAdapter -InterfaceIndex $pubIdx
+          "public=$($pub.Name) private=$($lb.Name)"
+          Get-Service SharedAccess | fl Name,Status,StartType
+          $m = New-Object -ComObject HNetCfg.HNetShare
+          foreach ($c in $m.EnumEveryConnection) {
+            $n = $m.NetConnectionProps.Invoke($c).Name
+            if ($n -eq $pub.Name) { $m.INetSharingConfigurationForINetConnection.Invoke($c).EnableSharing(0) }
+            if ($n -eq $lb.Name) { $m.INetSharingConfigurationForINetConnection.Invoke($c).EnableSharing(1) }
+          }
+          Start-Sleep 8
+          Get-NetIPAddress -InterfaceAlias $lb.Name -AddressFamily IPv4 | fl IPAddress
+          Get-Service SharedAccess | fl Name,Status
+      - name: Probe
+        run: python ics_probe.py
