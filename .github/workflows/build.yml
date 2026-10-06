@@ -231,7 +231,10 @@ jobs:
         run: pip install -e . zxing-cpp pillow
       - name: Mobilen Hotspot nachbauen (Windows-Internetfreigabe, Handy = Container)
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/windows/hotspot_sim.ps1
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tests/windows/hotspot_sim.ps1 *>&1 | Tee-Object -FilePath sim.log
+          if ($LASTEXITCODE -ne 0 -or -not (Get-NetIPAddress -IPAddress 192.168.137.1 -ErrorAction SilentlyContinue)) {
+            Get-Content sim.log -Tail 15 | ForEach-Object { Write-Output "::error title=Hotspot nachbauen::$_" }; exit 1 }
       - name: WLAN-Anmeldeseite echt – Handy im Hotspot-Netz (DNS, Weiterleitung, Mitspielen, keine Umgehung)
         shell: bash
         run: |
@@ -356,7 +359,9 @@ jobs:
           if (Test-Path $log) { Get-Content $log }
           # Diagnose (u. a. echte Probe-Aufnahme fürs Spiegeln) als Hinweise im Lauf sichtbar machen
           if (Test-Path $log) { Get-Content $log | Where-Object { $_ -like "DIAG *" } | ForEach-Object { Write-Output "::notice title=Windows-Diagnose::$($_.Substring(5))" } }
-          if ($p.ExitCode -ne 0) { throw "AluPC.exe Selbsttest fehlgeschlagen (Exit-Code $($p.ExitCode))" }
+          if ($p.ExitCode -ne 0) {
+            if (Test-Path $log) { Get-Content $log -Tail 25 | Where-Object { $_ -notlike "DIAG *" } | ForEach-Object { Write-Output "::error title=Selbsttest::$_" } }
+            throw "AluPC.exe Selbsttest fehlgeschlagen (Exit-Code $($p.ExitCode))" }
       - name: AirPlay echt – uxplay-windows über winget installieren und von AluPC starten lassen
         shell: pwsh
         continue-on-error: true

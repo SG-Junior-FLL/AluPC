@@ -3,7 +3,10 @@
 # → Windows-Internetfreigabe (ICS, derselbe Dienst wie beim Mobilen Hotspot) auf diesen Adapter:
 #    der PC bekommt 192.168.137.1, der Windows-DNS lauscht auf 0.0.0.0:53, NAT ins Internet läuft.
 $ErrorActionPreference = 'Stop'
-choco install devcon.portable -y --no-progress | Out-Null
+for ($i = 0; $i -lt 3 -and -not (Get-Command devcon64.exe -ErrorAction SilentlyContinue); $i++) {
+  choco install devcon.portable -y --no-progress | Out-Null  # Download klappt nicht immer beim ersten Mal
+  if (-not (Get-Command devcon64.exe -ErrorAction SilentlyContinue)) { Start-Sleep 10 }
+}
 devcon64.exe install "$env:windir\inf\netloop.inf" '*msloop' | Out-Null
 Start-Sleep 5
 $lb = Get-NetAdapter | Where-Object InterfaceDescription -like '*Loopback*' | Select-Object -First 1

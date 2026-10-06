@@ -390,6 +390,7 @@ def self_test(log_path: str) -> int:
         import urllib.request
 
         controller.config["cast"] = {**controller.config["cast"], "port": 18765}
+        os.environ["ALUPC_NO_AUTO_WIFI"] = "1"  # Selbsttest: kein echtes AluPC-WLAN starten
         controller.start_cast()
         app.processEvents()
         with urllib.request.urlopen(f"http://127.0.0.1:{controller.cast.port}/", timeout=10) as r:
