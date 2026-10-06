@@ -26,7 +26,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 TMP = Path(tempfile.mkdtemp(prefix="alupc-settings-"))
-os.environ["QT_QPA_PLATFORM"] = f"offscreen:configfile={ROOT / 'tests' / 'offscreen_two_screens.json'}"
+# relativer Pfad: unter Windows würde der Doppelpunkt in „D:\…“ die Qt-Angabe zerschneiden
+_cfg = os.path.relpath(ROOT / "tests" / "offscreen_two_screens.json").replace(os.sep, "/")
+os.environ["QT_QPA_PLATFORM"] = f"offscreen:configfile={_cfg}"
 os.environ["XDG_CONFIG_HOME"] = str(TMP / "cfg")
 os.environ["XDG_DATA_HOME"] = str(TMP / "data")
 os.environ["APPDATA"] = str(TMP / "cfg")

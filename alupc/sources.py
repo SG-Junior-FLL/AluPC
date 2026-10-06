@@ -1048,7 +1048,7 @@ class WifiQrSource(QWidget):
                  ("unsichtbar – nur per QR-Code oder Name + Passwort" if self.hidden else "", "#94a3b8", 0.05,
                   False),
                  ("", "", 0.03, False),
-                 ("Anmeldeseite öffnet sich: Mitspielen oder AluPC steuern", "#e2e8f0", 0.06, True)]
+                 ("Dann öffnet sich die Anmeldeseite", "#e2e8f0", 0.06, True)]
         y = text_rect.y()
         unit = text_rect.height() if horizontal else text_rect.height() * 1.2
         for text, color, size, bold in lines:
@@ -1412,7 +1412,9 @@ def fitted_font(painter, text: str, width: int, size: int) -> QFont:
     font = QFont()
     size = max(8, size)
     font.setPixelSize(size)
+    font.setBold(True)  # fett gemessen: passt dann auch, wenn der Aufrufer fett schreibt (sonst abgeschnitten)
     advance = QFontMetrics(font).horizontalAdvance(text)
+    font.setBold(False)
     if advance > width > 0:
         font.setPixelSize(max(8, int(size * width / advance)))
     return font

@@ -460,14 +460,6 @@ def _make_handler(server: CastServer):
             except ValueError:
                 return False
 
-        def _is_loopback(self) -> bool:
-            import ipaddress
-
-            try:
-                return ipaddress.ip_address(self.client_address[0]).is_loopback
-            except ValueError:
-                return False
-
         def _blocked(self, path: str) -> bool:
             """Nicht aus dem AluPC-WLAN → abgelehnt (nur Symbol/Abstimmung sind frei)."""
             if path in PUBLIC_PATHS or self._via_wlan():
@@ -495,7 +487,7 @@ def _make_handler(server: CastServer):
             anmelden“ und öffnet sie selbst."""
             from .hotspot import hotspot
 
-            if not hotspot.portal or not self._via_wlan() or self._is_loopback():
+            if not hotspot.portal or not self._via_wlan():
                 return False  # nur Handys im AluPC-WLAN – alle anderen bekommen unten „nur über das AluPC-WLAN“
             host = (self.headers.get("Host") or "").split(":")[0]
             if not host or host == hotspot.ip:
