@@ -333,6 +333,18 @@ def lobby(c) -> None:
         text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.075, qr_side + 4 * m, h * 0.04),
              "Name eingeben → mitspielen", h * 0.024, MUTED)
         return
+    if getattr(c, "wifi_only", False):  # nur über das Spiele-WLAN: kein Link – stattdessen sagen, was los ist
+        box = QRectF(w - m - qr_side * 1.15, (h - qr_side) / 2, qr_side * 1.15, qr_side)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, 14))
+        p.drawRoundedRect(box, 18, 18)
+        pulse = 0.55 + 0.45 * abs(math.sin(c.now * 2))
+        text(p, QRectF(box.x(), box.y() + box.height() * 0.12, box.width(), box.height() * 0.3), "📶",
+             box.height() * 0.18, qc("#67e8f9", pulse))
+        text(p, QRectF(box.x() + m * 0.6, box.y() + box.height() * 0.42, box.width() - m * 1.2,
+                       box.height() * 0.5), c.wifi_status or "Spiele-WLAN startet …", h * 0.028, TEXT, True,
+             wrap=True)
+        return
     # Der Code steht still (auch kein „Wippen“): bewegte Codes lesen manche Handy-Kameras schlecht
     qx, qy = w - m - qr_side, (h - qr_side) / 2 - h * 0.03
     qr_card(c, qx, qy, qr_side)
@@ -897,8 +909,9 @@ def schlangen(c, g, events) -> None:
     scoreboard(c, QRectF(w - m - side_w, m + h * 0.06, side_w, h * 0.62), g.scores(), limit=8)
     q = min(side_w * 0.5, h * 0.18)
     x, y = w - m - side_w / 2 - q / 2, h - m - q - q * 0.06 - h * 0.04
-    qr_card(c, x, y, q, caption=False)
-    text(p, QRectF(w - m - side_w, h - m - h * 0.035, side_w, h * 0.035), "Einsteigen", h * 0.022, MUTED)
+    if c.wifi or not getattr(c, "wifi_only", False):  # nur über WLAN: WLAN-Code (oder gar keiner)
+        qr_card(c, x, y, q, caption=False, image=c.wifi_qr() if c.wifi else None)
+        text(p, QRectF(w - m - side_w, h - m - h * 0.035, side_w, h * 0.035), "Einsteigen", h * 0.022, MUTED)
 
 
 def rennen(c, g, events) -> None:

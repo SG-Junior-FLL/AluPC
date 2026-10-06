@@ -126,8 +126,9 @@ def test_server_url_uses_hotspot_ip(env):  # noqa: F811
     assert controller.guest_wifi() == ("Zuhause", "x", False)
 
 
-def test_lobby_shows_only_game_code(env, tmp_path):  # noqa: F811
-    """WLAN-QR-Code ist raus aus den Minispielen – dafür „WLAN-QR-Code auf Monitor 2“ beim Hotspot."""
+def test_lobby_without_games_wifi_shows_no_link(env, tmp_path):  # noqa: F811
+    """Mitspielen nur über das Spiele-WLAN: läuft es nicht, zeigt die Lobby KEINEN Link (nur den Grund). Wer es
+    ausschaltet („nur über WLAN“ aus), bekommt wieder den Link-Code."""
     zx = pytest.importorskip("zxingcpp")
     pil = pytest.importorskip("PIL.Image")
     controller, _window, _ = env
@@ -140,7 +141,10 @@ def test_lobby_shows_only_game_code(env, tmp_path):  # noqa: F811
     path = tmp_path / "lobby.png"
     src.grab().save(str(path))
     texts = sorted(r.text for r in zx.read_barcodes(pil.open(path)))
-    assert texts == [controller.cast.games_url()]
+    assert texts == []  # kein anderer Weg als über das WLAN
+    controller.config["games"] = {**controller.config["games"], "wifi_only": False}
+    src.grab().save(str(path))
+    assert sorted(r.text for r in zx.read_barcodes(pil.open(path))) == [controller.cast.games_url()]
     src.stop()
 
 
@@ -191,10 +195,14 @@ def test_open_games_network_and_portal_script():
     assert add[add.index("802-11-wireless.hidden") + 1] == "yes"  # unsichtbar (Standard)
     assert ["nmcli", "connection", "up", "AluPC-Spiele"] in calls
     script = hotspot.portal_script("wlp4s0", 8765, hotspot.Path("/run/user/1000/alupc-portal-1000"), 4242)
-    assert "-I PREROUTING -i wlp4s0 -p tcp --dport 80 -m addrtype --dst-type LOCAL -j REDIRECT --to-ports 8765" \
-        in script  # nur Anfragen an den PC – normales Surfen über den Hotspot bleibt unberührt
-    assert "kill -0 4242" in script and "-D PREROUTING" in script  # Regel wird wieder entfernt
-    assert "interface-name=connectivitycheck.gstatic.com,wlp4s0" in script  # klappt auch ohne Internet
+    # Spiele-WLAN (geschlossen, wie im Hotel): jede Webseite → Anmeldeseite, jede DNS-Frage → AluPC, kein Internet
+    assert "-I PREROUTING -i wlp4s0 -p tcp --dport 80 -m comment --comment alupc-portal -j REDIRECT --to-ports 8765" \
+        in script
+    assert "--dport 53 -m comment --comment alupc-portal -j REDIRECT --to-ports 8753" in script
+    assert "-I FORWARD -i wlp4s0 -m comment --comment alupc-portal -j REJECT" in script
+    assert "kill -0 4242" in script and "-D PREROUTING" in script  # Regeln werden wieder entfernt
+    normal = hotspot.portal_script("wlp4s0", 8765, hotspot.Path("/tmp/f"), 1, closed=False)
+    assert "--dst-type LOCAL" in normal and "FORWARD" not in normal  # normaler Hotspot: Surfen bleibt
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="sh-Skript")
@@ -210,19 +218,47 @@ def test_portal_watchdog_really_runs(tmp_path, monkeypatch):
     fake = bin_dir / "iptables"
     fake.write_text(f"#!/bin/sh\necho \"$@\" >> {log}\n")
     fake.chmod(0o755)
-    conf = tmp_path / "nm" / "alupc-portal.conf"
-    monkeypatch.setattr(hotspot, "DNSMASQ_CONF", str(conf))
     flag = tmp_path / "alupc-portal-test"
     flag.write_text("an")
     proc = subprocess.Popen(["sh", "-c", hotspot.portal_script("wlan0", 8765, flag, os.getpid())],
                             env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"})
     assert hotspot._wait_ready(flag, proc, 10)
-    text = conf.read_text()
-    assert "interface-name=captive.apple.com,wlan0" in text and "interface-name=www.msftconnecttest.com,wlan0" in text
-    assert "-I PREROUTING" in log.read_text()
+    added = [ln for ln in log.read_text().splitlines() if " -I " in f" {ln} "]
+    assert len(added) == 7
     flag.unlink()
     proc.wait(10)
-    assert not conf.exists() and "-D PREROUTING" in log.read_text()
+    removed = [ln for ln in log.read_text().splitlines() if " -D " in f" {ln} "]
+    assert len(removed) >= 14  # vorher aufgeräumt (falls Reste) + nach dem Ausschalten
+
+
+def test_portal_dns_answers_everything_with_the_pc():
+    """Eigener DNS der Anmeldeseite: geschlossen → jede Adresse = PC; offen → nur die Prüf-Adressen."""
+    import socket
+    import struct
+
+    from alupc.portal_dns import PortalDNS, answer
+
+    def query(name, qtype=1):
+        q = struct.pack(">HHHHHH", 0x1234, 0x0100, 1, 0, 0, 0)
+        q += b"".join(bytes([len(p)]) + p.encode() for p in name.split(".")) + b"\0" + struct.pack(">HH", qtype, 1)
+        return q
+
+    dns = PortalDNS(lambda: "10.42.0.1", closed=True, hosts=["captive.apple.com"], port=0)
+    out = answer(query("irgendwas.example.org"), dns.ip_for)
+    assert out[:2] == b"\x12\x34" and out[6:8] == b"\x00\x01" and out.endswith(socket.inet_aton("10.42.0.1"))
+    assert answer(query("x.org", 28), dns.ip_for)[6:8] == b"\x00\x00"  # IPv6: keine Antwort, aber kein Fehler
+    open_dns = PortalDNS(lambda: "10.42.0.1", closed=False, hosts=["captive.apple.com"], port=0)
+    assert answer(query("captive.apple.com"), open_dns.ip_for).endswith(socket.inet_aton("10.42.0.1"))
+    # echter Server über UDP
+    srv = PortalDNS(lambda: "10.42.0.7", closed=True, port=18753)
+    assert srv.start()
+    try:
+        c = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        c.settimeout(3)
+        c.sendto(query("connectivitycheck.gstatic.com"), ("127.0.0.1", 18753))
+        assert c.recv(512).endswith(socket.inet_aton("10.42.0.7"))
+    finally:
+        srv.stop()
 
 
 def test_portal_start_order_and_cancel(monkeypatch, tmp_path):
@@ -234,11 +270,13 @@ def test_portal_start_order_and_cancel(monkeypatch, tmp_path):
     monkeypatch.setattr(hotspot.sys, "platform", "linux")
     monkeypatch.setattr(hotspot, "_linux_start",
                         lambda *a, **k: (order.append("hotspot"), (True, "Hotspot läuft.", "10.42.0.1"))[1])
-    monkeypatch.setattr(hotspot, "start_portal", lambda dev: (order.append("portal"), (True, "Anmeldeseite an."))[1])
+    monkeypatch.setattr(hotspot, "start_portal",
+                        lambda dev, closed=True: (order.append("portal"), (True, "Anmeldeseite an."))[1])
     hs = hotspot.Hotspot()
     ok, msg = hs.start("AluPC-Spiele", "", portal=True)
     assert ok and hs.portal and order == ["portal", "hotspot"] and "Anmeldeseite an" in msg
-    monkeypatch.setattr(hotspot, "start_portal", lambda dev: (False, "Anmeldeseite aus (Passwort nicht eingegeben)."))
+    monkeypatch.setattr(hotspot, "start_portal",
+                        lambda dev, closed=True: (False, "Anmeldeseite aus (Passwort nicht eingegeben)."))
     ok, msg = hotspot.Hotspot().start("AluPC-Spiele", "", portal=True)
     assert ok and "Passwort nicht eingegeben" in msg
 
@@ -406,7 +444,7 @@ def test_games_start_games_wifi_and_lobby_shows_one_wlan_code(env, tmp_path, mon
         time.sleep(0.02)
     assert started == [(True, "spiele")]  # Minispiele = eigenes WLAN
     controller.game_action("aus")
-    controller.config["games"] = {**controller.config["games"], "auto_wifi": False}
+    controller.config["games"] = {**controller.config["games"], "auto_wifi": False, "wifi_only": False}
     started.clear()
     controller.start_games("schlangen")
     assert started == []

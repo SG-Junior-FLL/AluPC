@@ -34,6 +34,12 @@ jobs:
             grep -E "^(FAILED|E   |ERROR)|Fatal Python|File \"/home/runner/work" tests.log | head -40 | sed 's/^/::error::/'
             grep -B2 -A30 "Fatal Python" tests.log | grep -E "File|Fatal|line" | head -30 | sed 's/^/::warning::/'
             exit 1; }
+      - name: WLAN-Anmeldeseite echt – virtuelles Handy im eigenen Netz (DNS, Weiterleitung, Mitspielen)
+        run: |
+          sudo apt-get install -y dnsutils iproute2 iptables > /dev/null
+          sudo -E "$(which python)" tests/portal_linux_check.py 2>&1 | tee portal.log
+          test "${PIPESTATUS[0]}" -eq 0 || { grep "✗" portal.log | sed 's/^/::error title=Anmeldeseite::/'; exit 1; }
+          echo "::notice title=Anmeldeseite (Linux)::$(tail -1 portal.log)"
       - name: Rundgang – jede Seite, jedes Fenster, jede Monitor-2-Anzeige öffnen (Fehler = rot)
         run: |
           python tools/screens_tour.py "$RUNNER_TEMP/rundgang" hell > tour.log 2>&1 || {

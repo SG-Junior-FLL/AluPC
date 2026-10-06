@@ -79,7 +79,7 @@ DEFAULTS: dict = {
     # Abstimmung: zuletzt gestellte Frage (zum schnellen Wiederholen)
     "poll": {"question": "", "options": []},
     # Minispiele: zuletzt gewähltes Spiel
-    "games": {"last": "schlangen", "options": {}, "sound": True, "board": {}, "auto_wifi": True},
+    "games": {"last": "schlangen", "options": {}, "sound": True, "board": {}, "auto_wifi": True, "wifi_only": True},
     # Hotspot-Kachel (normaler Hotspot): Name/Passwort – das Spiele-WLAN steht unter games.hotspot
     "hotspot": {},
     # Finger als Schnelltaste (Modul am USB-Seriell-Adapter): Platz → Befehl

@@ -139,6 +139,8 @@ class Controller(QObject):
 
         self.cast = cast_server(config)
         self.cast.wifi_provider = self.games_wifi  # Spiele-WLAN läuft → Lobby zeigt dessen WLAN-Code
+        self.cast.wifi_status_provider = self.games_wifi_status  # nur über das WLAN: was steht statt des Codes?
+        self._games_wifi_starting = False
         self.cast.request.connect(self._cast_request)
         from PySide6.QtCore import QTimer as _QTimer
 
@@ -1799,15 +1801,43 @@ class Controller(QObject):
 
         from .hotspot import hotspot, supported
 
-        if not self.config["games"].get("auto_wifi", True) or os.environ.get("ALUPC_NO_AUTO_WIFI"):
+        games = self.config["games"]
+        if not (games.get("auto_wifi", True) or games.get("wifi_only", True)) or os.environ.get("ALUPC_NO_AUTO_WIFI"):
             return False
         if hotspot.running and hotspot.kind == "spiele":
             return False
-        if not supported()[0]:
+        ok, why = supported()
+        if not ok:
+            hotspot.message = why
             return False
         self.message.emit("Spiele-WLAN startet …")
-        threading.Thread(target=lambda: self.set_hotspot(True, "spiele"), name="spiele-wlan-an", daemon=True).start()
+        self._games_wifi_starting = True
+
+        def run():
+            try:
+                self.set_hotspot(True, "spiele")
+            finally:
+                self._games_wifi_starting = False
+
+        threading.Thread(target=run, name="spiele-wlan-an", daemon=True).start()
         return True
+
+    def games_wifi_only(self) -> bool:
+        """Mitspielen nur über das Spiele-WLAN und seine Anmeldeseite (Standard) – kein Link, kein anderer Weg."""
+        return bool(self.config["games"].get("wifi_only", True))
+
+    def games_wifi_status(self) -> tuple[bool, str]:
+        """(nur über WLAN?, Text statt des Codes, falls das Spiele-WLAN gerade nicht läuft)."""
+        from .hotspot import hotspot
+
+        only = self.games_wifi_only()
+        if not only or (hotspot.running and hotspot.kind == "spiele"):
+            return only, ""
+        if self._games_wifi_starting:
+            return only, "Spiele-WLAN startet … (am PC einmal bestätigen)"
+        why = hotspot.message if hotspot.message and not hotspot.running else ""
+        return only, ("Spiele-WLAN ist aus" + (f" – {why}" if why else "") +
+                      " · am PC: Minispiele-Fenster → „Spiele-WLAN …“")
 
     def show_wifi_qr(self) -> bool:
         """WLAN-QR-Code des laufenden Hotspots groß auf Monitor 2."""

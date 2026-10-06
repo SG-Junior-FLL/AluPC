@@ -560,12 +560,36 @@ def _make_handler(server: CastServer):
             ws.serve_game(self.connection, self.rfile, hub, q.get("p", [""])[0],
                           lambda: server.running() and server.games is hub)
 
+        def _from_games_wifi(self) -> bool:
+            """„Nur über das Spiele-WLAN“ (Standard): beitreten nur aus dem Netz des Spiele-WLANs."""
+            import ipaddress
+
+            from .hotspot import hotspot
+
+            provider = getattr(server, "wifi_status_provider", None)
+            try:
+                only = bool(provider()[0]) if provider else False
+            except Exception:  # noqa: BLE001
+                only = False
+            if not only:
+                return True
+            if not (hotspot.running and hotspot.kind == "spiele" and hotspot.ip):
+                return False
+            try:
+                net = ipaddress.ip_network(f"{hotspot.ip}/24", strict=False)
+                return ipaddress.ip_address(self.client_address[0]) in net
+            except ValueError:
+                return False
+
         def _game_post(self):
             data = self._body_json()
             hub = self._games(str(data.get("u", "")))
             if hub is None:
                 return
             action, pid = data.get("action"), str(data.get("p", ""))
+            if action == "join" and not self._from_games_wifi():
+                self._json(403, {"error": "Mitspielen geht nur über das Spiele-WLAN – WLAN-Code auf Monitor 2 scannen"})
+                return
             if action == "join":
                 player = hub.join(str(data.get("name", "")), str(data.get("avatar", "")))
                 if player is None:

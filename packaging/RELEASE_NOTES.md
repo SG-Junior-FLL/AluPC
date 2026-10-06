@@ -8,7 +8,27 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.103.0)
+### Neu in dieser Version (0.104.0)
+- **Spiele-WLAN wie ein Hotel-WLAN (Linux), damit sich die Anmeldeseite wirklich öffnet:** Bisher zeigten nur
+  einige Prüf-Adressen auf den PC – Handys mit eigener (verschlüsselter) Namensauflösung oder wenn der PC Internet
+  hatte, gingen daran vorbei, und die Anmeldeseite kam nicht. Jetzt:
+  - AluPC beantwortet **jede** Namensfrage aus dem Spiele-WLAN selbst (eigener kleiner DNS, unabhängig von
+    NetworkManager),
+  - **jede** Webseite (http) führt zur Anmeldeseite,
+  - das Spiele-WLAN leitet **nichts ins Internet** weiter – so kommt kein Handy an der Anmeldeseite vorbei.
+- **Mitspielen nur über das Spiele-WLAN und die Anmeldeseite:** Lobby, „Einsteigen“ und „QR groß“ zeigen keinen
+  Link mehr, nur den WLAN-Code (läuft das WLAN nicht, steht dort der Grund). Der Server lässt nur Handys aus dem
+  Spiele-WLAN beitreten. Abschaltbar unter „Spiele-WLAN …“.
+- **Geprüft vor der Auslieferung:** neues Prüfskript spielt es echt durch – ein virtuelles Handy in einem eigenen
+  Netz (wie im Hotspot), das echte AluPC und das echte Root-Skript: Android- und iPhone-Prüfung → Anmeldeseite,
+  fremde DNS-Server abgefangen, Name → Mitspielen → Spielsteuerung (auch mit echtem Chromium), Mitspielen von außen
+  abgelehnt, nach dem Ausschalten alle Regeln weg (17/17). Läuft jetzt bei jedem Build in der Linux-CI.
+- Ehrlich: Ob das Handy-Betriebssystem das Anmeldefenster dann **von selbst** öffnet, lässt sich ohne echtes Handy
+  und WLAN-Karte nicht prüfen (iPhone meist sofort, Android oft erst über die Meldung „Im WLAN anmelden“).
+  **Windows:** dort kann AluPC den DNS des Mobilen Hotspots nicht übernehmen – unter Windows bleibt es beim
+  bisherigen Weg (hosts-Datei für die Prüf-Adressen), nicht so zuverlässig wie unter Linux.
+
+### Neu in Version 0.103.0
 - **PC steuern wie mit einer Kontroll-App:** System-Seite → Karte **„PC steuern“**: Lautstärke-Regler, Stumm, Musik
   (⏮ ⏯ ⏭), Desktop, Fenster wechseln, Bildschirmfoto und ein Feld **„Programm oder Befehl“** (wie Win+R, mit
   Vorschlägen aus den installierten Programmen). **Handy-Karte „PC“**: Lautstärke-Regler, Fenster klein/groß/schließen,

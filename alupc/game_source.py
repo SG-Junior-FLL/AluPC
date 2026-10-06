@@ -63,8 +63,14 @@ class GameSource(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         hub = self.server.games
+        status = getattr(self.server, "wifi_status_provider", None)
+        try:
+            wifi_only, wifi_status = status() if status else (False, "")
+        except Exception:  # noqa: BLE001
+            wifi_only, wifi_status = False, ""
         c = SimpleNamespace(p=p, w=self.width(), h=self.height(), now=0.0, hub=hub, fx=self.fx, qr=self.qr,
-                            url=self.server.games_url, wifi=self.wifi(), wifi_qr=self.wifi_qr)
+                            url=self.server.games_url, wifi=self.wifi(), wifi_qr=self.wifi_qr,
+                            wifi_only=wifi_only, wifi_status=wifi_status)
         if hub is None or not self.ok:
             import time
 

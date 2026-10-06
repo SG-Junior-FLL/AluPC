@@ -1,0 +1,257 @@
+"""Linux, als root (CI: sudo): WLAN-Anmeldeseite ECHT durchspielen – mit einem „Handy“ im eigenen Netz.
+
+Aufbau: Netz-Namensraum „alupc-handy“ mit Schnittstelle handy0 (10.42.0.50), verbunden über ein veth-Paar mit
+alupc-wlan0 (10.42.0.1) – wie ein Handy im Hotspot des PCs. Auf dem PC laufen das echte AluPC (Controller,
+Webserver, Minispiele, eigener DNS) und das echte Root-Skript (iptables). Das Handy macht dann, was Android und
+iPhone beim Verbinden tun, und spielt mit:
+
+  1. DNS: jede Adresse zeigt auf den PC (auch über fremde DNS-Server)
+  2. Android-Prüfung  http://connectivitycheck.gstatic.com/generate_204  → 302 zur Anmeldeseite
+  3. iPhone-Prüfung   http://captive.apple.com/hotspot-detect.html       → 302 zur Anmeldeseite
+  4. beliebige Webseite per IP (http)                                     → 302 zur Anmeldeseite
+  5. Anmeldeseite: Name eingeben → „Mitspielen“ → Spielseite → beigetreten (Spieler ist im Spiel)
+  6. Mit Chromium (falls Playwright da ist): dasselbe wie ein Mensch – Seite öffnet, Name tippen, tippen auf
+     „Mitspielen“, die Spielsteuerung erscheint
+  7. Mitspielen von außerhalb des Spiele-WLANs (ohne Anmeldeseite) → abgelehnt
+  8. Ausschalten → alle Regeln wieder weg
+
+Nicht prüfbar ohne echte Hardware: die WLAN-Karte, ob das Handy-Betriebssystem das Anmeldefenster selbst öffnet.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+NS, PC_IF, PHONE_IF, PC_IP, PHONE_IP = "alupc-handy", "alupc-wlan0", "handy0", "10.42.0.1", "10.42.0.50"
+results: list[tuple[bool, str]] = []
+
+
+def sh(cmd: str, check: bool = True) -> str:
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if check and r.returncode != 0:
+        raise RuntimeError(f"{cmd}: {r.stderr.strip()}")
+    return r.stdout.strip()
+
+
+def ok(cond: bool, text: str) -> bool:
+    results.append((bool(cond), text))
+    print(("  ✓ " if cond else "  ✗ ") + text, flush=True)
+    return bool(cond)
+
+
+def setup_net() -> None:
+    teardown_net()
+    sh(f"ip netns add {NS}")
+    sh(f"ip link add {PC_IF} type veth peer name {PHONE_IF}")
+    sh(f"ip link set {PHONE_IF} netns {NS}")
+    sh(f"ip addr add {PC_IP}/24 dev {PC_IF} && ip link set {PC_IF} up")
+    sh(f"ip netns exec {NS} ip addr add {PHONE_IP}/24 dev {PHONE_IF}")
+    sh(f"ip netns exec {NS} ip link set {PHONE_IF} up && ip netns exec {NS} ip link set lo up")
+    sh(f"ip netns exec {NS} ip route add default via {PC_IP}")
+    Path(f"/etc/netns/{NS}").mkdir(parents=True, exist_ok=True)
+    Path(f"/etc/netns/{NS}/resolv.conf").write_text(f"nameserver {PC_IP}\n")  # wie per DHCP vom Hotspot
+
+
+def teardown_net() -> None:
+    sh(f"ip netns del {NS}", check=False)
+    sh(f"ip link del {PC_IF}", check=False)
+    shutil.rmtree(f"/etc/netns/{NS}", ignore_errors=True)
+
+
+PHONE_ENV = "env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u NO_PROXY -u no_proxy"
+
+
+def phone(cmd: str) -> subprocess.CompletedProcess:
+    return subprocess.run(f"ip netns exec {NS} {PHONE_ENV} {cmd}", shell=True, capture_output=True, text=True,
+                          timeout=40)
+
+
+PHONE_HTTP = r'''
+import json, re, sys, urllib.request, urllib.parse, socket
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k): return None
+opener = urllib.request.build_opener(NoRedirect)
+def get(url):
+    try:
+        r = opener.open(url, timeout=10); return r.status, r.headers.get("Location", ""), r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        return e.code, e.headers.get("Location", ""), e.read().decode("utf-8", "replace")
+out = {}
+out["dns_check"] = socket.gethostbyname("connectivitycheck.gstatic.com")
+out["dns_any"] = socket.gethostbyname("www.beispiel-irgendwas.de")
+out["android"] = get("http://connectivitycheck.gstatic.com/generate_204")[:2]
+out["iphone"] = get("http://captive.apple.com/hotspot-detect.html")[:2]
+out["raw_ip"] = get("http://93.184.216.34/")[:2]
+status, _, page = get(out["android"][1])
+out["portal_status"] = status
+out["portal_has_name"] = 'id="n"' in page and "Mitspielen" in page
+m = re.search(r'location.href = "([^"]+)" \+ "&name="', page)
+game = m.group(1).replace("&amp;", "&") if m else ""
+out["game_url"] = game
+token = urllib.parse.parse_qs(urllib.parse.urlparse(game).query).get("u", [""])[0]
+st, _, gp = get(game + "&name=Lena")
+out["game_page"] = st
+req = urllib.request.Request(urllib.parse.urljoin(game, "/api/spiel"), method="POST",
+      data=json.dumps({"u": token, "action": "join", "name": "Lena"}).encode(), headers={"Content-Type": "application/json"})
+try:
+    r = urllib.request.urlopen(req, timeout=10); out["join"] = r.status; out["pid"] = json.loads(r.read())["p"]
+except urllib.error.HTTPError as e:
+    out["join"] = e.code
+print(json.dumps(out))
+'''
+
+PHONE_BROWSER = r'''
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox', '--no-proxy-server'] });
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p = await ctx.newPage();
+  // wie das Anmeldefenster des Handys: die Prüf-Adresse aufrufen und der Weiterleitung folgen
+  await p.goto('http://connectivitycheck.gstatic.com/generate_204');
+  const portal = p.url();
+  await p.fill('#n', 'Mia');
+  await p.click('#play');
+  await p.waitForSelector('#play:not(.hidden)', { timeout: 15000 });
+  const joined = await p.evaluate(() => document.getElementById('who').textContent);
+  await p.screenshot({ path: process.argv[2] });
+  console.log(JSON.stringify({ portal, joined, url: p.url() }));
+  await b.close();
+})().catch(e => { console.log(JSON.stringify({ error: String(e) })); process.exit(1); });
+'''
+
+
+def main() -> int:
+    if os.geteuid() != 0:
+        print("Bitte als root ausführen (sudo).")
+        return 2
+    tmp = Path(tempfile.mkdtemp(prefix="alupc-portal-"))
+    os.environ.update(QT_QPA_PLATFORM="offscreen", XDG_CONFIG_HOME=str(tmp), XDG_RUNTIME_DIR=str(tmp),
+                      ALUPC_NO_AUTO_WIFI="1")
+    setup_net()
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication([])
+
+    def pump(sec: float) -> None:
+        end = time.time() + sec
+        while time.time() < end:
+            app.processEvents()
+            time.sleep(0.01)
+
+    from alupc import hotspot as hs_mod
+    from alupc.config import Config
+    from alupc.controller import Controller
+
+    cfg = Config(tmp / "config.json")
+    cfg["cast"] = {**cfg["cast"], "port": hs_mod.PORTAL_PORT}
+    controller = Controller(cfg)
+    controller.display.available = lambda: False
+    controller.start_games("tictactoe")
+    hs = hs_mod.hotspot
+    hs.running, hs.kind, hs.ssid, hs.password, hs.hidden, hs.ip = True, "spiele", "AluPC-Spiele", "", True, PC_IP
+    flag = hs_mod.portal_flag()
+    flag.write_text("an")
+    if not hs_mod.start_dns(lambda: hs.ip, closed=True):
+        ok(False, "AluPC-DNS startet")
+        return 1
+    script = hs_mod.portal_script(PC_IF, hs_mod.PORTAL_PORT, flag, os.getpid(), closed=True)
+    watcher = subprocess.Popen(["sh", "-c", script])
+    ok(bool(hs_mod._wait_ready(flag, watcher, 20)), "Root-Skript setzt die Regeln (iptables) und meldet „bereit“")
+    hs.portal = True
+    rules = sh("iptables-save | grep alupc-portal", check=False)
+    ok(rules.count("alupc-portal") == 7, f"7 Regeln aktiv (DNS, Port 80, Firewall, kein Internet) – {rules.count('alupc-portal')}")
+
+    # ---- Handy: Prüfungen wie Android/iPhone + Anmeldeseite + Beitreten (HTTP)
+    phone_py = tmp / "phone_http.py"
+    phone_py.write_text(PHONE_HTTP)
+    proc = subprocess.Popen(f"ip netns exec {NS} {PHONE_ENV} {sys.executable} {phone_py}",
+                            shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    while proc.poll() is None:
+        pump(0.05)
+    out, err = proc.communicate()
+    try:
+        r = json.loads(out.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        ok(False, f"Handy-Prüfung lief nicht: {err[-400:]}")
+        r = {}
+    target = f"http://{PC_IP}:{hs_mod.PORTAL_PORT}/anmelden"
+    ok(r.get("dns_check") == PC_IP, f"DNS: connectivitycheck.gstatic.com → {r.get('dns_check')}")
+    ok(r.get("dns_any") == PC_IP, f"DNS: jede andere Adresse → {r.get('dns_any')} (geschlossenes WLAN)")
+    ok(r.get("android") == [302, target], f"Android-Prüfung → {r.get('android')}")
+    ok(r.get("iphone") == [302, target], f"iPhone-Prüfung → {r.get('iphone')}")
+    ok(r.get("raw_ip") == [302, target], f"Webseite per IP → {r.get('raw_ip')}")
+    ok(r.get("portal_status") == 200 and r.get("portal_has_name"), "Anmeldeseite mit Namensfeld und „Mitspielen“")
+    ok(r.get("game_page") == 200, "Spielseite aus der Anmeldeseite öffnet")
+    ok(r.get("join") == 200, f"Beitreten aus dem Spiele-WLAN → {r.get('join')}")
+    pump(0.3)
+    hub = controller.cast.games
+    ok(any(p.name == "Lena" for p in hub.players.values()), "„Lena“ ist im Spiel")
+    dig = phone("dig +short +time=3 +tries=1 @8.8.8.8 example.org")
+    ok(dig.stdout.strip() == PC_IP, f"Fremder DNS-Server (8.8.8.8) wird auch abgefangen → {dig.stdout.strip()!r}")
+
+    # ---- Handy mit echtem Browser (wie das Anmeldefenster)
+    node = shutil.which("node")
+    if node and os.environ.get("NODE_PATH"):
+        js = tmp / "phone.js"
+        js.write_text(PHONE_BROWSER)
+        shot = Path(os.environ.get("ALUPC_PORTAL_SHOT", tmp / "handy.png"))
+        cmd = (f"ip netns exec {NS} {PHONE_ENV} NODE_PATH={os.environ['NODE_PATH']} "
+               f"CHROMIUM={os.environ.get('CHROMIUM', '')} {node} {js} {shot}")
+        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        while proc.poll() is None:
+            pump(0.05)
+        out, err = proc.communicate()
+        try:
+            b = json.loads(out.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            b = {"error": err[-400:]}
+        ok(b.get("portal") == target, f"Browser landet auf der Anmeldeseite → {b.get('portal') or b.get('error')}")
+        ok(b.get("joined") == "Mia", f"Browser: Name „Mia“ → Mitspielen → Spielsteuerung ({b.get('joined')})")
+        pump(0.3)
+        ok(any(p.name == "Mia" for p in hub.players.values()), "„Mia“ ist im Spiel")
+    else:
+        print("  · Browser-Teil übersprungen (kein node/Playwright)")
+
+    # ---- von außerhalb (ohne Spiele-WLAN): abgelehnt
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(f"http://127.0.0.1:{hs_mod.PORTAL_PORT}/api/spiel", method="POST",
+                                 data=json.dumps({"u": hub.token, "action": "join", "name": "X"}).encode(),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=5)
+        code = 200
+    except urllib.error.HTTPError as e:
+        code = e.code
+    ok(code == 403, f"Mitspielen ohne Spiele-WLAN abgelehnt → {code}")
+
+    # ---- Ausschalten: Regeln weg
+    hs_mod.stop_portal()
+    try:
+        watcher.wait(15)
+    except subprocess.TimeoutExpired:
+        watcher.kill()
+    ok("alupc-portal" not in sh("iptables-save", check=False), "Nach dem Ausschalten sind alle Regeln weg")
+    controller.shutdown()
+    teardown_net()
+    failed = [t for good, t in results if not good]
+    print(f"\n{len(results) - len(failed)}/{len(results)} Prüfungen bestanden")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    try:
+        code = main()
+    finally:
+        teardown_net()
+    sys.exit(code)

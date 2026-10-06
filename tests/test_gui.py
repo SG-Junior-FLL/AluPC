@@ -3816,6 +3816,11 @@ def test_games_end_to_end(env):
     pump()
     gw = window.games_window
     hub = controller.cast.games
+    base = f"http://127.0.0.1:{controller.cast.port}"
+    blocked = _http("POST", base + "/api/spiel", json.dumps({"u": hub.token, "action": "join", "name": "X"}).encode(),
+                    {"Content-Type": "application/json"})
+    assert blocked[0] == 403  # Standard: nur über das Spiele-WLAN (hier läuft keins)
+    controller.config["games"] = {**controller.config["games"], "wifi_only": False}  # Rest: Spielablauf übers Netz
     assert gw.isVisible() and isinstance(controller.output.content, GameSource) and hub.game_key == "schlangen"
     base = f"http://127.0.0.1:{controller.cast.port}"
     status, body = _http("GET", base + "/spiel")

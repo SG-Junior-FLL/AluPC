@@ -63,14 +63,17 @@ class ConnectDialog(QDialog):
                                       [f"WLAN: <b>{ssid}</b>" + (" (unsichtbar)" if hidden else ""),
                                        f"Passwort: <b>{password}</b>" if password else "ohne Passwort"])
             row.addWidget(self.wifi_card)
-        self.link_card = _qr_card("2" if self.wifi_card else "", "Seite öffnen", url,
-                                  [f"<span style='color:#60a5fa'>{url.split('?')[0]}</span>"])
-        row.addWidget(self.link_card)
+        self.link_card = None
+        if url:  # ohne Link (Spiele nur über das WLAN): nur der WLAN-Code
+            self.link_card = _qr_card("2" if self.wifi_card else "", "Seite öffnen", url,
+                                      [f"<span style='color:#60a5fa'>{url.split('?')[0]}</span>"])
+            row.addWidget(self.link_card)
         lay.addLayout(row)
         buttons = QHBoxLayout()
-        copy = button("Link kopieren", "copy")
-        copy.clicked.connect(lambda: (QGuiApplication.clipboard().setText(self.url), copy.setText("Kopiert ✓")))
-        buttons.addWidget(copy)
+        if url:
+            copy = button("Link kopieren", "copy")
+            copy.clicked.connect(lambda: (QGuiApplication.clipboard().setText(self.url), copy.setText("Kopiert ✓")))
+            buttons.addWidget(copy)
         if on_monitor is not None:
             mon = button("Auf Monitor 2 zeigen", "monitor")
             mon.clicked.connect(on_monitor)
@@ -123,11 +126,14 @@ class HotspotDialog(QDialog):
         if IS_WINDOWS:
             self.hidden.setToolTip("Den Namen des Mobilen Hotspots kann Windows nicht verstecken")
         form.addRow("", self.hidden)
-        self.auto = None
+        self.auto = self.only = None
         if games:
             self.auto = QCheckBox("Mit den Minispielen automatisch starten")
             self.auto.setChecked(bool(controller.config["games"].get("auto_wifi", True)))
             form.addRow("", self.auto)
+            self.only = QCheckBox("Mitspielen nur über dieses WLAN (kein Link, nur die Anmeldeseite)")
+            self.only.setChecked(bool(controller.config["games"].get("wifi_only", True)))
+            form.addRow("", self.only)
         self.open_net = None
         if games and not IS_WINDOWS:  # offenes WLAN: ein Tippen, dann kommt die Anmeldeseite von selbst
             self.open_net = QCheckBox("Offen (ohne Passwort) – empfohlen für Spiele")
@@ -228,7 +234,8 @@ class HotspotDialog(QDialog):
         default = "AluPC-Spiele" if self.kind == "spiele" else "AluPC"
         hs = {"ssid": self.ssid.text().strip() or default, "password": pw, "hidden": self.hidden.isChecked()}
         if self.kind == "spiele":
-            games = {**cfg["games"], "hotspot": hs, "auto_wifi": self.auto.isChecked()}
+            games = {**cfg["games"], "hotspot": hs, "auto_wifi": self.auto.isChecked(),
+                     "wifi_only": self.only.isChecked()}
             ssid = self.r_ssid.text().strip()
             games["wifi"] = {"ssid": ssid, "password": self.r_pw.text()} if ssid else {}
             cfg["games"] = games

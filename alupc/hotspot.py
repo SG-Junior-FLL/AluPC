@@ -149,22 +149,39 @@ PORTAL_HOSTS = ["connectivitycheck.gstatic.com", "connectivitycheck.android.com"
                 "detectportal.firefox.com", "nmcheck.gnome.org", "connectivity-check.ubuntu.com"]
 # Nur im Linux-Hotspot: Windows-Laptops als Gäste. Unter Windows nicht – sonst hielte sich der PC selbst für „im Hotel“.
 WINDOWS_CHECK_HOSTS = ["www.msftconnecttest.com", "www.msftncsi.com"]
-DNSMASQ_CONF = "/etc/NetworkManager/dnsmasq-shared.d/alupc-portal.conf"
+DNS_PORT = 8753
 
 
-def portal_script(dev: str, port: int, flag: Path, pid: int) -> str:
-    """Root-Skript (Linux): Prüf-Adressen auf den Hotspot zeigen lassen (dnsmasq), Port 80 → AluPC, „bereit“
-    melden, warten bis Flagge weg oder AluPC beendet, alles wieder entfernen. Läuft VOR dem Start des Hotspots,
-    damit dnsmasq die Einträge beim Start liest."""
-    # Nur Anfragen AN den PC selbst (die Prüf-Adressen zeigen per dnsmasq hierher) – normales Surfen bleibt unberührt
-    rule = (f"-i {dev} -p tcp --dport 80 -m addrtype --dst-type LOCAL -j REDIRECT --to-ports {int(port)} "
-            "-m comment --comment alupc-portal")
-    lines = "\\n".join(f"interface-name={h},{dev}" for h in PORTAL_HOSTS + WINDOWS_CHECK_HOSTS)
-    return (f"mkdir -p {Path(DNSMASQ_CONF).parent} && printf '{lines}\\n' > {DNSMASQ_CONF}; "
-            f"iptables -t nat -I PREROUTING {rule} || {{ rm -f {DNSMASQ_CONF}; exit 1; }}; "
+def portal_script(dev: str, port: int, flag: Path, pid: int, closed: bool = True, dns_port: int = DNS_PORT) -> str:
+    """Root-Skript (Linux) – wie ein Hotel-WLAN:
+    * jede Namensfrage aus dem Hotspot (UDP/TCP 53) → AluPCs eigener DNS (portal_dns.py),
+    * Webseiten (Port 80) → Anmeldeseite von AluPC; im geschlossenen Spiele-WLAN JEDE Adresse,
+      sonst nur Anfragen an den PC selbst (normales Surfen bleibt dann unberührt),
+    * geschlossen: nichts ins Internet weiterleiten – so kommt kein Handy an der Anmeldeseite vorbei
+      (auch nicht mit eigenem, verschlüsseltem DNS),
+    * Ports für AluPC auf dieser Schnittstelle öffnen (falls eine Firewall läuft),
+    dann „bereit“ melden, warten bis Flagge weg oder AluPC beendet, alles wieder entfernen."""
+    tag = "-m comment --comment alupc-portal"
+    local = "" if closed else "-m addrtype --dst-type LOCAL "
+    rules = [f"-t nat PREROUTING -i {dev} -p udp --dport 53 {tag} -j REDIRECT --to-ports {int(dns_port)}",
+             f"-t nat PREROUTING -i {dev} -p tcp --dport 53 {tag} -j REDIRECT --to-ports {int(dns_port)}",
+             f"-t nat PREROUTING -i {dev} -p tcp --dport 80 {local}{tag} -j REDIRECT --to-ports {int(port)}",
+             f"INPUT -i {dev} -p tcp --dport {int(port)} {tag} -j ACCEPT",
+             f"INPUT -i {dev} -p udp --dport {int(dns_port)} {tag} -j ACCEPT",
+             f"INPUT -i {dev} -p tcp --dport {int(dns_port)} {tag} -j ACCEPT"]
+    if closed:
+        rules.append(f"FORWARD -i {dev} {tag} -j REJECT")
+
+    def ipt(op: str, rule: str) -> str:
+        table, _, rest = rule.partition(" PREROUTING ") if rule.startswith("-t nat") else ("", "", rule)
+        return f"iptables {table + ' ' if table else ''}{op} {'PREROUTING ' + rest if table else rest}"
+
+    add = " && ".join(ipt("-I", r) for r in rules)
+    remove = "; ".join(ipt("-D", r) + " 2>/dev/null" for r in rules)
+    return (f"{remove}; {add} || {{ {remove}; exit 1; }}; "
             f"echo ok > '{flag}.ok'; "
             f"while [ -e '{flag}' ] && kill -0 {int(pid)} 2>/dev/null; do sleep 2; done; "
-            f"iptables -t nat -D PREROUTING {rule}; rm -f {DNSMASQ_CONF}")
+            f"{remove}")
 
 
 def portal_script_windows(ip: str, port: int, flag: Path, pid: int) -> str:
@@ -231,8 +248,30 @@ def _wait_ready(flag: Path, proc=None, timeout: float = 120, sleep=None) -> str:
     return ""
 
 
+_dns = None  # laufender Anmeldeseiten-DNS (Linux)
+
+
+def start_dns(ip_provider, closed: bool = True) -> bool:
+    global _dns
+    from .portal_dns import PortalDNS
+
+    stop_dns()
+    _dns = PortalDNS(ip_provider, closed=closed, hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS, port=DNS_PORT)
+    if not _dns.start():
+        _dns = None
+        return False
+    return True
+
+
+def stop_dns() -> None:
+    global _dns
+    if _dns is not None:
+        _dns.stop()
+        _dns = None
+
+
 def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_ready,
-                 ip: str = WINDOWS_IP) -> tuple[bool, str]:
+                 ip: str = WINDOWS_IP, closed: bool = True) -> tuple[bool, str]:
     """Anmeldeseite einschalten (Linux: vor dem Hotspot-Start, Windows: danach). Fragt einmal nach dem
     Passwort (Linux, pkexec) bzw. „Ja“ (Windows, Administrator)."""
     flag = portal_flag()
@@ -262,8 +301,10 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
         return True, "Anmeldeseite an: Handys öffnen die Spielsteuerung beim Verbinden selbst."
     if not (shutil.which("pkexec") and shutil.which("iptables")):
         return False, "Anmeldeseite braucht pkexec und iptables."
+    if not start_dns(lambda: hotspot.ip or _linux_ip(dev), closed):
+        return False, f"Anmeldeseite ging nicht: Port {DNS_PORT} ist belegt."
     flag.write_text("an")
-    cmd = ["pkexec", "sh", "-c", portal_script(dev, port, flag, os.getpid())]
+    cmd = ["pkexec", "sh", "-c", portal_script(dev, port, flag, os.getpid(), closed=closed)]
     try:
         proc = (spawn or subprocess.Popen)(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                            stderr=subprocess.DEVNULL, start_new_session=True)
@@ -272,6 +313,7 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
         return False, f"Anmeldeseite ging nicht: {exc}"
     if not wait(flag, proc, 120):
         flag.unlink(missing_ok=True)  # Wächter (falls doch noch gestartet) räumt dann sofort auf
+        stop_dns()
         return False, "Anmeldeseite aus (Passwort nicht eingegeben) – Handys nehmen den QR-Code."
     return True, "Anmeldeseite an: Handys öffnen die Spielsteuerung beim Verbinden selbst."
 
@@ -279,6 +321,7 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
 def stop_portal() -> None:
     try:
         portal_flag().unlink(missing_ok=True)  # der Wächter nimmt alles in ≤ 2 s wieder raus
+        stop_dns()
     except OSError:
         pass
 
@@ -375,9 +418,9 @@ class Hotspot:
         portal_msg = ""
         self.portal = False
         if sys.platform.startswith("linux"):
-            if portal:  # vor dem Start: dnsmasq liest die Prüf-Adressen nur beim Hotspot-Start
+            if portal:  # vor dem Start (Passwort-Abfrage zuerst); Spiele-WLAN: geschlossen wie ein Hotel-WLAN
                 dev = wifi_device()
-                self.portal, portal_msg = start_portal(dev) if dev else (False, "")
+                self.portal, portal_msg = start_portal(dev, closed=kind == "spiele") if dev else (False, "")
             ok, msg, ip = _linux_start(ssid, password, kind=kind, hidden=hidden)
             if not ok and self.portal:
                 stop_portal()
