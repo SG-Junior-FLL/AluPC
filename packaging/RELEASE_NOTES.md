@@ -8,7 +8,29 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.106.0)
+### Neu in dieser Version (0.107.0)
+- **Das AluPC-WLAN ist kein Internet-WLAN mehr – Internet gibt es nur, wenn du es einem Gerät erlaubst.**
+  - Standard (normaler Hotspot und Spiele-WLAN): kein Internet, kein Weg an der Anmeldeseite vorbei – auch nicht
+    über IPv6 (unter Linux jetzt ausgeschaltet bzw. gesperrt). So bleibt das Anmeldefenster offen.
+  - Hotspot-Fenster → **„Geräte im WLAN“**: jedes Gerät mit Name (von der Anmeldeseite), Adresse und MAC – Haken
+    setzen = dieses Gerät darf ins Internet. Gilt für das Gerät, auch beim nächsten Mal.
+- **Abstimmen nur noch übers WLAN** – wie alles andere: Monitor 2 zeigt den WLAN-Code, auf der Anmeldeseite
+  erscheint „📊 Abstimmen“.
+- **Fotos senden geht wieder:** „AluPC steuern“ → am PC erlauben → Foto. Geht die Kamera im Anmeldefenster nicht
+  (manche Handys erlauben dort keine Dateien), steht auf der Seite, wie man in den Browser wechselt – dort ist das
+  Handy dann schon erlaubt, ohne neue Frage am PC.
+- **WLAN wieder unsichtbar** (Linux, Standard; abschaltbar im Hotspot-Fenster). Windows kann den Namen des
+  Mobilen Hotspots technisch nicht verstecken.
+- Geprüft vor der Auslieferung (echtes Netz, echter Browser):
+  - Linux: 29/29 – Abstimmen übers WLAN, Foto senden mit Browser, Internet pro Gerät an/aus, IPv6 gesperrt,
+    Handy aus anderem Netz bekommt überall 403 (auch Abstimmen).
+  - Windows: dieselben Prüfungen mit nachgebautem Mobilen Hotspot.
+- Ehrlich, nicht prüfbar ohne echte Geräte: ob iPad/iPhone/Android das Anmeldefenster von selbst öffnen, ob die
+  Kamera im Anmeldefenster geht. Unter Windows sperrt „Internet pro Gerät“ die Namensauflösung je Gerät; die
+  Weiterleitung selbst ist an, sobald mindestens ein Gerät Internet hat (Windows kann sie nicht je Gerät
+  trennen) – ein Gerät ohne Haken kommt dann höchstens mit fest eingetragenen IP-Adressen raus.
+
+### Neu in Version 0.106.0
 - **Nur noch EIN Weg fürs Handy: das AluPC-WLAN mit Anmeldeseite.**
   - Steuern und Mitspielen geht nur aus dem AluPC-WLAN: ein QR-Code (WLAN) → Anmeldeseite → Mitspielen oder
     „AluPC steuern“ (am PC erlauben).

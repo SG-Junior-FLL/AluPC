@@ -30,7 +30,7 @@ und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beide
 | 📱 **Handy = Fernbedienung** | Nur übers AluPC-WLAN: WLAN-Code scannen → Anmeldeseite → „AluPC steuern“, ohne App: Monitor 2 steuern, Live-Bild mit Laserpointer, zeichnen, Folien klicken, Touchpad, Fotos/Links senden – freigeben per „Erlauben“ am PC statt Code |
 | 🎛️ **PC steuern** | Lautstärke, Musik, Fenster, Bildschirmfoto, Programme öffnen, Ausführen wie Win+R, Sperren – in der App, vom Handy, per Sprache („Alu PC, lauter“) oder Strg+K |
 | 🎮 **Minispiele = eigenes WLAN** | Snake, Tic-Tac-Toe, Pong, **Tetris** (alle dieselben Teile), Tipp-Rennen, Simon sagt, Schere-Stein-Papier – WLAN-Code scannen, Anmeldeseite öffnet sich, Name eingeben, mitspielen |
-| 📶 **AluPC-WLAN** | Der PC macht ein WLAN – EIN QR-Code auf Monitor 2, Anmeldeseite wie im Hotel. Der **einzige** Weg fürs Handy (Linux und Windows gleich) |
+| 📶 **AluPC-WLAN** | Der PC macht ein (unsichtbares) WLAN – EIN QR-Code auf Monitor 2, Anmeldeseite wie im Hotel: Mitspielen, Abstimmen, AluPC steuern. Der **einzige** Weg fürs Handy. Kein Internet – außer für Geräte, die man im Hotspot-Fenster freischaltet |
 | 🔁 **Dual-Boot-Abgleich** | Windows ↔ Linux: Einstellungen, Szenen, Bilder/Videos zusammenführen, Bereiche wählbar, Prüfen, Sicherungen |
 | 🗣️ **Sprache, offline** | Startwort „Alu PC“ oder „Computer“, ganze Sätze, Antwort per Stimme |
 | 🔐 **Fingerabdruck** | ZW101-Modul: Anmelden bei Windows/Linux, Finger als Schnelltaste, Begrüßung |

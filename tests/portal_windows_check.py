@@ -112,7 +112,8 @@ if ($MODE -eq 'spiele' -and $a.l) {
 def phone(mode: str, image: str, pump) -> dict:
     script = f"$MODE = '{mode}'\n" + PHONE
     enc = base64.b64encode(script.encode("utf-16-le")).decode()
-    cmd = ["docker", "run", "--rm", "--network", "hotspot", "--ip", PHONE_IP, "--dns", IP, image,
+    cmd = ["docker", "run", "--rm", "--network", "hotspot", "--ip", PHONE_IP, "--mac-address", "00:15:5d:00:00:50",
+           "--dns", IP, image,
            "powershell", "-NoProfile", "-EncodedCommand", enc]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     end = time.time() + 400
