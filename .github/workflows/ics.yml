@@ -25,5 +25,5 @@ jobs:
         run: |
           python tests/portal_windows_check.py mcr.microsoft.com/windows/servercore:ltsc2022 2>&1 | tee portal.log
           test "${PIPESTATUS[0]}" -eq 0 || { grep "FEHL" portal.log | sed 's/^/::error title=Anmeldeseite (Windows)::/'; exit 1; }
-          echo "::notice title=Anmeldeseite (Windows)::$(tail -1 portal.log)"
+          echo "::notice title=Anmeldeseite (Windows)::$(grep -E '^  (OK|FEHL)|bestanden' portal.log | tr -d '\r' | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
 
