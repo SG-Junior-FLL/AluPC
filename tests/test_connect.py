@@ -331,6 +331,7 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
     assert ok and "-Verb RunAs" in seen[0] and "-EncodedCommand" in seen[0], msg
     assert order == ["frei", "dns", "bereit", "ok", "hotspot"], order
     assert started[-1]["host"] == "0.0.0.0" and started[-1]["port"] == 53 and started[-1]["restrict"]
+    assert started[-1]["exclusive"] is False  # exklusiv auf 0.0.0.0 scheitert neben Docker/WSL (172.x:53)
     assert "Owner53" in script and "Get-NetUDPEndpoint -LocalPort 53" in script
     import base64
     sent = base64.b64decode(seen[0].split("'-EncodedCommand','")[1].split("'")[0]).decode("utf-16-le")
@@ -347,6 +348,15 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
     monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (hosts.append(k["host"]), k["host"] != "0.0.0.0")[1])
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
     assert ok and hosts == ["0.0.0.0", "192.168.137.1"], (hosts, msg)
+    # nach dem Hotspot-Start kommt nichts an (Adresse neu angelegt) → neu binden, jetzt Hotspot-Adresse zuerst
+    hosts.clear()
+    tests = iter([False, True])
+    monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: next(tests))
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (hosts.append((k["host"], k["exclusive"])), True)[1])
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
+    assert ok and hosts == [("0.0.0.0", False), ("192.168.137.1", True)], (hosts, msg)
+    assert "nach Hotspot-Start neu: 192.168.137.1 exklusiv" in hotspot.DNS_INFO
+    monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: True)
 
     def frei(path, timeout):
         if path.name.endswith(".frei"):

@@ -407,15 +407,15 @@ DNS_INFO = ""  # Windows: wer Port 53 hatte, wo AluPC lauscht (für Meldungen/Di
 
 
 def start_dns(ip_provider, closed: bool = True, host: str = "0.0.0.0", port: int = DNS_PORT,
-              check_hosts: list[str] | None = None, restrict: bool = False) -> bool:
+              check_hosts: list[str] | None = None, restrict: bool = False, exclusive: bool | None = None) -> bool:
     global _dns
     from .portal_dns import PortalDNS
 
     stop_dns()
     internet_file().unlink(missing_ok=True)  # neuer Start: noch niemand hat Internet (AluPC setzt es gleich)
     hosts = PORTAL_HOSTS + WINDOWS_CHECK_HOSTS if check_hosts is None else check_hosts
-    _dns = PortalDNS(ip_provider, closed=closed, hosts=hosts, port=port, host=host, exclusive=IS_WINDOWS,
-                     restrict=restrict)
+    _dns = PortalDNS(ip_provider, closed=closed, hosts=hosts, port=port, host=host,
+                     exclusive=IS_WINDOWS if exclusive is None else exclusive, restrict=restrict)
     if not _dns.start():
         _dns = None
         return False
@@ -484,16 +484,17 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
             owner = Path(f"{flag}.frei").read_text(encoding="utf-8", errors="replace").strip().lstrip("\ufeff")
         except OSError:
             owner = ""
-        # Port 53 auf allen Adressen, für AluPC allein (die Hotspot-Adresse gibt es erst nach dem Start). Hält ein
-        # anderer Dienst 0.0.0.0:53, aber die Hotspot-Adresse gibt es schon: genau dort (genauer gewinnt).
-        def bind53() -> str:
-            for host in ("0.0.0.0", ip):
+        # Port 53 auf allen Adressen – nicht exklusiv: das ginge nicht, sobald irgendwer Port 53 auf EINER Adresse
+        # hat (Docker, WSL, Hyper-V). Der Windows-Hotspot-DNS will ebenfalls 0.0.0.0:53 und kommt dann nicht dran.
+        # Sonst/danach: genau die Hotspot-Adresse, exklusiv (genauer gewinnt gegen 0.0.0.0).
+        def bind53(order) -> str:
+            for host, excl in order:
                 if start_dns(lambda: hotspot.ip or ip, closed, host=host, port=53,
-                             check_hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS, restrict=True):
-                    return host
+                             check_hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS, restrict=True, exclusive=excl):
+                    return host + (" exklusiv" if excl else "")
             return ""
 
-        bound = bind53()
+        bound = bind53([("0.0.0.0", False), (ip, True)])
         Path(f"{flag}.dns").write_text("ok" if bound else "fehler")
         wait_file(Path(f"{flag}.bereit"), 30)
         global DNS_INFO
@@ -514,7 +515,7 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
         if not dns_selftest(ip):
             # Hotspot-Start hat die Adresse neu angelegt (Socket hängt an der alten) → neu binden
             stop_dns()
-            bound = bind53()
+            bound = bind53([(ip, True), ("0.0.0.0", False)])
             DNS_INFO += f" · nach Hotspot-Start neu: {bound or 'nicht bekommen'}"
             if not bound or not dns_selftest(ip):
                 return fail("Anmeldeseite ging nicht: Namensfragen an 192.168.137.1 kommen nicht bei AluPC an "
