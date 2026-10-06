@@ -271,6 +271,10 @@ jobs:
             grep -E "✗|Traceback|Error" settings.log | head -30 | sed 's/^/::error title=Einstellungen (Windows)::/'
             tail -n 25 settings.log | tr -d '\r' | sed 's/^/::error title=Einstellungen (Windows, Ende)::/'; exit 1; }
           echo "::notice title=Einstellungen (Windows)::$(tail -1 settings.log)"
+      - name: Ins System eingebunden (Rechtsklick + alupc://-Links echt)
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python tests/integration_windows_check.py
       - name: AluPC-Farben für den Desktop echt (Registry setzen und zurückstellen)
         env:
           PYTHONIOENCODING: utf-8
@@ -278,7 +282,7 @@ jobs:
       - name: Tests (Logik + Windows-Strukturen)
         shell: pwsh
         run: |
-          python -X faulthandler -m pytest -v -rf tests/test_logic.py 2>&1 | Tee-Object -FilePath logic.log
+          python -X faulthandler -m pytest -v -rf tests/test_logic.py tests/test_system_integration.py 2>&1 | Tee-Object -FilePath logic.log
           if ($LASTEXITCODE -ne 0) {
             Select-String -Path logic.log -Pattern '^(FAILED|E   |ERROR)' | Select-Object -First 40 |
               ForEach-Object { Write-Output ("::error::" + $_.Line.Trim()) }

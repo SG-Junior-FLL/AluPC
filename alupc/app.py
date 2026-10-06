@@ -16,6 +16,8 @@ COMMANDS_HELP = ("standbild, schwarz, bild-in-bild, bildschirmschoner, zeichnen,
 def parse_args(argv):
     parser = argparse.ArgumentParser(prog="alupc", description=f"{APP_NAME} – Monitor 2 steuern")
     parser.add_argument("--befehl", metavar="BEFEHL", help=f"An laufendes AluPC senden: {COMMANDS_HELP}")
+    parser.add_argument("--zeigen", metavar="DATEI", help="Bild, Video, PDF oder Ordner (Diashow) auf Monitor 2 zeigen")
+    parser.add_argument("link", nargs="?", help=argparse.SUPPRESS)  # alupc://… oder Datei (Rechtsklick, Links)
     parser.add_argument("--minimiert", action="store_true", help="Nur als Symbol in der Taskleiste starten")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     # Für den automatischen Test des fertigen Programms (baut alles auf, zeigt nichts, beendet sich)
@@ -29,8 +31,21 @@ def parse_args(argv):
     # Windows: Anmeldung mit Modul einrichten (mit Administratorrechten gestartet, siehe windows_serial_login)
     parser.add_argument("--fingerabdruck-windows", metavar="AUFTRAG", help=argparse.SUPPRESS)
     # Lüfter setzen (läuft per pkexec als Administrator, ohne Oberfläche)
+    parser.add_argument("--einbindung-entfernen", action="store_true", help=argparse.SUPPRESS)  # Deinstallation
     parser.add_argument("--luefter", metavar="REGLER=WERT,…", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
+
+
+def startup_command(args) -> str | None:
+    """--befehl, --zeigen DATEI oder ein Link (alupc://…) → Befehl für das (laufende) AluPC."""
+    from .platform.system_integration import url_command
+
+    target = args.zeigen or args.link
+    if args.befehl or not target:
+        return args.befehl
+    if target.lower().startswith("alupc:"):
+        return url_command(target) or "link_unbekannt:" + target[:80]
+    return "datei:" + os.path.abspath(target)
 
 
 def voice_test(log_path: str, seconds: float = 150.0) -> int:
@@ -121,6 +136,7 @@ def main(argv=None) -> int:
 
     restore_system_env()  # fertige Linux-Version: gestartete Programme (UxPlay …) bekommen die System-Bibliotheken
     args = parse_args(sys.argv[1:] if argv is None else argv)
+    args.befehl = startup_command(args)
     if args.fingerabdruck_pam:
         from .platform.zw_fingerprint import pam_check
 
@@ -129,6 +145,10 @@ def main(argv=None) -> int:
         from .platform.windows_serial_login import run_request_file
 
         return run_request_file(args.fingerabdruck_windows)
+    if args.einbindung_entfernen:
+        from .platform import system_integration
+
+        return 0 if system_integration.set_enabled(False)[0] else 1
     if args.luefter:
         from .platform.fans import apply_request
 
@@ -227,6 +247,12 @@ def main(argv=None) -> int:
         ensure_user_entry()
 
     controller.restore_last()
+    try:  # Rechtsklick „Auf Monitor 2 zeigen“ + alupc://-Links (Pfad nach Update/Umzug aktuell halten)
+        from .platform import system_integration
+
+        system_integration.sync(config)
+    except Exception:  # noqa: BLE001 - darf den Start nie verhindern
+        pass
     # AirPlay „immer bereit“: UxPlay mit AluPCs Name/Code im Hintergrund (übernimmt fremde Autostarts)
     from PySide6.QtCore import QTimer
 

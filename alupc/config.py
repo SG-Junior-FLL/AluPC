@@ -150,6 +150,7 @@ DEFAULTS: dict = {
     # Kamera-Einstellungen pro Kamera-ID: zoom, x/y (Ausschnitt), mirror, rotate, exposure, quality
     "camera": {},
     "start_minimized": False,
+    "system_integration": True,  # Rechtsklick „Auf Monitor 2 zeigen“, alupc://-Links
     # Ersteinrichtung (Assistent beim ersten Start) erledigt?
     "first_run_done": False,
     # Windows 11: AluPC-Symbol wurde für diesen Programmpfad schon direkt in die Taskleiste gelegt

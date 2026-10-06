@@ -8,7 +8,25 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.107.0)
+### Neu in dieser Version (0.108.0)
+- **AluPC ist jetzt ins System eingebunden** (Linux und Windows gleich; Einstellungen → Allgemein → „Im System“,
+  an ab Werk, abschaltbar, wird bei Deinstallation/„Alle Daten löschen“ entfernt):
+  - **Rechtsklick auf Bild, Video oder PDF → „Auf Monitor 2 zeigen“**, auf einen Ordner → „Als Diashow auf
+    Monitor 2“. Dolphin (KDE) bzw. Explorer (Windows 11: unter „Weitere Optionen anzeigen“).
+  - **Links `alupc://…`** steuern AluPC von überall (Browser-Lesezeichen, Verknüpfung, Stream Deck …):
+    `alupc://standbild`, `alupc://schwarz`, `alupc://szene/Pause`, `alupc://naechste-szene` … Nur harmlose
+    Befehle – nichts, was Programme startet, den PC sperrt oder ausschaltet.
+  - Auch im Terminal: `alupc --zeigen Datei.pdf`. Läuft AluPC schon, geht alles an das laufende Programm.
+- **Windows: „Unsichtbares“ WLAN** (Hotspot-Fenster → „Unsichtbar“): Windows kann nicht wirklich verstecken, also
+  bekommt das WLAN einen Namen nur aus Zeichen ohne Breite. In der WLAN-Liste steht ein leerer Eintrag, Handys
+  verbinden sich per QR-Code. AluPC zeigt den eingestellten Namen mit „(ohne sichtbaren Namen)“.
+- Geprüft: Rechtsklick-Befehl und Link kommen beim laufenden AluPC an (Linux echt; Windows in CI mit echter
+  Registry und `start alupc://standbild`), Ein/Aus in den Einstellungen, alle Tests.
+- Ehrlich, nicht geprüft: Anzeige im echten Dolphin/Explorer-Menü (kein KDE/Desktop hier) und ob Windows und
+  Handys den Namen aus unsichtbaren Zeichen annehmen – das ging ohne echtes WLAN-Gerät nicht. Geht es nicht,
+  „Unsichtbar“ ausschalten.
+
+### Neu in Version 0.107.0
 - **Das AluPC-WLAN ist kein Internet-WLAN mehr – Internet gibt es nur, wenn du es einem Gerät erlaubst.**
   - Standard (normaler Hotspot und Spiele-WLAN): kein Internet, kein Weg an der Anmeldeseite vorbei – auch nicht
     über IPv6 (unter Linux jetzt ausgeschaltet bzw. gesperrt). So bleibt das Anmeldefenster offen.

@@ -2,7 +2,7 @@
 ; Wird von GitHub Actions gebaut (siehe .github/workflows/build.yml).
 
 #ifndef AppVersion
-  #define AppVersion "0.107.0"
+  #define AppVersion "0.108.0"
 #endif
 
 [Setup]
@@ -52,6 +52,8 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""A
 Filename: "{app}\AluPC.exe"; Description: "AluPC jetzt starten"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
+; Rechtsklick „Auf Monitor 2 zeigen“ und alupc://-Links entfernen
+Filename: "{app}\AluPC.exe"; Parameters: "--einbindung-entfernen"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveIntegration"
 Filename: "{cmd}"; Parameters: "/C reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v AluPC /f"; Flags: runhidden; RunOnceId: "RemoveAutostart"
 ; Anmeldung mit Fingerabdruckmodul: Anmeldebaustein bei Windows abmelden, gespeichertes (verschlüsseltes) Passwort löschen
 Filename: "{cmd}"; Parameters: "/C reg delete ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" /f & reg delete ""HKLM\SOFTWARE\Classes\CLSID\{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" /f & del /f /q ""%ProgramData%\AluPC\fingerprint-windows.cfg"" ""%ProgramData%\AluPC\fingerprint-*.slots"" & reg delete HKLM\SOFTWARE\AluPC /f"; Flags: runhidden; RunOnceId: "RemoveFingerprintLogin"; Check: IsAdminInstallMode

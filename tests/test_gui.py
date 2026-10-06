@@ -4626,3 +4626,26 @@ def test_nav_indicator_follows_page_and_ring_animates(env, monkeypatch):
     assert ring._fx_anim.state() == ring._fx_anim.State.Running
     ring.grab()  # zeichnet mitten in der Animation ohne Fehler
 
+
+
+def test_show_file_from_file_manager(env):
+    """Rechtsklick „Auf Monitor 2 zeigen“ → `alupc --zeigen DATEI` → laufendes AluPC zeigt die Datei."""
+    controller, _window, tmp = env
+    img = tmp / "foto.png"
+    QImage(40, 30, QImage.Format_RGB32).save(str(img))
+    pdf = tmp / "plan.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+    controller.run_command("datei:" + str(img))
+    pump()
+    assert controller.content == {"type": "image", "path": str(img)}
+    controller.run_command("datei:" + str(tmp))
+    assert controller.content["type"] == "slideshow" and controller.content["folder"] == str(tmp)
+    controller.run_command("datei:" + str(pdf))
+    assert controller.content == {"type": "website", "url": pdf.resolve().as_uri()}
+    got = []
+    controller.message.connect(got.append)
+    (tmp / "x.docx").write_text("x")
+    controller.run_command("datei:" + str(tmp / "x.docx"))
+    controller.run_command("link_unbekannt:alupc://pc_herunterfahren")
+    assert got == ["Geht nicht auf Monitor 2: x.docx", "Unbekannter AluPC-Link: alupc://pc_herunterfahren"]
+    assert controller.content["type"] == "website"

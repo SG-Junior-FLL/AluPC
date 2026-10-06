@@ -55,6 +55,12 @@ def wipe(dirs: list[Path] | None = None) -> list[str]:
         autostart.set_enabled(False)
     except Exception as exc:  # noqa: BLE001
         problems.append(f"Autostart: {exc}")
+    try:
+        from .platform import system_integration
+
+        system_integration.set_enabled(False)
+    except Exception as exc:  # noqa: BLE001
+        problems.append(f"Rechtsklick/Links: {exc}")
 
     def failed(_func, path, exc_info):
         problems.append(f"{path}: {exc_info[1] if isinstance(exc_info, tuple) else exc_info}")

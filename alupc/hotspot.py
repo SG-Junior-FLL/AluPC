@@ -38,6 +38,28 @@ _PW_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"  # ohne l/1/o/0 – leicht abzules
 IS_WINDOWS = sys.platform.startswith("win")
 
 
+# Windows kann den Namen des Mobilen Hotspots nicht verstecken (keine Option, auch nicht per Programm). Ersatz:
+# ein Name nur aus unsichtbaren Zeichen – in der WLAN-Liste steht ein leerer Eintrag, der QR-Code enthält ihn.
+_INVISIBLE = ["\u200b", "\u200c", "\u200d", "\u2060"]  # Breite null; je 3 Byte in UTF-8
+
+
+def invisible_ssid(name: str) -> str:
+    """Unsichtbarer WLAN-Name, aus dem sichtbaren abgeleitet (gleicher Name → gleiches WLAN, Handys merken es sich;
+    anderer Name → anderes WLAN). 10 Zeichen = 30 Byte (WLAN-Namen dürfen höchstens 32 Byte haben)."""
+    import hashlib
+
+    digest = hashlib.sha256(name.encode("utf-8")).digest()
+    bits = int.from_bytes(digest[:3], "big")
+    return "".join(_INVISIBLE[(bits >> (2 * i)) & 3] for i in range(10))
+
+
+def shown_name(ssid: str) -> str:
+    """WLAN-Name zum Anzeigen: beim unsichtbaren Windows-Namen der eingestellte Name mit Hinweis."""
+    if ssid and ssid == hotspot.ssid and hotspot.label and hotspot.label != ssid:
+        return f"{hotspot.label} (ohne sichtbaren Namen)"
+    return ssid
+
+
 def new_password() -> str:
     return "".join(secrets.choice(_PW_CHARS) for _ in range(10))
 
@@ -540,6 +562,7 @@ class Hotspot:
         self.ssid = ""
         self.password = ""
         self.hidden = False
+        self.label = ""  # eingestellter Name (unter Windows mit „unsichtbar“ weicht der echte WLAN-Name ab)
         self.portal = False
         self.message = ""
 
@@ -563,16 +586,20 @@ class Hotspot:
                 self.portal, portal_msg = False, ""
         else:
             password = password if len(password or "") >= 8 else new_password()
+            label = ssid
+            if hidden:  # Windows kann nicht verstecken → Name aus unsichtbaren Zeichen (leerer Eintrag in der Liste)
+                ssid = invisible_ssid(label)
             code, out = _ps(_PS_START, {"ALUPC_SSID": ssid, "ALUPC_PW": password})
             ok, msg = windows_message(out)
-            if ok and hidden:  # Windows kann den Namen des Mobilen Hotspots nicht verstecken
-                msg += " (Unsichtbar geht unter Windows nicht – der Name ist in der WLAN-Liste zu sehen.)"
+            if ok and hidden:
+                msg += " (Name unsichtbar: in der WLAN-Liste steht ein leerer Eintrag – Handys nehmen den QR-Code.)"
             hidden = False
             ip = WINDOWS_IP if ok else ""
             if ok and portal:  # nach dem Start (die Adresse 192.168.137.1 gibt es erst dann)
                 self.portal, portal_msg = start_portal(ip=ip, closed=True)
         self.running, self.ip, self.message = ok, ip, msg
         self.kind, self.ssid, self.password = (kind, ssid, password) if ok else ("", "", "")
+        self.label = (label if IS_WINDOWS else ssid) if ok else ""
         self.hidden = bool(ok and hidden and not IS_WINDOWS)
         if ok and portal_msg:
             self.message = msg = f"{msg} {portal_msg}"

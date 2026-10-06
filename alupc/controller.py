@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QGuiApplication
 
@@ -1232,6 +1234,17 @@ class Controller(QObject):
             self._live_timer.timeout.connect(self.changed.emit)
         self._live_timer.start()
 
+    def show_file(self, path: str) -> bool:
+        """Datei aus dem Dateimanager (Rechtsklick) oder per `alupc --zeigen` auf Monitor 2."""
+        from .platform.system_integration import file_source
+
+        cfg = file_source(path)
+        if cfg is None:
+            self.message.emit(f"Geht nicht auf Monitor 2: {Path(path).name or path}")
+            return False
+        self.show_source(cfg)
+        return True
+
     def show_text(self, text: str) -> None:
         """Text groß auf Monitor 2 (vom PC oder Handy) – die letzten Texte werden gemerkt."""
         text = text.strip()
@@ -1292,6 +1305,12 @@ class Controller(QObject):
                 self.show_source({"type": "scene", "scene": name})
             else:
                 self.message.emit(f"Szene „{name}“ gibt es nicht.")
+            return
+        if command.startswith("datei:"):
+            self.show_file(command[6:])
+            return
+        if command.startswith("link_unbekannt:"):
+            self.message.emit(f"Unbekannter AluPC-Link: {command[15:]}")
             return
         if command.startswith("kachel:"):
             self.run_tile(command[7:])

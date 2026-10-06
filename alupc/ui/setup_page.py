@@ -878,8 +878,14 @@ class SetupPage(QWidget):
         minimized.toggled.connect(lambda v: self.config.__setitem__("start_minimized", v))
         form.addRow("Monitor 2:", self.screen_combo)
         form.addRow("Beim Start zeigen:", self.start_combo)
+        integ = QCheckBox("Im System (Rechtsklick „Auf Monitor 2 zeigen“, alupc://-Links)")
+        integ.setToolTip("Rechtsklick auf Bild, Video, PDF oder Ordner im Dateimanager → Monitor 2.\n"
+                         "Links wie alupc://standbild oder alupc://szene/Pause steuern AluPC.")
+        integ.setChecked(bool(self.config["system_integration"]))
+        integ.toggled.connect(self._integration)
         form.addRow("", auto)
         form.addRow("", minimized)
+        form.addRow("", integ)
         diag = button("Diagnose kopieren", "copy")
         diag.setToolTip("Prüft Monitore, Spiegeln, AirPlay, RGB … und kopiert das Ergebnis – "
                         "zum Weitergeben, wenn etwas nicht geht")
@@ -934,6 +940,16 @@ class SetupPage(QWidget):
             autostart.set_enabled(on)
         except Exception as exc:  # noqa: BLE001
             error_box(self, f"Autostart konnte nicht geändert werden: {exc}")
+
+    def _integration(self, on):
+        from ..platform import system_integration
+
+        self.config["system_integration"] = on
+        ok, msg = system_integration.set_enabled(on)
+        if ok:
+            self.controller.message.emit(msg)
+        else:
+            error_box(self, msg)
 
     # ================================================================ Sichtschutz
     def _privacy_group(self):

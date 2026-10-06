@@ -59,6 +59,28 @@ def test_hidden_wifi_qr_readable(qapp, tmp_path):
     assert [r.text for r in zx.read_barcodes(pil.open(tmp_path / "h.png"))] == [payload]
 
 
+def test_invisible_ssid_windows(qapp, tmp_path):
+    """Windows kann kein verstecktes WLAN – stattdessen ein Name nur aus Zeichen ohne Breite."""
+    zx = pytest.importorskip("zxingcpp")
+    pil = pytest.importorskip("PIL.Image")
+    from alupc import hotspot as hs
+    from alupc.sources import qr_pixmap
+
+    a = hs.invisible_ssid("AluPC")
+    assert a == hs.invisible_ssid("AluPC") and a != hs.invisible_ssid("AluPC-2")
+    assert len(a.encode("utf-8")) <= 32 and set(a) <= set(hs._INVISIBLE)
+    payload = wifi_payload(a, "k7pm2qa9xr")
+    qr_pixmap(payload, 140).save(str(tmp_path / "i.png"))
+    assert [r.text for r in zx.read_barcodes(pil.open(tmp_path / "i.png"))] == [payload]
+    old = (hs.hotspot.ssid, hs.hotspot.label)
+    try:
+        hs.hotspot.ssid, hs.hotspot.label = a, "AluPC"
+        assert hs.shown_name(a) == "AluPC (ohne sichtbaren Namen)"
+        assert hs.shown_name("Anders") == "Anders"
+    finally:
+        hs.hotspot.ssid, hs.hotspot.label = old
+
+
 def test_wifi_payload_escapes():
     assert wifi_payload('a;b', 'p"w') == r'WIFI:T:WPA;S:a\;b;P:p\"w;;'
     assert wifi_payload("Offen", "") == "WIFI:T:nopass;S:Offen;P:;;"

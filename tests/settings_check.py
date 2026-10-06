@@ -325,6 +325,21 @@ ok(now_on != was and autostart.is_enabled() == was, f"Autostart an/aus → im Sy
    f"danach wieder wie vorher (vorher {'an' if was else 'aus'}, Feld {'aktiv' if box.isEnabled() else 'gesperrt'}"
    f"{', Meldungen: ' + ' | '.join(dialogs[-2:]) if dialogs else ''})")
 
+# Im System (Rechtsklick + alupc://-Links): steht danach wirklich im System (Linux: KDE-Dienstmenü, Windows: HKCU)
+from alupc.platform import system_integration  # noqa: E402
+
+box = next(b for b in setup._areas[-1].widget().findChildren(QCheckBox) if b.text().startswith("Im System"))
+box.setChecked(True)
+system_integration.set_enabled(True)
+box.click()
+pump(0.3)
+off = system_integration.is_active()
+box.click()
+pump(0.3)
+ok(not off and system_integration.is_active() and config["system_integration"],
+   "Im System aus/an → Rechtsklick-Eintrag + alupc://-Link weg und wieder da")
+system_integration.set_enabled(False)
+
 # Neustart: alles noch da?
 reloaded = Config(cfg_path)
 ok(not diff(reloaded.data, config.data) or diff(reloaded.data, config.data) == [],
