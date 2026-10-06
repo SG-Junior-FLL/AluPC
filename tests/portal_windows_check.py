@@ -84,7 +84,7 @@ if ($MODE -eq 'spiele' -and $a.l) {
   $p = Get-Url $a.l
   $o.portal = $p.s; $o.portal_name = ($p.b -match 'id="n"') -and ($p.b -match 'Mitspielen')
   $m = [regex]::Match($p.b, 'location.href = "([^"]+)" \+ "&name="')
-  $game = $m.Groups[1].Value.Replace('&amp;', '&'); $o.game_url = $game
+  $game = $base0 + $m.Groups[1].Value.Replace('&amp;', '&'); $o.game_url = $game
   $token = [regex]::Match($game, '[?&]u=([^&]+)').Groups[1].Value
   $o.game_page = (Get-Url ($game + '&name=Lena')).s
   $base = ([Uri]$game).GetLeftPart('Authority')
@@ -93,6 +93,17 @@ if ($MODE -eq 'spiele' -and $a.l) {
       -Body (@{ u = [Uri]::UnescapeDataString($token); action = 'join'; name = 'Lena' } | ConvertTo-Json)
     $o.join = 200
   } catch { $o.join = [int]$_.Exception.Response.StatusCode }
+  $pm = [regex]::Match($p.b, '"(/abstimmung\?u=[^"]+)"')
+  $o.poll_button = $pm.Success -and ($p.b -match 'Abstimmen')
+  if ($pm.Success) {
+    $o.poll_page = (Get-Url ($base0 + $pm.Groups[1].Value)).s
+    $pt = $pm.Groups[1].Value.Split('=')[1]
+    try {
+      Invoke-RestMethod -Uri "$base0/api/umfrage" -Method Post -ContentType 'application/json' -UseBasicParsing `
+        -Body (@{ u = $pt; v = 'lena-handy'; c = 0 } | ConvertTo-Json) | Out-Null
+      $o.vote = 200
+    } catch { $o.vote = [int]$_.Exception.Response.StatusCode }
+  }
 }
 'JSON:' + ($o | ConvertTo-Json -Compress)
 """
@@ -131,6 +142,8 @@ $o.anmelden = Code "$BASE/anmelden" $null
 $o.join = Code "$BASE/api/spiel" ('{"u":"' + $TOKEN + '","action":"join","name":"Fremd"}')
 $o.status = Code "$BASE/api/status" $null
 $o.freigabe = Code "$BASE/api/freigabe" '{"name":"x"}'
+$o.abstimmung = Code "$BASE/abstimmung" $null
+$o.umfrage = Code "$BASE/api/umfrage" '{"u":"x","v":"y","c":0}'
 'JSON:' + ($o | ConvertTo-Json -Compress)
 """
 
@@ -207,6 +220,7 @@ def main() -> int:
     codes = [c.text for c in zxingcpp.read_barcodes(Image.open(tmp / "lobby.png"))]
     ok(codes == [f"WIFI:T:WPA;S:{hs.ssid};P:{hs.password};;"], f"Monitor 2 (Lobby): genau 1 QR-Code = WLAN → {codes}")
     src.stop()
+    controller.start_poll("Pizza oder Pasta?", ["Pizza", "Pasta"])  # Abstimmen: auch nur übers WLAN
     good, msg = hs_mod.start_portal(ip=IP, closed=True)  # echter Weg: „Als Administrator“ + Wächter
     ok(good and "eingeschränkt" not in msg, f"Anmeldeseite an (eigener DNS, Administrator-Skript): {msg}")
     hs.portal = good
@@ -224,15 +238,39 @@ def main() -> int:
     ok(r.get("join") == 200, f"Beitreten aus dem Spiele-WLAN → {r.get('join')}")
     ok(r.get("remote_page") == 200 and r.get("ask_access") == 200,
        f"„AluPC steuern“ aus dem WLAN: Seite {r.get('remote_page')}, am PC um Erlaubnis fragen {r.get('ask_access')}")
+    ok(r.get("poll_button") and r.get("poll_page") == 200 and r.get("vote") == 200,
+       f"Anmeldeseite → „Abstimmen“ → abgestimmt ({r.get('poll_page')}, {r.get('vote')})")
     pump(0.3)
+    ok(controller.cast.poll is not None and sum(controller.cast.poll.counts()) == 1, "Stimme ist am PC angekommen")
     ok(any(p.name == "Lena" for p in hub.players.values()), "„Lena“ ist im Spiel")
     ok(r.get("dns_8888") == "FEHLER", f"Fremder DNS-Server (8.8.8.8) gesperrt → {r.get('dns_8888')}")
     ok(r.get("inet_1111") is False, f"Internet per IP (1.1.1.1:443) gesperrt → {r.get('inet_1111')}")
 
+    # Internet pro Gerät: im Hotspot-Fenster freischalten → dieses Gerät kommt raus
+    devices = controller.wlan_devices()
+    me = next((d for d in devices if d["ip"] == PHONE_IP), None)
+    ok(me is not None and not me["internet"], f"Hotspot-Fenster: Gerät gelistet, ohne Internet → {me} / {devices}")
+    if me:
+        controller.set_device_internet(me["mac"], me["name"], True)
+        for _ in range(20):
+            pump(0.5)
+            if forwarding(alias) == "Enabled":
+                break
+        ok(forwarding(alias) == "Enabled", f"Freigeschaltet: Weiterleitung an ({forwarding(alias)})")
+        r2 = phone("spiele", image, pump)
+        ok(r2.get("dns_any") not in ("", IP, "FEHLER", None) and r2.get("inet_1111") is True,
+           f"…das Gerät hat Internet: DNS echt ({r2.get('dns_any')}), 1.1.1.1:443 → {r2.get('inet_1111')}")
+        controller.set_device_internet(me["mac"], me["name"], False)
+        for _ in range(20):
+            pump(0.5)
+            if forwarding(alias) == "Disabled":
+                break
+        ok(forwarding(alias) == "Disabled", f"Haken weg: Weiterleitung wieder aus ({forwarding(alias)})")
+
     nat_ip = ps("(Get-NetIPAddress -InterfaceAlias 'vEthernet (nat)' -AddressFamily IPv4).IPAddress").strip()
     o = outsider(image, f"http://{nat_ip}:{hs_mod.PORTAL_PORT}", hub.token, pump)
     ok(o and all(v == 403 for v in o.values()),
-       f"Handy aus anderem Netz ({nat_ip}): Steuerseite, Spielseite, Mitspielen, Status, Erlaubnis → {o}")
+       f"Handy aus anderem Netz ({nat_ip}): Steuern, Spielen, Abstimmen, Status, Erlaubnis → überall 403 {o}")
     ok(not any(p.name == "Fremd" for p in hub.players.values()), "„Fremd“ ist NICHT im Spiel")
 
     hs_mod.stop_portal()

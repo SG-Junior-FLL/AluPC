@@ -455,6 +455,9 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
     <input type="file" id="gal" accept="image/*,video/*">
     <div class="bar" id="bar"><div></div></div>
     <div class="hint" id="upinfo">Wird sofort auf Monitor 2 gezeigt.</div>
+    <div class="hint" id="cna-hint">Knopf tut nichts? Im Anmelde­fenster erlauben manche Handys keine Fotos. Dann oben
+      „Abbrechen“ → <b>„Ohne Internet verwenden“</b> (iPhone) bzw. „Netzwerk so verwenden“ (Android) und im Browser
+      <b id="here"></b> öffnen – du bist dort schon erlaubt.</div>
   </div>
   <div class="card">
     <h2>Link</h2>
@@ -875,6 +878,7 @@ async function upload(input) {
   xhr.onerror = () => { bar.style.display = "none"; toast("Verbindung abgebrochen", true); };
   xhr.send(file);
 }
+$("here").textContent = location.host;
 $("cam").onchange = e => upload(e.target);
 $("gal").onchange = e => upload(e.target);
 tab(current);

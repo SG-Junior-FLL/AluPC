@@ -196,14 +196,18 @@ def test_open_games_network_and_portal_script():
     assert add[add.index("802-11-wireless.hidden") + 1] == "yes"  # unsichtbar (Standard)
     assert ["nmcli", "connection", "up", "AluPC-Spiele"] in calls
     script = hotspot.portal_script("wlp4s0", 8765, hotspot.Path("/run/user/1000/alupc-portal-1000"), 4242)
-    # Spiele-WLAN (geschlossen, wie im Hotel): jede Webseite → Anmeldeseite, jede DNS-Frage → AluPC, kein Internet
-    assert "-I PREROUTING -i wlp4s0 -p tcp --dport 80 -m comment --comment alupc-portal -j REDIRECT --to-ports 8765" \
-        in script
-    assert "--dport 53 -m comment --comment alupc-portal -j REDIRECT --to-ports 8753" in script
-    assert "-I FORWARD -i wlp4s0 -m comment --comment alupc-portal -j REJECT" in script
+    # Geschlossen (wie im Hotel): jede Webseite → Anmeldeseite, jede DNS-Frage → AluPC, kein Internet (auch IPv6)
+    # – außer den Geräten in <Flagge>.internet (eigene Ketten, alle 2 s neu gebaut)
+    assert "-t nat -I PREROUTING -i wlp4s0 -m comment --comment alupc-portal -j alupc-nat" in script
+    assert "iptables -t nat -A alupc-nat -p tcp --dport 80 -j REDIRECT --to-ports 8765" in script
+    assert "iptables -t nat -A alupc-nat -p udp --dport 53 -j REDIRECT --to-ports 8753" in script
+    assert "-I FORWARD -i wlp4s0 -m comment --comment alupc-portal -j alupc-fwd" in script
+    assert "iptables -A alupc-fwd -j REJECT" in script and "ip6tables -I FORWARD -i wlp4s0" in script
+    assert 'iptables -A alupc-fwd -s "$ip" -j ACCEPT' in script and '-s "$ip" -j RETURN' in script
+    assert 'case "$ip" in ""|*[!0-9.]*) continue' in script  # nur IP-Adressen aus der Datei
     assert "kill -0 4242" in script and "-D PREROUTING" in script  # Regeln werden wieder entfernt
     normal = hotspot.portal_script("wlp4s0", 8765, hotspot.Path("/tmp/f"), 1, closed=False)
-    assert "--dst-type LOCAL" in normal and "FORWARD" not in normal  # normaler Hotspot: Surfen bleibt
+    assert "--dst-type LOCAL" in normal and "alupc-fwd -j REJECT" not in normal  # offen: Surfen bleibt
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="sh-Skript")
@@ -224,12 +228,24 @@ def test_portal_watchdog_really_runs(tmp_path, monkeypatch):
     proc = subprocess.Popen(["sh", "-c", hotspot.portal_script("wlan0", 8765, flag, os.getpid())],
                             env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"})
     assert hotspot._wait_ready(flag, proc, 10)
-    added = [ln for ln in log.read_text().splitlines() if " -I " in f" {ln} "]
-    assert len(added) == 7
+    lines = log.read_text().splitlines()
+    assert len([ln for ln in lines if " -I " in f" {ln} "]) == 5  # Sprünge in die eigenen Ketten + Firewall
+    assert len([ln for ln in lines if " -A " in f" {ln} "]) == 4  # DNS ×2, Port 80, sonst REJECT
+    # Gerät 10.42.0.7 bekommt Internet → Regeln werden neu gebaut (RETURN + ACCEPT für genau diese Adresse)
+    hotspot.Path(f"{flag}.internet").write_text("10.42.0.7\n$(touch /tmp/boese)\n")
+    import time
+
+    end = time.time() + 8
+    while time.time() < end and "10.42.0.7" not in log.read_text():
+        time.sleep(0.2)
+    text = log.read_text()
+    assert "-t nat -A alupc-nat -s 10.42.0.7 -j RETURN" in text and "-A alupc-fwd -s 10.42.0.7 -j ACCEPT" in text
+    assert "boese" not in text and not hotspot.Path("/tmp/boese").exists()  # nur IP-Adressen
     flag.unlink()
     proc.wait(10)
     removed = [ln for ln in log.read_text().splitlines() if " -D " in f" {ln} "]
-    assert len(removed) >= 14  # vorher aufgeräumt (falls Reste) + nach dem Ausschalten
+    assert len(removed) >= 10  # vorher aufgeräumt (falls Reste) + nach dem Ausschalten
+    assert "-X alupc-fwd" in log.read_text()
 
 
 def test_portal_dns_answers_everything_with_the_pc():
@@ -423,12 +439,17 @@ def test_phone_access_by_approval_on_pc(env, monkeypatch):  # noqa: F811
     assert controller.cast.check("1.2.3.4", st["key"]) is True
     assert controller.config["cast"]["devices"][0]["name"] == "Lenas Handy"
     assert st["key"] not in _json.dumps(controller.config["cast"])  # nur die Prüfsumme gespeichert
-    # Ablehnen
-    status, d2 = call("POST", "/api/freigabe", {"name": "Fremd"})
-    controller.cast.answer_access(d2["id"], False)
-    assert call("GET", f"/api/freigabe?id={d2['id']}")[1] == {"state": "no"}
+    # dasselbe Gerät (gleiche Adresse) später im normalen Browser: gleich erlaubt, ohne neue Frage am PC
+    asked.clear()
+    status, d1 = call("POST", "/api/freigabe", {"name": "Lenas Handy"})
+    assert call("GET", f"/api/freigabe?id={d1['id']}")[1]["state"] == "ok" and asked == []
+    # „Geräte vergessen“: wieder fragen – und Ablehnen
     controller.cast.forget_devices()
     assert controller.cast.check("1.2.3.4", st["key"]) is False
+    status, d2 = call("POST", "/api/freigabe", {"name": "Fremd"})
+    assert call("GET", f"/api/freigabe?id={d2['id']}")[1] == {"state": "wait"}
+    controller.cast.answer_access(d2["id"], False)
+    assert call("GET", f"/api/freigabe?id={d2['id']}")[1] == {"state": "no"}
 
 
 def test_normal_hotspot_also_gets_login_page(env, monkeypatch):  # noqa: F811
@@ -449,7 +470,12 @@ def test_login_page_has_name_and_both_ways(env):  # noqa: F811
     assert 'id="n"' in page and "Gerade keine Minispiele" in page and "disabled" in page
     controller.start_games("tictactoe")
     page = portal_page(controller.cast)
-    assert "Tic-Tac-Toe" in page and controller.cast.games_url() + '" + "&name=' in page and "?frei=" in page
+    assert "Tic-Tac-Toe" in page and f'"/spiel?u={controller.cast.games.token}" + "&name=' in page and "/?frei=" in page
+    assert "Abstimmen" not in page
+    controller.cast.start()
+    controller.start_poll("Pizza?", ["Ja", "Nein"])
+    page = portal_page(controller.cast)
+    assert "📊 Abstimmen" in page and f"/abstimmung?u={controller.cast.poll.token}" in page and "Pizza?" in page
     from alupc.game_page import GAME_PAGE
     from alupc.cast_page import PAGE
 

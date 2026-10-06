@@ -36,6 +36,13 @@ class Controller(QObject):
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
+        # AluPC-WLAN: welche Geräte dürfen ins Internet? (alle 3 s auf die aktuellen Adressen abgleichen)
+        from PySide6.QtCore import QTimer as _Timer  # (QTimer wird weiter unten in __init__ lokal importiert)
+
+        self._internet_timer = _Timer(self)
+        self._internet_timer.setInterval(3000)
+        self._internet_timer.timeout.connect(self.sync_internet)
+        self._internet_timer.start()
         self.display = create_display_backend()
         self.windows = create_window_backend()
         self.fingerprint = create_fingerprint_backend()
@@ -664,24 +671,11 @@ class Controller(QObject):
         """Handy-Steuerung: WLAN-QR-Code auf Monitor 2 – EINZIGER Weg: Handy scannt → ist im AluPC-WLAN →
         die Anmeldeseite öffnet sich → „AluPC steuern“ (am PC erlauben) oder mitspielen. Startet das WLAN, falls
         noch keins von AluPC läuft."""
-        import os
-        import threading
-
-        from .hotspot import hotspot, supported
-
         if not self.cast.start():
             self.message.emit("Handy-Steuerung konnte nicht starten: Netzwerk-Anschluss belegt.")
             return
         self._cast_snapshot()
-        if not hotspot.running and not os.environ.get("ALUPC_NO_AUTO_WIFI"):
-            ok, why = supported()
-            if not ok:
-                hotspot.message = why
-                self.message.emit(f"Handy-Steuerung geht nur übers AluPC-WLAN – {why}")
-            else:
-                self.message.emit("AluPC-WLAN startet …")
-                threading.Thread(target=lambda: self.set_hotspot(True, "normal"), name="alupc-wlan-an",
-                                 daemon=True).start()
+        self.ensure_wlan()
         self.show_source({"type": "cast"})
 
     def stop_cast(self) -> None:
@@ -1652,12 +1646,71 @@ class Controller(QObject):
                 self.wheel_left = None
                 self.message.emit("Glücksrad: alle Einträge waren dran – beim nächsten Drehen sind wieder alle dabei.")
 
+    # ------------------------------------------------------------ AluPC-WLAN: Internet pro Gerät
+    def internet_allowed(self) -> dict[str, str]:
+        """Geräte (MAC → Name), die im AluPC-WLAN ins Internet dürfen – am PC im Hotspot-Fenster freigeschaltet."""
+        return dict((self.config.get("hotspot") or {}).get("internet") or {})
+
+    def wlan_devices(self) -> list[dict]:
+        """Geräte im AluPC-WLAN: IP, MAC, Name (von der Anmeldeseite), Internet ja/nein."""
+        from .hotspot import NAMES, hotspot, neighbors
+
+        if not hotspot.running:
+            return []
+        allowed = self.internet_allowed()
+        out = []
+        for ip, mac in sorted(neighbors().items(), key=lambda kv: tuple(int(x) for x in kv[0].split("."))):
+            out.append({"ip": ip, "mac": mac, "name": NAMES.get(ip) or allowed.get(mac) or "Gerät",
+                        "internet": mac in allowed})
+        return out
+
+    def set_device_internet(self, mac: str, name: str, on: bool) -> None:
+        hs = dict(self.config.get("hotspot") or {})
+        allowed = dict(hs.get("internet") or {})
+        if on:
+            allowed[mac.lower()] = name or "Gerät"
+        else:
+            allowed.pop(mac.lower(), None)
+        hs["internet"] = allowed
+        self.config["hotspot"] = hs
+        self.sync_internet()
+
+    def sync_internet(self) -> None:
+        """Freigeschaltete Geräte (nach MAC) → ihre aktuellen Adressen an DNS und Firewall geben."""
+        from .hotspot import hotspot, neighbors, set_internet
+
+        if not (hotspot.running and hotspot.portal):
+            return
+        allowed = self.internet_allowed()
+        try:
+            set_internet([ip for ip, mac in neighbors().items() if mac in allowed] if allowed else [])
+        except Exception:  # noqa: BLE001 - nächster Versuch in 3 s
+            pass
+
+    def ensure_wlan(self) -> None:
+        """Handys kommen nur übers AluPC-WLAN herein – läuft noch keins von AluPC, im Hintergrund starten."""
+        import os
+        import threading
+
+        from .hotspot import hotspot, supported
+
+        if hotspot.running or os.environ.get("ALUPC_NO_AUTO_WIFI"):
+            return
+        ok, why = supported()
+        if not ok:
+            hotspot.message = why
+            self.message.emit(f"Handys kommen nur übers AluPC-WLAN herein – {why}")
+            return
+        self.message.emit("AluPC-WLAN startet …")
+        threading.Thread(target=lambda: self.set_hotspot(True, "normal"), name="alupc-wlan-an", daemon=True).start()
+
     def start_poll(self, question: str, options: list[str]) -> None:
         from .polls import Poll
 
         poll = Poll(question, options)
         self.cast.poll = poll
         self.config["poll"] = {"question": poll.question, "options": poll.options}
+        self.ensure_wlan()  # abstimmen nur übers AluPC-WLAN (Anmeldeseite → „Abstimmen“)
         self.show_source({"type": "umfrage"}, remember=False)
         self.changed.emit()
 
@@ -1801,7 +1854,7 @@ class Controller(QObject):
         if on:
             hs = settings(self.config, kind)
             ok, msg = hotspot.start(hs["ssid"], hs["password"], kind=kind, portal=True,
-                                    hidden=False)
+                                    hidden=bool(hs.get("hidden", True)))  # Linux: unsichtbar (Windows kann es nicht)
         else:
             ok, msg = hotspot.stop()
         self.message.emit(msg)

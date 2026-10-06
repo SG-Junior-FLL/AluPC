@@ -299,6 +299,9 @@ class CastServer(QObject):
     def request_access(self, name: str, ip: str) -> str | None:
         """Handy bittet um Freigabe → Anfrage-ID (None = zu viele offene Anfragen von dieser Adresse)."""
         name = re.sub(r"[^\w .\-'äöüÄÖÜß]", "", str(name or ""))[:30].strip() or "Handy"
+        from .hotspot import note_name
+
+        note_name(ip, name)
         now = time.monotonic()
         with self._lock:
             for rid in [r for r, a in self.access.items() if now - a["t"] > 600]:
@@ -307,6 +310,10 @@ class CastServer(QObject):
                 return None
             rid = secrets.token_urlsafe(12)
             self.access[rid] = {"name": name, "ip": ip, "state": "wait", "key": "", "t": now}
+            again = ip in getattr(self, "_approved_ips", set())
+        if again:  # dieses Gerät wurde schon erlaubt (z. B. erst im Anmeldefenster, jetzt im Browser): gleich ok
+            self.answer_access(rid, True)
+            return rid
         self.request.emit({"kind": "freigabe", "id": rid, "name": name, "ip": ip})
         return rid
 
@@ -319,6 +326,9 @@ class CastServer(QObject):
             if allow:
                 key = "d-" + secrets.token_urlsafe(24)
                 req.update(state="ok", key=key)
+                if not hasattr(self, "_approved_ips"):
+                    self._approved_ips = set()
+                self._approved_ips.add(req["ip"])  # gleiche Adresse (im AluPC-WLAN) bleibt erlaubt, solange AluPC läuft
                 entry = {"hash": self._key_hash(key), "name": req["name"], "added": time.strftime("%d.%m.%Y")}
                 self.config["cast"] = {**self.config["cast"], "devices": [*self.devices(), entry]}
             else:
@@ -337,6 +347,7 @@ class CastServer(QObject):
 
     def forget_devices(self) -> None:
         self.config["cast"] = {**self.config["cast"], "devices": []}
+        self._approved_ips = set()
 
     def check(self, ip: str, code: str) -> bool | None:
         """True = ok, False = falsch, None = gesperrt (zu viele Fehlversuche)."""
@@ -356,8 +367,8 @@ class CastServer(QObject):
             return False
 
 
-# Ohne AluPC-WLAN erreichbar: nur das App-Symbol und Abstimmungen (die haben ihr eigenes Stichwort, steuern nichts)
-PUBLIC_PATHS = {"/icon.png", "/apple-touch-icon.png", "/favicon.ico", "/manifest.json", "/abstimmung", "/api/umfrage"}
+# Ohne AluPC-WLAN erreichbar: nur das App-Symbol – alles andere (auch Abstimmen) nur über das AluPC-WLAN
+PUBLIC_PATHS = {"/icon.png", "/apple-touch-icon.png", "/favicon.ico", "/manifest.json"}
 BLOCKED_PAGE = """<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>AluPC</title>
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0c1a;
@@ -374,7 +385,9 @@ def portal_page(server) -> str:
     import html
 
     games = server.games
-    game_url = html.escape(server.games_url()) if games is not None else ""
+    game_url = html.escape("/spiel?u=" + games.token) if games is not None else ""  # relativ: gleiche Adresse
+    poll = server.poll
+    poll_url = html.escape("/abstimmung?u=" + poll.token) if poll is not None else ""
     game_title = html.escape(games.spec.title) if games is not None else ""
     return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>AluPC – WLAN-Anmeldung</title>
@@ -388,19 +401,25 @@ input{{width:100%;font-size:20px;padding:16px;border-radius:16px;border:2px soli
 input:focus{{outline:none;border-color:#6366f1}}
 button{{width:100%;padding:20px;border-radius:18px;border:0;font-size:21px;font-weight:800;color:#fff;cursor:pointer}}
 button small{{display:block;font-size:13px;font-weight:600;opacity:.85;margin-top:3px}}
-.g{{background:linear-gradient(135deg,#6366f1,#ec4899)}}.c{{background:#1e293b;border:2px solid #334155}}
+.g{{background:linear-gradient(135deg,#6366f1,#ec4899)}}.p{{background:linear-gradient(135deg,#0891b2,#22c55e)}}.c{{background:#1e293b;border:2px solid #334155}}
 button:disabled{{opacity:.45}}</style></head>
 <body><div class="card"><div class="logo">📶</div><h1>AluPC-WLAN</h1>
 <p>Du bist verbunden. Wie heißt du?</p>
 <input id="n" maxlength="16" placeholder="Dein Name" autocomplete="off" enterkeyhint="go">
 <button class="g" id="play" {"" if games is not None else "disabled"}>🎮 Mitspielen<small>{game_title or "Gerade keine Minispiele – am PC starten"}</small></button>
-<button class="c" id="ctl">🔒 AluPC steuern<small>Am PC freigeben lassen</small></button>
+{f'<button class="p" id="vote">📊 Abstimmen<small>{html.escape(poll.question)[:60]}</small></button>' if poll is not None else ""}
+<button class="c" id="ctl">🔒 AluPC steuern<small>Am PC freigeben lassen · Fotos senden</small></button>
 </div><script>
 const n = document.getElementById("n");
 try {{ n.value = localStorage.getItem("alupc-name") || ""; }} catch (e) {{}}
-function name() {{ const v = n.value.trim(); try {{ localStorage.setItem("alupc-name", v); }} catch (e) {{}} return v; }}
+function name() {{ const v = n.value.trim(); try {{ localStorage.setItem("alupc-name", v); }} catch (e) {{}}
+  try {{ navigator.sendBeacon ? navigator.sendBeacon("/api/hallo", JSON.stringify({{name: v}})) :
+    fetch("/api/hallo", {{method: "POST", body: JSON.stringify({{name: v}})}}); }} catch (e) {{}}
+  return v; }}
 document.getElementById("play").onclick = () => {{ location.href = "{game_url}" + "&name=" + encodeURIComponent(name() || "Spieler"); }};
-document.getElementById("ctl").onclick = () => {{ location.href = "{html.escape(server.base())}?frei=" + encodeURIComponent(name() || "Handy"); }};
+const vote = document.getElementById("vote");
+if (vote) vote.onclick = () => {{ name(); location.href = "{poll_url}"; }};
+document.getElementById("ctl").onclick = () => {{ location.href = "/?frei=" + encodeURIComponent(name() || "Handy"); }};
 n.addEventListener("keydown", e => {{ if (e.key === "Enter") document.getElementById({"'play'" if games is not None else "'ctl'"}).click(); }});
 </script></body></html>"""
 
@@ -610,6 +629,9 @@ def _make_handler(server: CastServer):
                 return
             action, pid = data.get("action"), str(data.get("p", ""))
             if action == "join":
+                from .hotspot import note_name
+
+                note_name(self.client_address[0], str(data.get("name", "")))
                 player = hub.join(str(data.get("name", "")), str(data.get("avatar", "")))
                 if player is None:
                     self._json(423, {"error": "Spielrunde ist voll"})
@@ -632,6 +654,15 @@ def _make_handler(server: CastServer):
                     self._game_post()
                 except (ValueError, TypeError, json.JSONDecodeError):
                     self._json(400, {"error": "Ungültige Anfrage"})
+                return
+            if u.path == "/api/hallo":  # Anmeldeseite: Name merken (fürs Hotspot-Fenster: welches Gerät ist wer?)
+                from .hotspot import note_name
+
+                try:
+                    note_name(self.client_address[0], str(self._body_json().get("name", "")))
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    pass
+                self._json(200, {})
                 return
             if u.path == "/api/freigabe":  # ohne Code: am PC um Freigabe bitten
                 try:

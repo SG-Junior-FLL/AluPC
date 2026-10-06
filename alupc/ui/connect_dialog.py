@@ -4,7 +4,7 @@ im Setup eingetragenes Gäste-WLAN), davor ein WLAN-QR-Code: Handy scannt → is
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
@@ -111,6 +111,14 @@ class HotspotDialog(QDialog):
             edit.setMinimumHeight(34)
         form.addRow("Name:", self.ssid)
         form.addRow("Passwort:", self.pw)
+        from ..hotspot import IS_WINDOWS
+
+        self.hidden = QCheckBox("Unsichtbar – nur per QR-Code (oder Name + Passwort) zu finden")
+        self.hidden.setChecked(bool(hs.get("hidden", True)) and not IS_WINDOWS)
+        self.hidden.setEnabled(not IS_WINDOWS)
+        if IS_WINDOWS:
+            self.hidden.setText("Unsichtbar – geht unter Windows nicht (der Mobile Hotspot zeigt den Namen immer)")
+        form.addRow("", self.hidden)
         self.auto = None
         if games:
             self.auto = QCheckBox("Mit den Minispielen automatisch starten")
@@ -142,6 +150,26 @@ class HotspotDialog(QDialog):
         hint.setWordWrap(True)
         bl.addWidget(hint)
         lay.addWidget(box)
+        # Geräte im WLAN: standardmäßig KEIN Internet (nur AluPC) – hier einzeln freischalten
+        from PySide6.QtWidgets import QListWidget
+
+        dev_box = QFrame()
+        dev_box.setObjectName("Card")
+        dl = QVBoxLayout(dev_box)
+        dl.addWidget(QLabel("<b>Geräte im WLAN</b> – Haken = darf ins Internet"))
+        self.devices = QListWidget()
+        self.devices.setMinimumHeight(110)
+        self.devices.itemChanged.connect(self._device_toggled)
+        dl.addWidget(self.devices)
+        self.devices_hint = QLabel("Ohne Haken: nur AluPC (Anmeldeseite, Spiele, Abstimmen, Steuern) – kein Internet. "
+                                   "Die Freigabe gilt für das Gerät, auch beim nächsten Mal.")
+        self.devices_hint.setObjectName("Muted")
+        self.devices_hint.setWordWrap(True)
+        dl.addWidget(self.devices_hint)
+        lay.addWidget(dev_box)
+        self._dev_timer = QTimer(self)
+        self._dev_timer.timeout.connect(self._fill_devices)
+        self._dev_timer.start(2000)
         self.qr = QLabel()
         self.qr.setAlignment(Qt.AlignCenter)
         self.qr.setStyleSheet("background:#ffffff; border-radius:14px; padding:10px;")
@@ -154,11 +182,43 @@ class HotspotDialog(QDialog):
         lay.addLayout(bottom)
         controller.hotspot_changed.connect(self._refresh)
         self._refresh()
+        self._fill_devices()
 
     def _mine(self) -> bool:
         from ..hotspot import hotspot
 
         return hotspot.running and hotspot.kind == self.kind
+
+    def _fill_devices(self) -> None:
+        from PySide6.QtWidgets import QListWidgetItem
+
+        try:
+            devices = self.controller.wlan_devices() if self._mine() else []
+            key = [(d["ip"], d["mac"], d["name"], d["internet"]) for d in devices]
+            if key == getattr(self, "_dev_key", None):
+                return
+            self._dev_key = key
+            self.devices.blockSignals(True)
+            self.devices.clear()
+            for d in devices:
+                item = QListWidgetItem(f"{d['name']}   ·   {d['ip']}   ·   {d['mac']}")
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Checked if d["internet"] else Qt.Unchecked)
+                item.setData(Qt.UserRole, (d["mac"], d["name"]))
+                self.devices.addItem(item)
+            if not devices:
+                item = QListWidgetItem("Noch kein Gerät verbunden" if self._mine() else "WLAN ist aus")
+                item.setFlags(Qt.NoItemFlags)
+                self.devices.addItem(item)
+            self.devices.blockSignals(False)
+        except RuntimeError:  # Dialog schon zu
+            pass
+
+    def _device_toggled(self, item) -> None:
+        data = item.data(Qt.UserRole)
+        if data:
+            self.controller.set_device_internet(data[0], data[1], item.checkState() == Qt.Checked)
+            self._dev_key = None
 
     def _refresh(self) -> None:
         from ..hotspot import hotspot
@@ -190,12 +250,12 @@ class HotspotDialog(QDialog):
             pw = new_password()
             self.pw.setText(pw)
         default = "AluPC-Spiele" if self.kind == "spiele" else "AluPC"
-        hs = {"ssid": self.ssid.text().strip() or default, "password": pw, "hidden": False}
+        hs = {"ssid": self.ssid.text().strip() or default, "password": pw, "hidden": self.hidden.isChecked()}
         if self.kind == "spiele":
             games = {k: v for k, v in cfg["games"].items() if k not in ("wifi", "wifi_only")}
             cfg["games"] = {**games, "hotspot": hs, "auto_wifi": self.auto.isChecked()}
         else:
-            cfg["hotspot"] = hs
+            cfg["hotspot"] = {**(cfg.get("hotspot") or {}), **hs}  # Internet-Freigaben behalten
 
     def _toggle(self) -> None:
         from .util import run_async

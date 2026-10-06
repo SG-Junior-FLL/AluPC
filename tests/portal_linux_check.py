@@ -113,7 +113,7 @@ status, _, page = get(out["android"][1])
 out["portal_status"] = status
 out["portal_has_name"] = 'id="n"' in page and "Mitspielen" in page
 m = re.search(r'location.href = "([^"]+)" \+ "&name="', page)
-game = m.group(1).replace("&amp;", "&") if m else ""
+game = urllib.parse.urljoin(out["android"][1], m.group(1).replace("&amp;", "&")) if m else ""
 out["game_url"] = game
 token = urllib.parse.parse_qs(urllib.parse.urlparse(game).query).get("u", [""])[0]
 st, _, gp = get(game + "&name=Lena")
@@ -124,6 +124,17 @@ try:
     r = urllib.request.urlopen(req, timeout=10); out["join"] = r.status; out["pid"] = json.loads(r.read())["p"]
 except urllib.error.HTTPError as e:
     out["join"] = e.code
+m = re.search(r'"(/abstimmung\?u=[^"]+)"', page)
+out["poll_button"] = bool(m) and "Abstimmen" in page
+if m:
+    out["poll_page"] = get(base + m.group(1))[0]
+    ptoken = m.group(1).split("u=")[1]
+    req = urllib.request.Request(base + "/api/umfrage", method="POST", headers={"Content-Type": "application/json"},
+                                 data=json.dumps({"u": ptoken, "v": "lena-handy", "c": 0}).encode())
+    try:
+        out["vote"] = urllib.request.urlopen(req, timeout=10).status
+    except urllib.error.HTTPError as e:
+        out["vote"] = e.code
 print(json.dumps(out))
 '''
 
@@ -143,7 +154,8 @@ def code(url, data=None):
         return e.code
 out = {"/": code("/"), "/spiel": code("/spiel?u=" + token), "/anmelden": code("/anmelden"),
        "join": code("/api/spiel", json.dumps({"u": token, "action": "join", "name": "Fremd"}).encode()),
-       "/api/status": code("/api/status"), "freigabe": code("/api/freigabe", b'{"name":"x"}')}
+       "/api/status": code("/api/status"), "freigabe": code("/api/freigabe", b'{"name":"x"}'),
+       "/abstimmung": code("/abstimmung"), "umfrage": code("/api/umfrage", b'{"u":"x","v":"y","c":0}')}
 print(json.dumps(out))
 '''
 
@@ -161,7 +173,15 @@ const { chromium } = require('playwright');
   await p.waitForSelector('#play:not(.hidden)', { timeout: 15000 });
   const joined = await p.evaluate(() => document.getElementById('who').textContent);
   await p.screenshot({ path: process.argv[2] });
-  console.log(JSON.stringify({ portal, joined, url: p.url() }));
+  // „AluPC steuern“ → am PC erlauben → Foto senden (wie im Browser des Handys)
+  const q = await ctx.newPage();
+  await q.goto('http://captive.apple.com/hotspot-detect.html');
+  await q.fill('#n', 'Mia');
+  await q.click('#ctl');
+  await q.waitForFunction(() => typeof code !== 'undefined' && !!code, null, { timeout: 30000 });
+  await q.setInputFiles('#gal', process.argv[3]);
+  await q.waitForTimeout(2500);
+  console.log(JSON.stringify({ portal, joined, url: p.url(), photo: true }));
   await b.close();
 })().catch(e => { console.log(JSON.stringify({ error: String(e) })); process.exit(1); });
 '''
@@ -205,8 +225,14 @@ def main() -> int:
     watcher = subprocess.Popen(["sh", "-c", script])
     ok(bool(hs_mod._wait_ready(flag, watcher, 20)), "Root-Skript setzt die Regeln (iptables) und meldet „bereit“")
     hs.portal = True
-    rules = sh("iptables-save | grep alupc-portal", check=False)
-    ok(rules.count("alupc-portal") == 7, f"7 Regeln aktiv (DNS, Port 80, Firewall, kein Internet) – {rules.count('alupc-portal')}")
+    rules = sh("iptables-save", check=False)
+    want_rules = ["-j alupc-nat", "-j alupc-fwd", "-A alupc-fwd -j REJECT", "--dport 53 -j REDIRECT --to-ports 8753",
+                  "--dport 80 -j REDIRECT --to-ports 8765"]
+    ok(all(w in rules for w in want_rules), "Regeln aktiv: DNS → AluPC, Port 80 → Anmeldeseite, kein Internet")
+    ok("alupc-portal" in sh("ip6tables-save 2>/dev/null", check=False) or not shutil.which("ip6tables"),
+       "IPv6: auch gesperrt (kein Weg an der Anmeldeseite vorbei)")
+    controller.cast.start()
+    controller.start_poll("Pizza oder Pasta?", ["Pizza", "Pasta"])  # Abstimmen: auch nur übers WLAN
 
     # ---- Monitor 2: genau EIN QR-Code – der WLAN-Code dieses WLANs (echter Decoder liest ihn)
     try:
@@ -224,6 +250,14 @@ def main() -> int:
         want = f"WIFI:T:WPA;S:{hs.ssid};P:{hs.password};;"
         ok(codes == [want], f"Monitor 2 (Lobby): genau 1 QR-Code = WLAN „{hs.ssid}“ → {codes}")
         src.stop()
+        from alupc.poll_source import PollSource
+
+        psrc = PollSource({})
+        psrc.resize(1280, 720)
+        pump(0.3)
+        psrc.grab().save(str(tmp / "umfrage.png"))
+        codes = [c.text for c in zxingcpp.read_barcodes(Image.open(tmp / "umfrage.png"))]
+        ok(codes == [want], f"Monitor 2 (Abstimmung): genau 1 QR-Code = WLAN → {codes}")
     except ImportError:
         print("  · QR-Prüfung übersprungen (zxing-cpp/Pillow fehlen)")
 
@@ -249,6 +283,9 @@ def main() -> int:
     ok(r.get("portal_status") == 200 and r.get("portal_has_name"), "Anmeldeseite mit Namensfeld und „Mitspielen“")
     ok(r.get("game_page") == 200, "Spielseite aus der Anmeldeseite öffnet")
     ok(r.get("join") == 200, f"Beitreten aus dem Spiele-WLAN → {r.get('join')}")
+    ok(r.get("poll_button") and r.get("poll_page") == 200 and r.get("vote") == 200,
+       f"Anmeldeseite → „Abstimmen“ → abgestimmt ({r.get('poll_page')}, {r.get('vote')})")
+    ok(controller.cast.poll is not None and sum(controller.cast.poll.counts()) == 1, "Stimme ist am PC angekommen")
     ok(r.get("remote_page") == 200 and r.get("ask_access") == 200,
        f"„AluPC steuern“ aus dem WLAN: Seite {r.get('remote_page')}, am PC um Erlaubnis fragen {r.get('ask_access')}")
     pump(0.3)
@@ -263,11 +300,19 @@ def main() -> int:
         js = tmp / "phone.js"
         js.write_text(PHONE_BROWSER)
         shot = Path(os.environ.get("ALUPC_PORTAL_SHOT", tmp / "handy.png"))
+        from PIL import Image
+
+        photo = tmp / "urlaub.jpg"
+        Image.new("RGB", (320, 200), (220, 30, 30)).save(photo)
         cmd = (f"ip netns exec {NS} {PHONE_ENV} NODE_PATH={os.environ['NODE_PATH']} "
-               f"CHROMIUM={os.environ.get('CHROMIUM', '')} {node} {js} {shot}")
+               f"CHROMIUM={os.environ.get('CHROMIUM', '')} {node} {js} {shot} {photo}")
+        asks = []
+        controller.cast.request.connect(lambda req: asks.append(req) if req.get("kind") == "freigabe" else None)
         proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         while proc.poll() is None:
             pump(0.05)
+            while asks:  # am PC „Erlauben“
+                controller.cast.answer_access(asks.pop(0)["id"], True)
         out, err = proc.communicate()
         try:
             b = json.loads(out.strip().splitlines()[-1])
@@ -277,8 +322,34 @@ def main() -> int:
         ok(b.get("joined") == "Mia", f"Browser: Name „Mia“ → Mitspielen → Spielsteuerung ({b.get('joined')})")
         pump(0.3)
         ok(any(p.name == "Mia" for p in hub.players.values()), "„Mia“ ist im Spiel")
+        content = controller.content or {}
+        ok(b.get("photo") and content.get("type") == "image" and "urlaub" in str(content.get("path")),
+           f"„AluPC steuern“ → am PC erlaubt → Foto gesendet → Monitor 2 zeigt es ({content.get('type')})")
     else:
         print("  · Browser-Teil übersprungen (kein node/Playwright)")
+
+    # ---- Internet pro Gerät: im Hotspot-Fenster freischalten (nach MAC) → nur dieses Gerät kommt raus
+    devices = controller.wlan_devices()
+    me = next((d for d in devices if d["ip"] == PHONE_IP), None)
+    ok(me is not None and me["name"] in ("Lena", "Mia") and not me["internet"],
+       f"Hotspot-Fenster: Gerät mit Name und ohne Internet gelistet → {me}")
+    if me:
+        controller.set_device_internet(me["mac"], me["name"], True)
+        end = time.time() + 8
+        while time.time() < end and f"-s {PHONE_IP}/32 -j ACCEPT" not in sh("iptables-save", check=False):
+            pump(0.2)
+        rules = sh("iptables-save", check=False)
+        ok(f"-A alupc-fwd -s {PHONE_IP}/32 -j ACCEPT" in rules and f"-A alupc-nat -s {PHONE_IP}/32 -j RETURN" in rules,
+           "Freigeschaltet: Weiterleitung ins Internet für genau dieses Gerät")
+        free = phone(f"{sys.executable} -c \"import socket; print(socket.gethostbyname('www.example.com'))\"")
+        ok(free.stdout.strip() != PC_IP, f"…und echte Namensauflösung statt Anmeldeseite → {free.stdout.strip() or 'kein Eintrag'}")
+        controller.set_device_internet(me["mac"], me["name"], False)
+        end = time.time() + 8
+        while time.time() < end and f"-s {PHONE_IP}/32" in sh("iptables-save", check=False):
+            pump(0.2)
+        again = phone(f"{sys.executable} -c \"import socket; print(socket.gethostbyname('www.example.com'))\"")
+        ok(f"-s {PHONE_IP}/32" not in sh("iptables-save", check=False) and again.stdout.strip() == PC_IP,
+           "Haken weg: wieder kein Internet, nur AluPC")
 
     # ---- Handy in einem ANDEREN Netz (Router-WLAN/LAN, Link abgetippt): alles abgelehnt
     outsider = tmp / "outsider.py"
@@ -294,7 +365,7 @@ def main() -> int:
     except (ValueError, IndexError):
         o = {"error": err[-300:]}
     ok(o and all(v == 403 for v in o.values()),
-       f"Handy aus anderem Netz: Steuerseite, Spielseite, Mitspielen, Status, Erlaubnis-Anfrage → {o}")
+       f"Handy aus anderem Netz: Steuern, Spielen, Abstimmen, Status, Erlaubnis → überall 403 {o}")
     ok(not any(p.name == "Fremd" for p in hub.players.values()), "„Fremd“ ist NICHT im Spiel")
 
     # ---- Ausschalten: Regeln weg

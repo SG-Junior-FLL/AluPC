@@ -110,6 +110,7 @@ def _linux_start(ssid: str, password: str, run=_run, kind: str = "spiele",
     run(["nmcli", "connection", "delete", con], 10)
     cmd = ["nmcli", "connection", "add", "type", "wifi", "ifname", dev, "con-name", con, "autoconnect", "no",
            "ssid", ssid, "802-11-wireless.mode", "ap", "802-11-wireless.band", "bg", "ipv4.method", "shared",
+           "ipv6.method", "disabled",  # kein IPv6 im Hotspot: sonst ginge DNS/Internet an der Anmeldeseite vorbei
            "802-11-wireless.hidden", "yes" if hidden else "no"]
     if password:
         cmd += ["wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", password]
@@ -156,33 +157,54 @@ DNS_PORT = 8753
 def portal_script(dev: str, port: int, flag: Path, pid: int, closed: bool = True, dns_port: int = DNS_PORT) -> str:
     """Root-Skript (Linux) – wie ein Hotel-WLAN:
     * jede Namensfrage aus dem Hotspot (UDP/TCP 53) → AluPCs eigener DNS (portal_dns.py),
-    * Webseiten (Port 80) → Anmeldeseite von AluPC; im geschlossenen Spiele-WLAN JEDE Adresse,
-      sonst nur Anfragen an den PC selbst (normales Surfen bleibt dann unberührt),
-    * geschlossen: nichts ins Internet weiterleiten – so kommt kein Handy an der Anmeldeseite vorbei
-      (auch nicht mit eigenem, verschlüsseltem DNS),
+    * Webseiten (Port 80) → Anmeldeseite von AluPC (geschlossen: JEDE Adresse, offen: nur der PC selbst),
+    * geschlossen: nichts ins Internet weiterleiten (auch kein IPv6) – außer für Geräte, die am PC im
+      Hotspot-Fenster „Internet“ bekommen haben: deren Adressen stehen in <Flagge>.internet; das Skript schaut
+      alle 2 s nach und baut die Regeln (eigene Ketten alupc-nat/alupc-fwd) neu,
     * Ports für AluPC auf dieser Schnittstelle öffnen (falls eine Firewall läuft),
     dann „bereit“ melden, warten bis Flagge weg oder AluPC beendet, alles wieder entfernen."""
     tag = "-m comment --comment alupc-portal"
     local = "" if closed else "-m addrtype --dst-type LOCAL "
-    rules = [f"-t nat PREROUTING -i {dev} -p udp --dport 53 {tag} -j REDIRECT --to-ports {int(dns_port)}",
-             f"-t nat PREROUTING -i {dev} -p tcp --dport 53 {tag} -j REDIRECT --to-ports {int(dns_port)}",
-             f"-t nat PREROUTING -i {dev} -p tcp --dport 80 {local}{tag} -j REDIRECT --to-ports {int(port)}",
-             f"INPUT -i {dev} -p tcp --dport {int(port)} {tag} -j ACCEPT",
-             f"INPUT -i {dev} -p udp --dport {int(dns_port)} {tag} -j ACCEPT",
-             f"INPUT -i {dev} -p tcp --dport {int(dns_port)} {tag} -j ACCEPT"]
-    if closed:
-        rules.append(f"FORWARD -i {dev} {tag} -j REJECT")
-
-    def ipt(op: str, rule: str) -> str:
-        table, _, rest = rule.partition(" PREROUTING ") if rule.startswith("-t nat") else ("", "", rule)
-        return f"iptables {table + ' ' if table else ''}{op} {'PREROUTING ' + rest if table else rest}"
-
-    add = " && ".join(ipt("-I", r) for r in rules)
-    remove = "; ".join(ipt("-D", r) + " 2>/dev/null" for r in rules)
-    return (f"{remove}; {add} || {{ {remove}; exit 1; }}; "
-            f"echo ok > '{flag}.ok'; "
-            f"while [ -e '{flag}' ] && kill -0 {int(pid)} 2>/dev/null; do sleep 2; done; "
-            f"{remove}")
+    d, f, dp, pp = dev, str(flag), int(dns_port), int(port)
+    jumps = [f"-t nat -I PREROUTING -i {d} {tag} -j alupc-nat", f"-I FORWARD -i {d} {tag} -j alupc-fwd",
+             f"-I INPUT -i {d} -p tcp --dport {pp} {tag} -j ACCEPT",
+             f"-I INPUT -i {d} -p udp --dport {dp} {tag} -j ACCEPT",
+             f"-I INPUT -i {d} -p tcp --dport {dp} {tag} -j ACCEPT"]
+    undo = "; ".join("iptables " + j.replace(" -I ", " -D ", 1).replace("-I ", "-D ", 1) + " 2>/dev/null"
+                     for j in jumps)
+    ip6 = f"-I FORWARD -i {d} {tag} -j REJECT"
+    final = "iptables -A alupc-fwd -j REJECT" if closed else "true"
+    return f"""
+F='{f}'
+cleanup() {{
+  {undo}
+  ip6tables {ip6.replace("-I ", "-D ", 1)} 2>/dev/null
+  iptables -t nat -F alupc-nat 2>/dev/null; iptables -t nat -X alupc-nat 2>/dev/null
+  iptables -F alupc-fwd 2>/dev/null; iptables -X alupc-fwd 2>/dev/null
+}}
+build() {{
+  iptables -t nat -F alupc-nat && iptables -F alupc-fwd || return 1
+  for ip in $(cat "$F.internet" 2>/dev/null); do
+    case "$ip" in ""|*[!0-9.]*) continue;; esac
+    iptables -t nat -A alupc-nat -s "$ip" -j RETURN; iptables -A alupc-fwd -s "$ip" -j ACCEPT
+  done
+  iptables -t nat -A alupc-nat -p udp --dport 53 -j REDIRECT --to-ports {dp} &&
+  iptables -t nat -A alupc-nat -p tcp --dport 53 -j REDIRECT --to-ports {dp} &&
+  iptables -t nat -A alupc-nat -p tcp --dport 80 {local}-j REDIRECT --to-ports {pp} &&
+  {final}
+}}
+cleanup
+iptables -t nat -N alupc-nat && iptables -N alupc-fwd && build && {" && ".join("iptables " + j for j in jumps)} || {{ cleanup; exit 1; }}
+{f"command -v ip6tables >/dev/null && ip6tables {ip6}" if closed else "true"}
+echo ok > "$F.ok"
+last=$(cat "$F.internet" 2>/dev/null)
+while [ -e "$F" ] && kill -0 {int(pid)} 2>/dev/null; do
+  sleep 2
+  cur=$(cat "$F.internet" 2>/dev/null)
+  if [ "$cur" != "$last" ]; then build; last=$cur; fi
+done
+cleanup
+"""
 
 
 def portal_script_windows(ip: str, port: int, flag: Path, pid: int, closed: bool = True,
@@ -234,8 +256,15 @@ try {{
   }}
   Set-Content -LiteralPath "$flag.ok" -Value 'ok'
   while ((Test-Path -LiteralPath $flag) -and (Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue)) {{
-    # der Hotspot schaltet Forwarding beim Neustart evtl. wieder an → geschlossen halten
-    if ($closed -and $alias) {{ Set-NetIPInterface -InterfaceAlias $alias -AddressFamily IPv4 -Forwarding Disabled -ErrorAction SilentlyContinue }}
+    # Internet nur, wenn am PC mindestens ein Gerät freigeschaltet ist (<Flagge>.internet); die anderen Geräte
+    # bekommen von AluPCs DNS weiter nur die Anmeldeseite. Der Hotspot schaltet Forwarding evtl. selbst an →
+    # alle 2 s wieder auf Soll stellen.
+    if ($closed -and $alias) {{
+      $allow = ''
+      try {{ $allow = ([string](Get-Content -LiteralPath "$flag.internet" -Raw -ErrorAction Stop)).Trim() }} catch {{}}
+      $want = if ($allow) {{ 'Enabled' }} else {{ 'Disabled' }}
+      Set-NetIPInterface -InterfaceAlias $alias -AddressFamily IPv4 -Forwarding $want -ErrorAction SilentlyContinue
+    }}
     Start-Sleep 2
   }}
 }} finally {{ Clean }}
@@ -264,6 +293,64 @@ def _wait_ready(flag: Path, proc=None, timeout: float = 120, sleep=None) -> str:
     return ""
 
 
+def internet_file() -> Path:
+    """Liste der Geräte-Adressen mit Internet (eine pro Zeile) – liest das Root-/Administrator-Skript."""
+    return Path(f"{portal_flag()}.internet")
+
+
+def set_internet(ips) -> None:
+    """Diese Geräte im AluPC-WLAN dürfen ins Internet (alle anderen nicht). Wirkt in ≤ 2 s."""
+    import ipaddress
+
+    clean = sorted({str(ipaddress.IPv4Address(ip)) for ip in ips if ip})
+    if _dns is not None:
+        _dns.allowed = set(clean)
+    path = internet_file()
+    text = "\n".join(clean) + ("\n" if clean else "")
+    try:
+        if not path.exists() or path.read_text(encoding="utf-8") != text:
+            path.write_text(text, encoding="utf-8")
+    except OSError:
+        pass
+
+
+NAMES: dict[str, str] = {}  # IP → Name, den das Gerät auf der Anmeldeseite eingegeben hat
+
+
+def note_name(ip: str, name: str) -> None:
+    name = " ".join(str(name or "").split())[:30]
+    if ip and name:
+        NAMES[ip] = name
+
+
+def neighbors(dev: str = "", ip: str = "") -> dict[str, str]:
+    """Geräte im Hotspot-Netz: IP → MAC (aus der ARP-Tabelle des PCs)."""
+    import ipaddress
+    import re
+
+    net = None
+    try:
+        net = ipaddress.ip_network(f"{ip or hotspot.ip}/24", strict=False)
+    except ValueError:
+        pass
+    out: dict[str, str] = {}
+    if sys.platform.startswith("linux"):
+        try:
+            for line in Path("/proc/net/arp").read_text().splitlines()[1:]:
+                parts = line.split()
+                if len(parts) >= 6 and parts[3] != "00:00:00:00:00:00" and (not dev or parts[5] == dev):
+                    out[parts[0]] = parts[3].lower()
+        except OSError:
+            pass
+    elif IS_WINDOWS:
+        code, text = _run(["arp", "-a"], 8)
+        for m in re.finditer(r"(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F]{2}(?:-[0-9a-fA-F]{2}){5})\s+dynamic", text):
+            out[m.group(1)] = m.group(2).replace("-", ":").lower()
+    if net is not None:
+        out = {k: v for k, v in out.items() if ipaddress.ip_address(k) in net and k != (ip or hotspot.ip)}
+    return out
+
+
 _dns = None  # laufender Anmeldeseiten-DNS
 
 
@@ -273,6 +360,7 @@ def start_dns(ip_provider, closed: bool = True, host: str = "0.0.0.0", port: int
     from .portal_dns import PortalDNS
 
     stop_dns()
+    internet_file().unlink(missing_ok=True)  # neuer Start: noch niemand hat Internet (AluPC setzt es gleich)
     hosts = PORTAL_HOSTS + WINDOWS_CHECK_HOSTS if check_hosts is None else check_hosts
     _dns = PortalDNS(ip_provider, closed=closed, hosts=hosts, port=port, host=host, exclusive=IS_WINDOWS)
     if not _dns.start():
@@ -368,6 +456,7 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
 def stop_portal() -> None:
     try:
         portal_flag().unlink(missing_ok=True)  # der Wächter nimmt alles in ≤ 2 s wieder raus
+        internet_file().unlink(missing_ok=True)
         stop_dns()
     except OSError:
         pass
@@ -465,9 +554,9 @@ class Hotspot:
         portal_msg = ""
         self.portal = False
         if sys.platform.startswith("linux"):
-            if portal:  # vor dem Start (Passwort-Abfrage zuerst); Spiele-WLAN: geschlossen wie ein Hotel-WLAN
+            if portal:  # vor dem Start (Passwort-Abfrage zuerst); geschlossen wie ein Hotel-WLAN (Internet je Gerät)
                 dev = wifi_device()
-                self.portal, portal_msg = start_portal(dev, closed=kind == "spiele") if dev else (False, "")
+                self.portal, portal_msg = start_portal(dev, closed=True) if dev else (False, "")
             ok, msg, ip = _linux_start(ssid, password, kind=kind, hidden=hidden)
             if not ok and self.portal:
                 stop_portal()
@@ -478,9 +567,10 @@ class Hotspot:
             ok, msg = windows_message(out)
             if ok and hidden:  # Windows kann den Namen des Mobilen Hotspots nicht verstecken
                 msg += " (Unsichtbar geht unter Windows nicht – der Name ist in der WLAN-Liste zu sehen.)"
+            hidden = False
             ip = WINDOWS_IP if ok else ""
             if ok and portal:  # nach dem Start (die Adresse 192.168.137.1 gibt es erst dann)
-                self.portal, portal_msg = start_portal(ip=ip, closed=kind == "spiele")
+                self.portal, portal_msg = start_portal(ip=ip, closed=True)
         self.running, self.ip, self.message = ok, ip, msg
         self.kind, self.ssid, self.password = (kind, ssid, password) if ok else ("", "", "")
         self.hidden = bool(ok and hidden and not IS_WINDOWS)

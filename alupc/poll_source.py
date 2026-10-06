@@ -50,9 +50,13 @@ class PollSource(QWidget):
             self.update()
 
     def qr(self):
-        url = self.server.poll_url()
-        if url != self._qr_for:
-            self._qr_for, self._qr = url, qr_image(url)
+        """WLAN-Code des AluPC-WLANs (einziger Weg): scannen → Anmeldeseite → „Abstimmen“. None = WLAN aus."""
+        from .hotspot import hotspot
+        from .screens import wifi_payload
+
+        payload = wifi_payload(hotspot.ssid, hotspot.password, hotspot.hidden) if hotspot.running else ""
+        if payload != self._qr_for:
+            self._qr_for, self._qr = payload, (qr_image(payload) if payload else None)
         return self._qr
 
     def paintEvent(self, _e):
@@ -141,20 +145,32 @@ class PollSource(QWidget):
             qx = w - m - qr_side
             qy = (h - qr_side) / 2 - h * 0.04
             pad = qr_side * 0.06
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor("#ffffff"))
-            p.drawRoundedRect(QRectF(qx - pad, qy - pad, qr_side + 2 * pad, qr_side + 2 * pad), pad, pad)
-            draw_qr(p, QRectF(qx, qy, qr_side, qr_side), self.qr())
+            image = self.qr()
             cf = QFont()
             cf.setBold(True)
             cf.setPixelSize(max(10, int(h * 0.034)))
-            p.setFont(cf)
-            p.setPen(QColor("#e2e8f0"))
-            p.drawText(QRectF(qx - m, qy + qr_side + pad * 2, qr_side + 2 * m, h * 0.05), Qt.AlignCenter,
-                       "Scannen & abstimmen")
-            uf = fitted_font(p, self.server.poll_url(), int(qr_side + 2 * m), max(9, int(h * 0.022)))
-            p.setFont(uf)
-            p.setPen(QColor("#93c5fd"))
-            p.drawText(QRectF(qx - m, qy + qr_side + pad * 2 + h * 0.05, qr_side + 2 * m, h * 0.04), Qt.AlignCenter,
-                       self.server.poll_url())
+            if image is None:  # AluPC-WLAN läuft nicht: kein anderer Weg – sagen, was los ist
+                from .hotspot import hotspot
+
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor(255, 255, 255, 14))
+                p.drawRoundedRect(QRectF(qx - pad, qy - pad, qr_side + 2 * pad, qr_side + 2 * pad), pad, pad)
+                p.setFont(cf)
+                p.setPen(QColor("#e2e8f0"))
+                p.drawText(QRectF(qx, qy, qr_side, qr_side), Qt.AlignCenter | Qt.TextWordWrap,
+                           "📶\nAluPC-WLAN startet …" if not hotspot.message else f"📶\n{hotspot.message}")
+            else:
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor("#ffffff"))
+                p.drawRoundedRect(QRectF(qx - pad, qy - pad, qr_side + 2 * pad, qr_side + 2 * pad), pad, pad)
+                draw_qr(p, QRectF(qx, qy, qr_side, qr_side), image)
+                p.setFont(cf)
+                p.setPen(QColor("#e2e8f0"))
+                p.drawText(QRectF(qx - m, qy + qr_side + pad * 2, qr_side + 2 * m, h * 0.05), Qt.AlignCenter,
+                           "WLAN scannen & abstimmen")
+                uf = fitted_font(p, "Anmeldeseite → Abstimmen", int(qr_side + 2 * m), max(9, int(h * 0.022)))
+                p.setFont(uf)
+                p.setPen(QColor("#93c5fd"))
+                p.drawText(QRectF(qx - m, qy + qr_side + pad * 2 + h * 0.05, qr_side + 2 * m, h * 0.04),
+                           Qt.AlignCenter, "Anmeldeseite → Abstimmen")
         p.end()

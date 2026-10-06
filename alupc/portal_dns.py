@@ -62,10 +62,17 @@ class PortalDNS:
         self.tcp: socket.socket | None = None
         self.queries = 0
         self.error = ""
+        self.allowed: set[str] = set()  # Geräte mit Internet: bekommen echte Antworten
 
-    def ip_for(self, name: str, qtype: int):
+    def ip_for(self, name: str, qtype: int, client: str = ""):
+        if client and client in self.allowed:  # am PC freigeschaltet: echtes Internet
+            return self._resolve(name, qtype)
         if self.closed or name in self.hosts:
             return [self.ip_provider()]
+        return self._resolve(name, qtype)
+
+    @staticmethod
+    def _resolve(name: str, qtype: int):
         if qtype != 1:
             return []
         try:  # offenes WLAN: normal auflösen (über den PC)
@@ -110,10 +117,10 @@ class PortalDNS:
             raise
         return sock
 
-    def _reply(self, data: bytes) -> bytes | None:
+    def _reply(self, data: bytes, client: str = "") -> bytes | None:
         self.queries += 1
         try:
-            return answer(data, self.ip_for)
+            return answer(data, lambda name, qtype: self.ip_for(name, qtype, client))
         except Exception:  # noqa: BLE001 - kaputte Anfrage: ignorieren
             return None
 
@@ -128,14 +135,14 @@ class PortalDNS:
                 return
 
             def handle(d=data, a=addr):
-                out = self._reply(d)
+                out = self._reply(d, a[0])
                 if out and sock is self.udp:
                     try:
                         sock.sendto(out, a)
                     except OSError:
                         pass
 
-            if self.closed:
+            if self.closed and addr[0] not in self.allowed:
                 handle()
             else:  # offen: Auflösen kann dauern → nicht die anderen aufhalten
                 threading.Thread(target=handle, daemon=True).start()
@@ -149,9 +156,9 @@ class PortalDNS:
                 continue
             except OSError:
                 return
-            threading.Thread(target=self._tcp_client, args=(conn,), daemon=True).start()
+            threading.Thread(target=self._tcp_client, args=(conn, _addr[0]), daemon=True).start()
 
-    def _tcp_client(self, conn):
+    def _tcp_client(self, conn, client: str = ""):
         try:
             conn.settimeout(5)
             head = conn.recv(2)
@@ -164,7 +171,7 @@ class PortalDNS:
                 if not chunk:
                     return
                 data += chunk
-            out = self._reply(data)
+            out = self._reply(data, client)
             if out:
                 conn.sendall(struct.pack(">H", len(out)) + out)
         except OSError:
