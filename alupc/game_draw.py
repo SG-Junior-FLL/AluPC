@@ -10,7 +10,6 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
 
 from .games_base import TEAM_COLORS, TEAM_NAMES, clock_text
-from .hotspot import shown_name
 
 TEXT = "#f1f5f9"
 MUTED = "#94a3b8"
@@ -330,7 +329,7 @@ def lobby(c) -> None:
         text(p, QRectF(qx - m, qy - h * 0.11, qr_side + 2 * m, h * 0.06), "WLAN scannen", h * 0.04, TEXT, True)
         qr_card(c, qx, qy, qr_side, caption=False, image=c.wifi_qr())
         text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.03, qr_side + 4 * m, h * 0.045),
-             f"„{shown_name(wifi[0])}“ · Anmeldung öffnet sich", h * 0.026, "#67e8f9", True)
+             f"„{wifi[0]}“ · Anmeldung öffnet sich", h * 0.026, "#67e8f9", True)
         text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.075, qr_side + 4 * m, h * 0.04),
              "Name eingeben → mitspielen", h * 0.024, MUTED)
         return

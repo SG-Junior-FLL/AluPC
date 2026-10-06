@@ -8,7 +8,23 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.108.0)
+### Neu in dieser Version (0.109.0)
+- **Windows: Anmeldeseite repariert** (Handys bekamen Internet statt der Anmeldeseite):
+  - Der eigene DNS des Windows-Hotspots hielt Port 53 fest – die Handys fragten Windows statt AluPC. Jetzt hält
+    AluPC den Windows-Dienst „Internetverbindungsfreigabe“ kurz an, übernimmt Port 53 und startet danach den Hotspot.
+    Beim Ausschalten bekommt Windows den Port zurück. Weiter nur ein „Ja“ (Administrator).
+  - Wurde die Windows-Frage „Zugriff zulassen?“ für AluPC einmal weggeklickt, sperrte die Firewall die Handys.
+    Diese Sperre für AluPC wird jetzt entfernt.
+  - Klappt es trotzdem nicht, sagt AluPC das klar („Anmeldeseite ging nicht …“) statt still „an“ zu melden.
+- **Windows: „Geräte im WLAN“ (Internet pro Gerät) war leer** – deutsches Windows schreibt „dynamisch“ statt
+  „dynamic“. Geht jetzt in jeder Sprache.
+- Unsichtbares WLAN mit unsichtbaren Zeichen (Windows) wieder entfernt. Unter Windows ist der Name sichtbar.
+- Geprüft: Windows-CI mit echtem Windows-Dienst (anhalten, Port 53, wieder starten), Firewall-Sperre, Handy-
+  Container (Android-/iPhone-Prüfung → Anmeldeseite, Internet pro Gerät), Linux 25/25, alle Tests.
+- Ehrlich, nicht geprüft: echter Mobiler Hotspot mit echtem Android-Handy – bitte testen. Falls das Anhalten des
+  Dienstes den Hotspot stört, startet AluPC ihn erst danach – das ist so gebaut, aber nur nachgestellt geprüft.
+
+### Neu in Version 0.108.0
 - **AluPC ist jetzt ins System eingebunden** (Linux und Windows gleich; Einstellungen → Allgemein → „Im System“,
   an ab Werk, abschaltbar, wird bei Deinstallation/„Alle Daten löschen“ entfernt):
   - **Rechtsklick auf Bild, Video oder PDF → „Auf Monitor 2 zeigen“**, auf einen Ordner → „Als Diashow auf
@@ -17,9 +33,6 @@
     `alupc://standbild`, `alupc://schwarz`, `alupc://szene/Pause`, `alupc://naechste-szene` … Nur harmlose
     Befehle – nichts, was Programme startet, den PC sperrt oder ausschaltet.
   - Auch im Terminal: `alupc --zeigen Datei.pdf`. Läuft AluPC schon, geht alles an das laufende Programm.
-- **Windows: „Unsichtbares“ WLAN** (Hotspot-Fenster → „Unsichtbar“): Windows kann nicht wirklich verstecken, also
-  bekommt das WLAN einen Namen nur aus Zeichen ohne Breite. In der WLAN-Liste steht ein leerer Eintrag, Handys
-  verbinden sich per QR-Code. AluPC zeigt den eingestellten Namen mit „(ohne sichtbaren Namen)“.
 - Geprüft: Rechtsklick-Befehl und Link kommen beim laufenden AluPC an (Linux echt; Windows in CI mit echter
   Registry und `start alupc://standbild`), Ein/Aus in den Einstellungen, alle Tests.
 - Ehrlich, nicht geprüft: Anzeige im echten Dolphin/Explorer-Menü (kein KDE/Desktop hier) und ob Windows und

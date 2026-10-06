@@ -59,28 +59,6 @@ def test_hidden_wifi_qr_readable(qapp, tmp_path):
     assert [r.text for r in zx.read_barcodes(pil.open(tmp_path / "h.png"))] == [payload]
 
 
-def test_invisible_ssid_windows(qapp, tmp_path):
-    """Windows kann kein verstecktes WLAN – stattdessen ein Name nur aus Zeichen ohne Breite."""
-    zx = pytest.importorskip("zxingcpp")
-    pil = pytest.importorskip("PIL.Image")
-    from alupc import hotspot as hs
-    from alupc.sources import qr_pixmap
-
-    a = hs.invisible_ssid("AluPC")
-    assert a == hs.invisible_ssid("AluPC") and a != hs.invisible_ssid("AluPC-2")
-    assert len(a.encode("utf-8")) <= 32 and set(a) <= set(hs._INVISIBLE)
-    payload = wifi_payload(a, "k7pm2qa9xr")
-    qr_pixmap(payload, 140).save(str(tmp_path / "i.png"))
-    assert [r.text for r in zx.read_barcodes(pil.open(tmp_path / "i.png"))] == [payload]
-    old = (hs.hotspot.ssid, hs.hotspot.label)
-    try:
-        hs.hotspot.ssid, hs.hotspot.label = a, "AluPC"
-        assert hs.shown_name(a) == "AluPC (ohne sichtbaren Namen)"
-        assert hs.shown_name("Anders") == "Anders"
-    finally:
-        hs.hotspot.ssid, hs.hotspot.label = old
-
-
 def test_wifi_payload_escapes():
     assert wifi_payload('a;b', 'p"w') == r'WIFI:T:WPA;S:a\;b;P:p\"w;;'
     assert wifi_payload("Offen", "") == "WIFI:T:nopass;S:Offen;P:;;"
@@ -321,41 +299,101 @@ def test_portal_start_order_and_cancel(monkeypatch, tmp_path):
 
 
 def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
-    """Windows wie Linux: eigener DNS (Firewall Port 53), portproxy 80, geschlossen = kein Weiterleiten; hosts nur
-    als Notlösung. Start über „Als Administrator“."""
-    script = hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77)
+    """Windows wie Linux: Port 53 vom Windows-Hotspot-DNS übernehmen (Dienst kurz anhalten), Firewall inkl.
+    Sperr-Regeln für AluPC weg, portproxy 80, geschlossen = kein Weiterleiten. Hotspot erst NACH der Übernahme."""
+    script = hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, program=r"C:\Pro'gramme\AluPC.exe")
     for part in ("portproxy add v4tov4 listenport=80 listenaddress=$ip connectport=8765", "portproxy delete",
                  "firewall add rule name=AluPC-Portal dir=in action=allow protocol=UDP localport=53",
                  'localport="80,53,8765"', "-Forwarding Disabled", "-Forwarding Enabled", "$closed = $true",
-                 "finally { Clean }", "Get-Process -Id 77"):
+                 "Get-Process -Id 77", "Stop-Service SharedAccess", "Start-Service SharedAccess",
+                 "Restart-Service SharedAccess", '"$flag.frei"', '"$flag.dns"', '"$flag.bereit"',
+                 "$_.Action -eq 'Block'", "Remove-NetFirewallRule", "$prog = 'C:\\Pro''gramme\\AluPC.exe'",
+                 'program="$prog"'):
         assert part in script, part
-    assert "'captive.apple.com'" not in script  # eigener DNS → keine hosts-Einträge (die träfen auch den PC selbst)
+    assert "captive.apple.com" not in script and "drivers\\etc\\hosts" not in script  # keine hosts-Notlösung mehr
+    assert script.index("Stop-Service") < script.index('"$flag.frei"') < script.index("Start-Service SharedAccess")
     assert "$closed = $false" in hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, closed=False)
-    fallback = hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, hosts=True)
-    assert "'captive.apple.com'" in fallback and "msftconnecttest" not in fallback
     monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
     monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
-    started = []
-    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (started.append(k), True)[1])
+    started, order = [], []
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (started.append(k), order.append("dns"), True)[2])
     monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: True)
+
+    def files(path, timeout):  # das Administrator-Skript: gibt Port 53 frei, wartet auf AluPC, startet den Dienst
+        order.append(path.name.split(".")[-1])
+        if path.name.endswith(".bereit"):
+            order.append((tmp_path / "flag.dns").read_text())  # AluPC hat Port 53 → meldet „ok“
+        return True
+
     seen = []
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (seen.append(cmd), (0, ""))[1], wait=lambda f, p, t: True)
-    assert ok and "-Verb RunAs" in seen[0] and "-EncodedCommand" in seen[0] and "eingeschränkt" not in msg
-    assert started[-1]["host"] == "192.168.137.1" and started[-1]["port"] == 53
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (seen.append(cmd), (0, ""))[1], wait=lambda f, p, t: True,
+                                   then=lambda: (order.append("hotspot"), True)[1], wait_file=files)
+    assert ok and "-Verb RunAs" in seen[0] and "-EncodedCommand" in seen[0], msg
+    assert order == ["frei", "dns", "bereit", "ok", "hotspot"], order
+    assert started[-1]["host"] == "0.0.0.0" and started[-1]["port"] == 53 and started[-1]["restrict"]
     import base64
     sent = base64.b64decode(seen[0].split("'-EncodedCommand','")[1].split("'")[0]).decode("utf-16-le")
-    assert "captive.apple.com" not in sent and "$closed = $true" in sent
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (1, "abgebrochen"), wait=lambda f, p, t: True)
-    assert not ok and "QR-Code" in msg and not (tmp_path / "flag").exists()
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: "belegt:System")
-    assert not ok and "Port 80" in msg and "System" in msg
-    assert "Get-NetTCPConnection -LocalPort 80" in script and "belegt:" in script
-    # Port 53 nicht zu bekommen → Notlösung über hosts, ehrlich als „eingeschränkt“ gemeldet
+    assert "$closed = $true" in sent and "Stop-Service SharedAccess" in sent
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (1, "abgebrochen"), wait=lambda f, p, t: True, wait_file=files)
+    assert not ok and "nicht bestätigt" in msg and not (tmp_path / "flag").exists()
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: "belegt:System", wait_file=files)
+    assert not ok and "Port 80" in msg and "System" in msg and not (tmp_path / "flag").exists()
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True,
+                                   wait_file=lambda p, t: False)
+    assert not ok and "nicht geantwortet" in msg
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: False)
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
+    assert not ok and "Port 53" in msg and (tmp_path / "flag.dns").read_text() == "fehler"
+    # Selbsttest scheitert → ehrlich „ging nicht“ (kein stilles „an“ mit Internet für alle)
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: True)
     monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: False)
-    seen.clear()
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (seen.append(cmd), (0, ""))[1], wait=lambda f, p, t: True)
-    sent = base64.b64decode(seen[0].split("'-EncodedCommand','")[1].split("'")[0]).decode("utf-16-le")
-    assert ok and "eingeschränkt" in msg and "captive.apple.com" in sent and "$closed = $false" in sent
+    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
+    assert not ok and "kommen nicht bei AluPC an" in msg
+
+
+def test_windows_hotspot_starts_after_port53(monkeypatch, tmp_path):
+    """Hotspot.start unter Windows: Hotspot erst, wenn Port 53 übernommen ist; ohne „Ja“ trotzdem Hotspot."""
+    monkeypatch.setattr(hotspot, "supported", lambda: (True, ""))
+    monkeypatch.setattr(hotspot.sys, "platform", "win32")
+    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
+    calls = []
+    monkeypatch.setattr(hotspot, "_ps", lambda script, env=None, timeout=40: (calls.append(env), (0, "STATUS:Success:"))[1])
+
+    def portal(ip, closed, then):
+        calls.append("portal")
+        assert then()
+        return True, "Anmeldeseite an."
+
+    monkeypatch.setattr(hotspot, "start_portal", portal)
+    monkeypatch.setattr(hotspot, "stop_portal", lambda: None)
+    hs = hotspot.Hotspot()
+    ok, msg = hs.start("AluPC-Spiele", "k7m2p9qa", portal=True, hidden=False)
+    assert ok and hs.portal and calls[0] == "portal" and calls[1]["ALUPC_SSID"] == "AluPC-Spiele" and len(calls) == 2
+    assert "Anmeldeseite an" in msg and hs.ip == "192.168.137.1"
+    calls.clear()
+    monkeypatch.setattr(hotspot, "start_portal", lambda ip, closed, then: (False, "Anmeldeseite aus („Ja“ …)."))
+    ok, msg = hotspot.Hotspot().start("AluPC-Spiele", "k7m2p9qa", portal=True, hidden=False)
+    assert ok and len(calls) == 1 and "Anmeldeseite aus" in msg
+
+
+def test_windows_arp_any_language(monkeypatch):
+    """Geräteliste (Internet pro Gerät): deutsches Windows schreibt „dynamisch“ statt „dynamic“."""
+    text = """
+Schnittstelle: 192.168.137.1 --- 0x12
+  Internetadresse       Physische Adresse     Typ
+  192.168.137.45        a2-11-22-33-44-55     dynamisch
+  192.168.137.80        3c-22-fb-01-02-03     dynamic
+  192.168.137.255       ff-ff-ff-ff-ff-ff     statisch
+  224.0.0.22            01-00-5e-00-00-16     statisch
+
+Schnittstelle: 192.168.0.20 --- 0x7
+  192.168.0.1           11-22-33-44-55-66     dynamisch
+"""
+    monkeypatch.setattr(hotspot.sys, "platform", "win32")
+    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
+    monkeypatch.setattr(hotspot, "_run", lambda cmd, timeout=10: (0, text))
+    assert hotspot.neighbors(ip="192.168.137.1") == {"192.168.137.45": "a2:11:22:33:44:55",
+                                                       "192.168.137.80": "3c:22:fb:01:02:03"}
 
 
 def test_dns_selftest_sees_own_server():
@@ -592,3 +630,15 @@ def test_portal_dns_real_answers_only_for_allowed_devices():
     assert dns.ip_for("www.example.com", 1, "10.42.0.9") == ["10.42.0.1"]  # nicht freigeschaltet: Anmeldeseite
     real = dns.ip_for("localhost", 1, "10.42.0.7")  # freigeschaltet: echte Auflösung
     assert real != ["10.42.0.1"] and (real is None or "127.0.0.1" in real)
+
+
+def test_portal_dns_restricted_to_hotspot_net():
+    """Windows lauscht auf allen Adressen – Fragen aus anderen Netzen (LAN) bekommen keine Antwort."""
+    from alupc.portal_dns import PortalDNS
+
+    dns = PortalDNS(lambda: "192.168.137.1", closed=True, restrict=True)
+    q = bytes.fromhex("41550100000100000000000005616c75706303636f6d0000010001")
+    assert dns._reply(q, "192.168.137.50") is not None
+    assert dns._reply(q, "127.0.0.1") is not None
+    assert dns._reply(q, "192.168.0.20") is None
+    assert PortalDNS(lambda: "192.168.137.1", restrict=False)._reply(q, "192.168.0.20") is not None

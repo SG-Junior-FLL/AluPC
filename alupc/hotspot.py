@@ -38,28 +38,6 @@ _PW_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"  # ohne l/1/o/0 – leicht abzules
 IS_WINDOWS = sys.platform.startswith("win")
 
 
-# Windows kann den Namen des Mobilen Hotspots nicht verstecken (keine Option, auch nicht per Programm). Ersatz:
-# ein Name nur aus unsichtbaren Zeichen – in der WLAN-Liste steht ein leerer Eintrag, der QR-Code enthält ihn.
-_INVISIBLE = ["\u200b", "\u200c", "\u200d", "\u2060"]  # Breite null; je 3 Byte in UTF-8
-
-
-def invisible_ssid(name: str) -> str:
-    """Unsichtbarer WLAN-Name, aus dem sichtbaren abgeleitet (gleicher Name → gleiches WLAN, Handys merken es sich;
-    anderer Name → anderes WLAN). 10 Zeichen = 30 Byte (WLAN-Namen dürfen höchstens 32 Byte haben)."""
-    import hashlib
-
-    digest = hashlib.sha256(name.encode("utf-8")).digest()
-    bits = int.from_bytes(digest[:3], "big")
-    return "".join(_INVISIBLE[(bits >> (2 * i)) & 3] for i in range(10))
-
-
-def shown_name(ssid: str) -> str:
-    """WLAN-Name zum Anzeigen: beim unsichtbaren Windows-Namen der eingestellte Name mit Hinweis."""
-    if ssid and ssid == hotspot.ssid and hotspot.label and hotspot.label != ssid:
-        return f"{hotspot.label} (ohne sichtbaren Namen)"
-    return ssid
-
-
 def new_password() -> str:
     return "".join(secrets.choice(_PW_CHARS) for _ in range(10))
 
@@ -230,41 +208,62 @@ cleanup
 
 
 def portal_script_windows(ip: str, port: int, flag: Path, pid: int, closed: bool = True,
-                          hosts: bool = False) -> str:
+                          program: str = "") -> str:
     """Administrator-Skript (Windows) – wie unter Linux ein Hotel-WLAN:
-    * Namensfragen der Handys beantwortet AluPCs eigener DNS (bindet 192.168.137.1:53 – genauer als der
-      Windows-Hotspot-DNS auf 0.0.0.0:53, bekommt also alle Fragen); hier nur die Firewall dafür öffnen,
+    * Port 53: Den belegt sonst der DNS des Windows-Hotspots (Dienst „SharedAccess“) – dann fragen die Handys
+      Windows statt AluPC, bekommen echte Adressen und es gibt keine Anmeldeseite. Deshalb: Dienst kurz anhalten,
+      AluPC nimmt Port 53 für sich allein (<Flagge>.frei → AluPC → <Flagge>.dns), Dienst wieder starten
+      (bereit: <Flagge>.bereit). Erst danach startet AluPC den Mobilen Hotspot.
+    * Firewall: Port 53/80 offen; Sperr-Regeln für AluPC selbst (entstehen, wenn die Windows-Frage „Zugriff
+      zulassen?“ weggeklickt wurde) entfernen – die gingen sonst vor,
     * Webseiten (Port 80 an den PC) → Anmeldeseite von AluPC (portproxy),
     * geschlossen: Hotspot-Schnittstelle leitet nichts ins Internet weiter (Forwarding aus),
-    * hosts=True nur als Notlösung, falls der eigene DNS nicht ging (dann nur die Prüf-Adressen → PC),
     „bereit“ melden, warten, alles wieder entfernen – auch wenn AluPC abstürzt."""
-    names = ",".join(f"'{h}'" for h in PORTAL_HOSTS) if hosts else ""
+    prog = str(program).replace("'", "''")
     return rf"""
 $ErrorActionPreference = 'Continue'
-$hosts = "$env:SystemRoot\System32\drivers\etc\hosts"
-$mark = '# alupc-portal'
 $ip = '{ip}'
 $flag = '{flag}'
+$prog = '{prog}'
 $closed = ${str(bool(closed)).lower()}
-$alias = (Get-NetIPAddress -IPAddress $ip -ErrorAction SilentlyContinue | Select-Object -First 1).InterfaceAlias
+function Alias {{ (Get-NetIPAddress -IPAddress $ip -ErrorAction SilentlyContinue | Select-Object -First 1).InterfaceAlias }}
 function Clean {{
-  try {{
-    $keep = @(Get-Content -LiteralPath $hosts -ErrorAction Stop | Where-Object {{ $_ -notlike "*$mark*" }})
-    Set-Content -LiteralPath $hosts -Value $keep -Encoding ASCII
-  }} catch {{}}
   netsh interface portproxy delete v4tov4 listenport=80 listenaddress=$ip | Out-Null
   netsh advfirewall firewall delete rule name=AluPC-Portal | Out-Null
-  if ($alias) {{ Set-NetIPInterface -InterfaceAlias $alias -AddressFamily IPv4 -Forwarding Enabled -ErrorAction SilentlyContinue }}
-  ipconfig /flushdns | Out-Null
+  $a = Alias
+  if ($a) {{ Set-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4 -Forwarding Enabled -ErrorAction SilentlyContinue }}
 }}
+function WaitFile($path, $seconds) {{
+  $end = (Get-Date).AddSeconds($seconds)
+  while (-not (Test-Path -LiteralPath $path) -and (Get-Date) -lt $end) {{ Start-Sleep -Milliseconds 200 }}
+  Test-Path -LiteralPath $path
+}}
+$took = $false
+Set-Content -LiteralPath "$flag.laeuft" -Value 'an'
 try {{
   Clean
-  $names = @({names})
-  if ($names.Count -gt 0) {{ Add-Content -LiteralPath $hosts -Value ($names | ForEach-Object {{ "$ip $_ $mark" }}) -Encoding ASCII }}
-  netsh interface portproxy add v4tov4 listenport=80 listenaddress=$ip connectport={int(port)} connectaddress=$ip | Out-Null
   netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=TCP localport="80,53,{int(port)}" | Out-Null
   netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=UDP localport=53 | Out-Null
-  if ($closed -and $alias) {{ Set-NetIPInterface -InterfaceAlias $alias -AddressFamily IPv4 -Forwarding Disabled -ErrorAction SilentlyContinue }}
+  if ($prog) {{
+    Get-NetFirewallApplicationFilter -ErrorAction SilentlyContinue | Where-Object {{ $_.Program -ieq $prog }} |
+      Get-NetFirewallRule -ErrorAction SilentlyContinue |
+      Where-Object {{ $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' }} | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+    netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow program="$prog" enable=yes | Out-Null
+  }}
+  # Port 53 vom Windows-Hotspot-DNS freimachen und AluPC geben
+  Stop-Service SharedAccess -Force -ErrorAction SilentlyContinue
+  $took = $true
+  Set-Content -LiteralPath "$flag.frei" -Value 'frei'
+  $null = WaitFile "$flag.dns" 30
+  Remove-Item -LiteralPath "$flag.dns" -ErrorAction SilentlyContinue
+  Start-Service SharedAccess -ErrorAction SilentlyContinue
+  Set-Content -LiteralPath "$flag.bereit" -Value 'bereit'
+  # AluPC startet jetzt den Hotspot – auf seine Adresse warten
+  $end = (Get-Date).AddSeconds(60)
+  while (-not (Alias) -and (Get-Date) -lt $end -and (Test-Path -LiteralPath $flag)) {{ Start-Sleep -Milliseconds 500 }}
+  netsh interface portproxy add v4tov4 listenport=80 listenaddress=$ip connectport={int(port)} connectaddress=$ip | Out-Null
+  $a = Alias
+  if ($closed -and $a) {{ Set-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4 -Forwarding Disabled -ErrorAction SilentlyContinue }}
   ipconfig /flushdns | Out-Null
   Start-Sleep -Milliseconds 800
   # Port 80 schon von einem anderen Dienst belegt (z. B. IIS/http.sys)? Dann kommt die Prüfung nie bei AluPC an.
@@ -276,21 +275,40 @@ try {{
     Set-Content -LiteralPath "$flag.ok" -Value ('belegt:' + $name)
     return
   }}
-  Set-Content -LiteralPath "$flag.ok" -Value 'ok'
+  Set-Content -LiteralPath "$flag.ok" -Value ($(if (Alias) {{ 'ok' }} else {{ 'ok:ohne-adresse' }}))
   while ((Test-Path -LiteralPath $flag) -and (Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue)) {{
     # Internet nur, wenn am PC mindestens ein Gerät freigeschaltet ist (<Flagge>.internet); die anderen Geräte
     # bekommen von AluPCs DNS weiter nur die Anmeldeseite. Der Hotspot schaltet Forwarding evtl. selbst an →
     # alle 2 s wieder auf Soll stellen.
-    if ($closed -and $alias) {{
+    $a = Alias
+    if ($closed -and $a) {{
       $allow = ''
       try {{ $allow = ([string](Get-Content -LiteralPath "$flag.internet" -Raw -ErrorAction Stop)).Trim() }} catch {{}}
       $want = if ($allow) {{ 'Enabled' }} else {{ 'Disabled' }}
-      Set-NetIPInterface -InterfaceAlias $alias -AddressFamily IPv4 -Forwarding $want -ErrorAction SilentlyContinue
+      Set-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4 -Forwarding $want -ErrorAction SilentlyContinue
     }}
     Start-Sleep 2
   }}
-}} finally {{ Clean }}
+}} finally {{
+  Clean
+  if ($took) {{  # Port 53 wieder an Windows: AluPC hat ihn inzwischen freigegeben
+    Start-Sleep 2
+    Restart-Service SharedAccess -Force -ErrorAction SilentlyContinue
+  }}
+  Remove-Item -LiteralPath "$flag.frei","$flag.bereit","$flag.dns","$flag.laeuft" -ErrorAction SilentlyContinue
+}}
 """
+
+
+def _wait_file(path: Path, timeout: float) -> bool:
+    import time
+
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        if path.exists():
+            return True
+        time.sleep(0.2)
+    return False
 
 
 def _wait_ready(flag: Path, proc=None, timeout: float = 120, sleep=None) -> str:
@@ -366,8 +384,11 @@ def neighbors(dev: str = "", ip: str = "") -> dict[str, str]:
             pass
     elif IS_WINDOWS:
         code, text = _run(["arp", "-a"], 8)
-        for m in re.finditer(r"(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F]{2}(?:-[0-9a-fA-F]{2}){5})\s+dynamic", text):
-            out[m.group(1)] = m.group(2).replace("-", ":").lower()
+        # Sprache egal („dynamic“/„dynamisch“): Broadcast und Multicast fallen unten weg
+        for m in re.finditer(r"(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F]{2}(?:-[0-9a-fA-F]{2}){5})\b", text):
+            mac = m.group(2).replace("-", ":").lower()
+            if mac != "ff:ff:ff:ff:ff:ff" and not int(mac[:2], 16) & 1:
+                out[m.group(1)] = mac
     if net is not None:
         out = {k: v for k, v in out.items() if ipaddress.ip_address(k) in net and k != (ip or hotspot.ip)}
     return out
@@ -377,14 +398,15 @@ _dns = None  # laufender Anmeldeseiten-DNS
 
 
 def start_dns(ip_provider, closed: bool = True, host: str = "0.0.0.0", port: int = DNS_PORT,
-              check_hosts: list[str] | None = None) -> bool:
+              check_hosts: list[str] | None = None, restrict: bool = False) -> bool:
     global _dns
     from .portal_dns import PortalDNS
 
     stop_dns()
     internet_file().unlink(missing_ok=True)  # neuer Start: noch niemand hat Internet (AluPC setzt es gleich)
     hosts = PORTAL_HOSTS + WINDOWS_CHECK_HOSTS if check_hosts is None else check_hosts
-    _dns = PortalDNS(ip_provider, closed=closed, hosts=hosts, port=port, host=host, exclusive=IS_WINDOWS)
+    _dns = PortalDNS(ip_provider, closed=closed, hosts=hosts, port=port, host=host, exclusive=IS_WINDOWS,
+                     restrict=restrict)
     if not _dns.start():
         _dns = None
         return False
@@ -418,21 +440,21 @@ def stop_dns() -> None:
 
 
 def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_ready,
-                 ip: str = WINDOWS_IP, closed: bool = True) -> tuple[bool, str]:
-    """Anmeldeseite einschalten (Linux: vor dem Hotspot-Start, Windows: danach). Fragt einmal nach dem
-    Passwort (Linux, pkexec) bzw. „Ja“ (Windows, Administrator)."""
+                 ip: str = WINDOWS_IP, closed: bool = True, then=None, wait_file=_wait_file) -> tuple[bool, str]:
+    """Anmeldeseite einschalten (vor dem Hotspot-Start). Fragt einmal nach dem Passwort (Linux, pkexec) bzw.
+    „Ja“ (Windows, Administrator). Windows: then() startet den Hotspot, sobald Port 53 AluPC gehört."""
     flag = portal_flag()
-    Path(f"{flag}.ok").unlink(missing_ok=True)
+    for suffix in (".ok", ".frei", ".bereit", ".dns"):
+        Path(f"{flag}{suffix}").unlink(missing_ok=True)
     if IS_WINDOWS:
         import base64
+        import time
 
-        # Eigener DNS auf der Hotspot-Adresse (Port 53): wie unter Linux. Unter Windows normal: Zieladresse genauer
-        # als der Hotspot-DNS (0.0.0.0) → alle Fragen der Handys kommen bei AluPC an. Geprüft per Selbsttest.
-        dns_ok = start_dns(lambda: hotspot.ip or ip, closed, host=ip, port=53,
-                           check_hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS) and dns_selftest(ip)
-        if not dns_ok:
-            stop_dns()
-        script = portal_script_windows(ip, port, flag, os.getpid(), closed=closed and dns_ok, hosts=not dns_ok)
+        stop_dns()
+        end = time.monotonic() + 15  # voriger Wächter räumt noch auf (gibt Port 53 an Windows zurück) → abwarten
+        while Path(f"{flag}.laeuft").exists() and time.monotonic() < end:
+            time.sleep(0.3)
+        script = portal_script_windows(ip, port, flag, os.getpid(), closed=closed, program=sys.executable)
         enc = base64.b64encode(script.encode("utf-16-le")).decode()
         launcher = ("try { Start-Process powershell -Verb RunAs -WindowStyle Hidden -ErrorAction Stop -ArgumentList "
                     f"'-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','{enc}' }} catch {{ exit 1 }}")
@@ -440,22 +462,35 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
         code, out = (spawn or _ps)(launcher)
         if code != 0:
             flag.unlink(missing_ok=True)
+            return False, "Anmeldeseite aus („Ja“ nicht bestätigt)."
+
+        def fail(text):
+            flag.unlink(missing_ok=True)  # Wächter räumt auf und gibt Port 53 an Windows zurück
             stop_dns()
-            return False, "Anmeldeseite aus („Ja“ nicht bestätigt) – Handys nehmen den QR-Code."
-        state = wait(flag, None, 60)
+            return False, text
+
+        if not wait_file(Path(f"{flag}.frei"), 90):
+            return fail("Anmeldeseite ging nicht (Administrator-Skript hat nicht geantwortet).")
+        # Port 53 auf allen Adressen, für AluPC allein – die Hotspot-Adresse gibt es erst nach dem Start
+        dns_ok = start_dns(lambda: hotspot.ip or ip, closed, host="0.0.0.0", port=53,
+                           check_hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS, restrict=True)
+        Path(f"{flag}.dns").write_text("ok" if dns_ok else "fehler")
+        wait_file(Path(f"{flag}.bereit"), 30)
+        if not dns_ok:
+            return fail("Anmeldeseite ging nicht: Port 53 ist von einem anderen Programm belegt.")
+        if then is not None and not then():
+            return fail("")
+        state = wait(flag, None, 90)
         if state is True:
             state = "ok"
         if not state or str(state).startswith("belegt"):
-            flag.unlink(missing_ok=True)
-            stop_dns()
             if str(state).startswith("belegt"):
                 who = str(state).partition(":")[2] or "ein anderes Programm"
-                return False, (f"Anmeldeseite aus: Port 80 ist schon belegt ({who}, z. B. ein Webserver) – "
-                               "Handys nehmen den QR-Code.")
-            return False, "Anmeldeseite ging nicht – Handys nehmen den QR-Code."
-        if not dns_ok:
-            return True, "Anmeldeseite an (eingeschränkt: Port 53 belegt – nur die Prüf-Adressen zeigen auf den PC)."
-        return True, "Anmeldeseite an: Handys öffnen die Spielsteuerung beim Verbinden selbst."
+                return fail(f"Anmeldeseite aus: Port 80 ist schon belegt ({who}, z. B. ein Webserver).")
+            return fail("Anmeldeseite ging nicht.")
+        if not dns_selftest(ip):
+            return fail("Anmeldeseite ging nicht: Namensfragen an 192.168.137.1 kommen nicht bei AluPC an.")
+        return True, "Anmeldeseite an: Handys öffnen sie beim Verbinden selbst."
     if not (shutil.which("pkexec") and shutil.which("iptables")):
         return False, "Anmeldeseite braucht pkexec und iptables."
     if not start_dns(lambda: hotspot.ip or _linux_ip(dev), closed):
@@ -562,7 +597,6 @@ class Hotspot:
         self.ssid = ""
         self.password = ""
         self.hidden = False
-        self.label = ""  # eingestellter Name (unter Windows mit „unsichtbar“ weicht der echte WLAN-Name ab)
         self.portal = False
         self.message = ""
 
@@ -586,20 +620,26 @@ class Hotspot:
                 self.portal, portal_msg = False, ""
         else:
             password = password if len(password or "") >= 8 else new_password()
-            label = ssid
-            if hidden:  # Windows kann nicht verstecken → Name aus unsichtbaren Zeichen (leerer Eintrag in der Liste)
-                ssid = invisible_ssid(label)
-            code, out = _ps(_PS_START, {"ALUPC_SSID": ssid, "ALUPC_PW": password})
-            ok, msg = windows_message(out)
-            if ok and hidden:
-                msg += " (Name unsichtbar: in der WLAN-Liste steht ein leerer Eintrag – Handys nehmen den QR-Code.)"
+            result: list = []
+
+            def tether() -> bool:  # Mobilen Hotspot starten (bei der Anmeldeseite: erst wenn Port 53 AluPC gehört)
+                result.append(windows_message(_ps(_PS_START, {"ALUPC_SSID": ssid, "ALUPC_PW": password})[1]))
+                return result[-1][0]
+
+            if portal:
+                self.portal, portal_msg = start_portal(ip=WINDOWS_IP, closed=True, then=tether)
+            if not result:
+                tether()
+            ok, msg = result[-1]
+            if not ok and self.portal:
+                stop_portal()
+                self.portal, portal_msg = False, ""
+            if ok and hidden:  # Windows kann den Namen des Mobilen Hotspots nicht verstecken
+                msg += " (Unsichtbar geht unter Windows nicht – der Name ist in der WLAN-Liste zu sehen.)"
             hidden = False
             ip = WINDOWS_IP if ok else ""
-            if ok and portal:  # nach dem Start (die Adresse 192.168.137.1 gibt es erst dann)
-                self.portal, portal_msg = start_portal(ip=ip, closed=True)
         self.running, self.ip, self.message = ok, ip, msg
         self.kind, self.ssid, self.password = (kind, ssid, password) if ok else ("", "", "")
-        self.label = (label if IS_WINDOWS else ssid) if ok else ""
         self.hidden = bool(ok and hidden and not IS_WINDOWS)
         if ok and portal_msg:
             self.message = msg = f"{msg} {portal_msg}"

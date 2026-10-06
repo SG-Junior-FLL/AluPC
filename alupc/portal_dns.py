@@ -54,9 +54,10 @@ def answer(query: bytes, ip_for: callable) -> bytes | None:
 
 class PortalDNS:
     def __init__(self, ip_provider, closed: bool = True, hosts: list[str] | None = None, port: int = PORT,
-                 host: str = "0.0.0.0", exclusive: bool = False):
+                 host: str = "0.0.0.0", exclusive: bool = False, restrict: bool = False):
         self.ip_provider, self.closed, self.port, self.host = ip_provider, closed, port, host
         self.exclusive = exclusive  # Windows: Port für sich allein (SO_EXCLUSIVEADDRUSE)
+        self.restrict = restrict  # nur Geräte im Hotspot-Netz (Windows: lauscht auf allen Adressen)
         self.hosts = {h.lower() for h in (hosts or [])}
         self.udp: socket.socket | None = None
         self.tcp: socket.socket | None = None
@@ -117,7 +118,18 @@ class PortalDNS:
             raise
         return sock
 
+    def _from_hotspot(self, client: str) -> bool:
+        import ipaddress
+
+        try:
+            ip = ipaddress.ip_address(client)
+            return ip.is_loopback or ip in ipaddress.ip_network(f"{self.ip_provider()}/24", strict=False)
+        except ValueError:
+            return False
+
     def _reply(self, data: bytes, client: str = "") -> bytes | None:
+        if self.restrict and client and not self._from_hotspot(client):
+            return None  # Fragen aus anderen Netzen (LAN) nicht beantworten
         self.queries += 1
         try:
             return answer(data, lambda name, qtype: self.ip_for(name, qtype, client))

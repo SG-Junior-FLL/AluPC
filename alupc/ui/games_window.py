@@ -292,7 +292,7 @@ class GamesWindow(QWidget):
             t = theme.current()
             on = hotspot.running and hotspot.kind == "spiele"
             color = t.success if on else t.muted
-            text = (f"📶  Spiele-WLAN „{hotspot.label or hotspot.ssid}“ läuft – Handys scannen den WLAN-Code, die Anmeldeseite "
+            text = (f"📶  Spiele-WLAN „{hotspot.ssid}“ läuft – Handys scannen den WLAN-Code, die Anmeldeseite "
                     "öffnet sich, Name eingeben, fertig." if on else
                     "📶  Spiele-WLAN aus – Handys müssen im selben WLAN sein wie der PC (oder „Spiele-WLAN …“).")
             self.wlan.setText(text)
@@ -382,9 +382,7 @@ class GamesWindow(QWidget):
                 self.players.setCurrentItem(item)
         self.players_label.setText(f"SPIELER ({len(hub.players)})")
         wifi = self.controller.games_wifi()
-        from ..hotspot import shown_name
-
-        self.url.setText(f"Mitspielen: WLAN „{shown_name(wifi[0])}“ → Anmeldeseite" if wifi else
+        self.url.setText(f"Mitspielen: WLAN „{wifi[0]}“ → Anmeldeseite" if wifi else
                          (self.controller.games_wifi_status()[1] or "Spiele-WLAN ist aus"))
         self._update_info(hub)
 

@@ -7,13 +7,14 @@ echte AluPC (Controller, Webserver, Minispiele, eigener DNS) und das echte Admin
 Administrator“ gestartet, wie in der App).
 
 Spiele-WLAN (geschlossen):
-  1. AluPC-DNS übernimmt 192.168.137.1:53 (Selbsttest) – jede Adresse zeigt auf den PC
+  1. AluPC übernimmt Port 53 vom Windows-Hotspot-DNS (Dienst SharedAccess kurz angehalten, wie auf echten PCs
+     nötig) – jede Adresse zeigt auf den PC; eine Firewall-Sperre für AluPC (weggeklickte Windows-Frage) wird entfernt
   0. Monitor 2 zeigt genau EINEN QR-Code: den WLAN-Code (echter Decoder)
   2. Android-/iPhone-Prüfung → 302 zur Anmeldeseite (über Port 80 → AluPC)
   3. Anmeldeseite mit Namensfeld → Spielseite → Beitreten → Spieler ist im Spiel
   4. Kein Weg vorbei: fremder DNS (8.8.8.8) und Internet per IP (1.1.1.1:443) gesperrt; ein Handy aus einem
      anderen Netz (Docker-NAT) bekommt überall 403 – auch nicht „AluPC steuern“
-  5. Ausschalten → portproxy, Firewall, Sperre weg, Port 53 frei
+  5. Ausschalten → portproxy, Firewall, Sperre weg, Port 53 wieder beim Windows-Dienst
 Normaler Hotspot (offen): Prüf-Adressen → PC, alles andere normal, Internet geht.
 
 Nicht prüfbar hier: echte WLAN-Karte, ob das Handy-Betriebssystem das Anmeldefenster selbst öffnet, die UAC-Abfrage
@@ -222,8 +223,19 @@ def main() -> int:
     ok(codes == [f"WIFI:T:WPA;S:{hs.ssid};P:{hs.password};;"], f"Monitor 2 (Lobby): genau 1 QR-Code = WLAN → {codes}")
     src.stop()
     controller.start_poll("Pizza oder Pasta?", ["Pizza", "Pasta"])  # Abstimmen: auch nur übers WLAN
+    # Wie nach einer weggeklickten Windows-Firewall-Frage: Sperr-Regel für AluPC (hier: python.exe)
+    ps(f"New-NetFirewallRule -DisplayName 'AluPC Testsperre' -Direction Inbound -Action Block "
+       f"-Program '{sys.executable}' | Out-Null")
+    before53 = ps("(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
+                  "Where-Object LocalAddress -eq '0.0.0.0').OwningProcess")
     good, msg = hs_mod.start_portal(ip=IP, closed=True)  # echter Weg: „Als Administrator“ + Wächter
-    ok(good and "eingeschränkt" not in msg, f"Anmeldeseite an (eigener DNS, Administrator-Skript): {msg}")
+    ok(good, f"Anmeldeseite an (Port 53 übernommen, Administrator-Skript): {msg}")
+    owner = ps("(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
+               "Where-Object LocalAddress -eq '0.0.0.0').OwningProcess")
+    ok(owner.strip() == str(os.getpid()), f"Port 53 gehört AluPC (vorher Prozess {before53 or '–'}, jetzt {owner})")
+    ok(not ps("Get-NetFirewallRule -DisplayName 'AluPC Testsperre' -ErrorAction SilentlyContinue"),
+       "Firewall-Sperre für AluPC entfernt")
+    ok(ps("(Get-Service SharedAccess).Status") == "Running", "Windows-Hotspot-Dienst läuft wieder")
     hs.portal = good
     ok(hs_mod.dns_selftest(IP), "AluPC-DNS beantwortet 192.168.137.1:53 (statt Windows-DNS)")
     ok(f"{IP}" in ps("netsh interface portproxy show v4tov4"), "Port 80 → AluPC (portproxy)")
@@ -291,6 +303,14 @@ def main() -> int:
         released = False
     free.close()
     ok(released, "Port 53 wieder frei")
+    back = ""
+    for _ in range(30):  # Wächter startet den Windows-Dienst neu → sein DNS hat Port 53 wieder
+        pump(0.5)
+        back = ps("(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
+                  "Where-Object LocalAddress -eq '0.0.0.0').OwningProcess")
+        if back and back.strip() != str(os.getpid()) and ps("(Get-Service SharedAccess).Status") == "Running":
+            break
+    ok(back and back.strip() != str(os.getpid()), f"Port 53 wieder beim Windows-Dienst (Prozess {back or '–'})")
 
     # ================= normaler Hotspot: offen (Internet geht, Prüf-Adressen → Anmeldeseite)
     hs.kind = "normal"

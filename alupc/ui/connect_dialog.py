@@ -56,10 +56,8 @@ class ConnectDialog(QDialog):
         if wifi and wifi[0]:
             ssid, password = wifi[0], wifi[1]
             hidden = bool(wifi[2]) if len(wifi) > 2 else False
-            from ..hotspot import shown_name
-
             self.wifi_card = _qr_card("", "AluPC-WLAN", wifi_payload(ssid, password, hidden),
-                                      [f"WLAN: <b>{shown_name(ssid)}</b>", f"Passwort: <b>{password}</b>",
+                                      [f"WLAN: <b>{ssid}</b>", f"Passwort: <b>{password}</b>",
                                        "Danach öffnet sich die Anmeldeseite"])
             lay.addWidget(self.wifi_card, 0, Qt.AlignCenter)
         else:
@@ -115,12 +113,11 @@ class HotspotDialog(QDialog):
         form.addRow("Passwort:", self.pw)
         from ..hotspot import IS_WINDOWS
 
-        self.hidden = QCheckBox("Unsichtbar (nur per QR-Code)" if not IS_WINDOWS else
-                                "Unsichtbar (Name ohne sichtbare Zeichen – nur per QR-Code)")
-        self.hidden.setChecked(bool(hs.get("hidden", True)))
+        self.hidden = QCheckBox("Unsichtbar (nur per QR-Code)")
+        self.hidden.setChecked(bool(hs.get("hidden", True)) and not IS_WINDOWS)
+        self.hidden.setEnabled(not IS_WINDOWS)
         if IS_WINDOWS:
-            self.hidden.setToolTip("Windows kann den Namen nicht ausblenden – AluPC nimmt einen Namen aus unsichtbaren "
-                                   "Zeichen: in der WLAN-Liste steht ein leerer Eintrag.")
+            self.hidden.setText("Unsichtbar – geht unter Windows nicht")
         form.addRow("", self.hidden)
         self.auto = None
         if games:
@@ -233,8 +230,7 @@ class HotspotDialog(QDialog):
             self.toggle.setIcon(icons.icon("x" if on else "play", theme.current().text, 18))
             t = theme.current()
             color = t.success if on else t.muted
-            invisible = hotspot.hidden or (hotspot.label and hotspot.label != hotspot.ssid)
-            self.pill.setText(("● AN" + (" · unsichtbar" if invisible else "")) if on else "○ AUS")
+            self.pill.setText(("● AN" + (" · unsichtbar" if hotspot.hidden else "")) if on else "○ AUS")
             self.pill.setStyleSheet(f"color:{color}; background:{t.soft(color, 0.14)}; border-radius:11px;"
                                     "padding:3px 12px; font-weight:700;")
             self.qr.setVisible(on)
