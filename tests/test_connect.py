@@ -311,8 +311,11 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
                  "$prog = 'C:\\Pro''gramme\\AluPC.exe'", 'program="$prog"', "Owner53"):
         assert part in script, part
     assert "captive.apple.com" not in script and "drivers\\etc\\hosts" not in script  # keine hosts-Notlösung mehr
-    # Dienst nur anhalten, wenn AluPC „uebernehmen“ meldet
-    assert script.index("$want -eq 'uebernehmen'") < script.index("Stop-Service SharedAccess")
+    # Dienst nur anhalten, wenn AluPC „uebernehmen“ meldet – beim Start oder später im Betrieb
+    assert "if ($want -eq 'uebernehmen') { Takeover }" in script
+    assert script.count("Stop-Service SharedAccess") == 1 and script.index("function Takeover") < script.index("Stop-Service")
+    assert 'Test-Path -LiteralPath "$flag.uebernehmen"' in script and "if ($n % 10 -eq 0) { Unblock }" in script
+    assert "Start-Service iphlpsvc" in script
     assert "$closed = $false" in hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, closed=False)
     monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
     monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
@@ -656,3 +659,48 @@ def test_portal_dns_restricted_to_hotspot_net():
     assert dns._reply(q, "127.0.0.1") is not None
     assert dns._reply(q, "192.168.0.20") is None
     assert PortalDNS(lambda: "192.168.137.1", restrict=False)._reply(q, "192.168.0.20") is not None
+
+
+def test_windows_self_repair_when_phones_ask_windows(monkeypatch, tmp_path):
+    """Im Betrieb: Handy seit 20 s im WLAN, aber keine Namensfrage kam bei AluPC an → Port 53 übernehmen (einmal)."""
+    from alupc.portal_dns import PortalDNS
+
+    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
+    monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
+    monkeypatch.setattr(hotspot.hotspot, "portal", True)
+    monkeypatch.setattr(hotspot.hotspot, "ip", "192.168.137.1")
+    dns = PortalDNS(lambda: "192.168.137.1", restrict=True)
+    monkeypatch.setattr(hotspot, "_dns", dns)
+    hotspot._TAKEOVER.update(state="")
+    hotspot._SEEN.clear()
+    q = bytes.fromhex("41550100000100000000000005616c75706303636f6d0000010001")
+    dns._reply(q, "192.168.137.1")  # Selbsttest des PCs zählt nicht als Handy
+    assert dns.clients == {}
+    started = []
+    phone = {"192.168.137.45": "a2:11:22:33:44:55"}
+    assert not hotspot.watch_dns(phone, now=100, start=started.append)
+    assert not hotspot.watch_dns(phone, now=115, start=started.append)  # erst 15 s
+    assert hotspot.watch_dns(phone, now=121, start=started.append) and started == [hotspot.takeover_now]
+    assert not hotspot.watch_dns(phone, now=150, start=started.append)  # nur einmal
+    # kommen die Namensfragen an, passiert nichts
+    hotspot._TAKEOVER.update(state="")
+    dns._reply(q, "192.168.137.45")
+    assert dns.clients == {"192.168.137.45": 1} and hotspot.client_status("192.168.137.45") == (1, False)
+    assert not hotspot.watch_dns(phone, now=300, start=started.append)
+    # die Übernahme selbst: Wächter hält den Dienst an (.gestoppt), AluPC bindet die Hotspot-Adresse
+    binds = []
+    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (binds.append((k["host"], k["exclusive"])), True)[1])
+    monkeypatch.setattr(hotspot.hotspot, "ssid", "")
+    hotspot.DNS_INFO = "x"
+
+    def wait_file(path, timeout):
+        assert (tmp_path / "flag.uebernehmen").exists()
+        return True
+
+    assert hotspot.takeover_now(wait_file=wait_file) == "192.168.137.1 exklusiv"
+    assert binds == [("192.168.137.1", True)] and (tmp_path / "flag.dns").read_text() == "ok"
+    assert "im Betrieb übernommen: 192.168.137.1 exklusiv" in hotspot.DNS_INFO and hotspot._TAKEOVER["state"] == "fertig"
+
+
+def test_windows_hotspot_ip_default():
+    assert hotspot.windows_hotspot_ip() == "192.168.137.1"  # ohne Windows-Registry: Standard

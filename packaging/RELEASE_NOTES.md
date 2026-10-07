@@ -8,7 +8,19 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.109.0)
+### Neu in dieser Version (0.110.0)
+- **Windows: Anmeldeseite repariert sich selbst.** Ist ein Handy seit 20 s im WLAN, aber keine einzige
+  Namensfrage kam bei AluPC an (Handys fragen Windows statt AluPC), übernimmt AluPC Port 53 im laufenden Betrieb –
+  ohne neues „Ja“. Läuft der Hotspot danach nicht mehr, startet AluPC ihn wieder.
+- **Hotspot-Fenster zeigt je Gerät, wo es hängt:** „DNS ✗ (fragt Windows statt AluPC)“, „DNS ✓ · Anmeldeseite noch
+  nicht“ oder „Anmeldeseite ✓“.
+- Windows: echte Hotspot-Adresse aus der Registry (statt fest 192.168.137.1); Firewall-Sperre für AluPC wird alle
+  20 s erneut entfernt (falls die Windows-Frage später weggeklickt wird); IP-Hilfsdienst (für Port 80) wird gestartet.
+- Geprüft: Windows-CI mit nachgebautem Hotspot inkl. Selbstreparatur im Betrieb, alle Tests.
+- Ehrlich, nicht geprüft: echter Mobiler Hotspot mit echtem Android-Handy. Kommt die Anmeldeseite nicht, zeigt
+  das Hotspot-Fenster jetzt, an welcher Stelle – bitte die Zeile des Handys schicken.
+
+### Neu in Version 0.109.0
 - **Windows: Anmeldeseite repariert** (Handys bekamen Internet statt der Anmeldeseite):
   - Fragen die Handys Windows' eigenen Hotspot-DNS statt AluPC, gibt es keine Anmeldeseite (und Internet für
     alle). AluPC nimmt Port 53 jetzt genau auf der Hotspot-Adresse; geht das nicht, hält AluPC den Windows-Dienst

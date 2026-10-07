@@ -524,6 +524,9 @@ def _make_handler(server: CastServer):
             if not host or host == hotspot.ip:
                 return False
             target = server.base() + "anmelden"  # Anmeldeseite: Mitspielen (frei) · AluPC steuern (mit Code)
+            from .hotspot import note_probe
+
+            note_probe(self.client_address[0])
             self.send_response(302)
             self.send_header("Location", target)
             self.send_header("Cache-Control", "no-store")

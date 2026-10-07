@@ -1672,15 +1672,16 @@ class Controller(QObject):
 
     def wlan_devices(self) -> list[dict]:
         """Geräte im AluPC-WLAN: IP, MAC, Name (von der Anmeldeseite), Internet ja/nein."""
-        from .hotspot import NAMES, hotspot, neighbors
+        from .hotspot import NAMES, client_status, hotspot, neighbors
 
         if not hotspot.running:
             return []
         allowed = self.internet_allowed()
         out = []
         for ip, mac in sorted(neighbors().items(), key=lambda kv: tuple(int(x) for x in kv[0].split("."))):
+            dns, probe = client_status(ip)
             out.append({"ip": ip, "mac": mac, "name": NAMES.get(ip) or allowed.get(mac) or "Gerät",
-                        "internet": mac in allowed})
+                        "internet": mac in allowed, "dns": dns, "probe": probe})
         return out
 
     def set_device_internet(self, mac: str, name: str, on: bool) -> None:
@@ -1711,6 +1712,10 @@ class Controller(QObject):
                 seen[mac] = ip
             self._mac_ip = seen
             set_internet([seen[mac] for mac in allowed if mac in seen])
+            from .hotspot import watch_dns
+
+            if watch_dns(neighbors()):  # Handys erreichen AluPCs DNS nicht → selbst reparieren
+                self.message.emit("Handys fragen Windows statt AluPC – AluPC übernimmt jetzt (ca. 10 s) …")
         except Exception:  # noqa: BLE001 - nächster Versuch in 3 s
             pass
 
