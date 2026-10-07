@@ -713,9 +713,7 @@ def test_serve_extra_port_sees_real_client():
     import urllib.request
 
     from alupc import cast_server
-    from alupc.cast_server import CastServer
 
-    srv = CastServer.__new__(CastServer)
     assert not cast_server.serve_extra("127.0.0.1", 18780)  # ohne laufenden Webserver: nichts
     import socket as _s
 
@@ -746,4 +744,3 @@ def test_serve_extra_port_sees_real_client():
         cast_server.stop_extra()
         cast_server._make_handler = orig
         cast_server._ACTIVE = None
-    del srv
