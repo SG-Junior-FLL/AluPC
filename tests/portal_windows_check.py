@@ -16,7 +16,6 @@ Spiele-WLAN (geschlossen):
      anderen Netz (Docker-NAT) bekommt überall 403 – auch nicht „AluPC steuern“
   5. Ausschalten → portproxy, Firewall, Sperre weg, Port 53 wieder beim Windows-Dienst
 Normaler Hotspot (offen): Prüf-Adressen → PC, alles andere normal, Internet geht.
-Selbstreparatur im Betrieb: Windows-Dienst kurz anhalten, Port 53 nehmen, Dienst wieder starten → Anmeldeseite kommt.
 
 Nicht prüfbar hier: echte WLAN-Karte, ob das Handy-Betriebssystem das Anmeldefenster selbst öffnet, die UAC-Abfrage
 (Runner ist schon Administrator).
@@ -243,7 +242,7 @@ def main() -> int:
     ok(owner.strip() != "", f"Port 53 gehört AluPC (vorher Prozess {before53 or '–'} auf 0.0.0.0, AluPC jetzt {owner})")
     ok(not ps("Get-NetFirewallRule -DisplayName 'AluPC Testsperre' -ErrorAction SilentlyContinue"),
        "Firewall-Sperre für AluPC entfernt")
-    ok(ps("(Get-Service SharedAccess).Status") == "Running", "Windows-Hotspot-Dienst läuft wieder")
+    ok(ps("(Get-Service SharedAccess).Status") == "Running", "Windows-Hotspot-Dienst läuft weiter (nie angehalten)")
     hs.portal = good
     ok(hs_mod.dns_selftest(IP), "AluPC-DNS beantwortet 192.168.137.1:53 (statt Windows-DNS)")
     own80 = ps(f"Get-NetTCPConnection -LocalPort 80 -State Listen -ErrorAction SilentlyContinue | "
@@ -338,20 +337,6 @@ def main() -> int:
     hs_mod.stop_portal()
     pump(4)
 
-    # ================= Selbstreparatur im Betrieb: Handys fragen Windows → Port 53 übernehmen (Wächter läuft schon)
-    hs.kind = "spiele"
-    good, msg = hs_mod.start_portal(ip=IP, closed=True)
-    ok(good, f"Anmeldeseite wieder an ({msg})")
-    hs.portal = good
-    bound = hs_mod.takeover_now()
-    print("::notice title=Port 53 (Selbstreparatur)::" + hs_mod.DNS_INFO, flush=True)
-    ok(bound and "im Betrieb übernommen" in hs_mod.DNS_INFO, f"Selbstreparatur: Dienst angehalten, Port 53 genommen ({bound})")
-    r = phone("spiele", image, pump)
-    ok(r.get("dns_check") == IP and r.get("android") == f"302 {target}",
-       f"Selbstreparatur: Handy bekommt die Anmeldeseite (DNS {r.get('dns_check')}, Android {r.get('android')})")
-    hs_mod.stop_portal()
-    pump(6)
-    ok(ps("(Get-Service SharedAccess).Status") == "Running", "Selbstreparatur: Windows-Dienst danach wieder an")
     controller.shutdown()
     failed = [t for good, t in results if not good]
     print(f"\n{len(results) - len(failed)}/{len(results)} Prüfungen bestanden")

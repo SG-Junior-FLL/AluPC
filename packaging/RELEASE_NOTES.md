@@ -8,7 +8,18 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.110.0)
+### Neu in dieser Version (0.111.0)
+- **Windows: WLAN verschwand („nicht verfügbar“) – behoben.** 0.109/0.110 hielten im Notfall den Windows-Dienst
+  „Internetverbindungsfreigabe“ an (beim Start bzw. als „Selbstreparatur“). Auf echten PCs beendet das den
+  Mobilen Hotspot. AluPC fasst diesen Dienst jetzt nie mehr an; zusätzlich prüft AluPC nach dem Einrichten der
+  Anmeldeseite, ob der Hotspot noch läuft, und startet ihn sonst wieder.
+- **Taskleisten-Symbol wieder direkt in der Taskleiste:** AluPC holte es nur einmal pro Programmpfad nach vorne –
+  nach einem Update legt Windows aber einen neuen, versteckten Eintrag an. Jetzt bei jedem Start.
+- Geblieben: Anzeige je Gerät im Hotspot-Fenster, Port 80 direkt, Firewall-Wächter, echte Hotspot-Adresse.
+- Ehrlich, nicht geprüft: echter Mobiler Hotspot mit echtem Handy. Ob die Anmeldeseite jetzt kommt, zeigt das
+  Hotspot-Fenster in der Zeile des Handys.
+
+### Neu in Version 0.110.0
 - **Windows: Anmeldeseite repariert sich selbst.** Ist ein Handy seit 20 s im WLAN, aber keine einzige
   Namensfrage kam bei AluPC an (Handys fragen Windows statt AluPC), übernimmt AluPC Port 53 im laufenden Betrieb –
   ohne neues „Ja“. Läuft der Hotspot danach nicht mehr, startet AluPC ihn wieder.

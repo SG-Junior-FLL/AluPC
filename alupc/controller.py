@@ -1712,10 +1712,6 @@ class Controller(QObject):
                 seen[mac] = ip
             self._mac_ip = seen
             set_internet([seen[mac] for mac in allowed if mac in seen])
-            from .hotspot import watch_dns
-
-            if watch_dns(neighbors()):  # Handys erreichen AluPCs DNS nicht → selbst reparieren
-                self.message.emit("Handys fragen Windows statt AluPC – AluPC übernimmt jetzt (ca. 10 s) …")
         except Exception:  # noqa: BLE001 - nächster Versuch in 3 s
             pass
 

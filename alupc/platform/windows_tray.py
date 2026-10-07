@@ -2,7 +2,7 @@
 
 Windows merkt sich pro Programm unter HKCU\\Control Panel\\NotifyIconSettings, ob sein Symbol sichtbar
 („IsPromoted“ = 1) oder im Überlauf ist. Der Eintrag entsteht erst, wenn das Symbol das erste Mal
-angezeigt wurde. AluPC setzt ihn einmal auf „sichtbar“ – ändert man es danach selbst, bleibt das so.
+angezeigt wurde – nach einem Update evtl. neu (wieder versteckt). AluPC setzt ihn bei jedem Start auf „sichtbar“.
 Windows 10 kennt diese Einstellung nicht (dort passiert nichts).
 """
 
@@ -26,7 +26,7 @@ def _matches(registered: str, exe: str) -> bool:
 
 
 def promote(exe: str | None = None) -> bool:
-    """Symbol dieses Programms sichtbar schalten. True = Eintrag gefunden (und gesetzt)."""
+    """Symbol dieses Programms sichtbar schalten. True = war versteckt und ist jetzt sichtbar geschaltet."""
     if not sys.platform.startswith("win") or not getattr(sys, "frozen", False) and exe is None:
         return False  # Start aus dem Quellcode: das wäre python.exe – nicht anfassen
     import winreg
@@ -49,8 +49,13 @@ def promote(exe: str | None = None) -> bool:
                 with winreg.OpenKey(root, sub, 0, winreg.KEY_READ | winreg.KEY_SET_VALUE) as k:
                     path, _ = winreg.QueryValueEx(k, "ExecutablePath")
                     if _matches(str(path), exe):
-                        winreg.SetValueEx(k, "IsPromoted", 0, winreg.REG_DWORD, 1)
-                        found = True
+                        try:
+                            shown = winreg.QueryValueEx(k, "IsPromoted")[0] == 1
+                        except OSError:
+                            shown = False
+                        if not shown:
+                            winreg.SetValueEx(k, "IsPromoted", 0, winreg.REG_DWORD, 1)
+                            found = True
             except OSError:
                 continue
     return found

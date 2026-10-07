@@ -210,10 +210,9 @@ cleanup
 def portal_script_windows(ip: str, port: int, flag: Path, pid: int, closed: bool = True,
                           program: str = "") -> str:
     """Administrator-Skript (Windows) – wie unter Linux ein Hotel-WLAN:
-    * Port 53: Den will auch der DNS des Windows-Hotspots (Dienst „SharedAccess“) – fragen die Handys Windows statt
-      AluPC, bekommen sie echte Adressen und es gibt keine Anmeldeseite. AluPC nimmt genau die Hotspot-Adresse
-      (<Flagge>.frei → AluPC → <Flagge>.dns „ok“). Geht das nicht („uebernehmen“): Dienst kurz anhalten, AluPC
-      bindet (<Flagge>.gestoppt → <Flagge>.dns), Dienst wieder starten. Fertig: <Flagge>.bereit.
+    * Port 53: Den will auch der DNS des Windows-Hotspots (Dienst „SharedAccess“, lauscht auf 0.0.0.0) – AluPC
+      nimmt genau die Hotspot-Adresse, das ist genauer und gewinnt (<Flagge>.frei → AluPC → <Flagge>.dns).
+      Den Dienst nie anhalten: das beendet den Mobilen Hotspot (WLAN verschwindet).
     * Firewall: Port 53/80 offen; Sperr-Regeln für AluPC selbst (entstehen, wenn die Windows-Frage „Zugriff
       zulassen?“ weggeklickt wurde) entfernen – die gingen sonst vor,
     * Webseiten (Port 80 an den PC) → Anmeldeseite von AluPC (portproxy),
@@ -247,20 +246,11 @@ function Unblock {{  # Sperr-Regeln für AluPC (weggeklickte Windows-Frage „Zu
     Get-NetFirewallRule -ErrorAction SilentlyContinue |
     Where-Object {{ $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' }} | Remove-NetFirewallRule -ErrorAction SilentlyContinue
 }}
-function Takeover {{  # Port 53 vom Windows-Hotspot-DNS freimachen: Dienst anhalten, AluPC bindet, Dienst wieder an
-  Stop-Service SharedAccess -Force -ErrorAction SilentlyContinue
-  $script:took = $true
-  Set-Content -LiteralPath "$flag.gestoppt" -Value (Owner53)
-  $null = WaitFile "$flag.dns" 30
-  Remove-Item -LiteralPath "$flag.dns" -ErrorAction SilentlyContinue
-  Start-Service SharedAccess -ErrorAction SilentlyContinue
-}}
 function WaitFile($path, $seconds) {{
   $end = (Get-Date).AddSeconds($seconds)
   while (-not (Test-Path -LiteralPath $path) -and (Get-Date) -lt $end) {{ Start-Sleep -Milliseconds 200 }}
   Test-Path -LiteralPath $path
 }}
-$script:took = $false
 $n = 0
 Set-Content -LiteralPath "$flag.laeuft" -Value 'an'
 try {{
@@ -272,15 +262,11 @@ try {{
   # portproxy (Port 80 → AluPC) braucht den Dienst „IP-Hilfsdienst“
   Set-Service iphlpsvc -StartupType Automatic -ErrorAction SilentlyContinue
   Start-Service iphlpsvc -ErrorAction SilentlyContinue
-  # Port 53: AluPC nimmt genau die Hotspot-Adresse (genauer als der Windows-DNS auf 0.0.0.0). Geht das nicht
-  # (Windows-DNS sitzt selbst auf der Adresse), meldet AluPC „uebernehmen“: Dienst kurz anhalten, AluPC bindet,
-  # Dienst wieder starten.
+  # Port 53: AluPC nimmt genau die Hotspot-Adresse (genauer als der Windows-DNS auf 0.0.0.0). Den Windows-Dienst
+  # NICHT anhalten – das beendet den Mobilen Hotspot.
   Set-Content -LiteralPath "$flag.frei" -Value (Owner53)
   $null = WaitFile "$flag.dns" 30
-  $want = ''
-  try {{ $want = ([string](Get-Content -LiteralPath "$flag.dns" -Raw -ErrorAction Stop)).Trim() }} catch {{}}
   Remove-Item -LiteralPath "$flag.dns" -ErrorAction SilentlyContinue
-  if ($want -eq 'uebernehmen') {{ Takeover }}
   Set-Content -LiteralPath "$flag.bereit" -Value 'bereit'
   # Port 80: AluPC lauscht dort meist selbst (dann sieht es, welches Handy prüft) – sonst Weiterleitung (portproxy)
   $mine = @(Get-NetTCPConnection -LocalPort 80 -State Listen -ErrorAction SilentlyContinue |
@@ -306,11 +292,6 @@ try {{
     # Internet nur, wenn am PC mindestens ein Gerät freigeschaltet ist (<Flagge>.internet); die anderen Geräte
     # bekommen von AluPCs DNS weiter nur die Anmeldeseite. Der Hotspot schaltet Forwarding evtl. selbst an →
     # alle 2 s wieder auf Soll stellen.
-    # AluPC merkt im Betrieb, dass Handys seinen DNS nicht erreichen → jetzt übernehmen
-    if (Test-Path -LiteralPath "$flag.uebernehmen") {{
-      Remove-Item -LiteralPath "$flag.uebernehmen" -ErrorAction SilentlyContinue
-      Takeover
-    }}
     $n++
     if ($n % 10 -eq 0) {{ Unblock }}  # Windows-Frage später doch weggeklickt → Sperre wieder weg
     $a = Alias
@@ -324,11 +305,7 @@ try {{
   }}
 }} finally {{
   Clean
-  if ($script:took) {{  # Port 53 wieder an Windows: AluPC hat ihn inzwischen freigegeben
-    Start-Sleep 2
-    Restart-Service SharedAccess -Force -ErrorAction SilentlyContinue
-  }}
-  Remove-Item -LiteralPath "$flag.frei","$flag.gestoppt","$flag.bereit","$flag.dns","$flag.uebernehmen","$flag.laeuft" -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath "$flag.frei","$flag.bereit","$flag.dns","$flag.laeuft" -ErrorAction SilentlyContinue
 }}
 """
 
@@ -448,8 +425,6 @@ def start_dns(ip_provider, closed: bool = True, host: str = "0.0.0.0", port: int
 
 
 PROBES: dict[str, float] = {}  # Gerät → Zeitpunkt, an dem seine „Bin ich im Internet?“-Prüfung bei AluPC ankam
-_SEEN: dict[str, float] = {}  # Gerät → seit wann im WLAN (für die Selbstreparatur)
-_TAKEOVER = {"state": "", "closed": True}
 
 
 def note_probe(ip: str) -> None:
@@ -469,60 +444,6 @@ def _bind53(ip: str, closed: bool, order) -> str:
                      check_hosts=PORTAL_HOSTS + WINDOWS_CHECK_HOSTS, restrict=True, exclusive=excl):
             return host + (" exklusiv" if excl else "")
     return ""
-
-
-def watch_dns(devices: dict[str, str], now: float | None = None, start=None) -> bool:
-    """Windows, im Betrieb (alle 3 s): Ist ein Gerät seit 20 s im WLAN, aber keine einzige Namensfrage aus dem WLAN
-    kam bei AluPC an, beantwortet Windows' eigener Hotspot-DNS die Handys → Port 53 übernehmen (ohne neue
-    Abfrage – der Wächter läuft schon als Administrator). Einmal pro Anmeldeseite. True = Übernahme gestartet."""
-    import threading
-    import time
-
-    now = time.time() if now is None else now
-    for ip in list(_SEEN):
-        if ip not in devices:
-            _SEEN.pop(ip)
-    for ip in devices:
-        _SEEN.setdefault(ip, now)
-    if not (IS_WINDOWS and hotspot.portal and _TAKEOVER["state"] == "" and _dns is not None):
-        return False
-    if any(n for c, n in _dns.clients.items()):
-        return False  # Handys kommen an
-    if not any(now - t >= 20 for t in _SEEN.values()):
-        return False
-    _TAKEOVER["state"] = "läuft"
-    (start or (lambda f: threading.Thread(target=f, name="alupc-port53", daemon=True).start()))(takeover_now)
-    return True
-
-
-def takeover_now(wait_file=None) -> str:
-    """Port 53 im Betrieb übernehmen (der laufende Wächter hält den Windows-Dienst kurz an)."""
-    global DNS_INFO
-    flag = portal_flag()
-    ip = hotspot.ip or WINDOWS_IP
-    _TAKEOVER["state"] = "läuft"
-    stop_dns()
-    Path(f"{flag}.gestoppt").unlink(missing_ok=True)
-    Path(f"{flag}.uebernehmen").write_text("ja")
-    bound = ""
-    if (wait_file or _wait_file)(Path(f"{flag}.gestoppt"), 60):
-        bound = _bind53(ip, _TAKEOVER["closed"], [(ip, True), ("0.0.0.0", False)])
-        Path(f"{flag}.dns").write_text("ok" if bound else "fehler")
-    else:
-        bound = _bind53(ip, _TAKEOVER["closed"], [(ip, True), ("0.0.0.0", False)])  # Wächter weg: wie vorher
-    if IS_WINDOWS and hotspot.ssid:
-        import time
-
-        time.sleep(3)  # Dienst neu gestartet – hat er den Mobilen Hotspot mitgenommen? Dann wieder an
-        if "STATE:On" not in _ps(_PS_STATE)[1]:
-            _ps(_PS_START, {"ALUPC_SSID": hotspot.ssid, "ALUPC_PW": hotspot.password})
-            time.sleep(3)
-        if not dns_selftest(ip):  # Adresse neu angelegt → neu binden
-            stop_dns()
-            bound = _bind53(ip, _TAKEOVER["closed"], [(ip, True), ("0.0.0.0", False)])
-    DNS_INFO += f" · im Betrieb übernommen: {bound or 'nicht bekommen'}"
-    _TAKEOVER["state"] = "fertig"
-    return bound
 
 
 def dns_selftest(ip: str, port: int = 53, timeout: float = 2.0) -> bool:
@@ -556,7 +477,7 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
     """Anmeldeseite einschalten (Linux: vor dem Hotspot-Start, Windows: danach). Fragt einmal nach dem Passwort
     (Linux, pkexec) bzw. „Ja“ (Windows, Administrator)."""
     flag = portal_flag()
-    for suffix in (".ok", ".frei", ".gestoppt", ".bereit", ".dns", ".uebernehmen"):
+    for suffix in (".ok", ".frei", ".bereit", ".dns"):
         Path(f"{flag}{suffix}").unlink(missing_ok=True)
     if IS_WINDOWS:
         import base64
@@ -600,30 +521,19 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
         from .cast_server import serve_extra
 
         http80 = serve_extra(ip, 80)  # Anmeldeseite direkt auf Port 80 (sonst übernimmt das die Weiterleitung)
-        _TAKEOVER.update(state="", closed=closed)
         PROBES.clear()
-        _SEEN.clear()
         owner = read(".frei")
-        # 1. genau die Hotspot-Adresse, exklusiv – genauer als der Windows-DNS auf 0.0.0.0
+        # genau die Hotspot-Adresse, exklusiv – genauer als der Windows-DNS auf 0.0.0.0
         bound = bind53([(ip, True)])
         works = bool(bound) and dns_selftest(ip)
         DNS_INFO = f"Port 53 vorher: {owner or '?'} · AluPC: {bound or 'nicht bekommen'}" + \
             ("" if works or not bound else " (kommt nicht an)") + f" · Port 80: {'AluPC' if http80 else 'Weiterleitung'}"
-        if not works or os.environ.get("ALUPC_DNS_UEBERNEHMEN") == "1":
-            # 2. Windows-DNS sitzt selbst auf der Adresse → Dienst kurz anhalten lassen, dann binden
-            stop_dns()
-            Path(f"{flag}.dns").write_text("uebernehmen")
-            if wait_file(Path(f"{flag}.gestoppt"), 60):
-                owner = read(".gestoppt")
-                bound = bind53([(ip, True), ("0.0.0.0", False)])
-                DNS_INFO += f" · Windows-Dienst angehalten: {owner or '?'} · AluPC: {bound or 'nicht bekommen'}"
-            Path(f"{flag}.dns").write_text("ok" if bound else "fehler")
-        else:
-            Path(f"{flag}.dns").write_text("ok")
+        Path(f"{flag}.dns").write_text("ok" if bound else "fehler")
         wait_file(Path(f"{flag}.bereit"), 60)
         if not bound:
             who = owner.partition(":")[2] if owner.startswith("belegt:") else ""
-            return fail("Anmeldeseite ging nicht: Port 53 ist belegt" + (f" ({who})." if who else "."))
+            return fail("Anmeldeseite ging nicht: Port 53 auf der Hotspot-Adresse ist belegt"
+                        + (f" ({who})." if who else ".") + " WLAN läuft trotzdem.")
         state = wait(flag, None, 90)
         if state is True:
             state = "ok"
@@ -786,6 +696,8 @@ class Hotspot:
             ok, msg = windows_message(_ps(_PS_START, {"ALUPC_SSID": ssid, "ALUPC_PW": password})[1])
             if ok and portal:  # nach dem Start (die Hotspot-Adresse gibt es erst dann)
                 self.portal, portal_msg = start_portal(ip=windows_hotspot_ip(), closed=True)
+                if "STATE:Off" in _ps(_PS_STATE)[1]:  # Hotspot inzwischen aus? Dann wieder an (WLAN muss sichtbar sein)
+                    ok, msg = windows_message(_ps(_PS_START, {"ALUPC_SSID": ssid, "ALUPC_PW": password})[1])
             if ok and hidden:  # Windows kann den Namen des Mobilen Hotspots nicht verstecken
                 msg += " (Unsichtbar geht unter Windows nicht – der Name ist in der WLAN-Liste zu sehen.)"
             hidden = False

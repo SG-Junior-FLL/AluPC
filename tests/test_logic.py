@@ -1687,3 +1687,23 @@ def test_broken_scenes_are_repaired(tmp_path):
         assert sc["layout"] in LAYOUTS and len(sc["slots"]) == len(layout_slots(sc["layout"]))
     cfg.put_scene({"name": "Neu"})
     assert cfg.get_scene("Neu")["layout"] == "vollbild"
+
+
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows-Registry")
+def test_tray_promote_after_update_windows():
+    """Nach einem Update legt Windows einen neuen, versteckten Eintrag an → AluPC zeigt das Symbol wieder."""
+    import winreg
+
+    from alupc.platform.windows_tray import KEY, promote
+
+    exe = r"C:\AluPC-Test\AluPC.exe"
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, KEY + r"\AluPCTestEintrag") as k:
+        winreg.SetValueEx(k, "ExecutablePath", 0, winreg.REG_SZ, exe)
+        winreg.SetValueEx(k, "IsPromoted", 0, winreg.REG_DWORD, 0)
+    try:
+        assert promote(exe) is True
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, KEY + r"\AluPCTestEintrag") as k:
+            assert winreg.QueryValueEx(k, "IsPromoted")[0] == 1
+        assert promote(exe) is False  # schon sichtbar → nichts zu tun (kein Flackern)
+    finally:
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, KEY + r"\AluPCTestEintrag")

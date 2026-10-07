@@ -1631,18 +1631,16 @@ class MainWindow(QMainWindow):
                 QTimer.singleShot(20000, self._promote_tray)
 
     def _promote_tray(self):
-        """Einmal pro Programmpfad: AluPC-Symbol direkt in der Taskleiste statt hinter dem Pfeil."""
+        """Bei jedem Start: AluPC-Symbol direkt in der Taskleiste statt hinter dem Pfeil. (Früher nur einmal pro
+        Programmpfad – nach einem Update legt Windows aber einen neuen Eintrag an, der wieder versteckt ist.)"""
         import os
 
         from ..platform.windows_tray import promote
 
-        exe = os.path.realpath(sys.executable)
-        done = self.config["tray"].get("promoted_for", "")
-        if done == exe or not getattr(sys, "frozen", False):
+        if not getattr(sys, "frozen", False):
             return
         try:
-            if promote(exe):
-                self.config["tray"] = {**self.config["tray"], "promoted_for": exe}
+            if promote(os.path.realpath(sys.executable)):
                 # neu anmelden, damit Explorer die Einstellung sofort übernimmt
                 self.tray.hide()
                 self.tray.show()
