@@ -166,6 +166,11 @@ class HotspotDialog(QDialog):
         self.devices_hint.setObjectName("Muted")
         self.devices_hint.setWordWrap(True)
         dl.addWidget(self.devices_hint)
+        self.portal_line = QLabel("")  # wo es hakt: Port 80, letzte Prüfung, Internet-Sperre
+        self.portal_line.setObjectName("Muted")
+        self.portal_line.setWordWrap(True)
+        self.portal_line.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        dl.addWidget(self.portal_line)
         lay.addWidget(dev_box)
         self._dev_timer = QTimer(self)
         self._dev_timer.timeout.connect(self._fill_devices)
@@ -193,6 +198,9 @@ class HotspotDialog(QDialog):
         from PySide6.QtWidgets import QListWidgetItem
 
         try:
+            from ..hotspot import portal_status
+
+            self.portal_line.setText(portal_status() if self._mine() else "")
             devices = self.controller.wlan_devices() if self._mine() else []
             key = [(d["ip"], d["mac"], d["name"], d["internet"], bool(d.get("dns")), d.get("probe")) for d in devices]
             if key == getattr(self, "_dev_key", None):

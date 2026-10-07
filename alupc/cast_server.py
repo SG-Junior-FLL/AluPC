@@ -574,7 +574,21 @@ def _make_handler(server: CastServer):
             self.end_headers()
             return True
 
+        def _note(self) -> None:
+            from .hotspot import note_http
+
+            note_http(self.client_address[0], self.command, self.headers.get("Host") or "", self.path)
+
+        def do_HEAD(self):  # manche Handys prüfen „bin ich im Internet?“ nur mit HEAD
+            self._note()
+            if self._portal_redirect():
+                return
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
         def do_GET(self):
+            self._note()
             if self._portal_redirect():
                 return
             path = urlparse(self.path).path
@@ -701,6 +715,7 @@ def _make_handler(server: CastServer):
                 self._json(400, {"error": "Ungültige Anfrage"})
 
         def do_POST(self):
+            self._note()
             u = urlparse(self.path)
             if self._blocked(u.path):
                 return

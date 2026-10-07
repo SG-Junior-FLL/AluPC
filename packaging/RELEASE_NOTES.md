@@ -8,7 +8,16 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.111.0)
+### Neu in dieser Version (0.112.0)
+- Hotspot-Fenster zeigt unter „Geräte im WLAN“, wo die Anmeldeseite hakt: Port 80 (AluPC direkt oder
+  Weiterleitung), ob die Internet-Sperre wirklich aktiv ist (Zustand von Windows) und die letzte Prüfung eines
+  Handys auf Port 80. Auch in „Diagnose kopieren“ (mit den letzten Anfragen).
+- Anfragen „HEAD“ werden jetzt beantwortet (manche Handys prüfen „bin ich im Internet?“ nur so).
+- Ehrlich: Die Anmeldeseite kam beim Test (Windows + Android) noch nicht – DNS kommt an, die Prüfung auf Port 80
+  nicht. Diese Version ist zum Finden der Ursache; ein Handy mit „Privatem DNS“ (eigener Anbieter) kann die
+  Erkennung verhindern.
+
+### Neu in Version 0.111.0
 - **Windows: WLAN verschwand („nicht verfügbar“) – behoben.** 0.109/0.110 hielten im Notfall den Windows-Dienst
   „Internetverbindungsfreigabe“ an (beim Start bzw. als „Selbstreparatur“). Auf echten PCs beendet das den
   Mobilen Hotspot. AluPC fasst diesen Dienst jetzt nie mehr an; zusätzlich prüft AluPC nach dem Einrichten der

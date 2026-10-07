@@ -689,3 +689,21 @@ def test_serve_extra_port_sees_real_client():
         cast_server.stop_extra()
         cast_server._make_handler = orig
         cast_server._ACTIVE = None
+
+
+def test_portal_status_line_and_http_log(monkeypatch):
+    """Hotspot-Fenster: zeigt Port-80-Weg, Internet-Sperre und die letzte Prüfung eines Handys."""
+    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
+    monkeypatch.setattr(hotspot.hotspot, "running", True)
+    monkeypatch.setattr(hotspot.hotspot, "portal", True)
+    monkeypatch.setattr(hotspot.hotspot, "ip", "192.168.137.1")
+    monkeypatch.setattr(hotspot, "DNS_INFO", "Port 53 vorher: frei · AluPC: 192.168.137.1 exklusiv · Port 80: AluPC")
+    monkeypatch.setattr(hotspot, "forwarding_state", lambda: "Disabled")
+    hotspot.HTTP_LOG.clear()
+    assert hotspot.portal_status() == ("Port 80: AluPC direkt · Internet-Sperre: aktiv · "
+                                       "noch keine Prüfung auf Port 80 angekommen")
+    hotspot.note_http("192.168.137.45", "HEAD", "connectivitycheck.gstatic.com:80", "/generate_204")
+    monkeypatch.setattr(hotspot, "forwarding_state", lambda: "Enabled")
+    line = hotspot.portal_status()
+    assert "Internet-Sperre: AUS" in line and "192.168.137.45 HEAD connectivitycheck.gstatic.com/generate_204" in line
+    hotspot.HTTP_LOG.clear()

@@ -301,11 +301,15 @@ try {{
       $want = if ($allow) {{ 'Enabled' }} else {{ 'Disabled' }}
       Set-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4 -Forwarding $want -ErrorAction SilentlyContinue
     }}
+    if ($a) {{  # wirklichen Zustand melden (zeigt AluPC im Hotspot-Fenster)
+      $f = (Get-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4 -ErrorAction SilentlyContinue).Forwarding
+      Set-Content -LiteralPath "$flag.fwd" -Value ([string]$f) -ErrorAction SilentlyContinue
+    }}
     Start-Sleep 2
   }}
 }} finally {{
   Clean
-  Remove-Item -LiteralPath "$flag.frei","$flag.bereit","$flag.dns","$flag.laeuft" -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath "$flag.frei","$flag.bereit","$flag.dns","$flag.fwd","$flag.laeuft" -ErrorAction SilentlyContinue
 }}
 """
 
@@ -427,6 +431,44 @@ def start_dns(ip_provider, closed: bool = True, host: str = "0.0.0.0", port: int
 PROBES: dict[str, float] = {}  # Gerät → Zeitpunkt, an dem seine „Bin ich im Internet?“-Prüfung bei AluPC ankam
 
 
+HTTP_LOG: list[tuple[float, str, str, str, str]] = []  # (Zeit, Gerät, Methode, Host, Pfad) – letzte 40
+
+
+def note_http(ip: str, method: str, host: str, path: str) -> None:
+    import time
+
+    HTTP_LOG.append((time.time(), ip, method, host.split(":")[0][:60], path[:60]))
+    del HTTP_LOG[:-40]
+
+
+def forwarding_state() -> str:
+    """Windows: Weiterleitung (= Internet) der Hotspot-Schnittstelle laut Wächter: „Enabled“/„Disabled“/""."""
+    try:
+        return Path(f"{portal_flag()}.fwd").read_text(encoding="utf-8", errors="replace").strip().lstrip("\ufeff")
+    except OSError:
+        return ""
+
+
+def portal_status() -> str:
+    """Eine Zeile für das Hotspot-Fenster: wo es hakt (Port 80, letzte Anfragen, Internet-Sperre)."""
+    import time
+
+    if not (hotspot.running and hotspot.portal):
+        return ""
+    parts = []
+    if IS_WINDOWS:
+        parts.append("Port 80: " + ("AluPC direkt" if "Port 80: AluPC" in DNS_INFO else "Weiterleitung"))
+        fwd = forwarding_state()
+        parts.append("Internet-Sperre: " + {"Disabled": "aktiv", "Enabled": "AUS (Weiterleitung an)"}.get(fwd, "?"))
+    recent = [e for e in HTTP_LOG if time.time() - e[0] < 120 and e[3] != hotspot.ip]
+    if recent:
+        t, ip, method, host, path = recent[-1]
+        parts.append(f"letzte Prüfung: {ip} {method} {host}{path} (vor {int(time.time() - t)} s)")
+    else:
+        parts.append("noch keine Prüfung auf Port 80 angekommen")
+    return " · ".join(parts)
+
+
 def note_probe(ip: str) -> None:
     import time
 
@@ -522,6 +564,7 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
 
         http80 = serve_extra(ip, 80)  # Anmeldeseite direkt auf Port 80 (sonst übernimmt das die Weiterleitung)
         PROBES.clear()
+        HTTP_LOG.clear()
         owner = read(".frei")
         # genau die Hotspot-Adresse, exklusiv – genauer als der Windows-DNS auf 0.0.0.0
         bound = bind53([(ip, True)])

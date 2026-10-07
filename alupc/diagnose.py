@@ -135,6 +135,10 @@ def report(controller, probe: bool = True) -> str:
         lines.append("  Geräte im WLAN: " + (", ".join(
             f"{k} ({v}, DNS {hs.client_status(k)[0]}, Prüfung {'ja' if hs.client_status(k)[1] else 'nein'})"
             for k, v in nb.items()) or "keine gefunden"))
+        if hs.portal_status():
+            lines.append(f"  Status: {hs.portal_status()}")
+        for t, ip, method, host, path in hs.HTTP_LOG[-10:]:
+            lines.append(f"  HTTP {ip} {method} {host}{path}")
         if hs._dns is not None and hs._dns.clients:
             lines.append(f"  Namensfragen je Gerät: {hs._dns.clients}")
 
