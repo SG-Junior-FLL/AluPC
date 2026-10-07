@@ -246,7 +246,10 @@ def main() -> int:
     ok(ps("(Get-Service SharedAccess).Status") == "Running", "Windows-Hotspot-Dienst läuft wieder")
     hs.portal = good
     ok(hs_mod.dns_selftest(IP), "AluPC-DNS beantwortet 192.168.137.1:53 (statt Windows-DNS)")
-    ok(f"{IP}" in ps("netsh interface portproxy show v4tov4"), "Port 80 → AluPC (portproxy)")
+    own80 = ps(f"Get-NetTCPConnection -LocalPort 80 -State Listen -ErrorAction SilentlyContinue | "
+               f"Where-Object {{ $_.LocalAddress -eq '{IP}' -and $_.OwningProcess -eq {os.getpid()} }}")
+    ok(own80 or f"{IP}" in ps("netsh interface portproxy show v4tov4"),
+       f"Port 80 → AluPC ({'direkt' if own80 else 'Weiterleitung'})")
     ok("AluPC-Portal" in ps("netsh advfirewall firewall show rule name=AluPC-Portal"), "Firewall offen (80, 53)")
     ok(forwarding(alias) == "Disabled", f"Hotspot leitet nichts ins Internet weiter ({forwarding(alias)})")
     r = phone("spiele", image, pump)

@@ -282,7 +282,12 @@ try {{
   Remove-Item -LiteralPath "$flag.dns" -ErrorAction SilentlyContinue
   if ($want -eq 'uebernehmen') {{ Takeover }}
   Set-Content -LiteralPath "$flag.bereit" -Value 'bereit'
-  netsh interface portproxy add v4tov4 listenport=80 listenaddress=$ip connectport={int(port)} connectaddress=$ip | Out-Null
+  # Port 80: AluPC lauscht dort meist selbst (dann sieht es, welches Handy prüft) – sonst Weiterleitung (portproxy)
+  $mine = @(Get-NetTCPConnection -LocalPort 80 -State Listen -ErrorAction SilentlyContinue |
+    Where-Object {{ $_.LocalAddress -eq $ip -and $_.OwningProcess -eq {int(pid)} }})
+  if ($mine.Count -eq 0) {{
+    netsh interface portproxy add v4tov4 listenport=80 listenaddress=$ip connectport={int(port)} connectaddress=$ip | Out-Null
+  }}
   $a = Alias
   if ($closed -and $a) {{ Set-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4 -Forwarding Disabled -ErrorAction SilentlyContinue }}
   ipconfig /flushdns | Out-Null
@@ -290,7 +295,7 @@ try {{
   # Port 80 schon von einem anderen Dienst belegt (z. B. IIS/http.sys)? Dann kommt die Prüfung nie bei AluPC an.
   $helper = (Get-CimInstance Win32_Service -Filter "Name='iphlpsvc'").ProcessId
   $other = @(Get-NetTCPConnection -LocalPort 80 -State Listen -ErrorAction SilentlyContinue |
-    Where-Object {{ $_.LocalAddress -in @($ip, '0.0.0.0', '::') -and $_.OwningProcess -ne $helper }})
+    Where-Object {{ $_.LocalAddress -in @($ip, '0.0.0.0', '::') -and $_.OwningProcess -notin @($helper, {int(pid)}) }})
   if ($other.Count -gt 0) {{
     $name = (Get-Process -Id $other[0].OwningProcess -ErrorAction SilentlyContinue).ProcessName
     Set-Content -LiteralPath "$flag.ok" -Value ('belegt:' + $name)
@@ -572,8 +577,11 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
             return False, "Anmeldeseite aus („Ja“ nicht bestätigt)."
 
         def fail(text):
+            from .cast_server import stop_extra
+
             flag.unlink(missing_ok=True)  # Wächter räumt auf und gibt Port 53 an Windows zurück
             stop_dns()
+            stop_extra()
             return False, text
 
         if not wait_file(Path(f"{flag}.frei"), 90):
@@ -589,6 +597,9 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
             return _bind53(ip, closed, order)
 
         global DNS_INFO
+        from .cast_server import serve_extra
+
+        http80 = serve_extra(ip, 80)  # Anmeldeseite direkt auf Port 80 (sonst übernimmt das die Weiterleitung)
         _TAKEOVER.update(state="", closed=closed)
         PROBES.clear()
         _SEEN.clear()
@@ -597,7 +608,7 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
         bound = bind53([(ip, True)])
         works = bool(bound) and dns_selftest(ip)
         DNS_INFO = f"Port 53 vorher: {owner or '?'} · AluPC: {bound or 'nicht bekommen'}" + \
-            ("" if works or not bound else " (kommt nicht an)")
+            ("" if works or not bound else " (kommt nicht an)") + f" · Port 80: {'AluPC' if http80 else 'Weiterleitung'}"
         if not works or os.environ.get("ALUPC_DNS_UEBERNEHMEN") == "1":
             # 2. Windows-DNS sitzt selbst auf der Adresse → Dienst kurz anhalten lassen, dann binden
             stop_dns()
@@ -645,6 +656,9 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
 
 def stop_portal() -> None:
     try:
+        from .cast_server import stop_extra
+
+        stop_extra()
         portal_flag().unlink(missing_ok=True)  # der Wächter nimmt alles in ≤ 2 s wieder raus
         internet_file().unlink(missing_ok=True)
         stop_dns()

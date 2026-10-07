@@ -269,6 +269,8 @@ class CastServer(QObject):
         self.port = self.httpd.server_address[1]
         self.thread = threading.Thread(target=self.httpd.serve_forever, name="AluCast", daemon=True)
         self.thread.start()
+        global _ACTIVE
+        _ACTIVE = self
         self.state_changed.emit()
         return True
 
@@ -378,6 +380,34 @@ b{font-size:22px;display:block;margin-bottom:10px}</style></head><body><div>
 (Mitspielen oder AluPC steuern).</div></body></html>"""
 
 
+_ACTIVE = None  # laufender CastServer (für die Anmeldeseite auf Port 80)
+_EXTRA: list = []  # zusätzliche Server (Windows: Hotspot-Adresse Port 80 direkt – dann sieht AluPC das Handy)
+
+
+def serve_extra(host: str, port: int) -> bool:
+    """Dieselben Seiten zusätzlich auf host:port (exklusiv) – z. B. 192.168.137.1:80 für die Anmeldeseite."""
+    if _ACTIVE is None or _ACTIVE.httpd is None:
+        return False
+    stop_extra()
+    try:
+        srv = _ExclusiveServer((host, port), _make_handler(_ACTIVE))
+    except OSError:
+        return False
+    threading.Thread(target=srv.serve_forever, name="AluCast-80", daemon=True).start()
+    _EXTRA.append(srv)
+    return True
+
+
+def stop_extra() -> None:
+    while _EXTRA:
+        srv = _EXTRA.pop()
+        try:
+            srv.shutdown()
+            srv.server_close()
+        except OSError:
+            pass
+
+
 class _QuietServer(ThreadingHTTPServer):
     """Handy bricht eine Verbindung ab (Seite gewechselt, WLAN weg) → kein Fehler-Stapel in der Konsole."""
     daemon_threads = True
@@ -388,6 +418,16 @@ class _QuietServer(ThreadingHTTPServer):
         if isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
             return
         super().handle_error(request, client_address)
+
+
+class _ExclusiveServer(_QuietServer):
+    """Port für sich allein (Windows: sonst könnte ein anderes Programm mitlauschen)."""
+    allow_reuse_address = False
+
+    def server_bind(self):
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 def portal_page(server) -> str:

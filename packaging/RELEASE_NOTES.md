@@ -14,7 +14,7 @@
   ohne neues „Ja“. Läuft der Hotspot danach nicht mehr, startet AluPC ihn wieder.
 - **Hotspot-Fenster zeigt je Gerät, wo es hängt:** „DNS ✗ (fragt Windows statt AluPC)“, „DNS ✓ · Anmeldeseite noch
   nicht“ oder „Anmeldeseite ✓“.
-- Windows: echte Hotspot-Adresse aus der Registry (statt fest 192.168.137.1); Firewall-Sperre für AluPC wird alle
+- Windows: AluPC lauscht selbst auf Port 80 der Hotspot-Adresse (sieht so jedes Handy); echte Hotspot-Adresse aus der Registry (statt fest 192.168.137.1); Firewall-Sperre für AluPC wird alle
   20 s erneut entfernt (falls die Windows-Frage später weggeklickt wird); IP-Hilfsdienst (für Port 80) wird gestartet.
 - Geprüft: Windows-CI mit nachgebautem Hotspot inkl. Selbstreparatur im Betrieb, alle Tests.
 - Ehrlich, nicht geprüft: echter Mobiler Hotspot mit echtem Android-Handy. Kommt die Anmeldeseite nicht, zeigt

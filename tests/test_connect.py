@@ -341,7 +341,9 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
     assert ok and "-Verb RunAs" in seen[0] and "-EncodedCommand" in seen[0], msg
     assert order == ["frei", "bind", "bereit", "ok"], order  # Hotspot-Adresse klappt → Dienst bleibt an
     assert started[-1] == {**started[-1], "host": "192.168.137.1", "port": 53, "restrict": True, "exclusive": True}
-    assert hotspot.DNS_INFO == "Port 53 vorher: belegt:0.0.0.0 svchost SharedAccess · AluPC: 192.168.137.1 exklusiv"
+    assert hotspot.DNS_INFO == ("Port 53 vorher: belegt:0.0.0.0 svchost SharedAccess · AluPC: 192.168.137.1 exklusiv"
+                                " · Port 80: Weiterleitung")  # kein laufender Webserver im Test
+    assert "$_.OwningProcess -eq 77" in script and "$mine.Count -eq 0" in script  # portproxy nur ohne AluPC auf 80
     import base64
     sent = base64.b64decode(seen[0].split("'-EncodedCommand','")[1].split("'")[0]).decode("utf-16-le")
     assert "$closed = $true" in sent and "Stop-Service SharedAccess" in sent
@@ -704,3 +706,44 @@ def test_windows_self_repair_when_phones_ask_windows(monkeypatch, tmp_path):
 
 def test_windows_hotspot_ip_default():
     assert hotspot.windows_hotspot_ip() == "192.168.137.1"  # ohne Windows-Registry: Standard
+
+
+def test_serve_extra_port_sees_real_client():
+    """Windows: Anmeldeseite direkt auf Hotspot-Adresse:80 (hier 127.0.0.1:Testport) – dieselben Seiten."""
+    import urllib.request
+
+    from alupc import cast_server
+    from alupc.cast_server import CastServer
+
+    srv = CastServer.__new__(CastServer)
+    assert not cast_server.serve_extra("127.0.0.1", 18780)  # ohne laufenden Webserver: nichts
+    import socket as _s
+
+    probe = _s.socket()
+    probe.bind(("127.0.0.1", 0))
+    free = probe.getsockname()[1]
+    probe.close()
+    cast_server._ACTIVE = type("S", (), {"httpd": object()})()
+    try:
+        orig = cast_server._make_handler
+        from http.server import BaseHTTPRequestHandler
+
+        class H(BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = self.client_address[0].encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        cast_server._make_handler = lambda server: H
+        assert cast_server.serve_extra("127.0.0.1", free)
+        assert urllib.request.urlopen(f"http://127.0.0.1:{free}/", timeout=5).read() == b"127.0.0.1"
+    finally:
+        cast_server.stop_extra()
+        cast_server._make_handler = orig
+        cast_server._ACTIVE = None
+    del srv
