@@ -12,11 +12,14 @@
 - **Videosteuerung am Handy:** Stelle per Leiste wählen (mit Zeit), −30/−10/+10/+30 s, Abspielen/Pause,
   Tempo 0,5×–2×, „Von vorn“, „Wiederholen“ an/aus. Neu: **„Weiterschauen“** – die zuletzt geschauten Videos mit
   gemerkter Stelle; antippen = auf Monitor 2 genau dort weiter.
+- **Auch am PC:** Medienleiste → „Mehr“ (±30 s, Tempo, Wiederholen, Von vorn, Weiterschauen); Medien-Menü →
+  „Weiterschauen“.
 - **Ton am PC (Handy und System-Seite):** Lautsprecher und Mikrofon getrennt – genaue Lautstärke, stumm an/aus und
   **Gerät wählen** (z. B. Kopfhörer statt Lautsprecher, Headset statt eingebautem Mikrofon).
   - Linux: über pactl (PulseAudio/PipeWire) – echt geprüft mit 2 virtuellen Lautsprechern und 2 Mikrofonen.
   - Windows: über Core Audio (wie Windows' eigene Regler) statt Medientasten – Lautstärke jetzt genau statt in
-    2-%-Schritten. Gerät wechseln über dieselbe Schnittstelle wie die Sound-Einstellungen von Windows.
+    2-%-Schritten. Gerät wechseln über dieselbe Schnittstelle wie die Sound-Einstellungen von Windows. Alle
+    Windows-Ton-Aufrufe laufen in einem eigenen Thread (sonst konnte AluPC abstürzen – in CI gefunden und behoben).
 - **Anmeldeseite (Hotspot-Fenster):** zeigt je Handy, welche Namen es gefragt hat, und einen Hinweis:
   „Handy nutzt eigenes DNS (…)“ oder „Handy prüft – aber nichts kam auf Port 80 an“.
 - Geprüft: echtes Testvideo (Stelle, Tempo, Wiederholen, Von vorn, Weiterschauen), Handy-Seite im echten Browser
