@@ -40,7 +40,8 @@ ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirm
                     "timer_stopp", "ablauf_weiter", "ablauf_zurueck",
                     "musik_zeigen", "musik_pause", "musik_weiter", "musik_zurueck", "overlays", "gluecksrad", "gluecksrad_drehen", "wetter", "system",
                     "umfrage_zeigen", "umfrage_ende", "spiele", "whiteboard",
-                    "video_weiterschauen", "video_von_vorn",
+                    "video_weiterschauen", "video_von_vorn", "video_vor30", "video_zurueck30", "video_neu",
+                    "video_wiederholen",
                     # PC: Systemlautstärke, Desktop, Fenster, Bildschirmfoto (Ein/Aus nur am PC – mit Rückfrage)
                     "pc_lauter", "pc_leiser", "pc_stumm_an", "pc_stumm_aus", "pc_desktop", "pc_fenster_wechseln",
                     "pc_screenshot", "pc_sperren", "pc_minimieren", "pc_maximieren", "pc_fenster_zu"}  # Minispiele starten nur am PC
@@ -836,6 +837,9 @@ def _make_handler(server: CastServer):
                             or re.fullmatch(r"whiteboard:[a-z]{2,20}", cmd)
                             or re.fullmatch(r"lautstaerke:\d{1,3}", cmd) or re.fullmatch(r"timer:\d{1,5}", cmd)
                             or re.fullmatch(r"pc_lautstaerke:\d{1,3}", cmd)
+                            or re.fullmatch(r"video_pos:\d{1,6}", cmd) or re.fullmatch(r"video_fortsetzen:\d", cmd)
+                            or re.fullmatch(r"video_tempo:(0\.5|0\.75|1|1\.25|1\.5|2)", cmd)
+                            or re.fullmatch(r"(ton|mic)_(laut:\d{1,3}|stumm:[01]|geraet:\d{1,2})", cmd)
                             or (cmd.startswith("pc_programm:") and len(cmd) < 120)
                             or re.fullmatch(r"taste:(weiter|zurueck|rechts|links|start|ende|schwarz|leer)", cmd)):
                         self._json(400, {"error": "Unbekannter Befehl"})

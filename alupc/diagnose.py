@@ -141,6 +141,8 @@ def report(controller, probe: bool = True) -> str:
             lines.append(f"  HTTP {ip} {method} {host}{path}")
         if hs._dns is not None and hs._dns.clients:
             lines.append(f"  Namensfragen je Gerät: {hs._dns.clients}")
+            for ip in hs._dns.names:
+                lines.append(f"  {ip} fragte: {', '.join(hs.asked_names(ip))}")
 
     lines.append("")
     lines.append("== AirPlay (iPhone) ==")

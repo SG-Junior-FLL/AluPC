@@ -184,6 +184,10 @@ def _open_url(url: str) -> bool:
 
 # ---- Lautstärke (Systemlautstärke, nicht nur AluPC)
 def get_volume() -> int | None:
+    if sys.platform.startswith("win"):
+        from . import audio
+
+        return audio.level("out")[0]
     if sys.platform.startswith("linux"):
         if shutil.which("wpctl"):
             code, out = _run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
@@ -221,7 +225,13 @@ def set_volume(percent: int | None = None, step: int = 0) -> tuple[bool, str]:
             return False, out
         return False, "kein wpctl/pactl gefunden"
     if sys.platform.startswith("win"):
-        # Medientasten: jeder Druck = 2 %. Für „auf 30 %“ erst ganz runter, dann hoch
+        from . import audio
+
+        if audio.available():  # genau (Core Audio) statt Medientasten
+            now = audio.level("out")[0]
+            target = percent if percent is not None else max(0, min(100, (now or 0) + step))
+            return audio.set_level("out", target)
+        # ohne Core Audio: Medientasten – jeder Druck = 2 %. Für „auf 30 %“ erst ganz runter, dann hoch
         if percent is not None:
             _vk(0xAE, 50)
             _vk(0xAF, round(percent / 2))
@@ -239,7 +249,11 @@ def set_mute(on: bool) -> tuple[bool, str]:
             return _run(["pactl", "set-sink-mute", "@DEFAULT_SINK@", "1" if on else "0"])[0] == 0, ""
         return False, "kein wpctl/pactl gefunden"
     if sys.platform.startswith("win"):
-        _vk(0xAD)  # Windows kennt nur „umschalten“
+        from . import audio
+
+        if audio.available():
+            return audio.set_mute("out", on)
+        _vk(0xAD)  # ohne Core Audio: Taste kennt nur „umschalten“
         return True, ""
     return False, "nicht unterstützt"
 

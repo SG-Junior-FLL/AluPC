@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alupc"
-version = "0.112.0"
+version = "0.113.0"
 description = "AluPC – zweiten Monitor steuern: Spiegeln, Erweitern, Kamera, Programme, Websites, eigene Szenen, Standbild, Bild-in-Bild, Fingerabdruck"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,6 +25,8 @@ dependencies = [
     "winrt-Windows.Foundation>=2; sys_platform == 'win32'",
     "winrt-Windows.Media.Control>=2; sys_platform == 'win32'",
     "winrt-Windows.Storage.Streams>=2; sys_platform == 'win32'",
+    # Windows: Lautsprecher/Mikrofon genau steuern und Gerät wählen (Core Audio)
+    "comtypes>=1.2; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

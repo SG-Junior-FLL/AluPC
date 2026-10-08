@@ -65,6 +65,7 @@ class PortalDNS:
         self.error = ""
         self.allowed: set[str] = set()  # Geräte mit Internet: bekommen echte Antworten
         self.clients: dict[str, int] = {}  # Namensfragen je Gerät (zeigt: kommen die Handys hier an?)
+        self.names: dict[str, list[str]] = {}  # zuletzt gefragte Namen je Gerät (zeigt, was das Handy prüft)
 
     def ip_for(self, name: str, qtype: int, client: str = ""):
         if client and client in self.allowed:  # am PC freigeschaltet: echtes Internet
@@ -134,8 +135,19 @@ class PortalDNS:
         self.queries += 1
         if client and not client.startswith("127.") and client != self.ip_provider():  # PC selbst zählt nicht
             self.clients[client] = self.clients.get(client, 0) + 1
+        counted = client in self.clients
+
+        def ip_for(name, qtype):
+            if counted and name:
+                seen = self.names.setdefault(client, [])
+                if name in seen:
+                    seen.remove(name)
+                seen.append(name)
+                del seen[:-12]
+            return self.ip_for(name, qtype, client)
+
         try:
-            return answer(data, lambda name, qtype: self.ip_for(name, qtype, client))
+            return answer(data, ip_for)
         except Exception:  # noqa: BLE001 - kaputte Anfrage: ignorieren
             return None
 

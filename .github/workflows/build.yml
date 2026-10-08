@@ -34,6 +34,12 @@ jobs:
             grep -E "^(FAILED|E   |ERROR)|Fatal Python|File \"/home/runner/work" tests.log | head -40 | sed 's/^/::error::/'
             grep -B2 -A30 "Fatal Python" tests.log | grep -E "File|Fatal|line" | head -30 | sed 's/^/::warning::/'
             exit 1; }
+      - name: Ton echt – PulseAudio mit 2 Lautsprechern und 2 Mikrofonen (Gerät wählen, Pegel, stumm)
+        run: |
+          sudo apt-get install -y pulseaudio pulseaudio-utils > /dev/null
+          python tests/audio_linux_check.py 2>&1 | tee audio.log
+          test "${PIPESTATUS[0]}" -eq 0 || { grep "✗" audio.log | sed 's/^/::error title=Ton (Linux)::/'; exit 1; }
+          echo "::notice title=Ton (Linux)::$(tail -1 audio.log)"
       - name: WLAN-Anmeldeseite echt – virtuelles Handy im eigenen Netz (DNS, Weiterleitung, Mitspielen)
         run: |
           sudo apt-get install -y dnsutils iproute2 iptables > /dev/null
@@ -320,6 +326,7 @@ jobs:
           --collect-all faster_whisper
           --collect-all ctranslate2
           --collect-all winrt
+          --collect-submodules comtypes
           --collect-data alupc
           packaging/pyinstaller_entry.py
       - name: Anmeldebaustein für das Fingerabdruckmodul bauen (C++, MSVC)

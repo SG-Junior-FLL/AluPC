@@ -735,6 +735,74 @@ class Controller(QObject):
             self.video_resume.emit(title, int(entry["pos"]))
             return
 
+    def video_info(self) -> dict | None:
+        """Erstes Video auf Monitor 2: Titel, Position/Länge (s), läuft, Tempo, Wiederholen – fürs Handy."""
+        from pathlib import Path
+
+        from .sources import video_sources
+
+        videos = video_sources(self.output.content) if self.mode == "content" else []
+        if not videos:
+            return None
+        v = videos[0]
+        try:  # nie den Handy-Status kaputtmachen, nur weil eine Quelle etwas nicht kann
+            return {"title": Path(getattr(v, "path", "") or "Video").stem, "pos": v.position() // 1000,
+                    "dur": v.duration() // 1000, "playing": v.playing(), "rate": round(v.rate(), 2),
+                    "loop": v.looping()}
+        except (AttributeError, RuntimeError, TypeError):
+            return None
+
+    def recent_videos(self, limit: int = 6) -> list[dict]:
+        """Zuletzt geschaute Videos mit gemerkter Stelle (neueste zuerst) – zum Fortsetzen vom Handy."""
+        from pathlib import Path
+
+        saved = self.config.data.get("video_positions") or {}
+        out = []
+        for path, e in sorted(saved.items(), key=lambda kv: -kv[1].get("t", 0)):
+            if Path(path).is_file():
+                out.append({"title": Path(path).stem, "pos": int(e.get("pos", 0)) // 1000,
+                            "dur": int(e.get("dur", 0)) // 1000, "path": path})
+            if len(out) >= limit:
+                break
+        return out
+
+    def continue_video(self, index: int) -> bool:
+        """Video aus „Zuletzt geschaut“ auf Monitor 2 an der gemerkten Stelle weiterspielen."""
+        from .sources import video_sources
+
+        recent = self.recent_videos()
+        if not 0 <= index < len(recent):
+            return False
+        item = recent[index]
+        self.show_source({"type": "video", "path": item["path"], "loop": False})
+        self.resume_offer = None  # nicht erst fragen – „Fortsetzen“ war die Antwort
+        self._resume_timer.stop()
+        for v in video_sources(self.output.content):
+            if getattr(v, "path", "") == item["path"]:
+                v.seek_when_ready(item["pos"] * 1000)
+        self.changed.emit()
+        return True
+
+    def video_command(self, cmd: str) -> bool:
+        """Video-Befehle vom Handy/aus Kürzeln. True = war ein Video-Befehl."""
+        from .sources import video_sources
+
+        if cmd.startswith("video_fortsetzen:"):
+            self.continue_video(int(cmd.split(":", 1)[1]))
+            return True
+        videos = video_sources(self.output.content) if self.mode == "content" else []
+        name, _, arg = cmd.partition(":")
+        actions = {"video_pause": lambda v: v.toggle_play(), "video_vor": lambda v: v.skip(10_000),
+                   "video_zurueck": lambda v: v.skip(-10_000), "video_vor30": lambda v: v.skip(30_000),
+                   "video_zurueck30": lambda v: v.skip(-30_000), "video_neu": lambda v: (v.seek_to(0), v.player.play()),
+                   "video_wiederholen": lambda v: v.set_loop(not v.looping()),
+                   "video_pos": lambda v: v.seek_to(int(arg) * 1000), "video_tempo": lambda v: v.set_rate(float(arg))}
+        if name not in actions:
+            return False
+        if videos:
+            actions[name](videos[0])
+        return True
+
     def video_resume_choice(self, choice: str) -> None:
         """„weiter“ = ab der gemerkten Stelle, „neu“ = von vorn."""
         from .sources import video_sources
@@ -769,6 +837,9 @@ class Controller(QObject):
             "video": bool(video_sources(self.output.content)) if self.mode == "content" else False,
             "resume": ({"title": self.resume_offer["title"], "pos": self.resume_offer["pos"] // 1000}
                        if self.resume_offer else None),
+            "vid": self.video_info(),
+            "audio": __import__("alupc.audio", fromlist=["state"]).state(),
+            "recent": [{k: r[k] for k in ("title", "pos", "dur")} for r in self.recent_videos()],
             "timer": clock.text(),
             "keys": __import__("alupc.platform.keys", fromlist=["available"]).available(),
             "allow": {k: self.cast.allowed(k) for k in ("senden", "steuern", "live", "laser")},
@@ -879,8 +950,6 @@ class Controller(QObject):
 
     def _cast_request(self, req: dict) -> None:
         """Anfrage vom Handy (kommt aus dem Webserver-Thread, läuft hier im Qt-Hauptthread)."""
-        from .sources import video_sources
-
         kind = req.get("kind")
         if kind == "freigabe":  # Handy möchte steuern (ohne Code) → am PC fragen (Hauptfenster zeigt die Frage)
             self.access_requested.emit(req["id"], req.get("name", "Handy"), req.get("ip", ""))
@@ -915,7 +984,6 @@ class Controller(QObject):
             return
         elif kind == "cmd":
             cmd = req.get("cmd", "")
-            videos = video_sources(self.output.content) if self.mode == "content" else []
             if cmd.startswith("taste:"):  # Präsentations-Fernbedienung: Taste ans aktive Programm
                 from .platform import keys
 
@@ -944,10 +1012,8 @@ class Controller(QObject):
                 self.set_media_volume(volume=max(0, min(100, int(cmd.split(":", 1)[1]))), muted=False)
             elif cmd.startswith("whiteboard:"):  # Whiteboard mit Hintergrund (vom Handy)
                 self.show_whiteboard(cmd.split(":", 1)[1], draw=False)
-            elif cmd in ("video_pause", "video_vor", "video_zurueck"):
-                if videos:
-                    {"video_pause": videos[0].toggle_play, "video_vor": lambda: videos[0].skip(10_000),
-                     "video_zurueck": lambda: videos[0].skip(-10_000)}[cmd]()
+            elif self.video_command(cmd):
+                pass
             else:
                 self.run_command(cmd)
         self._cast_snapshot()
@@ -1315,6 +1381,11 @@ class Controller(QObject):
         if command.startswith("kachel:"):
             self.run_tile(command[7:])
             return
+        if command.startswith(("ton_", "mic_")):  # Lautsprecher/Mikrofon des PCs (Handy, Sprache)
+            from . import audio
+
+            self.message.emit(audio.run(command))
+            return
         if command.startswith("spiel:"):
             self.game_action(command)
             return
@@ -1672,7 +1743,7 @@ class Controller(QObject):
 
     def wlan_devices(self) -> list[dict]:
         """Geräte im AluPC-WLAN: IP, MAC, Name (von der Anmeldeseite), Internet ja/nein."""
-        from .hotspot import NAMES, client_status, hotspot, neighbors
+        from .hotspot import NAMES, asked_names, check_hint, client_status, hotspot, neighbors
 
         if not hotspot.running:
             return []
@@ -1681,7 +1752,8 @@ class Controller(QObject):
         for ip, mac in sorted(neighbors().items(), key=lambda kv: tuple(int(x) for x in kv[0].split("."))):
             dns, probe = client_status(ip)
             out.append({"ip": ip, "mac": mac, "name": NAMES.get(ip) or allowed.get(mac) or "Gerät",
-                        "internet": mac in allowed, "dns": dns, "probe": probe})
+                        "internet": mac in allowed, "dns": dns, "probe": probe,
+                        "asked": asked_names(ip)[-4:], "hint": "" if probe else check_hint(ip)})
         return out
 
     def set_device_internet(self, mac: str, name: str, on: bool) -> None:

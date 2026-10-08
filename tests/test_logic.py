@@ -1707,3 +1707,65 @@ def test_tray_promote_after_update_windows():
         assert promote(exe) is False  # schon sichtbar → nichts zu tun (kein Flackern)
     finally:
         winreg.DeleteKey(winreg.HKEY_CURRENT_USER, KEY + r"\AluPCTestEintrag")
+
+
+def test_audio_pactl_parsing():
+    """Linux-Ton: Geräte aus pactl (JSON und alt), Monitor-Quellen weg, Pegel und Stumm lesen."""
+    import json
+
+    from alupc import audio
+
+    sinks = [{"name": "alsa_output.pci.analog", "description": "Eingebaut"},
+             {"name": "bluez_output.kopfhoerer", "description": "Kopfhörer"}]
+    sources = [{"name": "alsa_output.pci.analog.monitor", "description": "Monitor of Eingebaut",
+                "monitor_of_sink": "alsa_output.pci.analog"},
+               {"name": "alsa_input.pci.mic", "description": "Mikrofon", "monitor_of_sink": "n/a"}]
+
+    def run(cmd, timeout=6):
+        joined = " ".join(cmd)
+        if "get-default-sink" in joined:
+            return 0, "bluez_output.kopfhoerer\n"
+        if "get-default-source" in joined:
+            return 0, "alsa_input.pci.mic\n"
+        if "-f json list sinks" in joined:
+            return 0, json.dumps(sinks)
+        if "-f json list sources" in joined:
+            return 0, json.dumps(sources)
+        if "get-sink-volume" in joined:
+            return 0, "Volume: front-left: 26214 /  40% / -23.88 dB,   front-right: 26214 /  40% / -23.88 dB"
+        if "get-sink-mute" in joined:
+            return 0, "Mute: yes"
+        return 1, ""
+
+    outs = audio._pa_devices("out", run=run)
+    assert outs == [{"id": "alsa_output.pci.analog", "name": "Eingebaut", "default": False},
+                    {"id": "bluez_output.kopfhoerer", "name": "Kopfhörer", "default": True}]
+    assert audio._pa_devices("in", run=run) == [{"id": "alsa_input.pci.mic", "name": "Mikrofon", "default": True}]
+    assert audio._pa_level("out", run=run) == (40, True)
+
+    def old(cmd, timeout=6):  # pactl ohne JSON
+        joined = " ".join(cmd)
+        if "-f json" in joined:
+            return 1, "Unbekannte Option"
+        if "list short sources" in joined:
+            return 0, "0\talsa_output.x.monitor\tmodule\ts16le\tIDLE\n1\talsa_input.mic\tmodule\ts16le\tRUNNING\n"
+        if "get-default-source" in joined:
+            return 0, "alsa_input.mic"
+        return 1, ""
+
+    assert audio._pa_devices("in", run=old) == [{"id": "alsa_input.mic", "name": "alsa_input.mic", "default": True}]
+    assert audio.run("ton_quatsch:1") == "Unbekannter Ton-Befehl."
+
+
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows Core Audio")
+def test_audio_core_audio_windows():
+    """Windows: Core-Audio-Schnittstellen lassen sich anlegen; Geräte lesen stürzt nicht ab (CI hat evtl. keine)."""
+    from alupc import audio
+
+    assert audio.available()
+    st = audio.state(max_age=0)
+    assert st is not None and set(st) == {"out", "in"}
+    for kind in ("out", "in"):
+        for d in st[kind]["devices"]:
+            assert d["id"] and d["name"]
+    print("Windows-Ton:", {k: (v["vol"], v["muted"], [d["name"] for d in v["devices"]]) for k, v in st.items()})

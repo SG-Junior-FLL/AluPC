@@ -1233,6 +1233,18 @@ class VideoSource(SinkView):
     def skip(self, ms: int) -> None:
         self.seek_to(self.position() + ms)
 
+    def rate(self) -> float:
+        return float(self.player.playbackRate())
+
+    def set_rate(self, rate: float) -> None:
+        self.player.setPlaybackRate(max(0.25, min(3.0, float(rate))))
+
+    def looping(self) -> bool:
+        return self.player.loops() != 1
+
+    def set_loop(self, on: bool) -> None:
+        self.player.setLoops(QMediaPlayer.Infinite if on else 1)
+
     def seek_when_ready(self, ms: int, play: bool = True) -> None:
         """Springen – auch wenn das Video noch lädt (dann sobald es bereit ist)."""
         ready = (QMediaPlayer.LoadedMedia, QMediaPlayer.BufferingMedia, QMediaPlayer.BufferedMedia)

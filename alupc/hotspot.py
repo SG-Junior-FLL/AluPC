@@ -475,6 +475,27 @@ def note_probe(ip: str) -> None:
     PROBES[ip] = time.time()
 
 
+def asked_names(ip: str) -> list[str]:
+    """Namen, die dieses Gerät zuletzt bei AluPC gefragt hat (neueste zuletzt)."""
+    return list(_dns.names.get(ip, [])) if _dns is not None else []
+
+
+CHECK_HOSTS = set(PORTAL_HOSTS) | {"www.google.com", "clients1.google.com", "play.googleapis.com"}
+
+
+def check_hint(ip: str) -> str:
+    """Kurzer Hinweis, warum ein Handy die Anmeldeseite nicht bekommt (aus den gefragten Namen)."""
+    names = asked_names(ip)
+    if not names:
+        return ""
+    if any(n in CHECK_HOSTS for n in names):
+        return "Handy prüft – aber nichts kam auf Port 80 an (Firewall?)"
+    dot = [n for n in names if "dns" in n.split(".")[0] or n.startswith(("dns.", "one.one", "1dot1dot1"))]
+    if dot:
+        return f"Handy nutzt eigenes DNS ({dot[-1]}) – dort „Privates DNS“ auf Automatisch stellen"
+    return "Handy hat die Internet-Prüfung noch nicht gefragt"
+
+
 def client_status(ip: str) -> tuple[int, bool]:
     """(Namensfragen bei AluPC, Anmelde-Prüfung bei AluPC angekommen) für ein Gerät im WLAN."""
     return (_dns.clients.get(ip, 0) if _dns is not None else 0), ip in PROBES

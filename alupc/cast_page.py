@@ -297,21 +297,53 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
     </div>
   </div>
   <div class="card" id="c-video">
-    <h2>Video</h2>
+    <h2>Video <span id="vid-title" style="font-weight:600;opacity:.7"></span></h2>
+    <input type="range" id="vidpos" min="0" max="100" step="1" aria-label="Stelle im Video"
+           oninput="$('vid-time').textContent = mmss(this.value) + ' / ' + mmss(this.max)"
+           onchange="cmd('video_pos:' + this.value)">
+    <p id="vid-time" style="margin:2px 0 8px;opacity:.75;text-align:center"></p>
     <div class="row">
-      <button onclick="cmd('video_zurueck')"><svg class="i"><use href="#i-back10"/></svg>10 s</button>
-      <button class="primary" onclick="cmd('video_pause')"><svg class="i"><use href="#i-pause"/></svg>Pause</button>
-      <button onclick="cmd('video_vor')">10 s<svg class="i"><use href="#i-fwd10"/></svg></button>
+      <button onclick="cmd('video_zurueck30')">−30</button>
+      <button onclick="cmd('video_zurueck')"><svg class="i"><use href="#i-back10"/></svg>10</button>
+      <button class="primary" id="vid-play" aria-label="Pause/Abspielen" onclick="cmd('video_pause')"><svg class="i"><use href="#i-pause"/></svg></button>
+      <button onclick="cmd('video_vor')">10<svg class="i"><use href="#i-fwd10"/></svg></button>
+      <button onclick="cmd('video_vor30')">+30</button>
     </div>
+    <div class="row" id="vid-rates"></div>
+    <div class="row">
+      <button onclick="cmd('video_neu')">⏮ Von vorn</button>
+      <button id="vid-loop" onclick="cmd('video_wiederholen')">🔁 Wiederholen</button>
+    </div>
+  </div>
+  <div class="card hide" id="c-recent">
+    <h2>Weiterschauen</h2>
+    <div class="scenes" id="recent"></div>
   </div>
   <div class="card" id="c-music">
     <h2>Musik am PC</h2>
     <div class="row">
       <button onclick="cmd('musik_zurueck')"><svg class="i"><use href="#i-prev"/></svg></button>
-      <button class="primary" onclick="cmd('musik_pause')"><svg class="i"><use href="#i-pause"/></svg>Play/Pause</button>
+      <button class="primary" aria-label="Abspielen/Pause" onclick="cmd('musik_pause')"><svg class="i"><use href="#i-play"/></svg><svg class="i"><use href="#i-pause"/></svg></button>
       <button onclick="cmd('musik_weiter')"><svg class="i"><use href="#i-next"/></svg></button>
     </div>
     <div class="row"><button onclick="cmd('musik_zeigen')">Läuft gerade zeigen</button></div>
+  </div>
+  <div class="card hide" id="c-audio">
+    <h2>Ton am PC</h2>
+    <p style="margin:4px 0 2px;font-weight:700">🔊 Lautsprecher <span id="a-out-val" style="opacity:.7"></span></p>
+    <input type="range" id="a-out" min="0" max="100" step="1" aria-label="Lautsprecher"
+           oninput="$('a-out-val').textContent = this.value + ' %'" onchange="cmd('ton_laut:' + this.value)">
+    <div class="row">
+      <button id="a-out-mute" onclick="cmd('ton_stumm:' + (this.classList.contains('on') ? 0 : 1))">🔇 Stumm</button>
+      <select id="a-out-dev" aria-label="Lautsprecher wählen" onchange="cmd('ton_geraet:' + this.value)"></select>
+    </div>
+    <p style="margin:10px 0 2px;font-weight:700">🎙 Mikrofon <span id="a-in-val" style="opacity:.7"></span></p>
+    <input type="range" id="a-in" min="0" max="100" step="1" aria-label="Mikrofon"
+           oninput="$('a-in-val').textContent = this.value + ' %'" onchange="cmd('mic_laut:' + this.value)">
+    <div class="row">
+      <button id="a-in-mute" onclick="cmd('mic_stumm:' + (this.classList.contains('on') ? 0 : 1))">🎙 Stumm</button>
+      <select id="a-in-dev" aria-label="Mikrofon wählen" onchange="cmd('mic_geraet:' + this.value)"></select>
+    </div>
   </div>
   <div class="card" id="c-pc">
     <h2>PC <span id="pcvol-val" style="font-weight:600;opacity:.7"></span></h2>
@@ -575,6 +607,9 @@ async function post(path, obj, okText) {
   catch (e) { toast(e.message, true); }
 }
 function cmd(c) { buzz(); post("/api/cmd", { cmd: c }); }
+function mmss(t) { t = Math.max(0, Math.floor(+t || 0)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60);
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(t % 60).padStart(2, "0"); }
+let recentKey = "";
 let appsLoaded = false;
 async function loadApps() {  // installierte Programme am PC (nur aus dieser Liste lässt sich etwas öffnen)
   if (appsLoaded) return; appsLoaded = true;
@@ -647,6 +682,42 @@ async function refresh() {
     for (const [id, on] of [["b-schwarz", f.schwarz], ["b-standbild", f.standbild], ["b-spiegeln", f.spiegeln],
                             ["b-erweitern", f.erweitern], ["b-schoner", f.schoner]]) $(id).classList.toggle("on", !!on);
     $("c-video").classList.toggle("hide", !s.video);
+    const v = s.vid;
+    if (v) {
+      $("vid-title").textContent = "· " + v.title;
+      if (document.activeElement !== $("vidpos")) { $("vidpos").max = Math.max(1, v.dur); $("vidpos").value = v.pos;
+        $("vid-time").textContent = mmss(v.pos) + " / " + mmss(v.dur); }
+      $("vid-play").querySelector("use").setAttribute("href", v.playing ? "#i-pause" : "#i-play");
+      $("vid-loop").classList.toggle("on", !!v.loop);
+      const rates = $("vid-rates");
+      if (!rates.childElementCount) for (const r of [0.5, 0.75, 1, 1.25, 1.5, 2]) {
+        const b = document.createElement("button"); b.textContent = String(r).replace(".", ",") + "×"; b.dataset.r = r;
+        b.onclick = () => cmd("video_tempo:" + r); rates.appendChild(b); }
+      for (const b of rates.children) b.classList.toggle("on", +b.dataset.r === v.rate);
+    }
+    const a = s.audio;
+    $("c-audio").classList.toggle("hide", !a);
+    if (a) for (const k of ["out", "in"]) {
+      const d = a[k] || {}, r = $("a-" + k), sel = $("a-" + k + "-dev");
+      if (document.activeElement !== r && d.vol != null) { r.value = d.vol; $("a-" + k + "-val").textContent = d.vol + " %"; }
+      $("a-" + k + "-mute").classList.toggle("on", !!d.muted);
+      const devs = d.devices || [], dk = JSON.stringify(devs);
+      if (sel.dataset.k !== dk && document.activeElement !== sel) {
+        sel.dataset.k = dk; sel.innerHTML = "";
+        devs.forEach((dv, i) => { const o = document.createElement("option"); o.value = i; o.textContent = dv.name;
+          if (dv.default) o.selected = true; sel.appendChild(o); });
+        sel.classList.toggle("hide", devs.length < 2);
+      }
+    }
+    const rec = s.recent || [];
+    $("c-recent").classList.toggle("hide", !rec.length);
+    const rk = JSON.stringify(rec);
+    if (rk !== recentKey) {
+      recentKey = rk; const box = $("recent"); box.innerHTML = "";
+      rec.forEach((r, i) => { const b = document.createElement("button");
+        b.textContent = "▶ " + r.title + " · " + mmss(r.pos) + (r.dur ? " / " + mmss(r.dur) : "");
+        b.onclick = () => { buzz(); post("/api/cmd", { cmd: "video_fortsetzen:" + i }, r.title); }; box.appendChild(b); });
+    }
     $("c-resume").classList.toggle("hide", !s.resume);
     if (s.resume) { const t = s.resume.pos; $("resume-text").textContent = s.resume.title + " – geschaut bis " +
       Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); }

@@ -8,7 +8,23 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.112.0)
+### Neu in dieser Version (0.113.0)
+- **Videosteuerung am Handy:** Stelle per Leiste wählen (mit Zeit), −30/−10/+10/+30 s, Abspielen/Pause,
+  Tempo 0,5×–2×, „Von vorn“, „Wiederholen“ an/aus. Neu: **„Weiterschauen“** – die zuletzt geschauten Videos mit
+  gemerkter Stelle; antippen = auf Monitor 2 genau dort weiter.
+- **Ton am PC (Handy und System-Seite):** Lautsprecher und Mikrofon getrennt – genaue Lautstärke, stumm an/aus und
+  **Gerät wählen** (z. B. Kopfhörer statt Lautsprecher, Headset statt eingebautem Mikrofon).
+  - Linux: über pactl (PulseAudio/PipeWire) – echt geprüft mit 2 virtuellen Lautsprechern und 2 Mikrofonen.
+  - Windows: über Core Audio (wie Windows' eigene Regler) statt Medientasten – Lautstärke jetzt genau statt in
+    2-%-Schritten. Gerät wechseln über dieselbe Schnittstelle wie die Sound-Einstellungen von Windows.
+- **Anmeldeseite (Hotspot-Fenster):** zeigt je Handy, welche Namen es gefragt hat, und einen Hinweis:
+  „Handy nutzt eigenes DNS (…)“ oder „Handy prüft – aber nichts kam auf Port 80 an“.
+- Geprüft: echtes Testvideo (Stelle, Tempo, Wiederholen, Von vorn, Weiterschauen), Handy-Seite im echten Browser
+  (jeder Knopf schickt den richtigen Befehl, keine Fehler), Ton mit echtem PulseAudio 11/11.
+- Ehrlich, nicht geprüft: Ton unter Windows mit echten Geräten (der CI-Rechner hat keine Soundkarte – geprüft ist
+  nur, dass Core Audio startet und nicht abstürzt); Anmeldeseite mit echtem Handy weiterhin offen.
+
+### Neu in Version 0.112.0
 - Hotspot-Fenster zeigt unter „Geräte im WLAN“, wo die Anmeldeseite hakt: Port 80 (AluPC direkt oder
   Weiterleitung), ob die Internet-Sperre wirklich aktiv ist (Zustand von Windows) und die letzte Prüfung eines
   Handys auf Port 80. Auch in „Diagnose kopieren“ (mit den letzten Anfragen).

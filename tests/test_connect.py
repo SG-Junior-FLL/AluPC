@@ -367,8 +367,8 @@ def test_windows_hotspot_then_portal(monkeypatch, tmp_path):
     monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
     calls = []
     state = {"now": "STATE:On"}
-    monkeypatch.setattr(hotspot, "_ps", lambda script, env=None, timeout=40: (
-        calls.append(env or "state"), (0, "STATUS:Success:" if env else state["now"]))[1])
+    monkeypatch.setattr(hotspot, "_ps", lambda script, extra=None, timeout=40: (
+        calls.append(extra or "state"), (0, "STATUS:Success:" if extra else state["now"]))[1])
     monkeypatch.setattr(hotspot, "start_portal", lambda ip, closed: (calls.append("portal"), (True, "Anmeldeseite an."))[1])
     hs = hotspot.Hotspot()
     ok, msg = hs.start("AluPC-Spiele", "k7m2p9qa", portal=True, hidden=False)
@@ -707,3 +707,24 @@ def test_portal_status_line_and_http_log(monkeypatch):
     line = hotspot.portal_status()
     assert "Internet-Sperre: AUS" in line and "192.168.137.45 HEAD connectivitycheck.gstatic.com/generate_204" in line
     hotspot.HTTP_LOG.clear()
+
+
+def test_dns_remembers_names_and_hint(monkeypatch):
+    """Hotspot-Fenster: welche Namen das Handy fragt → Hinweis (eigenes DNS / Prüfung kam nicht an)."""
+    import struct
+
+    from alupc.portal_dns import PortalDNS
+
+    def q(name):
+        body = b"".join(bytes([len(p)]) + p.encode() for p in name.split(".")) + b"\0"
+        return struct.pack(">HHHHHH", 1, 0x0100, 1, 0, 0, 0) + body + b"\0\1\0\1"
+
+    dns = PortalDNS(lambda: "192.168.137.1", restrict=True)
+    monkeypatch.setattr(hotspot, "_dns", dns)
+    dns._reply(q("dns.adguard-dns.com"), "192.168.137.45")
+    assert hotspot.asked_names("192.168.137.45") == ["dns.adguard-dns.com"]
+    assert "eigenes DNS (dns.adguard-dns.com)" in hotspot.check_hint("192.168.137.45")
+    dns._reply(q("connectivitycheck.gstatic.com"), "192.168.137.45")
+    assert "nichts kam auf Port 80 an" in hotspot.check_hint("192.168.137.45")
+    dns._reply(q("x.example"), "192.168.137.1")  # PC selbst: nicht merken
+    assert hotspot.asked_names("192.168.137.1") == []

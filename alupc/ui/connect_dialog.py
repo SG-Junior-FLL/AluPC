@@ -202,7 +202,8 @@ class HotspotDialog(QDialog):
 
             self.portal_line.setText(portal_status() if self._mine() else "")
             devices = self.controller.wlan_devices() if self._mine() else []
-            key = [(d["ip"], d["mac"], d["name"], d["internet"], bool(d.get("dns")), d.get("probe")) for d in devices]
+            key = [(d["ip"], d["mac"], d["name"], d["internet"], bool(d.get("dns")), d.get("probe"), d.get("hint"))
+                   for d in devices]
             if key == getattr(self, "_dev_key", None):
                 return
             self._dev_key = key
@@ -212,8 +213,9 @@ class HotspotDialog(QDialog):
                 # Zeigt, wo es hängt: kommen die Namensfragen des Handys bei AluPC an? Hat es die Anmeldung geprüft?
                 check = ("Anmeldeseite ✓" if d.get("probe") else "DNS ✓ · Anmeldeseite noch nicht" if d.get("dns")
                          else "DNS ✗ (fragt Windows statt AluPC)")
-                item = QListWidgetItem(f"{d['name']}   ·   {d['ip']}   ·   {check}")
-                item.setToolTip(d["mac"])
+                hint = f"\n      → {d['hint']}" if d.get("hint") else ""
+                item = QListWidgetItem(f"{d['name']}   ·   {d['ip']}   ·   {check}{hint}")
+                item.setToolTip(d["mac"] + ("\nGefragt: " + ", ".join(d["asked"]) if d.get("asked") else ""))
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                 item.setCheckState(Qt.Checked if d["internet"] else Qt.Unchecked)
                 item.setData(Qt.UserRole, (d["mac"], d["name"]))

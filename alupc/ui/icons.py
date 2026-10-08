@@ -441,6 +441,12 @@ def _draw(name: str, p: QPainter, color: QColor):
         p.drawArc(QRectF(5.5, 6, 13, 12), 200 * 16, 140 * 16)
         p.drawLine(QPointF(12, 18), QPointF(12, 21))
         p.drawLine(QPointF(8.5, 21), QPointF(15.5, 21))
+    elif name == "mic_off":  # Mikrofon stumm: Mikrofon mit Querstrich
+        p.drawRoundedRect(QRectF(9, 3, 6, 11), 3, 3)
+        p.drawArc(QRectF(5.5, 6, 13, 12), 200 * 16, 140 * 16)
+        p.drawLine(QPointF(12, 18), QPointF(12, 21))
+        p.drawLine(QPointF(8.5, 21), QPointF(15.5, 21))
+        p.drawLine(QPointF(4, 3.5), QPointF(20, 19.5))
     elif name == "phone":
         p.drawRoundedRect(QRectF(7, 2.5, 10, 19), 2.4, 2.4)
         p.drawLine(QPointF(10.5, 5), QPointF(13.5, 5))

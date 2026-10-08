@@ -4649,3 +4649,63 @@ def test_show_file_from_file_manager(env):
     controller.run_command("link_unbekannt:alupc://pc_herunterfahren")
     assert got == ["Geht nicht auf Monitor 2: x.docx", "Unbekannter AluPC-Link: alupc://pc_herunterfahren"]
     assert controller.content["type"] == "website"
+
+
+def test_phone_video_controls(env, test_video):
+    """Handy: Video mit Stelle springen, Tempo, Wiederholen, von vorn, „Weiterschauen“-Liste (echtes Video)."""
+    import time
+
+    controller, _window, _ = env
+    controller.show_source({"type": "video", "path": test_video, "loop": True, "muted": True})
+    pump()
+    from alupc.sources import video_sources
+
+    video = video_sources(controller.output.content)[0]
+    assert _until(lambda: video.duration() > 0), "Video lädt nicht"
+
+    def phone(cmd):
+        controller._cast_request({"kind": "cmd", "cmd": cmd})
+        pump()
+
+    controller._cast_snapshot()  # Status fürs Handy neu – jetzt kennt das Video seine Länge
+    info = controller.cast.snapshot["vid"]
+    assert info["title"] == "test" and info["dur"] == 4 and info["loop"] and info["rate"] == 1.0
+    phone("video_pause")
+    assert _until(lambda: not video.playing())
+    phone("video_pos:3")
+    assert _until(lambda: abs(video.position() - 3000) < 400), video.position()
+    phone("video_tempo:1.5")
+    assert abs(video.rate() - 1.5) < 0.01 and controller.cast.snapshot["vid"]["rate"] == 1.5
+    phone("video_wiederholen")
+    assert not video.looping() and controller.cast.snapshot["vid"]["loop"] is False
+    phone("video_neu")
+    assert _until(lambda: video.position() < 1500 and video.playing()), video.position()
+    # Weiterschauen: gemerkte Stelle eines Videos → vom Handy fortsetzen
+    controller.show_source({"type": "color"})
+    pump()
+    controller.config["video_positions"] = {test_video: {"pos": 2000, "dur": 4000, "t": int(time.time())},
+                                            "/gibt/es/nicht.mp4": {"pos": 1, "dur": 9, "t": 1}}
+    controller._cast_snapshot()
+    assert controller.cast.snapshot["recent"] == [{"title": "test", "pos": 2, "dur": 4}]  # fehlende Datei fehlt
+    phone("video_fortsetzen:0")
+    assert controller.resume_offer is None and controller.content["path"] == test_video
+    video = video_sources(controller.output.content)[0]
+    assert _until(lambda: video.position() >= 1800), video.position()
+    phone("video_fortsetzen:7")  # gibt es nicht → nichts passiert
+    assert controller.content["path"] == test_video
+
+
+def test_phone_commands_allowed():
+    """Nur diese neuen Befehle darf das Handy schicken (Server-Prüfung)."""
+    import re
+
+    from alupc import cast_server
+
+    src = open(cast_server.__file__, encoding="utf-8").read()
+    for ok in ("video_pos:125", "video_tempo:1.25", "video_fortsetzen:3", "ton_laut:40", "mic_stumm:1",
+               "ton_geraet:2", "mic_geraet:0"):
+        assert re.fullmatch(r"video_pos:\d{1,6}", ok) or re.fullmatch(r"video_tempo:(0\.5|0\.75|1|1\.25|1\.5|2)", ok) \
+            or re.fullmatch(r"video_fortsetzen:\d", ok) \
+            or re.fullmatch(r"(ton|mic)_(laut:\d{1,3}|stumm:[01]|geraet:\d{1,2})", ok), ok
+    assert r'(ton|mic)_(laut:\d{1,3}|stumm:[01]|geraet:\d{1,2})' in src
+    assert not re.fullmatch(r"video_tempo:(0\.5|0\.75|1|1\.25|1\.5|2)", "video_tempo:99")

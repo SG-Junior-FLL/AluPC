@@ -496,6 +496,60 @@ class SystemPage(QWidget):
 
         self.mute_btn.toggled.connect(mute)
 
+        # Mikrofon + Geräte wählen (Lautsprecher/Mikrofon)
+        from PySide6.QtWidgets import QComboBox
+
+        from .. import audio
+
+        mic_row = QHBoxLayout()
+        self.mic_btn = button("", "mic")
+        self.mic_btn.setToolTip("Mikrofon stumm an/aus")
+        self.mic_btn.setCheckable(True)
+        self.mic = QSlider(Qt.Horizontal)
+        self.mic.setRange(0, 100)
+        self.mic.setSingleStep(5)
+        self.mic.setPageStep(10)
+        self.mic_label = QLabel("– %")
+        self.mic_label.setMinimumWidth(44)
+        mic_row.addWidget(self.mic_btn)
+        mic_row.addWidget(self.mic, 1)
+        mic_row.addWidget(self.mic_label)
+        v.addLayout(mic_row)
+        self.out_dev = QComboBox()
+        self.out_dev.setToolTip("Lautsprecher (Ausgabegerät)")
+        self.in_dev = QComboBox()
+        self.in_dev.setToolTip("Mikrofon (Eingabegerät)")
+        dev_row = QHBoxLayout()
+        dev_row.addWidget(self.out_dev, 1)
+        dev_row.addWidget(self.in_dev, 1)
+        v.addLayout(dev_row)
+
+        def set_mic():
+            value = self.mic.value()
+            self.mic_label.setText(f"{value} %")
+            run_async(lambda: audio.set_level("in", value), lambda r: None if r[0] else
+                      self.controller.message.emit(f"Mikrofon geht nicht: {r[1]}"))
+
+        self.mic.valueChanged.connect(lambda val: self.mic_label.setText(f"{val} %"))
+        self.mic.sliderReleased.connect(set_mic)
+        self.mic.actionTriggered.connect(lambda _a: QTimer.singleShot(0, set_mic) if not self.mic.isSliderDown()
+                                         else None)
+
+        def mic_mute(on):
+            self.mic_btn.setIcon(icons.icon("mic_off" if on else "mic", theme.current().text, 18))
+            run_async(lambda: audio.set_mute("in", on))
+
+        self.mic_btn.toggled.connect(mic_mute)
+
+        def pick(kind, combo):
+            dev_id = combo.currentData()
+            if dev_id:
+                run_async(lambda: audio.set_default(kind, dev_id), lambda r: None if r[0] else
+                          self.controller.message.emit(f"Gerät wechseln geht nicht: {r[1]}"))
+
+        self.out_dev.activated.connect(lambda _i: pick("out", self.out_dev))
+        self.in_dev.activated.connect(lambda _i: pick("in", self.in_dev))
+
         def cmd(c):
             return lambda: self.controller.run_command(c)
 
@@ -581,6 +635,45 @@ class SystemPage(QWidget):
                 pass
 
         run_async(pc_control.get_volume, show)
+        self._read_audio()
+
+    def _read_audio(self) -> None:
+        """Mikrofon-Pegel und Geräte (Lautsprecher/Mikrofon) – im Hintergrund lesen."""
+        from .. import audio
+        from .util import run_async
+
+        def show(st):
+            try:
+                ok = st is not None
+                for w in (self.mic_btn, self.mic, self.mic_label, self.out_dev, self.in_dev):
+                    w.setVisible(ok)
+                if not ok:
+                    return
+                mic = st["in"]
+                if mic["vol"] is not None and not self.mic.isSliderDown():
+                    self.mic.blockSignals(True)
+                    self.mic.setValue(int(mic["vol"]))
+                    self.mic.blockSignals(False)
+                    self.mic_label.setText(f"{int(mic['vol'])} %")
+                self.mic_btn.blockSignals(True)
+                self.mic_btn.setChecked(bool(mic["muted"]))
+                self.mic_btn.setIcon(icons.icon("mic_off" if mic["muted"] else "mic", theme.current().text, 18))
+                self.mic_btn.blockSignals(False)
+                for kind, combo in (("out", self.out_dev), ("in", self.in_dev)):
+                    if combo.view().isVisible():
+                        continue  # Liste gerade offen – nicht dazwischenfunken
+                    combo.blockSignals(True)
+                    combo.clear()
+                    for d in st[kind]["devices"]:
+                        combo.addItem(("🔊 " if kind == "out" else "🎙 ") + d["name"], d["id"])
+                        if d["default"]:
+                            combo.setCurrentIndex(combo.count() - 1)
+                    combo.setVisible(combo.count() > 1)
+                    combo.blockSignals(False)
+            except RuntimeError:
+                pass
+
+        run_async(lambda: audio.state(max_age=0), show)
 
     def _relayout(self, cols: int) -> None:
         if cols == self._cols:
