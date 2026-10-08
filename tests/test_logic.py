@@ -1769,3 +1769,22 @@ def test_audio_core_audio_windows():
         for d in st[kind]["devices"]:
             assert d["id"] and d["name"]
     print("Windows-Ton:", {k: (v["vol"], v["muted"], [d["name"] for d in v["devices"]]) for k, v in st.items()})
+    # aus vielen Threads gleichzeitig (System-Seite, Handy, Sprache) – alles läuft im einen Ton-Thread, kein Absturz
+    import threading
+
+    errors = []
+
+    def poke():
+        try:
+            for _ in range(5):
+                audio.level("out")
+                audio.devices("in")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=poke) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(60)
+    assert not errors and audio._COM["thread"].is_alive()

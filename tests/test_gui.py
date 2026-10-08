@@ -4709,3 +4709,43 @@ def test_phone_commands_allowed():
             or re.fullmatch(r"(ton|mic)_(laut:\d{1,3}|stumm:[01]|geraet:\d{1,2})", ok), ok
     assert r'(ton|mic)_(laut:\d{1,3}|stumm:[01]|geraet:\d{1,2})' in src
     assert not re.fullmatch(r"video_tempo:(0\.5|0\.75|1|1\.25|1\.5|2)", "video_tempo:99")
+
+
+def test_pc_media_bar_more_and_resume(env, test_video):
+    """PC wie Handy: Medienleiste → „Mehr“ (±30 s, Tempo, Wiederholen, Von vorn) und „Weiterschauen“."""
+    import time
+
+    controller, window, _ = env
+    controller.show_source({"type": "video", "path": test_video, "loop": True, "muted": True})
+    pump()
+    bar = window.media_bar
+    video = bar.current()
+    assert _until(lambda: video.duration() > 0), "Video lädt nicht"
+    controller.config["video_positions"] = {test_video: {"pos": 2000, "dur": 4000, "t": int(time.time())}}
+    bar._fill_more()
+    acts = {a.text(): a for a in bar.more_menu.actions()}
+    assert {"30 Sekunden zurück", "30 Sekunden vor", "Von vorn", "Wiederholen", "Tempo", "Weiterschauen"} <= set(acts)
+    tempo = {a.text(): a for a in acts["Tempo"].menu().actions()}
+    assert list(tempo) == ["0,5×", "0,75×", "1×", "1,25×", "1,5×", "2×"] and tempo["1×"].isChecked()
+    tempo["1,5×"].trigger()
+    assert abs(video.rate() - 1.5) < 0.01
+    assert acts["Wiederholen"].isChecked()
+    acts["Wiederholen"].trigger()
+    assert not video.looping()
+    acts["Von vorn"].trigger()
+    assert _until(lambda: video.position() < 1500 and video.playing())
+    resume = acts["Weiterschauen"].menu().actions()
+    assert len(resume) == 1 and resume[0].text().startswith("test  ·  0:02 / 0:04")
+    controller.show_source({"type": "color"})
+    pump()
+    resume[0].trigger()
+    pump()
+    assert controller.content["path"] == test_video
+    v = video_sources_of(controller)
+    assert _until(lambda: v.position() >= 1800), v.position()
+
+
+def video_sources_of(controller):
+    from alupc.sources import video_sources
+
+    return video_sources(controller.output.content)[0]

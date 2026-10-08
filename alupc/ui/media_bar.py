@@ -1,15 +1,17 @@
 """Mediensteuerung im Hauptfenster: Läuft auf Monitor 2 ein Video (auch in einer eigenen Szene),
-erscheint eine Leiste mit Pause/Weiter, ±10 Sekunden und einer Zeitleiste zum Springen."""
+erscheint eine Leiste mit Pause/Weiter, ±10 Sekunden, einer Zeitleiste zum Springen und „Mehr“
+(±30 s, Tempo, Wiederholen, Von vorn, Weiterschauen) – wie die Videosteuerung am Handy."""
 
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSlider, QToolButton, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMenu, QSlider, QToolButton, QWidget
 
 from ..sources import video_sources
 from . import icons, theme
 
 SKIP_MS = 10_000
+RATES = (0.5, 0.75, 1.0, 1.25, 1.5, 2.0)
 
 
 def fmt(ms: int) -> str:
@@ -60,6 +62,11 @@ class MediaBar(QWidget):
         self.title = QLabel()
         self.title.setObjectName("Muted")
         self.title.setMaximumWidth(220)
+        self.more_btn = tool("sliders", "Mehr: ±30 s, Tempo, Wiederholen, Von vorn, Weiterschauen", lambda: None)
+        self.more_menu = QMenu(self)
+        self.more_menu.aboutToShow.connect(self._fill_more)
+        self.more_btn.setMenu(self.more_menu)
+        self.more_btn.setPopupMode(QToolButton.InstantPopup)
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(14, 8, 16, 8)
@@ -70,6 +77,7 @@ class MediaBar(QWidget):
         lay.addWidget(self.dur_label)
         lay.addWidget(self.which)
         lay.addWidget(self.title)
+        lay.addWidget(self.more_btn)
 
         self.timer = QTimer(self, interval=250)
         self.timer.timeout.connect(self.refresh)
@@ -79,7 +87,7 @@ class MediaBar(QWidget):
 
     def apply_theme(self):
         t = theme.current()
-        for b in (self.back_btn, self.play_btn, self.fwd_btn):
+        for b in (self.back_btn, self.play_btn, self.fwd_btn, self.more_btn):
             b.setIcon(icons.icon(b.property("icon_name"), t.text, 26))
 
     # ------------------------------------------------------------ Welche Videos laufen?
@@ -147,3 +155,42 @@ class MediaBar(QWidget):
         if action in (QSlider.SliderPageStepAdd, QSlider.SliderPageStepSub,
                       QSlider.SliderSingleStepAdd, QSlider.SliderSingleStepSub):
             QTimer.singleShot(0, lambda: self._seek(self.slider.value()))
+
+    # ------------------------------------------------------------ Mehr (wie am Handy)
+    def _fill_more(self):
+        m = self.more_menu
+        m.clear()
+        theme.round_popup(m)
+        video = self.current()
+        col = theme.current().text
+        if video is not None:
+            m.addAction(icons.icon("rewind", col, 18), "30 Sekunden zurück", lambda: self._skip(-30_000))
+            m.addAction(icons.icon("fastforward", col, 18), "30 Sekunden vor", lambda: self._skip(30_000))
+            m.addAction(icons.icon("refresh", col, 18), "Von vorn", self._restart)
+            loop = m.addAction(icons.icon("sync", col, 18), "Wiederholen")
+            loop.setCheckable(True)
+            loop.setChecked(video.looping())
+            loop.toggled.connect(lambda on: video.set_loop(on))
+            speed = m.addMenu(icons.icon("gauge", col, 18), "Tempo")
+            theme.round_popup(speed)
+            now = video.rate()
+            for r in RATES:
+                act = speed.addAction(f"{str(r).rstrip('0').rstrip('.').replace('.', ',')}×",
+                                      lambda r=r: video.set_rate(r))
+                act.setCheckable(True)
+                act.setChecked(abs(now - r) < 0.01)
+            m.addSeparator()
+        recent = self.controller.recent_videos()
+        if recent:
+            sub = m.addMenu(icons.icon("play", col, 18), "Weiterschauen")
+            theme.round_popup(sub)
+            for i, r in enumerate(recent):
+                sub.addAction(f"{r['title']}  ·  {fmt(r['pos'] * 1000)} / {fmt(r['dur'] * 1000)}",
+                              lambda i=i: self.controller.continue_video(i))
+
+    def _restart(self):
+        video = self.current()
+        if video is not None:
+            video.seek_to(0)
+            video.player.play()
+            self.refresh()

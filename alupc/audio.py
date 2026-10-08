@@ -77,6 +77,42 @@ def _pa_level(kind: str, run=_run) -> tuple[int | None, bool]:
 
 # --------------------------------------------------------------------------- Windows (Core Audio)
 _LOCAL = threading.local()  # COM-Objekte gelten nur im Thread, der sie angelegt hat
+_COM: dict = {"thread": None, "queue": None}
+
+
+def _on_com(fn, *args, timeout: float = 8.0):
+    """Windows: JEDEN Core-Audio-Aufruf in genau einem eigenen Thread ausführen (COM-Objekte dürfen nicht zwischen
+    Threads wandern – sonst kann das Programm abstürzen). Wartet auf das Ergebnis; Fehler kommen als Ausnahme."""
+    import queue
+
+    if _COM["thread"] is None or not _COM["thread"].is_alive():
+        q: queue.Queue = queue.Queue()
+
+        def loop():
+            while True:
+                job = q.get()
+                if job is None:
+                    return
+                func, a, box, done = job
+                try:
+                    box["value"] = func(*a)
+                except BaseException as exc:  # noqa: BLE001 - an den Aufrufer weitergeben
+                    box["error"] = exc
+                done.set()
+
+        _COM["queue"] = q
+        _COM["thread"] = threading.Thread(target=loop, name="alupc-ton", daemon=True)
+        _COM["thread"].start()
+    if threading.current_thread() is _COM["thread"]:
+        return fn(*args)
+    box: dict = {}
+    done = threading.Event()
+    _COM["queue"].put((fn, args, box, done))
+    if not done.wait(timeout):
+        raise TimeoutError("Windows-Ton antwortet nicht")
+    if "error" in box:
+        raise box["error"]
+    return box.get("value")
 
 
 def _win():
@@ -222,7 +258,7 @@ def _win_level(kind: str) -> tuple[int | None, bool]:
 def available() -> bool:
     if IS_WINDOWS:
         try:
-            _win()
+            _on_com(_win)
             return True
         except Exception:  # noqa: BLE001 - comtypes fehlt / kein Audio-Dienst
             return False
@@ -232,7 +268,7 @@ def available() -> bool:
 def devices(kind: str) -> list[dict]:
     """[{id, name, default}] – nur aktive Geräte."""
     try:
-        return _win_devices(kind) if IS_WINDOWS else _pa_devices(kind)
+        return _on_com(_win_devices, kind) if IS_WINDOWS else _pa_devices(kind)
     except Exception:  # noqa: BLE001
         return []
 
@@ -240,7 +276,7 @@ def devices(kind: str) -> list[dict]:
 def level(kind: str) -> tuple[int | None, bool]:
     """(Lautstärke 0–100 oder None, stumm)."""
     try:
-        return _win_level(kind) if IS_WINDOWS else _pa_level(kind)
+        return _on_com(_win_level, kind) if IS_WINDOWS else _pa_level(kind)
     except Exception:  # noqa: BLE001
         return None, False
 
@@ -250,9 +286,12 @@ def set_level(kind: str, percent: int) -> tuple[bool, str]:
     _CACHE["t"] = 0
     try:
         if IS_WINDOWS:
-            vol = _win()["volume"](_win_default(kind))
-            vol.SetMasterVolumeLevelScalar(percent / 100, None)
-            vol.SetMute(False, None)
+            def go():
+                vol = _win()["volume"](_win_default(kind))
+                vol.SetMasterVolumeLevelScalar(percent / 100, None)
+                vol.SetMute(False, None)
+
+            _on_com(go)
             return True, ""
         what, target = _pa_kind(kind), ("@DEFAULT_SINK@" if kind == "out" else "@DEFAULT_SOURCE@")
         code, out = _run(["pactl", f"set-{what}-volume", target, f"{percent}%"])
@@ -267,7 +306,7 @@ def set_mute(kind: str, on: bool) -> tuple[bool, str]:
     _CACHE["t"] = 0
     try:
         if IS_WINDOWS:
-            _win()["volume"](_win_default(kind)).SetMute(bool(on), None)
+            _on_com(lambda: _win()["volume"](_win_default(kind)).SetMute(bool(on), None))
             return True, ""
         what, target = _pa_kind(kind), ("@DEFAULT_SINK@" if kind == "out" else "@DEFAULT_SOURCE@")
         code, out = _run(["pactl", f"set-{what}-mute", target, "1" if on else "0"])
@@ -280,7 +319,7 @@ def set_default(kind: str, dev_id: str) -> tuple[bool, str]:
     _CACHE["t"] = 0
     try:
         if IS_WINDOWS:
-            _win()["set_default"](dev_id)
+            _on_com(lambda: _win()["set_default"](dev_id))
             return True, ""
         code, out = _run(["pactl", "set-default-" + _pa_kind(kind), dev_id])
         return code == 0, out.strip()

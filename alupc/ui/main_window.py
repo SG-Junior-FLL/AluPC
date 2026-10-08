@@ -1287,6 +1287,16 @@ class MainWindow(QMainWindow):
                 act = sub.addAction(icons.icon(kinds.get(item.get("type"), "image"), t.text, 18),
                                     item.get("title", ""), lambda c=cfg: self.controller.show_source(c))
                 act.setEnabled(lib.exists(item))
+        resume = self.controller.recent_videos()  # Videos mit gemerkter Stelle → dort weiter
+        if resume:
+            sub = menu.addMenu(icons.icon("play", t.text, 18), "Weiterschauen")
+            theme.round_popup(sub)
+            from .media_bar import fmt
+
+            for i, r in enumerate(resume):
+                sub.addAction(icons.icon("video", t.text, 18),
+                              f"{r['title']}  ·  {fmt(r['pos'] * 1000)} / {fmt(r['dur'] * 1000)}",
+                              lambda i=i: self.controller.continue_video(i))
         menu.addSeparator()
         menu.addAction(icons.icon("image", t.text, 18), "Bild öffnen …", self.pick_image)
         menu.addAction(icons.icon("video", t.text, 18), "Video öffnen …", self.pick_video)
