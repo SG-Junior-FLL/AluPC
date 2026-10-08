@@ -614,8 +614,11 @@ class MainWindow(QMainWindow):
         hotspot_menu.addAction(icons.icon("wifi", theme.current().text, 18), "An / aus", self.toggle_hotspot)
         hotspot_menu.addAction(icons.icon("monitor", theme.current().text, 18), "WLAN-QR-Code auf Monitor 2",
                                self.controller.show_wifi_qr)
-        hotspot_menu.addAction(icons.icon("qr", theme.current().text, 18), "Name, Passwort, QR-Code …",
+        hotspot_menu.addAction(icons.icon("qr", theme.current().text, 18), "Name, Passwort, Geräte, QR-Code …",
                                lambda: self.open_hotspot_dialog("normal"))
+        hotspot_menu.addAction(icons.icon("phone", theme.current().text, 18),
+                               "Handy-Steuerung: WLAN-Code → Anmeldeseite → „AluPC steuern“",
+                               self.controller.show_wifi_qr)
         self.t_hotspot.set_menu(hotspot_menu, split=True)
         c.hotspot_changed.connect(self.refresh)
         c.access_requested.connect(self.ask_access)  # Handy möchte steuern → hier erlauben/ablehnen

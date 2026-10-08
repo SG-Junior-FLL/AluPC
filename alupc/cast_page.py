@@ -137,9 +137,15 @@ input[type=range] { width:100%; accent-color:#8b5cf6; height:30px; }
 .colors button { width:38px; height:38px; flex:none; border-radius:50%; padding:0; border:3px solid transparent; }
 .colors button.sel { border-color:var(--text); transform:scale(1.08); }
 /* Seitenverhältnis = Monitor 2 (per JS aus dem Live-Bild), damit Finger und Monitor genau übereinstimmen */
-body.full .draw .preview { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); border-radius:0; z-index:20;
-                           width:min(100vw, calc(100vh * var(--ar, 1.7778))); height:auto; }
+/* Vergrößern: das Bild hängt dann direkt an der Seite (sonst läge es unter der schwarzen Abdeckung) */
+.preview.fullview { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); border-radius:0; z-index:20;
+                    width:min(100vw, calc(100vh * var(--ar, 1.7778))); height:auto; margin:0; touch-action:none; }
 body.full::after { content:""; position:fixed; inset:0; background:#000; z-index:19; }
+.fullview .corner { display:none; }
+#fullclose { display:none; }
+body.full #fullclose { display:flex; position:fixed; top:max(12px, env(safe-area-inset-top)); right:12px; z-index:30;
+                       width:auto; min-height:44px; padding:8px 16px; border-radius:22px; background:rgba(15,23,42,.8);
+                       color:#fff; font-weight:700; }
 body.full nav, body.full header { display:none; }
 /* Folien + Touchpad */
 .clicker { display:grid; grid-template-columns:1fr 1.6fr; gap:10px; }
@@ -232,7 +238,8 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
 <div class="page sel" id="p-start">
   <div class="card" style="padding:10px" id="c-live">
     <div class="preview" id="preview"><img id="prev" alt=""><div class="laser" id="laser"></div>
-      <span class="badge"><i></i>LIVE · <span id="live-hint">Finger = Laser</span></span></div>
+      <span class="badge"><i></i>LIVE · <span id="live-hint">Finger = Laser</span></span>
+      <button class="corner small" onclick="toggleFull('preview')" aria-label="Vergrößern"><svg class="i"><use href="#i-expand"/></svg></button></div>
   </div>
   <div id="control">
   <div class="card ask">
@@ -412,7 +419,7 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
   <div class="card" style="padding:10px">
     <div class="preview" id="dpreview"><img id="dprev" alt=""><canvas id="ink"></canvas><div class="laser" id="dlaser"></div>
       <span class="badge"><i></i><span id="tool-name">Stift</span></span>
-      <button class="corner small" onclick="toggleFull()" aria-label="Vollbild"><svg class="i"><use href="#i-expand"/></svg></button></div>
+      <button class="corner small" onclick="toggleFull('dpreview')" aria-label="Vergrößern"><svg class="i"><use href="#i-expand"/></svg></button></div>
   </div>
   <div class="card">
     <div class="tools">
@@ -555,7 +562,7 @@ function tab(name) {
   for (const b of document.querySelectorAll("nav button")) b.classList.toggle("sel", b.dataset.p === name);
   movePill();
   for (const p of document.querySelectorAll(".page")) p.classList.toggle("sel", p.id === "p-" + name);
-  document.body.classList.remove("full");
+  if (fullEl) toggleFull();
   window.scrollTo(0, 0); loadPreview(); sizeInk();
 }
 function toast(text, bad) {
@@ -590,7 +597,12 @@ async function askAccess() {  // ohne Code: am PC erscheint „Erlauben / Ablehn
 }
 if ($("devname")) $("devname").value = store.get("alucast-name");
 // Von der WLAN-Anmeldeseite („AluPC steuern“): Name mitgebracht → gleich am PC anfragen
-if (params.get("frei") && $("devname") && !code) { $("devname").value = params.get("frei").slice(0, 30); setTimeout(askAccess, 0); }
+// Von der Anmeldeseite immer neu am PC bestätigen lassen (auch wenn das Handy früher schon erlaubt war)
+if (params.get("frei") && $("devname")) {
+  code = ""; store.set("alucast-code", "");
+  $("devname").value = params.get("frei").slice(0, 30); setTimeout(askAccess, 0);
+  history.replaceState(null, "", "/?app=1");  // Neu laden fragt nicht nochmal (und bleibt in der Steuerung)
+}
 function saveCode() { code = $("code").value.replace(/\D/g, ""); store.set("alucast-code", code); refresh(); }
 function buzz() { if (navigator.vibrate) navigator.vibrate(12); }
 
@@ -808,6 +820,7 @@ const sendDraw = sender("/api/draw");
 const sendMouse = sender("/api/mouse", (a, b) => ({ dx: (a.dx || 0) + (b.dx || 0), dy: (a.dy || 0) + (b.dy || 0) }));
 function mouse(obj) { buzz(); sendMouse(obj, true); }
 
+function capture(el, e) { try { el.setPointerCapture(e.pointerId); } catch (err) {} }
 function norm(pv, e) {
   const box = pv.getBoundingClientRect();
   return { x: Math.min(1, Math.max(0, (e.clientX - box.left) / box.width)),
@@ -815,13 +828,13 @@ function norm(pv, e) {
 }
 function laserOn(pv, dot) {
   function point(e) {
-    if (!allow.laser) return;
+    if (!allow.laser || pinching) return;
     const p = norm(pv, e);
     dot.style.display = "block"; dot.style.left = (p.x * 100) + "%"; dot.style.top = (p.y * 100) + "%";
     sendLaser(p);
   }
   function release() { dot.style.display = "none"; if (allow.laser) sendLaser({ up: true }, true); }
-  pv.addEventListener("pointerdown", e => { pv.setPointerCapture(e.pointerId); point(e); });
+  pv.addEventListener("pointerdown", e => { if (e.target.closest("button")) return; capture(pv, e); point(e); });
   pv.addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") point(e); });
   pv.addEventListener("pointerup", release);
   pv.addEventListener("pointercancel", release);
@@ -858,13 +871,13 @@ function inkLine(a, b) {
   g.beginPath(); g.moveTo(a.x * ink.width, a.y * ink.height); g.lineTo(b.x * ink.width, b.y * ink.height); g.stroke();
 }
 dpv.addEventListener("pointerdown", e => {
-  if (e.target.closest("button")) return;
-  dpv.setPointerCapture(e.pointerId); const p = norm(dpv, e); last = p; clearTimeout(fadeTimer);
+  if (e.target.closest("button") || pinching) return;
+  capture(dpv, e); const p = norm(dpv, e); last = p; clearTimeout(fadeTimer);
   if (tool === "laser") { sendLaser(p); dotAt(p); return; }
   sendDraw({ phase: "down", x: p.x, y: p.y, tool, color }, true);
 });
 dpv.addEventListener("pointermove", e => {
-  if (!last) return;
+  if (!last || pinching) return;
   const p = norm(dpv, e);
   if (tool === "laser") { sendLaser(p); dotAt(p); return; }
   if (tool !== "radierer") inkLine(last, p);
@@ -880,13 +893,71 @@ function penUp() {
 dpv.addEventListener("pointerup", penUp);
 dpv.addEventListener("pointercancel", penUp);
 function dotAt(p) { const d = $("dlaser"); d.style.display = "block"; d.style.left = (p.x * 100) + "%"; d.style.top = (p.y * 100) + "%"; }
-function toggleFull() { document.body.classList.toggle("full"); setTimeout(sizeInk, 50); }
+// ---- Vergrößern: Live-Bild bildschirmfüllend; zwei Finger = zoomen und verschieben (ein Finger zeigt/zeichnet weiter)
+var fullEl = null, fullHome = null, pinching = false;
+var zoom = { z: 1, x: 0, y: 0, pts: new Map(), d0: 0, z0: 1, m0: null, x0: 0, y0: 0 };
+function applyZoom() {
+  if (fullEl) fullEl.style.transform = "translate(calc(-50% + " + zoom.x + "px), calc(-50% + " + zoom.y + "px)) scale(" + zoom.z + ")";
+}
+function closeButton() {
+  let b = $("fullclose");
+  if (!b) { b = document.createElement("button"); b.id = "fullclose"; b.textContent = "✕ Schließen";
+            b.onclick = () => toggleFull(); document.body.appendChild(b); }
+}
+function toggleFull(id) {
+  closeButton();
+  if (fullEl) {
+    fullHome.parent.insertBefore(fullEl, fullHome.next);
+    fullEl.classList.remove("fullview"); fullEl.style.transform = ""; fullEl = null;
+    document.body.classList.remove("full");
+  } else {
+    const el = $(id || "dpreview");
+    fullHome = { parent: el.parentNode, next: el.nextSibling };
+    document.body.appendChild(el); el.classList.add("fullview");
+    Object.assign(zoom, { z: 1, x: 0, y: 0 }); zoom.pts.clear(); fullEl = el; applyZoom();
+    document.body.classList.add("full");
+  }
+  setTimeout(sizeInk, 50);
+}
+function pinchInfo() {
+  const p = [...zoom.pts.values()];
+  return { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), m: { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 } };
+}
+window.addEventListener("pointerdown", e => {
+  if (!fullEl || !fullEl.contains(e.target) || e.target.closest("button")) return;
+  zoom.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (zoom.pts.size === 2) {  // zweiter Finger: ab jetzt zoomen statt zeigen
+    pinching = true; const i = pinchInfo();
+    Object.assign(zoom, { d0: i.d, z0: zoom.z, m0: i.m, x0: zoom.x, y0: zoom.y });
+    $("laser").style.display = "none"; $("dlaser").style.display = "none";
+    if (allow.laser) sendLaser({ up: true }, true);
+    if (last) { last = null; if (tool !== "laser") sendDraw({ phase: "up" }, true); }
+  }
+}, true);
+window.addEventListener("pointermove", e => {
+  if (!zoom.pts.has(e.pointerId)) return;
+  zoom.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinching && zoom.pts.size === 2) {
+    const i = pinchInfo();
+    zoom.z = Math.min(5, Math.max(1, zoom.z0 * i.d / Math.max(1, zoom.d0)));
+    zoom.x = zoom.z === 1 ? 0 : zoom.x0 + (i.m.x - zoom.m0.x);
+    zoom.y = zoom.z === 1 ? 0 : zoom.y0 + (i.m.y - zoom.m0.y);
+    applyZoom();
+  }
+}, true);
+function pinchEnd(e) {
+  zoom.pts.delete(e.pointerId);
+  if (!zoom.pts.size) setTimeout(() => { pinching = false; }, 60);
+}
+window.addEventListener("pointerup", pinchEnd, true);
+window.addEventListener("pointercancel", pinchEnd, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && fullEl) toggleFull(); });
 
 // ---- Touchpad: ein Finger bewegt, Tippen klickt; zwei Finger scrollen bzw. Rechtsklick
 const pad = $("pad"), touches = new Map();
 let moved = 0, downAt = 0, maxFingers = 0, scrollAcc = 0;
 pad.addEventListener("pointerdown", e => {
-  pad.setPointerCapture(e.pointerId); touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  capture(pad, e); touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (touches.size === 1) { moved = 0; downAt = Date.now(); maxFingers = 1; scrollAcc = 0; }
   maxFingers = Math.max(maxFingers, touches.size); pad.classList.add("active");
 });

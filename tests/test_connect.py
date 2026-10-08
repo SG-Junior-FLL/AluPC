@@ -504,10 +504,11 @@ def test_phone_access_by_approval_on_pc(env, monkeypatch):  # noqa: F811
     assert controller.cast.check("1.2.3.4", st["key"]) is True
     assert controller.config["cast"]["devices"][0]["name"] == "Lenas Handy"
     assert st["key"] not in _json.dumps(controller.config["cast"])  # nur die Prüfsumme gespeichert
-    # dasselbe Gerät (gleiche Adresse) später im normalen Browser: gleich erlaubt, ohne neue Frage am PC
+    # dasselbe Gerät (gleiche Adresse) fragt nochmal: wieder am PC bestätigen (im WLAN wechseln Adressen)
     asked.clear()
     status, d1 = call("POST", "/api/freigabe", {"name": "Lenas Handy"})
-    assert call("GET", f"/api/freigabe?id={d1['id']}")[1]["state"] == "ok" and asked == []
+    QApplication.processEvents()
+    assert call("GET", f"/api/freigabe?id={d1['id']}")[1] == {"state": "wait"} and len(asked) == 1
     # „Geräte vergessen“: wieder fragen – und Ablehnen
     controller.cast.forget_devices()
     assert controller.cast.check("1.2.3.4", st["key"]) is False

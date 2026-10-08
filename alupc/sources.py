@@ -990,6 +990,13 @@ class WifiQrSource(QWidget):
             self._timer.timeout.connect(self._follow)
             self._timer.start(1000)
 
+    @staticmethod
+    def _portal_host() -> str:
+        """Adresse für den Browser, wenn die Anmeldeseite nicht von selbst aufgeht (nur mit Anmeldeseite)."""
+        from .hotspot import hotspot
+
+        return hotspot.ip if hotspot.running and hotspot.portal and hotspot.ip else ""
+
     def _set(self, ssid, password, hidden):
         from .screens import wifi_payload
 
@@ -1048,7 +1055,9 @@ class WifiQrSource(QWidget):
                  ("unsichtbar – nur per QR-Code oder Name + Passwort" if self.hidden else "", "#94a3b8", 0.05,
                   False),
                  ("", "", 0.03, False),
-                 ("Dann öffnet sich die Anmeldeseite", "#e2e8f0", 0.06, True)]
+                 ("Dann öffnet sich die Anmeldeseite", "#e2e8f0", 0.06, True),
+                 (f"Nicht offen? Im Browser: {self._portal_host()}" if self._portal_host() else "", "#94a3b8",
+                  0.05, False)]
         y = text_rect.y()
         unit = text_rect.height() if horizontal else text_rect.height() * 1.2
         for text, color, size, bold in lines:

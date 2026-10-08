@@ -77,6 +77,7 @@ try { $o.inet_1111 = $c.ConnectAsync('1.1.1.1', 443).Wait(5000) -and $c.Connecte
 $c.Close()
 $a = Get-Url 'http://connectivitycheck.gstatic.com/generate_204'; $o.android = "$($a.s) $($a.l)"
 $i = Get-Url 'http://captive.apple.com/hotspot-detect.html'; $o.iphone = "$($i.s) $($i.l)"
+$pr = Get-Url 'http://192.168.137.1/'; $o.pc_root = "$($pr.s) $(($pr.b -match 'id="n"') -and ($pr.b -match 'Mitspielen'))"
 $base0 = 'http://192.168.137.1:8765'
 $o.remote_page = (Get-Url "$base0/").s
 try { Invoke-RestMethod -Uri "$base0/api/freigabe" -Method Post -ContentType 'application/json' -Body '{"name":"Handy"}' -UseBasicParsing | Out-Null; $o.ask_access = 200 }
@@ -256,6 +257,7 @@ def main() -> int:
     ok(r.get("dns_any") == IP, f"Handy-DNS: jede andere Adresse → {r.get('dns_any')}")
     ok(r.get("android") == f"302 {target}", f"Android-Prüfung → {r.get('android')}")
     ok(r.get("iphone") == f"302 {target}", f"iPhone-Prüfung → {r.get('iphone')}")
+    ok(r.get("pc_root") == "200 True", f"Hotspot-Adresse im Browser ({IP}) → Anmeldeseite ({r.get('pc_root')})")
     ok(r.get("portal") == 200 and r.get("portal_name"), "Anmeldeseite mit Namensfeld und „Mitspielen“")
     ok(r.get("game_page") == 200, f"Spielseite aus der Anmeldeseite öffnet ({r.get('game_page')})")
     ok(r.get("join") == 200, f"Beitreten aus dem Spiele-WLAN → {r.get('join')}")

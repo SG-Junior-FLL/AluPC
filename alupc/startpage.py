@@ -35,7 +35,9 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
 }
 # Schwarz, Standbild, Bild-in-Bild sind jetzt Schalter oben beim Live-Bild – als Kachel nur noch auf Wunsch
 HIDDEN_BY_DEFAULT = {"freeze", "black", "pip", "draw"}
-DEFAULT_ORDER = [k for k in BUILTIN_TILES if k not in HIDDEN_BY_DEFAULT]
+# Nicht mehr als eigene Kachel: Handy-Steuerung steckt im Hotspot (WLAN-Code → Anmeldeseite → „AluPC steuern“)
+RETIRED = {"handy_remote"}
+DEFAULT_ORDER = [k for k in BUILTIN_TILES if k not in HIDDEN_BY_DEFAULT | RETIRED]
 # Kacheln, die es schon vor dem Merken von „seen“ gab (für ältere Einstellungen)
 LEGACY_TILES = ["mirror", "extend", "camera", "program", "website", "media", "scenes", "freeze", "black",
                 "pip", "screensaver", "timer"]
@@ -153,7 +155,7 @@ def ordered_keys(start_cfg: dict) -> list[str]:
     saved = start_cfg.get("tiles")
     if saved is None:
         return DEFAULT_ORDER + [custom_key(t) for t in start_cfg.get("custom", [])]
-    keys = [k for k in saved if k in BUILTIN_TILES or k in custom]
+    keys = [k for k in saved if (k in BUILTIN_TILES and k not in RETIRED) or k in custom]
     # Neue Standard-Kacheln (nach einem Update) erscheinen, auch wenn die Reihenfolge schon angepasst wurde
     seen = set(start_cfg.get("seen") or LEGACY_TILES)
     keys += [k for k in DEFAULT_ORDER if k not in seen and k not in keys]
@@ -166,7 +168,7 @@ def ordered_keys(start_cfg: dict) -> list[str]:
 def all_keys(start_cfg: dict) -> list[str]:
     """Alle Kacheln (auch ausgeblendete): erst die sichtbaren in Reihenfolge, dann der Rest."""
     visible = ordered_keys(start_cfg)
-    rest = [k for k in BUILTIN_TILES if k not in visible]  # auch standardmäßig ausgeblendete
+    rest = [k for k in BUILTIN_TILES if k not in visible and k not in RETIRED]  # auch standardmäßig ausgeblendete
     rest += [custom_key(t) for t in start_cfg.get("custom", []) if custom_key(t) not in visible]
     return visible + rest
 

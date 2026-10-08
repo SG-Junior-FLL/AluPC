@@ -175,7 +175,7 @@ def test_windows_structs_have_correct_size():
 
 
 def test_startpage_order():
-    from alupc.startpage import BUILTIN_TILES, DEFAULT_ORDER, all_keys, custom_key, ordered_keys, section_of
+    from alupc.startpage import BUILTIN_TILES, DEFAULT_ORDER, RETIRED, all_keys, custom_key, ordered_keys, section_of
 
     cfg = {"tiles": None, "custom": [{"id": "a1", "title": "X", "section": "schnell"}]}
     assert ordered_keys(cfg) == DEFAULT_ORDER + ["custom:a1"]
@@ -184,7 +184,7 @@ def test_startpage_order():
     keys = ordered_keys(cfg)
     assert keys == ["camera", "mirror", "custom:a1"]  # unbekannte weg, neue eigene hinten dran
     full = all_keys(cfg)
-    assert full[:3] == keys and set(full) == set(BUILTIN_TILES) | {"custom:a1"}  # auch ausgeblendete wählbar
+    assert full[:3] == keys and set(full) == (set(BUILTIN_TILES) - RETIRED) | {"custom:a1"}  # ausgeblendete wählbar
     assert "freeze" not in DEFAULT_ORDER  # Schwarz/Standbild/PiP sind Schalter beim Live-Bild
     assert section_of("freeze", cfg) == "schnell"
     assert section_of(custom_key(cfg["custom"][0]), cfg) == "schnell"
@@ -299,9 +299,12 @@ def test_new_builtin_tiles_appear_after_update():
     import sys
 
     # neu: „text“ 0.30, „nowplaying“ 0.46, „overlays“ 0.47, „whiteboard“ 0.61, „wetter“/„umfrage“/„zufall“ 0.68, „spiele“ 0.76, „system“ 0.82, „hotspot“ 0.97
-    expected = ["timer", "mirror", "text", "nowplaying", "airplay", "handy_remote", "overlays", "whiteboard",
+    expected = ["timer", "mirror", "text", "nowplaying", "airplay", "overlays", "whiteboard",
                 "wetter", "system", "umfrage", "zufall", "spiele", "hotspot"]
     assert ordered_keys(old_saved) == expected, sys.platform
+    # „Handy-Steuerung“ gibt es nicht mehr als eigene Kachel (steckt im Hotspot) – auch nicht aus alten Einstellungen
+    assert "handy_remote" not in ordered_keys({"tiles": ["handy_remote", "timer"], "custom": []})
+    assert "handy_remote" not in all_keys({"tiles": None})
     from alupc.startpage import DEFAULT_ORDER
 
     hidden_on_purpose = {"tiles": ["timer", "mirror"], "custom": [], "seen": list(DEFAULT_ORDER)}

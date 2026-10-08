@@ -8,7 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.113.0)
+### Neu in dieser Version (0.114.0)
+- **Anmeldeseite immer erreichbar:** Android öffnet sie oft nur beim ersten Verbinden von selbst (danach nur die
+  Benachrichtigung „Im WLAN anmelden“). Jetzt geht immer: im Browser die Hotspot-Adresse eingeben (z. B.
+  192.168.137.1) → Anmeldeseite. Monitor 2 zeigt die Adresse unter dem WLAN-Code („Nicht offen? …“).
+- **Anmeldeseite bleibt offen:** Windows schaltete den Hotspot im Energiesparmodus ab, wenn kurz kein Gerät
+  verbunden war – jetzt abgeschaltet. Die Internet-Sperre wird nur noch geändert, wenn nötig (vorher alle 2 s neu
+  gesetzt = jedes Mal eine Netzwerk-Meldung).
+- **„AluPC steuern“ immer am PC bestätigen** – auch wenn das Handy schon mal erlaubt war.
+- **Vergrößern repariert:** zeigte nur Schwarz. Jetzt Live-Bild bildschirmfüllend (auch auf „Start“), mit zwei
+  Fingern zoomen und verschieben, fester „Schließen“-Knopf.
+- **Keine eigene Kachel „Handy-Steuerung“ mehr** – steckt im Hotspot (WLAN-Code → Anmeldeseite → „AluPC steuern“).
+- Geprüft: Anmeldeseite Linux 26/26 (neu: Hotspot-Adresse → Anmeldeseite), Handy-Seite im echten Browser
+  (Vergrößern, Zoom, Schließen, Bestätigen), alle Tests, Einstellungen 21/21, Ton 11/11, Rundgang 55 Bilder.
+- Ehrlich, nicht prüfbar ohne dein Handy: ob die Anmeldeseite jetzt dauerhaft offen bleibt.
+
+### Neu in Version 0.113.0
 - **Videosteuerung am Handy:** Stelle per Leiste wählen (mit Zeit), −30/−10/+10/+30 s, Abspielen/Pause,
   Tempo 0,5×–2×, „Von vorn“, „Wiederholen“ an/aus. Neu: **„Weiterschauen“** – die zuletzt geschauten Videos mit
   gemerkter Stelle; antippen = auf Monitor 2 genau dort weiter.

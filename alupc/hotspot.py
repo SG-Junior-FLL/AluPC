@@ -299,7 +299,10 @@ try {{
       $allow = ''
       try {{ $allow = ([string](Get-Content -LiteralPath "$flag.internet" -Raw -ErrorAction Stop)).Trim() }} catch {{}}
       $want = if ($allow) {{ 'Enabled' }} else {{ 'Disabled' }}
-      Set-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4 -Forwarding $want -ErrorAction SilentlyContinue
+      $now = [string](Get-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4 -ErrorAction SilentlyContinue).Forwarding
+      if ($now -ne $want) {{  # nur ändern, wenn nötig (jedes Setzen meldet Windows als Netzwerkänderung)
+        Set-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4 -Forwarding $want -ErrorAction SilentlyContinue
+      }}
     }}
     if ($a) {{  # wirklichen Zustand melden (zeigt AluPC im Hotspot-Fenster)
       $f = (Get-NetIPInterface -InterfaceAlias $a -AddressFamily IPv4 -ErrorAction SilentlyContinue).Forwarding
@@ -664,6 +667,9 @@ $c = $tm.GetCurrentAccessPointConfiguration()
 $c.Ssid = $env:ALUPC_SSID
 $c.Passphrase = $env:ALUPC_PW
 AwaitAct ($tm.ConfigureAccessPointAsync($c))
+# Energiesparen aus: sonst schaltet Windows den Hotspot ab, wenn kurz kein Gerät verbunden ist (Handy-Display aus)
+# – dann wäre auch die Anmeldeseite weg
+try { [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]::DisableNoConnectionsTimeout() } catch {}
 $r = AwaitOp ($tm.StartTetheringAsync()) ([Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult])
 Write-Output ('STATUS:' + $r.Status + ':' + $r.AdditionalErrorMessage)
 """

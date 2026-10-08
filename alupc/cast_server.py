@@ -313,10 +313,7 @@ class CastServer(QObject):
                 return None
             rid = secrets.token_urlsafe(12)
             self.access[rid] = {"name": name, "ip": ip, "state": "wait", "key": "", "t": now}
-            again = ip in getattr(self, "_approved_ips", set())
-        if again:  # dieses Gerät wurde schon erlaubt (z. B. erst im Anmeldefenster, jetzt im Browser): gleich ok
-            self.answer_access(rid, True)
-            return rid
+        # Immer am PC bestätigen – auch wenn diese Adresse schon mal erlaubt war (im WLAN wechseln Adressen)
         self.request.emit({"kind": "freigabe", "id": rid, "name": name, "ip": ip})
         return rid
 
@@ -329,9 +326,6 @@ class CastServer(QObject):
             if allow:
                 key = "d-" + secrets.token_urlsafe(24)
                 req.update(state="ok", key=key)
-                if not hasattr(self, "_approved_ips"):
-                    self._approved_ips = set()
-                self._approved_ips.add(req["ip"])  # gleiche Adresse (im AluPC-WLAN) bleibt erlaubt, solange AluPC läuft
                 entry = {"hash": self._key_hash(key), "name": req["name"], "added": time.strftime("%d.%m.%Y")}
                 self.config["cast"] = {**self.config["cast"], "devices": [*self.devices(), entry]}
             else:
@@ -350,7 +344,6 @@ class CastServer(QObject):
 
     def forget_devices(self) -> None:
         self.config["cast"] = {**self.config["cast"], "devices": []}
-        self._approved_ips = set()
 
     def check(self, ip: str, code: str) -> bool | None:
         """True = ok, False = falsch, None = gesperrt (zu viele Fehlversuche)."""
@@ -595,7 +588,11 @@ def _make_handler(server: CastServer):
             path = urlparse(self.path).path
             if self._blocked(path):
                 return
-            if path in ("/", "/index.html"):
+            if path == "/" and ":" not in (self.headers.get("Host") or ":") and self._via_wlan() \
+                    and not urlparse(self.path).query:
+                # http://<Hotspot-Adresse> im Browser → immer die Anmeldeseite (falls sie nicht von selbst aufging)
+                self._send(200, portal_page(server).encode(), "text/html; charset=utf-8")
+            elif path in ("/", "/index.html"):
                 self._send(200, PAGE.encode(), "text/html; charset=utf-8")
             elif path == "/abstimmung":
                 from .polls import POLL_PAGE

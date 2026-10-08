@@ -109,6 +109,8 @@ out["dns_any"] = socket.gethostbyname("www.beispiel-irgendwas.de")
 out["android"] = get("http://connectivitycheck.gstatic.com/generate_204")[:2]
 out["iphone"] = get("http://captive.apple.com/hotspot-detect.html")[:2]
 out["raw_ip"] = get("http://93.184.216.34/")[:2]
+st, _, pc_page = get("http://%s/" % sys.argv[1])  # Hotspot-Adresse im Browser (ohne Port) → Anmeldeseite
+out["pc_root"] = [st, 'id="n"' in pc_page and "Mitspielen" in pc_page]
 status, _, page = get(out["android"][1])
 out["portal_status"] = status
 out["portal_has_name"] = 'id="n"' in page and "Mitspielen" in page
@@ -280,6 +282,7 @@ def main() -> int:
     ok(r.get("android") == [302, target], f"Android-Prüfung → {r.get('android')}")
     ok(r.get("iphone") == [302, target], f"iPhone-Prüfung → {r.get('iphone')}")
     ok(r.get("raw_ip") == [302, target], f"Webseite per IP → {r.get('raw_ip')}")
+    ok(r.get("pc_root") == [200, True], f"Hotspot-Adresse im Browser ({PC_IP}) → Anmeldeseite {r.get('pc_root')}")
     ok(r.get("portal_status") == 200 and r.get("portal_has_name"), "Anmeldeseite mit Namensfeld und „Mitspielen“")
     ok(r.get("game_page") == 200, "Spielseite aus der Anmeldeseite öffnet")
     ok(r.get("join") == 200, f"Beitreten aus dem Spiele-WLAN → {r.get('join')}")

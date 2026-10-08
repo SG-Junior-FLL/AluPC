@@ -332,6 +332,11 @@ def lobby(c) -> None:
              f"„{wifi[0]}“ · Anmeldung öffnet sich", h * 0.026, "#67e8f9", True)
         text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.075, qr_side + 4 * m, h * 0.04),
              "Name eingeben → mitspielen", h * 0.024, MUTED)
+        from .hotspot import hotspot
+
+        if hotspot.running and hotspot.portal and hotspot.ip:  # falls die Anmeldung nicht von selbst aufgeht
+            text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.115, qr_side + 4 * m, h * 0.04),
+                 f"Nicht offen? Browser: {hotspot.ip}", h * 0.022, MUTED)
         return
     # sonst kein Link (einziger Weg ist das Spiele-WLAN) – stattdessen sagen, was los ist
     box = QRectF(w - m - qr_side * 1.15, (h - qr_side) / 2, qr_side * 1.15, qr_side)
