@@ -246,6 +246,87 @@ function Unblock {{  # Sperr-Regeln für AluPC (weggeklickte Windows-Frage „Zu
     Get-NetFirewallRule -ErrorAction SilentlyContinue |
     Where-Object {{ $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' }} | Remove-NetFirewallRule -ErrorAction SilentlyContinue
 }}
+# Wer sperrt Port 80? Windows schreibt verworfene Pakete/Verbindungen ins Sicherheitsprotokoll (5152/5157), wenn
+# die Überwachung dafür an ist. Vorher-Zustand und vorübergehend ausgeschaltete Sperren liegen in ProgramData
+# (bleiben liegen, falls der PC abstürzt → beim nächsten Start zurückgestellt).
+$store = Join-Path $env:ProgramData 'AluPC'
+$auditBak = Join-Path $store 'audit-vorher.csv'
+$undoFile = Join-Path $store 'firewall-zurueck.txt'
+$since = Get-Date
+$seen = @{{}}
+$fnames = @{{}}
+$prof = 'Public'
+function Restore {{  # vorübergehend ausgeschaltete Sperren wieder an
+  if (-not (Test-Path -LiteralPath $undoFile)) {{ return }}
+  foreach ($line in @(Get-Content -LiteralPath $undoFile -ErrorAction SilentlyContinue)) {{
+    $k, $v = ([string]$line).Split('|', 2)
+    if ($k -eq 'regel' -and $v) {{ Enable-NetFirewallRule -Name $v -ErrorAction SilentlyContinue }}
+    if ($k -eq 'profil' -and $v) {{ Set-NetFirewallProfile -Name $v -AllowInboundRules False -ErrorAction SilentlyContinue }}
+  }}
+  Remove-Item -LiteralPath $undoFile -ErrorAction SilentlyContinue
+}}
+function FilterName($id) {{  # Name der Windows-Filterregel (= Name der Firewall-Regel) zu einer Filter-Nummer
+  if ($fnames.ContainsKey($id)) {{ return $fnames[$id] }}
+  $name = ''
+  $tmp = Join-Path $store 'wfp.xml'
+  try {{
+    netsh wfp show filters file=$tmp | Out-Null
+    $x = [xml](Get-Content -LiteralPath $tmp -Raw)
+    $node = $x.SelectSingleNode("//*[filterId='$id']")
+    if ($node) {{ $name = [string]$node.displayData.name }}
+  }} catch {{}}
+  Remove-Item -LiteralPath $tmp -ErrorAction SilentlyContinue
+  $fnames[$id] = $name
+  $name
+}}
+function Drops {{  # verworfene Handy-Anfragen an Port 80 → <Flagge>.drop (Zeit|Gerät|Port|Ereignis|Art|Filter)
+  $xp = "*[System[(EventID=5152 or EventID=5157) and TimeCreated[timediff(@SystemTime) <= 30000]]] and " +
+        "*[EventData[Data[@Name='DestPort']='80' or Data[@Name='SourcePort']='80']]"
+  $ev = @(Get-WinEvent -LogName Security -FilterXPath $xp -MaxEvents 100 -ErrorAction SilentlyContinue)
+  $out = @()
+  foreach ($e in $ev) {{
+    if ($seen.ContainsKey($e.RecordId) -or $e.TimeCreated -lt $since) {{ continue }}
+    $seen[$e.RecordId] = 1
+    $d = @{{}}
+    foreach ($x in ([xml]$e.ToXml()).Event.EventData.Data) {{ $d[[string]$x.Name] = [string]$x.'#text' }}
+    if ($d['SourceAddress'] -eq $ip) {{ $remote = $d['DestAddress']; $lp = $d['SourcePort'] }}
+    elseif ($d['DestAddress'] -eq $ip) {{ $remote = $d['SourceAddress']; $lp = $d['DestPort'] }}
+    else {{ continue }}
+    if ($lp -ne '80') {{ continue }}
+    $name = FilterName $d['FilterRTID']
+    $kind = 'fremd'
+    if ($name -and @(Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue |
+        Where-Object {{ [string]$_.Direction -eq 'Inbound' -and [string]$_.Action -eq 'Block' }}).Count) {{ $kind = 'regel' }}
+    $t = [DateTimeOffset]::new($e.TimeCreated).ToUnixTimeSeconds()
+    $out += "$t|$remote|$lp|$($e.Id)|$kind|$($name -replace '\|', '/')"
+  }}
+  if ($out.Count) {{
+    $old = @(Get-Content -LiteralPath "$flag.drop" -ErrorAction SilentlyContinue)
+    Set-Content -LiteralPath "$flag.drop" -Encoding UTF8 -Value (@($old) + $out | Select-Object -Last 20)
+  }}
+}}
+function FixNow {{  # Knopf „Beheben“ im Hotspot-Fenster: Sperren bis zum Hotspot-Ende ausschalten
+  New-Item -ItemType Directory -Force -Path $store | Out-Null
+  $names = @(Get-Content -LiteralPath "$flag.drop" -ErrorAction SilentlyContinue | ForEach-Object {{
+    $p = ([string]$_).Split('|'); if ($p.Count -ge 6 -and $p[4] -eq 'regel') {{ $p[5] }} }}) | Select-Object -Unique
+  $done = @()
+  foreach ($n in $names) {{
+    Get-NetFirewallRule -DisplayName $n -ErrorAction SilentlyContinue |
+      Where-Object {{ [string]$_.Enabled -eq 'True' -and [string]$_.Direction -eq 'Inbound' -and [string]$_.Action -eq 'Block' }} |
+      ForEach-Object {{
+        Add-Content -LiteralPath $undoFile -Value "regel|$($_.Name)"
+        Disable-NetFirewallRule -Name $_.Name -ErrorAction SilentlyContinue
+        $done += "Regel „$n“ aus"
+      }}
+  }}
+  $fp = Get-NetFirewallProfile -Name $prof -ErrorAction SilentlyContinue
+  if ([string]$fp.AllowInboundRules -eq 'False') {{
+    Add-Content -LiteralPath $undoFile -Value "profil|$prof"
+    Set-NetFirewallProfile -Name $prof -AllowInboundRules True -ErrorAction SilentlyContinue
+    $done += "„Alle eingehenden blockieren“ ($prof) aus"
+  }}
+  Set-Content -LiteralPath "$flag.fixed" -Encoding UTF8 -Value $(if ($done.Count) {{ $done -join ', ' }} else {{ 'nichts zu tun' }})
+}}
 function WaitFile($path, $seconds) {{
   $end = (Get-Date).AddSeconds($seconds)
   while (-not (Test-Path -LiteralPath $path) -and (Get-Date) -lt $end) {{ Start-Sleep -Milliseconds 200 }}
@@ -254,6 +335,7 @@ function WaitFile($path, $seconds) {{
 $n = 0
 Set-Content -LiteralPath "$flag.laeuft" -Value 'an'
 try {{
+  Restore  # Reste eines abgestürzten Laufs
   Clean
   netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=TCP localport="80,443,53,{int(port)}" | Out-Null
   netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=UDP localport=53 | Out-Null
@@ -297,6 +379,14 @@ try {{
       ForEach-Object {{ $_.displayName }}) -join ', '
     Set-Content -LiteralPath "$flag.fw" -Value ("profil=$prof;an=$($fp.Enabled);erlaubte=$($fp.AllowInboundRules);fremd=$third")
   }} catch {{}}
+  try {{  # Firewall-Überwachung an (nur „verworfen“), damit AluPC sieht, wer Handys an Port 80 abweist
+    New-Item -ItemType Directory -Force -Path $store | Out-Null
+    if (-not (Test-Path -LiteralPath $auditBak)) {{ auditpol /backup /file:$auditBak | Out-Null }}
+    auditpol /set /subcategory:'{{0CCE9225-69AE-11D9-BED3-505054503030}}' /failure:enable | Out-Null
+    auditpol /set /subcategory:'{{0CCE9226-69AE-11D9-BED3-505054503030}}' /failure:enable | Out-Null
+    if ($LASTEXITCODE -eq 0) {{ Set-Content -LiteralPath "$flag.audit" -Value 'an' }}
+  }} catch {{}}
+  $since = Get-Date
   Set-Content -LiteralPath "$flag.ok" -Value ($(if (Alias) {{ 'ok' }} else {{ 'ok:ohne-adresse' }}))
   while ((Test-Path -LiteralPath $flag) -and (Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue)) {{
     # Internet nur, wenn am PC mindestens ein Gerät freigeschaltet ist (<Flagge>.internet); die anderen Geräte
@@ -304,6 +394,11 @@ try {{
     # alle 2 s wieder auf Soll stellen.
     $n++
     if ($n % 10 -eq 0) {{ Unblock }}  # Windows-Frage später doch weggeklickt → Sperre wieder weg
+    try {{ Drops }} catch {{}}
+    if (Test-Path -LiteralPath "$flag.fix") {{
+      Remove-Item -LiteralPath "$flag.fix" -ErrorAction SilentlyContinue
+      try {{ FixNow }} catch {{ Set-Content -LiteralPath "$flag.fixed" -Encoding UTF8 -Value "Fehler: $_" }}
+    }}
     $a = Alias
     if ($closed -and $a) {{
       $allow = ''
@@ -322,7 +417,13 @@ try {{
   }}
 }} finally {{
   Clean
-  Remove-Item -LiteralPath "$flag.frei","$flag.bereit","$flag.dns","$flag.fwd","$flag.fw","$flag.laeuft" -ErrorAction SilentlyContinue
+  Restore
+  if (Test-Path -LiteralPath $auditBak) {{
+    auditpol /restore /file:$auditBak | Out-Null
+    Remove-Item -LiteralPath $auditBak -ErrorAction SilentlyContinue
+  }}
+  Remove-Item -LiteralPath "$flag.frei","$flag.bereit","$flag.dns","$flag.fwd","$flag.fw","$flag.laeuft","$flag.drop",
+    "$flag.fix","$flag.fixed","$flag.audit" -ErrorAction SilentlyContinue
 }}
 """
 
@@ -463,6 +564,51 @@ def firewall_info() -> dict:
     return dict(part.split("=", 1) for part in text.split(";") if "=" in part)
 
 
+def _flag_text(suffix: str) -> str:
+    try:
+        return Path(f"{portal_flag()}{suffix}").read_text(encoding="utf-8", errors="replace").replace("\ufeff", "").strip()
+    except OSError:
+        return ""
+
+
+def drop_info(ip: str = "", max_age: float = 600) -> list[dict]:
+    """Windows: von der Firewall verworfene Anfragen an Port 80 (laut Wächter, Sicherheitsprotokoll 5152/5157) –
+    neueste zuletzt; {t, ip, port, kind ("regel" = Windows-Firewall-Regel, sonst "fremd"), name}."""
+    import time
+
+    out = []
+    for line in _flag_text(".drop").splitlines():
+        parts = line.strip().split("|", 5)
+        if len(parts) < 6 or not parts[0].isdigit():
+            continue
+        t = int(parts[0])
+        if time.time() - t > max_age or (ip and parts[1] != ip):
+            continue
+        out.append({"t": t, "ip": parts[1], "port": parts[2], "kind": parts[4], "name": parts[5].strip()})
+    return out
+
+
+def audit_active() -> bool:
+    """Windows: Wächter sieht Firewall-Sperren (Überwachung an)?"""
+    return _flag_text(".audit") == "an"
+
+
+def needs_fix() -> bool:
+    """Gibt es eine Windows-Firewall-Sperre, die der Knopf „Beheben“ aufheben kann?"""
+    if not (IS_WINDOWS and hotspot.running and hotspot.portal) or _flag_text(".fixed"):
+        return False
+    return firewall_info().get("erlaubte") == "False" or any(d["kind"] == "regel" for d in drop_info())
+
+
+def request_fix() -> None:
+    """Wächter (Administrator) schaltet die gefundenen Sperren aus – nur bis der Hotspot endet."""
+    Path(f"{portal_flag()}.fix").write_text("ja", encoding="utf-8")
+
+
+def fix_result() -> str:
+    return _flag_text(".fixed")
+
+
 _SELFTEST = {"t": 0.0, "ms": None, "running": False}
 
 
@@ -518,6 +664,14 @@ def portal_status() -> str:
             parts.append(f"⚠ fremde Firewall: {', '.join(other)} – dort AluPC erlauben")
         if fw.get("erlaubte") == "False":
             parts.append(f"⚠ Windows-Firewall ({fw.get('profil')}): „Alle eingehenden blockieren“ ist an")
+        drops = drop_info()
+        if drops:
+            d = drops[-1]
+            who = f"Regel „{d['name']}“" if d["kind"] == "regel" else (f"„{d['name']}“" if d["name"] else "unbekannt")
+            parts.append(f"⛔ gesperrt: {d['ip']} → Port 80 ({who}, vor {int(time.time() - d['t'])} s)")
+        done = fix_result()
+        if done:
+            parts.append(f"Behoben: {done}")
     recent = [e for e in HTTP_LOG if time.time() - e[0] < 120 and e[3] != hotspot.ip]
     if recent:
         t, ip, method, host, path = recent[-1]
@@ -544,9 +698,20 @@ CHECK_HOSTS = set(PORTAL_HOSTS) | {"www.google.com", "clients1.google.com", "pla
 def check_hint(ip: str) -> str:
     """Kurzer Hinweis, warum ein Handy die Anmeldeseite nicht bekommt (aus den gefragten Namen)."""
     names = asked_names(ip)
+    drops = drop_info(ip) if IS_WINDOWS else []
+    if drops:
+        d = drops[-1]
+        if d["kind"] == "regel":
+            return f"Windows-Firewall sperrt (Regel „{d['name']}“) → unten „Firewall-Sperre beheben“"
+        if firewall_info().get("erlaubte") == "False":
+            return "Windows-Firewall sperrt („Alle eingehenden blockieren“) → unten „Firewall-Sperre beheben“"
+        return f"Firewall sperrt ({d['name'] or 'unbekannter Filter'}) – dort AluPC/Port 80 erlauben"
     if not names:
         return ""
     if any(n in CHECK_HOSTS for n in names):
+        if IS_WINDOWS and audit_active():
+            return ("Handy prüft – aber am PC kam auf Port 80 nichts an und die Windows-Firewall hat nichts gesperrt "
+                    "→ andere Sicherheitssoftware? Am Handy mobile Daten aus und neu verbinden")
         return "Handy prüft – aber nichts kam auf Port 80 an (Firewall?)"
     dot = [n for n in names if "dns" in n.split(".")[0] or n.startswith(("dns.", "one.one", "1dot1dot1"))]
     if dot:

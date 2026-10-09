@@ -527,6 +527,11 @@ class MainWindow(QMainWindow):
         self._preview_timer = QTimer(self, interval=1000)
         self._preview_timer.timeout.connect(self._update_preview)
         self._preview_timer.start()
+        if sys.platform.startswith("win"):  # Windows-Firewall weist Handys an der Anmeldeseite ab → einmal melden
+            self._fw_warned = False
+            self._fw_timer = QTimer(self, interval=3000)
+            self._fw_timer.timeout.connect(self._check_firewall_block)
+            self._fw_timer.start()
         self.volume_box = VolumeBox(self.controller)
         self.status_card.actions.addStretch(1)
         self.status_card.actions.addWidget(self.volume_box)
@@ -1095,6 +1100,25 @@ class MainWindow(QMainWindow):
         on = not (hotspot.running and hotspot.kind == "normal")
         self.controller.message.emit("Hotspot startet …" if on else "Hotspot wird beendet …")
         run_async(lambda: self.controller.set_hotspot(on, "normal"))
+
+    def _check_firewall_block(self) -> None:
+        from ..hotspot import drop_info, hotspot, needs_fix
+
+        if not (hotspot.running and hotspot.portal):
+            self._fw_warned = False
+            return
+        drops = drop_info()
+        if self._fw_warned or not drops:
+            return
+        self._fw_warned = True
+        if needs_fix():
+            text = "Windows-Firewall sperrt Handys an der Anmeldeseite – Hotspot-Fenster → „Firewall-Sperre beheben“."
+        else:
+            text = (f"Eine Firewall („{drops[-1]['name'] or 'unbekannt'}“) sperrt Handys an der Anmeldeseite – "
+                    "dort AluPC bzw. Port 80 erlauben.")
+        self.show_message(text, "warn")
+        if self.tray.isVisible():
+            self.tray.showMessage(APP_NAME, text, QSystemTrayIcon.Warning, 8000)
 
     def open_hotspot_dialog(self, kind: str = "normal") -> None:
         from .connect_dialog import HotspotDialog

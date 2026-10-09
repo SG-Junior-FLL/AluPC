@@ -808,3 +808,66 @@ def test_port80_selftest_measures(monkeypatch):
         time.sleep(0.05)
     srv.shutdown()
     assert isinstance(hotspot._SELFTEST["ms"], int) and hotspot._SELFTEST["ms"] < 2000
+
+
+def test_firewall_drops_shown_and_fix_requested(monkeypatch, tmp_path):
+    """Windows: Wächter meldet verworfene Handy-Anfragen an Port 80 → Hinweis je Gerät, Statuszeile, Knopf „Beheben“."""
+    import time
+
+    flag = tmp_path / "flag"
+    monkeypatch.setattr(hotspot, "portal_flag", lambda: flag)
+    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
+    monkeypatch.setattr(hotspot.hotspot, "running", True)
+    monkeypatch.setattr(hotspot.hotspot, "portal", True)
+    monkeypatch.setattr(hotspot.hotspot, "ip", "192.168.137.1")
+    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip: 12)
+    assert hotspot.drop_info() == [] and not hotspot.needs_fix()
+    now = int(time.time())
+    # so schreibt PowerShell (UTF-8 mit BOM); alte Zeilen und Müll werden übergangen
+    (tmp_path / "flag.drop").write_text(
+        "\ufeff" + f"{now - 5000}|192.168.137.9|80|5157|regel|Alt\nkaputt\n"
+        f"{now - 3}|192.168.137.50|80|5157|regel|Testsperre Port 80\n", encoding="utf-8")
+    drops = hotspot.drop_info()
+    assert [d["name"] for d in drops] == ["Testsperre Port 80"] and drops[0]["ip"] == "192.168.137.50"
+    assert hotspot.drop_info("192.168.137.77") == []
+    assert "Regel „Testsperre Port 80“" in hotspot.check_hint("192.168.137.50")
+    line = hotspot.portal_status()
+    assert "⛔ gesperrt: 192.168.137.50 → Port 80 (Regel „Testsperre Port 80“" in line
+    assert hotspot.needs_fix()
+    hotspot.request_fix()
+    assert (tmp_path / "flag.fix").read_text(encoding="utf-8") == "ja"
+    (tmp_path / "flag.fixed").write_text("\ufeffRegel „Testsperre Port 80“ aus", encoding="utf-8")
+    assert not hotspot.needs_fix() and "Behoben: Regel „Testsperre Port 80“ aus" in hotspot.portal_status()
+    # fremde Firewall: kein Knopf, aber Name im Hinweis
+    (tmp_path / "flag.fixed").unlink()
+    (tmp_path / "flag.drop").write_text(f"{now}|192.168.137.50|80|5152|fremd|Avast Firewall\n", encoding="utf-8")
+    assert not hotspot.needs_fix()
+    assert "Avast Firewall" in hotspot.check_hint("192.168.137.50")
+    # „Alle eingehenden blockieren“ → Knopf
+    (tmp_path / "flag.fw").write_text("profil=Public;an=True;erlaubte=False;fremd=", encoding="utf-8")
+    assert hotspot.needs_fix() and "Alle eingehenden blockieren" in hotspot.check_hint("192.168.137.50")
+
+
+def test_check_hint_nothing_arrived_with_audit(monkeypatch, tmp_path):
+    """Handy prüft, Firewall sperrt nichts (Überwachung an) → Hinweis auf andere Software/mobile Daten."""
+    class D:
+        names = {"192.168.137.50": ["connectivitycheck.gstatic.com"]}
+
+    monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
+    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
+    monkeypatch.setattr(hotspot, "_dns", D())
+    assert "(Firewall?)" in hotspot.check_hint("192.168.137.50")
+    (tmp_path / "flag.audit").write_text("an")
+    assert "Windows-Firewall hat nichts gesperrt" in hotspot.check_hint("192.168.137.50")
+
+
+def test_watchdog_script_has_firewall_audit_and_restore():
+    """Administrator-Skript: Überwachung per GUID (sprachunabhängig), Sperren nur vorübergehend, alles zurück."""
+    from pathlib import Path
+
+    s = hotspot.portal_script_windows("192.168.137.1", 8765, Path("C:/t/f"), 42, program="C:/A B/AluPC.exe")
+    assert "/subcategory:'{0CCE9225-69AE-11D9-BED3-505054503030}' /failure:enable" in s
+    assert "auditpol /restore" in s and "Restore" in s.split("} finally {")[1]
+    assert s.index("Restore  # Reste") < s.index("Clean\n  netsh advfirewall firewall add")
+    assert "Disable-NetFirewallRule" in s and "Add-Content -LiteralPath $undoFile" in s
+    assert s.count("{") == s.count("}")

@@ -133,6 +133,31 @@ def phone(mode: str, image: str, pump) -> dict:
     return {}
 
 
+PROBE = r"""
+$r = [Net.HttpWebRequest]::Create('http://connectivitycheck.gstatic.com/generate_204'); $r.AllowAutoRedirect = $false
+$r.Timeout = 6000; $r.Proxy = $null
+try { $x = $r.GetResponse() } catch [Net.WebException] { $x = $_.Exception.Response }
+'JSON:' + (@{ android = $(if ($x) { [int]$x.StatusCode } else { 0 }) } | ConvertTo-Json -Compress)
+"""
+
+
+def phone_probe(image: str, pump) -> int:
+    """Nur die Android-Prüfung (Status-Code, 0 = keine Antwort)."""
+    enc = base64.b64encode(PROBE.encode("utf-16-le")).decode()
+    proc = subprocess.Popen(["docker", "run", "--rm", "--network", "hotspot", "--ip", PHONE_IP, "--mac-address",
+                             "00:15:5d:00:00:50", "--dns", IP, image, "powershell", "-NoProfile", "-EncodedCommand",
+                             enc], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    end = time.time() + 300
+    while proc.poll() is None and time.time() < end:
+        pump(0.05)
+    out = proc.communicate()[0] if proc.poll() is not None else (proc.kill() or "")
+    for line in out.splitlines():
+        if line.startswith("JSON:"):
+            return int(json.loads(line[5:]).get("android", 0))
+    print(out[-1500:])
+    return -1
+
+
 OUTSIDER = r"""
 $ProgressPreference = 'SilentlyContinue'
 function Code($u, $body) {
@@ -306,6 +331,34 @@ def main() -> int:
        f"Handy aus anderem Netz ({nat_ip}): Steuern, Spielen, Abstimmen, Status, Erlaubnis → überall 403 {o}")
     ok(not any(p.name == "Fremd" for p in hub.players.values()), "„Fremd“ ist NICHT im Spiel")
 
+    # Firewall sperrt Port 80 (eigene Regel, wie auf manchen PCs): AluPC erkennt sie, zeigt sie, „Beheben“ hebt sie
+    # nur bis zum Ende auf
+    rule = "AluPC Testsperre Port 80"
+    ps(f"New-NetFirewallRule -DisplayName '{rule}' -Direction Inbound -Action Block -Protocol TCP -LocalPort 80 | Out-Null")
+    ok(hs_mod.audit_active(), "Wächter: Firewall-Überwachung an (sieht Sperren)")
+    code = phone_probe(image, pump)
+    ok(code != 302, f"Mit Sperr-Regel kommt das Handy nicht durch ({code})")
+    drops = []
+    for _ in range(30):
+        pump(0.5)
+        drops = hs_mod.drop_info(PHONE_IP)
+        if drops:
+            break
+    print("::notice title=Firewall-Sperre erkannt::" + repr(drops[-3:]), flush=True)
+    ok(any(d["name"] == rule and d["kind"] == "regel" for d in drops), f"Sperre erkannt: Regel „{rule}“ → {drops[-2:]}")
+    hint = hs_mod.check_hint(PHONE_IP)
+    ok(rule in hint, f"Hotspot-Fenster beim Handy: {hint}")
+    ok(hs_mod.needs_fix(), "Knopf „Firewall-Sperre beheben“ erscheint")
+    hs_mod.request_fix()
+    for _ in range(30):
+        pump(0.5)
+        if hs_mod.fix_result():
+            break
+    ok(rule in hs_mod.fix_result(), f"Behoben: {hs_mod.fix_result()}")
+    ok(ps(f"(Get-NetFirewallRule -DisplayName '{rule}').Enabled") == "False", "Sperr-Regel vorübergehend aus")
+    code = phone_probe(image, pump)
+    ok(code == 302, f"Danach kommt das Handy durch → Android-Prüfung {code}")
+
     hs_mod.stop_portal()
     clean = False
     for _ in range(30):  # Wächter räumt in ≤ 2 s auf
@@ -315,6 +368,15 @@ def main() -> int:
             break
     ok(clean, "Nach dem Ausschalten: portproxy weg, Weiterleitung wieder an")
     ok("AluPC-Portal" not in ps("netsh advfirewall firewall show rule name=AluPC-Portal"), "Firewall-Regeln weg")
+    bak = os.path.join(os.environ.get("ProgramData", "C:/ProgramData"), "AluPC", "audit-vorher.csv")
+    for _ in range(20):  # Wächter stellt nach dem Aufräumen zurück
+        if ps(f"(Get-NetFirewallRule -DisplayName '{rule}').Enabled") == "True" and not os.path.exists(bak):
+            break
+        pump(0.5)
+    ok(ps(f"(Get-NetFirewallRule -DisplayName '{rule}').Enabled") == "True", "Sperr-Regel des PCs wieder an")
+    ok(not os.path.exists(os.path.join(os.environ.get("ProgramData", "C:/ProgramData"), "AluPC", "audit-vorher.csv")),
+       "Firewall-Überwachung wieder wie vorher")
+    ps(f"Remove-NetFirewallRule -DisplayName '{rule}'")
     free = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         free.bind((IP, 53))

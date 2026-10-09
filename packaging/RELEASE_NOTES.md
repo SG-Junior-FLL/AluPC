@@ -8,7 +8,22 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.115.0)
+### Neu in dieser Version (0.116.0)
+- **Anmeldeseite (Windows): AluPC findet jetzt selbst heraus, wer Port 80 sperrt.** Solange die Anmeldeseite
+  läuft, schaltet der Wächter (Administrator) die Windows-Überwachung „verworfene Pakete/Verbindungen“ ein und
+  liest, welche Firewall-Regel bzw. welcher Filter die Anfrage des Handys abgewiesen hat. Am Ende wird die
+  Überwachung wieder genau wie vorher gestellt.
+  - Hotspot-Fenster: beim Gerät „Windows-Firewall sperrt (Regel „…“)“ bzw. Name des fremden Filters;
+    Statuszeile „⛔ gesperrt: Handy → Port 80 (…)“; das Hauptfenster meldet es einmal von selbst.
+  - Knopf **„Firewall-Sperre beheben“**: schaltet die gefundene Sperr-Regel bzw. „Alle eingehenden
+    blockieren“ aus – **nur bis der Hotspot endet**, danach ist alles wieder wie vorher (auch nach einem Absturz
+    beim nächsten Start).
+  - Kam nichts an und die Windows-Firewall hat auch nichts gesperrt, sagt der Hinweis das (dann: andere
+    Sicherheitssoftware oder mobile Daten am Handy).
+- Geprüft in der Windows-CI: echte Sperr-Regel für Port 80 → erkannt, behoben, Handy kommt durch, nach dem
+  Ausschalten ist die Regel wieder an. Nicht geprüft: echter PC mit echtem Handy.
+
+### Neu in Version 0.115.0
 - **Anmeldeseite (Windows):** Beim Test kamen Namensfragen an, Port 80 aber nicht bzw. nur sehr langsam.
   - Browser versuchen zuerst HTTPS (Port 443) – das lief bisher ins Leere und dauerte. Jetzt lehnt AluPC 443
     sofort ab → Browser und Handy-Prüfung nehmen gleich HTTP.
