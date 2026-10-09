@@ -1815,3 +1815,9 @@ def test_windows_powershell_scripts_parse(tmp_path):
              "foreach ($x in $e) { $bad++; \"$($_.Name):$($x.Extent.StartLineNumber): $($x.Message)\" } }; \"FEHLER=$bad\"")
     out = subprocess.run([exe, "-NoProfile", "-Command", check], capture_output=True, text=True, timeout=120).stdout
     assert "FEHLER=0" in out, out
+    # Komprimierte Übergabe (lange Skripte): kommt unverändert an, Umlaute, Funktionen, return + finally
+    probe = "function F { 'Grüße' }\ntry { F; return } finally { 'fertig' }\n'nie'\n"
+    r = subprocess.run([exe, "-NoProfile", "-EncodedCommand", hotspot.encoded_command(probe)], capture_output=True,
+                       timeout=120)
+    text = r.stdout.decode("utf-8", "replace") + r.stdout.decode("cp850", "replace")
+    assert "fertig" in text and "nie" not in text and "Gr" in text, r

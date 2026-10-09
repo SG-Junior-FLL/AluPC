@@ -341,7 +341,12 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
     assert hotspot.DNS_INFO == ("Port 53 vorher: belegt:0.0.0.0 svchost SharedAccess · AluPC: 192.168.137.1 exklusiv"
                                 " · Port 80: Weiterleitung")  # kein laufender Webserver im Test
     import base64
-    sent = base64.b64decode(seen[0].split("'-EncodedCommand','")[1].split("'")[0]).decode("utf-16-le")
+    import gzip
+
+    arg = seen[0].split("'-EncodedCommand','")[1].split("'")[0]
+    assert len(seen[0]) < 30000  # Windows-Befehlszeile: höchstens 32767 Zeichen
+    boot = base64.b64decode(arg).decode("utf-16-le")
+    sent = gzip.decompress(base64.b64decode(boot.split("FromBase64String('")[1].split("'")[0])).decode("utf-8")
     assert "$closed = $true" in sent and "Stop-Service SharedAccess" not in sent and "$_.Name -notin $keep" in sent
     # Hotspot-Adresse nicht zu bekommen → klare Meldung, WLAN bleibt (kein Dienst-Anhalten)
     monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: False)

@@ -793,6 +793,19 @@ def stop_dns() -> None:
         _dns = None
 
 
+def encoded_command(script: str) -> str:
+    """PowerShell -EncodedCommand für ein langes Skript: gzip-komprimiert und im Zielprozess entpackt – sonst wird die
+    Befehlszeile zu lang (Windows: höchstens 32767 Zeichen; das Wächter-Skript allein ergäbe über 36000)."""
+    import base64
+    import gzip
+
+    packed = base64.b64encode(gzip.compress(script.encode("utf-8"), 9)).decode()
+    boot = ("$z = New-Object IO.Compression.GZipStream((New-Object IO.MemoryStream(,[Convert]::FromBase64String("
+            f"'{packed}'))), [IO.Compression.CompressionMode]::Decompress)\n"
+            "Invoke-Expression (New-Object IO.StreamReader($z, [Text.Encoding]::UTF8)).ReadToEnd()\n")
+    return base64.b64encode(boot.encode("utf-16-le")).decode()
+
+
 def start_portal(dev: str = "", port: int | None = None, spawn=None, wait=_wait_ready,
                  ip: str = WINDOWS_IP, closed: bool = True, wait_file=_wait_file) -> tuple[bool, str]:
     """Anmeldeseite einschalten (Linux: vor dem Hotspot-Start, Windows: danach). Fragt einmal nach Administrator-Rechten.
@@ -806,7 +819,6 @@ def start_portal(dev: str = "", port: int | None = None, spawn=None, wait=_wait_
     for suffix in (".ok", ".frei", ".bereit", ".dns", ".fixed", ".fwd", ".drop", ".audit", ".fw"):
         Path(f"{flag}{suffix}").unlink(missing_ok=True)
     if IS_WINDOWS:
-        import base64
         import time
 
         stop_dns()
@@ -814,7 +826,7 @@ def start_portal(dev: str = "", port: int | None = None, spawn=None, wait=_wait_
         while Path(f"{flag}.laeuft").exists() and time.monotonic() < end:
             time.sleep(0.3)
         script = portal_script_windows(ip, port, flag, os.getpid(), closed=closed, program=sys.executable)
-        enc = base64.b64encode(script.encode("utf-16-le")).decode()
+        enc = encoded_command(script)
         launcher = ("try { Start-Process powershell -Verb RunAs -WindowStyle Hidden -ErrorAction Stop -ArgumentList "
                     f"'-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','{enc}' }} catch {{ exit 1 }}")
         flag.write_text("an")
