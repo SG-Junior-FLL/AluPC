@@ -316,14 +316,14 @@ function FixNow {{  # Knopf „Beheben“ im Hotspot-Fenster: Sperren bis zum Ho
       ForEach-Object {{
         Add-Content -LiteralPath $undoFile -Value "regel|$($_.Name)"
         Disable-NetFirewallRule -Name $_.Name -ErrorAction SilentlyContinue
-        $done += "Regel „$n“ aus"
+        $done += "Regel '$n' aus"
       }}
   }}
   $fp = Get-NetFirewallProfile -Name $prof -ErrorAction SilentlyContinue
   if ([string]$fp.AllowInboundRules -eq 'False') {{
     Add-Content -LiteralPath $undoFile -Value "profil|$prof"
     Set-NetFirewallProfile -Name $prof -AllowInboundRules True -ErrorAction SilentlyContinue
-    $done += "„Alle eingehenden blockieren“ ($prof) aus"
+    $done += "'Alle eingehenden blockieren' ($prof) aus"
   }}
   Set-Content -LiteralPath "$flag.fixed" -Encoding UTF8 -Value $(if ($done.Count) {{ $done -join ', ' }} else {{ 'nichts zu tun' }})
 }}

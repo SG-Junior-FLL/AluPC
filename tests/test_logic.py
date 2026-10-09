@@ -1791,3 +1791,27 @@ def test_audio_core_audio_windows():
     for t in threads:
         t.join(60)
     assert not errors and audio._COM["thread"].is_alive()
+
+
+def test_windows_powershell_scripts_parse(tmp_path):
+    """Alle PowerShell-Skripte der Anmeldeseite/des Hotspots ohne Syntaxfehler (z. B. „ “ gelten dort als Anführungszeichen)."""
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    from alupc import hotspot
+
+    exe = shutil.which("pwsh") or shutil.which("powershell")
+    if not exe:
+        pytest.skip("PowerShell fehlt")
+    scripts = {"waechter": hotspot.portal_script_windows("192.168.137.1", 8765, Path("C:/t/f"), 42,
+                                                         program="C:/Program Files/AluPC/AluPC.exe"),
+               "waechter_offen": hotspot.portal_script_windows("192.168.137.1", 8765, Path("C:/t/f"), 42, closed=False),
+               "start": hotspot._PS_START, "stop": hotspot._PS_STOP, "state": hotspot._PS_STATE}
+    for name, text in scripts.items():
+        (tmp_path / f"{name}.ps1").write_text(text, encoding="utf-8-sig")
+    check = ("$bad = 0; Get-ChildItem -LiteralPath '" + str(tmp_path) + "' -Filter *.ps1 | ForEach-Object { $e = $null; "
+             "$null = [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$e); "
+             "foreach ($x in $e) { $bad++; \"$($_.Name):$($x.Extent.StartLineNumber): $($x.Message)\" } }; \"FEHLER=$bad\"")
+    out = subprocess.run([exe, "-NoProfile", "-Command", check], capture_output=True, text=True, timeout=120).stdout
+    assert "FEHLER=0" in out, out
