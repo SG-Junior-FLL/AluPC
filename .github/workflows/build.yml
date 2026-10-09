@@ -29,10 +29,11 @@ jobs:
       - name: Tests
         run: |
           set -o pipefail
-          python -X faulthandler -m pytest -v --timeout=240 2>&1 | tee tests.log || {
+          timeout -k 30 1200 python -X faulthandler -m pytest -v --timeout=240 --timeout-method=thread 2>&1 | tee tests.log || {
             # Fehler und Absturz-Stapel als Hinweise (ohne Anmeldung lesbar)
-            grep -E "^(FAILED|E   |ERROR)|Fatal Python|File \"/home/runner/work" tests.log | head -40 | sed 's/^/::error::/'
+            grep -E "^(FAILED|E   |ERROR)|Fatal Python|Timeout|File \"/home/runner/work" tests.log | head -40 | sed 's/^/::error::/'
             grep -B2 -A30 "Fatal Python" tests.log | grep -E "File|Fatal|line" | head -30 | sed 's/^/::warning::/'
+            grep -E "::test_" tests.log | tail -3 | sed 's/^/::error title=Zuletzt::/'
             exit 1; }
       - name: Ton echt – PulseAudio mit 2 Lautsprechern und 2 Mikrofonen (Gerät wählen, Pegel, stumm)
         run: |
