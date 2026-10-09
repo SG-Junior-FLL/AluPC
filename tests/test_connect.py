@@ -895,7 +895,7 @@ def test_linux_script_same_behaviour(tmp_path):
     assert subprocess.run(["sh", "-n", "-c", s]).returncode == 0
 
 
-def test_hotspot_start_always_starts_webserver(monkeypatch, env):
+def test_hotspot_start_always_starts_webserver(monkeypatch, env):  # noqa: F811 – Fixture
     """Hotspot-Kachel: AluPCs Webserver läuft danach immer (sonst ginge Port 80 ins Leere: „DNS ✓, Anmeldeseite nicht“)."""
     controller = env[0]
     controller.cast.stop()
