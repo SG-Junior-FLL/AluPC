@@ -255,7 +255,7 @@ $n = 0
 Set-Content -LiteralPath "$flag.laeuft" -Value 'an'
 try {{
   Clean
-  netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=TCP localport="80,53,{int(port)}" | Out-Null
+  netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=TCP localport="80,443,53,{int(port)}" | Out-Null
   netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow protocol=UDP localport=53 | Out-Null
   Unblock
   if ($prog) {{ netsh advfirewall firewall add rule name=AluPC-Portal dir=in action=allow program="$prog" enable=yes | Out-Null }}
@@ -287,6 +287,16 @@ try {{
     Set-Content -LiteralPath "$flag.ok" -Value ('belegt:' + $name)
     return
   }}
+  # Was könnte Handys blockieren? (für das Hotspot-Fenster): Netzprofil, „alle eingehenden blockieren“, fremde Firewall
+  try {{
+    $a = Alias
+    $cat = if ($a) {{ [string](Get-NetConnectionProfile -InterfaceAlias $a -ErrorAction SilentlyContinue).NetworkCategory }} else {{ '' }}
+    $prof = if ($cat -eq 'DomainAuthenticated') {{ 'Domain' }} elseif ($cat) {{ $cat }} else {{ 'Public' }}
+    $fp = Get-NetFirewallProfile -Name $prof -ErrorAction SilentlyContinue
+    $third = @(Get-CimInstance -Namespace root/SecurityCenter2 -ClassName FirewallProduct -ErrorAction SilentlyContinue |
+      ForEach-Object {{ $_.displayName }}) -join ', '
+    Set-Content -LiteralPath "$flag.fw" -Value ("profil=$prof;an=$($fp.Enabled);erlaubte=$($fp.AllowInboundRules);fremd=$third")
+  }} catch {{}}
   Set-Content -LiteralPath "$flag.ok" -Value ($(if (Alias) {{ 'ok' }} else {{ 'ok:ohne-adresse' }}))
   while ((Test-Path -LiteralPath $flag) -and (Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue)) {{
     # Internet nur, wenn am PC mindestens ein Gerät freigeschaltet ist (<Flagge>.internet); die anderen Geräte
@@ -312,7 +322,7 @@ try {{
   }}
 }} finally {{
   Clean
-  Remove-Item -LiteralPath "$flag.frei","$flag.bereit","$flag.dns","$flag.fwd","$flag.laeuft" -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath "$flag.frei","$flag.bereit","$flag.dns","$flag.fwd","$flag.fw","$flag.laeuft" -ErrorAction SilentlyContinue
 }}
 """
 
@@ -444,6 +454,43 @@ def note_http(ip: str, method: str, host: str, path: str) -> None:
     del HTTP_LOG[:-40]
 
 
+def firewall_info() -> dict:
+    """Windows: Firewall am Hotspot laut Wächter – {profil, an, erlaubte, fremd} (leer, wenn unbekannt)."""
+    try:
+        text = Path(f"{portal_flag()}.fw").read_text(encoding="utf-8", errors="replace").strip().lstrip("\ufeff")
+    except OSError:
+        return {}
+    return dict(part.split("=", 1) for part in text.split(";") if "=" in part)
+
+
+_SELFTEST = {"t": 0.0, "ms": None, "running": False}
+
+
+def port80_selftest(ip: str, max_age: float = 10.0) -> int | None:
+    """Ruft die Anmeldeseite vom PC aus auf ip:80 ab (im Hintergrund, höchstens alle 10 s) → Millisekunden oder None.
+    Geht das am PC, aber nicht am Handy, blockiert etwas dazwischen (Firewall)."""
+    import socket
+    import threading
+    import time
+
+    def run():
+        start = time.monotonic()
+        ms = None
+        try:
+            with socket.create_connection((ip, 80), timeout=4) as s:
+                s.sendall(b"GET /generate_204 HTTP/1.1\r\nHost: connectivitycheck.gstatic.com\r\nConnection: close\r\n\r\n")
+                if s.recv(64).startswith(b"HTTP/1."):
+                    ms = int((time.monotonic() - start) * 1000)
+        except OSError:
+            ms = None
+        _SELFTEST.update(ms=ms, t=time.monotonic(), running=False)
+
+    if not _SELFTEST["running"] and time.monotonic() - _SELFTEST["t"] > max_age:
+        _SELFTEST["running"] = True
+        threading.Thread(target=run, name="alupc-port80-test", daemon=True).start()
+    return _SELFTEST["ms"]
+
+
 def forwarding_state() -> str:
     """Windows: Weiterleitung (= Internet) der Hotspot-Schnittstelle laut Wächter: „Enabled“/„Disabled“/""."""
     try:
@@ -463,6 +510,14 @@ def portal_status() -> str:
         parts.append("Port 80: " + ("AluPC direkt" if "Port 80: AluPC" in DNS_INFO else "Weiterleitung"))
         fwd = forwarding_state()
         parts.append("Internet-Sperre: " + {"Disabled": "aktiv", "Enabled": "AUS (Weiterleitung an)"}.get(fwd, "?"))
+        ms = port80_selftest(hotspot.ip)
+        parts.append(f"Port 80 am PC: {ms} ms" if ms is not None else "Port 80 am PC: antwortet nicht")
+        fw = firewall_info()
+        other = [n.strip() for n in fw.get("fremd", "").split(",") if n.strip() and "defender" not in n.lower()]
+        if other:
+            parts.append(f"⚠ fremde Firewall: {', '.join(other)} – dort AluPC erlauben")
+        if fw.get("erlaubte") == "False":
+            parts.append(f"⚠ Windows-Firewall ({fw.get('profil')}): „Alle eingehenden blockieren“ ist an")
     recent = [e for e in HTTP_LOG if time.time() - e[0] < 120 and e[3] != hotspot.ip]
     if recent:
         t, ip, method, host, path = recent[-1]
@@ -587,6 +642,9 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
         from .cast_server import serve_extra
 
         http80 = serve_extra(ip, 80)  # Anmeldeseite direkt auf Port 80 (sonst übernimmt das die Weiterleitung)
+        from .cast_server import refuse_https
+
+        refuse_https(ip)  # HTTPS (443) sofort ablehnen: Browser/Handy fallen gleich auf HTTP zurück statt lange zu warten
         PROBES.clear()
         HTTP_LOG.clear()
         owner = read(".frei")

@@ -305,7 +305,7 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
     script = hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, program=r"C:\Pro'gramme\AluPC.exe")
     for part in ("portproxy add v4tov4 listenport=80 listenaddress=$ip connectport=8765", "portproxy delete",
                  "firewall add rule name=AluPC-Portal dir=in action=allow protocol=UDP localport=53",
-                 'localport="80,53,8765"', "-Forwarding Disabled", "-Forwarding Enabled", "$closed = $true",
+                 'localport="80,443,53,8765"', "-Forwarding Disabled", "-Forwarding Enabled", "$closed = $true",
                  "Get-Process -Id 77", '"$flag.frei"', '"$flag.dns"', '"$flag.bereit"',
                  "$_.Action -eq 'Block'", "Remove-NetFirewallRule", "$prog = 'C:\\Pro''gramme\\AluPC.exe'",
                  'program="$prog"', "Owner53", "if ($n % 10 -eq 0) { Unblock }", "Start-Service iphlpsvc",
@@ -700,8 +700,10 @@ def test_portal_status_line_and_http_log(monkeypatch):
     monkeypatch.setattr(hotspot.hotspot, "ip", "192.168.137.1")
     monkeypatch.setattr(hotspot, "DNS_INFO", "Port 53 vorher: frei · AluPC: 192.168.137.1 exklusiv · Port 80: AluPC")
     monkeypatch.setattr(hotspot, "forwarding_state", lambda: "Disabled")
+    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip: 12)
+    monkeypatch.setattr(hotspot, "firewall_info", lambda: {})
     hotspot.HTTP_LOG.clear()
-    assert hotspot.portal_status() == ("Port 80: AluPC direkt · Internet-Sperre: aktiv · "
+    assert hotspot.portal_status() == ("Port 80: AluPC direkt · Internet-Sperre: aktiv · Port 80 am PC: 12 ms · "
                                        "noch keine Prüfung auf Port 80 angekommen")
     hotspot.note_http("192.168.137.45", "HEAD", "connectivitycheck.gstatic.com:80", "/generate_204")
     monkeypatch.setattr(hotspot, "forwarding_state", lambda: "Enabled")
@@ -729,3 +731,80 @@ def test_dns_remembers_names_and_hint(monkeypatch):
     assert "nichts kam auf Port 80 an" in hotspot.check_hint("192.168.137.45")
     dns._reply(q("x.example"), "192.168.137.1")  # PC selbst: nicht merken
     assert hotspot.asked_names("192.168.137.1") == []
+
+
+def test_https_refused_fast_and_status_shows_firewall(monkeypatch, tmp_path):
+    """Port 443 wird sofort abgelehnt (Browser nehmen gleich HTTP); Hotspot-Fenster nennt Firewall-Bremsen."""
+    import socket
+    import time
+
+    from alupc import cast_server
+
+    probe = socket.socket()
+    probe.bind(("127.0.0.2", 0))
+    probe.close()
+    monkeypatch.setattr(cast_server.socket, "socket", socket.socket)
+    # 443 braucht Rechte unter Linux → Port im Test umbiegen
+    orig_bind = socket.socket.bind
+
+    def bind(self, addr):
+        return orig_bind(self, (addr[0], 18443) if addr[1] == 443 else addr)
+
+    monkeypatch.setattr(socket.socket, "bind", bind)
+    assert cast_server.refuse_https("127.0.0.1")
+    try:
+        start = time.monotonic()
+        with socket.create_connection(("127.0.0.1", 18443), timeout=3) as s:
+            s.sendall(b"\x16\x03\x01")  # TLS-Anfang
+            try:
+                data = s.recv(10)
+            except ConnectionResetError:
+                data = b""
+        assert data == b"" and time.monotonic() - start < 1.5
+    finally:
+        cast_server.stop_extra()
+    monkeypatch.setattr(socket.socket, "bind", orig_bind)
+    # Firewall-Infos aus dem Wächter
+    monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
+    (tmp_path / "flag.fw").write_text("profil=Public;an=True;erlaubte=False;fremd=Avast Antivirus, Windows Defender")
+    assert hotspot.firewall_info() == {"profil": "Public", "an": "True", "erlaubte": "False",
+                                       "fremd": "Avast Antivirus, Windows Defender"}
+    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
+    monkeypatch.setattr(hotspot.hotspot, "running", True)
+    monkeypatch.setattr(hotspot.hotspot, "portal", True)
+    monkeypatch.setattr(hotspot.hotspot, "ip", "127.0.0.1")
+    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip: None)
+    line = hotspot.portal_status()
+    assert "Port 80 am PC: antwortet nicht" in line and "fremde Firewall: Avast Antivirus" in line
+    assert "„Alle eingehenden blockieren“ ist an" in line
+
+
+def test_port80_selftest_measures(monkeypatch):
+    """Selbsttest ruft die Prüf-Adresse am PC ab und misst die Zeit."""
+    import threading
+    import time
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(302)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+
+    srv = HTTPServer(("127.0.0.1", 0), H)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    import socket as _socket
+
+    real = _socket.create_connection
+    monkeypatch.setattr(_socket, "create_connection", lambda addr, timeout=None: real((addr[0], port), timeout))
+    hotspot._SELFTEST.update(t=0.0, ms=None, running=False)
+    hotspot.port80_selftest("127.0.0.1")
+    end = time.time() + 5
+    while hotspot._SELFTEST["running"] and time.time() < end:
+        time.sleep(0.05)
+    srv.shutdown()
+    assert isinstance(hotspot._SELFTEST["ms"], int) and hotspot._SELFTEST["ms"] < 2000

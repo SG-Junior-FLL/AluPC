@@ -8,7 +8,17 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.114.0)
+### Neu in dieser Version (0.115.0)
+- **Anmeldeseite (Windows):** Beim Test kamen Namensfragen an, Port 80 aber nicht bzw. nur sehr langsam.
+  - Browser versuchen zuerst HTTPS (Port 443) – das lief bisher ins Leere und dauerte. Jetzt lehnt AluPC 443
+    sofort ab → Browser und Handy-Prüfung nehmen gleich HTTP.
+  - Hotspot-Fenster zeigt jetzt: „Port 80 am PC: … ms“ (AluPC ruft seine Anmeldeseite selbst ab), Warnung bei
+    fremder Firewall (z. B. Antivirus) und bei „Alle eingehenden Verbindungen blockieren“ in Windows.
+    Geht es am PC, aber nicht am Handy, blockiert etwas dazwischen – die Zeile sagt, was.
+- Ehrlich: Ob die Anmeldeseite jetzt auf deinem PC kommt, hängt davon ab, was dort blockiert – das zeigt die
+  neue Zeile im Hotspot-Fenster. Geprüft in CI (Windows mit nachgebautem Hotspot) und lokal.
+
+### Neu in Version 0.114.0
 - **Anmeldeseite immer erreichbar:** Android öffnet sie oft nur beim ersten Verbinden von selbst (danach nur die
   Benachrichtigung „Im WLAN anmelden“). Jetzt geht immer: im Browser die Hotspot-Adresse eingeben (z. B.
   192.168.137.1) → Anmeldeseite. Monitor 2 zeigt die Adresse unter dem WLAN-Code („Nicht offen? …“).

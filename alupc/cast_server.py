@@ -392,6 +392,52 @@ def serve_extra(host: str, port: int) -> bool:
     return True
 
 
+def refuse_https(host: str) -> bool:
+    """Port 443 annehmen und sofort hart schließen: Browser (HTTPS zuerst) und die HTTPS-Prüfung der Handys
+    merken sofort „geht nicht“ und nehmen HTTP – statt lange auf eine Antwort zu warten."""
+    import struct
+
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        sock.bind((host, 443))
+        sock.listen(64)
+        sock.settimeout(1.0)
+    except OSError:
+        return False
+
+    class _Refuser:
+        def __init__(self):
+            self.alive = True
+
+        def shutdown(self):
+            self.alive = False
+
+        def server_close(self):
+            sock.close()
+
+    ref = _Refuser()
+
+    def loop():
+        while ref.alive:
+            try:
+                conn, _ = sock.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                return
+            try:
+                conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))  # RST statt FIN
+            except OSError:
+                pass
+            conn.close()
+
+    threading.Thread(target=loop, name="AluCast-443", daemon=True).start()
+    _EXTRA.append(ref)
+    return True
+
+
 def stop_extra() -> None:
     while _EXTRA:
         srv = _EXTRA.pop()
