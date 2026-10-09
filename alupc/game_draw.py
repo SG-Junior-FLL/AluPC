@@ -324,7 +324,7 @@ def lobby(c) -> None:
         text(p, QRectF(m, h - m - h * 0.1, left_w, h * 0.05), line, h * 0.03, "#fbbf24", True,
              Qt.AlignLeft | Qt.AlignVCenter)
     wifi = getattr(c, "wifi", None)
-    if wifi:  # Spiele-WLAN: EIN Code – Handy ist im WLAN, die Anmeldeseite (Name → mitspielen) öffnet sich selbst
+    if wifi:  # AluPC-WLAN: EIN Code – Handy ist im WLAN, die Anmeldeseite (Name → mitspielen) öffnet sich selbst
         qx, qy = w - m - qr_side, (h - qr_side) / 2 - h * 0.02
         text(p, QRectF(qx - m, qy - h * 0.11, qr_side + 2 * m, h * 0.06), "WLAN scannen", h * 0.04, TEXT, True)
         qr_card(c, qx, qy, qr_side, caption=False, image=c.wifi_qr())
@@ -338,7 +338,7 @@ def lobby(c) -> None:
             text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.115, qr_side + 4 * m, h * 0.04),
                  f"Nicht offen? Browser: {hotspot.ip}", h * 0.022, MUTED)
         return
-    # sonst kein Link (einziger Weg ist das Spiele-WLAN) – stattdessen sagen, was los ist
+    # sonst kein Link (einziger Weg ist das AluPC-WLAN) – stattdessen sagen, was los ist
     box = QRectF(w - m - qr_side * 1.15, (h - qr_side) / 2, qr_side * 1.15, qr_side)
     p.setPen(Qt.NoPen)
     p.setBrush(QColor(255, 255, 255, 14))
@@ -347,7 +347,7 @@ def lobby(c) -> None:
     text(p, QRectF(box.x(), box.y() + box.height() * 0.12, box.width(), box.height() * 0.3), "📶",
          box.height() * 0.18, qc("#67e8f9", pulse))
     text(p, QRectF(box.x() + m * 0.6, box.y() + box.height() * 0.42, box.width() - m * 1.2,
-                   box.height() * 0.5), c.wifi_status or "Spiele-WLAN startet …", h * 0.028, TEXT, True,
+                   box.height() * 0.5), c.wifi_status or "AluPC-WLAN startet …", h * 0.028, TEXT, True,
          wrap=True)
 
 
@@ -922,7 +922,7 @@ def schlangen(c, g, events) -> None:
     scoreboard(c, QRectF(w - m - side_w, m + h * 0.06, side_w, h * 0.62), g.scores(), limit=8)
     q = min(side_w * 0.5, h * 0.18)
     x, y = w - m - side_w / 2 - q / 2, h - m - q - q * 0.06 - h * 0.04
-    if c.wifi:  # einsteigen nur übers Spiele-WLAN: WLAN-Code
+    if c.wifi:  # einsteigen nur übers AluPC-WLAN: WLAN-Code
         qr_card(c, x, y, q, caption=False, image=c.wifi_qr())
         text(p, QRectF(w - m - side_w, h - m - h * 0.035, side_w, h * 0.035), "Einsteigen", h * 0.022, MUTED)
 

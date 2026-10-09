@@ -69,11 +69,10 @@ def test_hotspot_settings_and_linux_commands(monkeypatch):
     hs = hotspot.settings(cfg, "normal")
     assert hs["ssid"] == "AluPC" and len(hs["password"]) == 10 and cfg["hotspot"] == hs
     assert hotspot.settings(cfg, "normal") == hs  # bleibt gleich
-    games = hotspot.settings(cfg, "spiele")
-    assert games["ssid"] == "AluPC-Spiele" and cfg["games"]["hotspot"] == games
-    assert len(games["password"]) == 10  # Linux und Windows gleich: immer mit Passwort
-    old = {"games": {"hotspot": {"ssid": "Alt", "password": ""}}}  # früher offen (Linux) → bekommt Passwort
-    assert len(hotspot.settings(old, "spiele")["password"]) == 10
+    # nur noch EIN AluPC-WLAN: auch die Minispiele bekommen dasselbe (kein eigenes Spiele-WLAN mehr)
+    assert hotspot.settings(cfg, "spiele") == hs and "hotspot" not in cfg["games"]
+    old = {"games": {}, "hotspot": {"ssid": "Alt", "password": ""}}  # früher offen (Linux) → bekommt Passwort
+    assert len(hotspot.settings(old)["password"]) == 10 and old["hotspot"]["ssid"] == "Alt"
     calls = []
 
     def run(cmd, timeout=25):
@@ -448,26 +447,22 @@ def test_portal_redirects_phone_checks_to_game(env, monkeypatch):  # noqa: F811
         hs.running, hs.kind, hs.portal, hs.ip = False, "", False, ""
 
 
-def test_games_wifi_stops_with_games(env, monkeypatch):  # noqa: F811
+def test_wlan_stays_on_when_games_end(env, monkeypatch):  # noqa: F811
+    """EIN AluPC-WLAN: Minispiele beenden schaltet es NICHT aus (sonst flögen die Handys raus und das
+    Anmeldefenster ginge zu)."""
     controller, _window, _ = env
     stopped = []
     monkeypatch.setattr(hotspot.hotspot, "stop", lambda: stopped.append(1) or (True, "aus"))
     hs = hotspot.hotspot
-    controller.start_games("ssp")
     try:
-        hs.running, hs.kind = True, "normal"
-        controller.game_action("aus")  # normaler Hotspot bleibt an
-        import time
+        for kind in ("normal", "spiele"):  # auch ein (alter) Spiele-Hotspot bleibt an
+            controller.start_games("ssp")
+            hs.running, hs.kind = True, kind
+            controller.game_action("aus")
+            import time
 
-        time.sleep(0.2)
-        assert stopped == []
-        controller.start_games("ssp")
-        hs.running, hs.kind = True, "spiele"
-        controller.game_action("aus")
-        end = time.time() + 3
-        while not stopped and time.time() < end:
-            time.sleep(0.05)
-        assert stopped == [1]
+            time.sleep(0.3)
+            assert stopped == []
     finally:
         hs.running, hs.kind = False, ""
 
@@ -531,8 +526,10 @@ def test_normal_hotspot_also_gets_login_page(env, monkeypatch):  # noqa: F811
     controller, _window, _ = env
     seen = {}
     monkeypatch.setattr(hotspot.hotspot, "start", lambda *a, **k: (seen.update(k), (True, "läuft"))[1])
-    controller.set_hotspot(True, "normal")
-    assert seen["portal"] is True and seen["kind"] == "normal"
+    controller.set_hotspot(True, "spiele")  # egal, wer startet: immer dasselbe AluPC-WLAN mit Anmeldeseite
+    assert seen["portal"] is True and "kind" not in seen
+    hs = hotspot.settings(controller.config)
+    assert controller.config["hotspot"]["ssid"] == hs["ssid"] == "AluPC"
 
 
 def test_login_page_has_name_and_both_ways(env):  # noqa: F811
@@ -571,14 +568,14 @@ def test_games_start_games_wifi_and_lobby_shows_one_wlan_code(env, tmp_path, mon
             break
         import time
         time.sleep(0.02)
-    assert started == [(True, "spiele")]  # Minispiele = eigenes WLAN
+    assert started == [(True, "normal")]  # Minispiele starten das (eine) AluPC-WLAN, falls es noch aus ist
     controller.game_action("aus")
     controller.config["games"] = {**controller.config["games"], "auto_wifi": False, "wifi_only": False}
     started.clear()
     controller.start_games("schlangen")
     assert started == []
     hs = hotspot.hotspot
-    for k, v in (("running", True), ("kind", "spiele"), ("ssid", "AluPC-Spiele"), ("password", ""), ("hidden", True)):
+    for k, v in (("running", True), ("kind", "normal"), ("ssid", "AluPC"), ("password", ""), ("hidden", True)):
         monkeypatch.setattr(hs, k, v)
     from alupc.game_source import GameSource
 
@@ -587,7 +584,7 @@ def test_games_start_games_wifi_and_lobby_shows_one_wlan_code(env, tmp_path, mon
     path = tmp_path / "lobby-wlan.png"
     src.grab().save(str(path))
     texts = [r.text for r in zx.read_barcodes(pil.open(path))]
-    assert texts == [wifi_payload("AluPC-Spiele", "", hidden=True)]  # nur EIN Code: das WLAN
+    assert texts == [wifi_payload("AluPC", "", hidden=True)]  # nur EIN Code: das WLAN
     src.stop()
     controller.game_action("aus")
 

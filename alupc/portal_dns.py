@@ -1,6 +1,6 @@
 """Kleiner DNS-Server für die WLAN-Anmeldeseite (Linux-Hotspot).
 
-Im Spiele-WLAN („geschlossen“) beantwortet er JEDE Namensfrage mit der Adresse des PCs – so landet jede Prüfung
+Im AluPC-WLAN („geschlossen“) beantwortet er JEDE Namensfrage mit der Adresse des PCs – so landet jede Prüfung
 der Handys („bin ich im Internet?“) bei AluPC, das Handy erkennt „Anmeldung nötig“ und öffnet die Anmeldeseite.
 Im normalen Hotspot („offen“) zeigen nur die Prüf-Adressen auf den PC, alles andere wird normal aufgelöst.
 

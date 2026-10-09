@@ -60,7 +60,7 @@ SECTIONS: dict[str, tuple[str, list[str]]] = {
     "overlays": ("Overlays", ["overlays"]),
     "fingerabdruck": ("Fingerabdruck (Personen und Finger)", ["fingerprint_slots", "finger_shortcuts"]),
     "sprache": ("Sprachsteuerung (Startwörter, eigene Befehle)", ["voice"]),
-    "spiele": ("Minispiele, Hotspot, Spiele-WLAN", ["games", "hotspot"]),
+    "spiele": ("Minispiele, AluPC-WLAN", ["games", "hotspot"]),
     "extras": ("Begrüßung, Wetter, Glücksrad, Umfrage, Whiteboard", ["welcome", "weather", "wheel", "poll",
                                                                      "whiteboard"]),
     "start": ("Start der App", ["start_content", "restore_last_content", "start_minimized"]),

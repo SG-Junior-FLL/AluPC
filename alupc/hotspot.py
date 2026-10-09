@@ -1,10 +1,7 @@
-"""Hotspot: der PC macht selbst ein WLAN auf. Zwei Arten:
-
-* **normal** – „Hotspot“-Kachel auf der Startseite: eigener Name/Passwort, an/aus wie ein Lichtschalter – auch mit
-  Anmeldeseite (Mitspielen oder AluPC steuern mit Freigabe am PC).
-* **spiele** – Spiele-WLAN aus dem Minispiele-Fenster: mit Passwort (steckt im WLAN-QR-Code) und **Anmeldeseite**:
-  Wer sich verbindet, bekommt vom Handy sofort die „Im WLAN anmelden“-Seite – und das ist direkt die
-  Spielsteuerung. Geht automatisch aus, wenn die Minispiele beendet werden.
+"""Hotspot: der PC macht selbst ein WLAN auf – EIN AluPC-WLAN für alles (Hotspot-Kachel, Minispiele, Abstimmen,
+Steuern): Name/Passwort (steckt im WLAN-QR-Code) und **Anmeldeseite** – wer sich verbindet, bekommt vom Handy sofort
+die „Im WLAN anmelden“-Seite (Mitspielen, Abstimmen, AluPC steuern mit Freigabe am PC). Es bleibt an, wenn Minispiele
+starten oder enden (sonst flögen die Handys kurz raus und das Anmeldefenster ginge zu).
 
 Linux: NetworkManager (nmcli), PC-Adresse im Hotspot meist 10.42.0.1. Die Anmeldeseite braucht eine
 Weiterleitung (Port 80 → AluPC) – das darf nur root: einmal Passwort (pkexec) beim Start, ein kleiner Wächter
@@ -13,8 +10,8 @@ Damit es auch ohne Internet am PC klappt, beantwortet der Hotspot die Prüf-Adre
 (dnsmasq-Eintrag „interface-name“ – zeigt auf die eigene Adresse im Hotspot).
 Windows: „Mobiler Hotspot“ (WinRT über PowerShell), Passwort ist dort Pflicht, Adresse 192.168.137.1. Die
 Anmeldeseite geht genauso wie unter Linux: AluPCs eigener DNS auf 192.168.137.1:53 beantwortet die Namensfragen
-der Handys (im Spiele-WLAN jede → PC), einmal „Ja“ (Administrator) für Port 80 → AluPC („netsh portproxy“),
-Firewall und (Spiele-WLAN) kein Weiterleiten ins Internet; ein Wächter räumt danach auf.
+der Handys (jede → PC), einmal „Ja“ (Administrator) für Port 80 → AluPC („netsh portproxy“),
+Firewall und kein Weiterleiten ins Internet (außer freigeschaltete Geräte); ein Wächter räumt danach auf.
 
 Achtung: Viele WLAN-Karten können nicht gleichzeitig Hotspot sein UND mit einem anderen WLAN verbunden – dann ist
 der PC während des Hotspots ohne Internet (über Kabel geht beides). Alle Funktionen geben (ok, Meldung) zurück.
@@ -42,23 +39,18 @@ def new_password() -> str:
     return "".join(secrets.choice(_PW_CHARS) for _ in range(10))
 
 
-def settings(config, kind: str = "spiele") -> dict:
-    """Name/Passwort des Hotspots (einmal erzeugt, dann gespeichert). Linux und Windows gleich: immer mit Passwort
-    (Windows kann es nicht anders) – per Abgleich ist es dann auf beiden Systemen dasselbe WLAN."""
-    if kind == "spiele":
-        hs = dict(config["games"].get("hotspot") or {})
-    else:
-        hs = dict(config.get("hotspot") or {})
+def settings(config, kind: str = "normal") -> dict:
+    """Name/Passwort des AluPC-WLANs (einmal erzeugt, dann gespeichert) – es gibt nur eins (kind wird ignoriert).
+    Linux und Windows gleich: immer mit Passwort (Windows kann es nicht anders) – per Abgleich ist es dann auf beiden
+    Systemen dasselbe WLAN."""
+    hs = dict(config.get("hotspot") or {})
     changed = False
     if not hs.get("ssid"):
-        hs["ssid"], changed = DEFAULT_SSID[kind], True
+        hs["ssid"], changed = DEFAULT_SSID["normal"], True
     if len(hs.get("password") or "") < 8:
         hs["password"], changed = new_password(), True
     if changed:
-        if kind == "spiele":
-            config["games"] = {**config["games"], "hotspot": hs}
-        else:
-            config["hotspot"] = hs
+        config["hotspot"] = hs
     return hs
 
 
@@ -1021,8 +1013,9 @@ class Hotspot:
         self.portal = False
         self.message = ""
 
-    def start(self, ssid: str, password: str, kind: str = "spiele", portal: bool = False,
+    def start(self, ssid: str, password: str, kind: str = "normal", portal: bool = False,
               hidden: bool = True) -> tuple[bool, str]:
+        kind = "normal"  # nur noch EIN AluPC-WLAN (früher eigenes Spiele-WLAN)
         ok, why = supported()
         if not ok:
             self.message = why
@@ -1060,9 +1053,9 @@ class Hotspot:
     def stop(self) -> tuple[bool, str]:
         stop_portal()
         self.portal = False
-        kind = self.kind or "spiele"
         if sys.platform.startswith("linux"):
-            ok, msg = _linux_stop(kind=kind)
+            ok, msg = _linux_stop(kind="normal")
+            _linux_stop(kind="spiele")  # Rest einer älteren Version (eigenes Spiele-WLAN)
         elif IS_WINDOWS:
             ok, msg = windows_message(_ps(_PS_STOP)[1])
             msg = "Hotspot aus." if ok else msg

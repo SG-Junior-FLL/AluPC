@@ -8,7 +8,18 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.117.0)
+### Neu in dieser Version (0.118.0)
+- **Nur noch EIN WLAN („AluPC“)** statt „AluPC“ und „AluPC-Spiele“: Hotspot-Kachel, Minispiele, Abstimmen und
+  Steuern nutzen dasselbe WLAN mit derselben Anmeldeseite.
+- **Anmeldefenster ging nach ein paar Minuten zu:** Starteten die Minispiele, schaltete AluPC auf das Spiele-WLAN um
+  (das normale ging aus); endeten sie, ging das Spiele-WLAN aus. Jedes Mal flog das Handy kurz aus dem WLAN – Android
+  (und iPhone/iPad) schließt dann das Anmeldefenster. Jetzt bleibt das WLAN an: Minispiele starten es nur, wenn es
+  noch aus ist, und schalten es beim Beenden nicht ab.
+- Fenster „AluPC-WLAN“ (Kachel „Hotspot“ und Minispiele → „WLAN …“) ist dasselbe; „Mit den Minispielen automatisch
+  starten“ steht dort.
+- Nicht geprüft: echtes Android-Handy und iPad – ob das Fenster jetzt dauerhaft offen bleibt.
+
+### Neu in Version 0.117.0
 - **Anmeldeseite – Fehler gefunden (Windows und Linux):** Wurde das WLAN über die Hotspot-Kachel gestartet, lief
   AluPCs Webserver gar nicht mit (er startete nur über die frühere Kachel „Handy-Steuerung“ oder per Autostart).
   Port 80 lief dann ins Leere: Handy fragt DNS (✓), die Anmeldeseite kommt nie, per Hand „lädt ewig“. Jetzt startet

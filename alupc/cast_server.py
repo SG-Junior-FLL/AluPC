@@ -601,7 +601,7 @@ def _make_handler(server: CastServer):
             return data
 
         def _portal_redirect(self) -> bool:
-            """Spiele-WLAN mit Anmeldeseite: Handys prüfen beim Verbinden fremde Adressen (Android:
+            """AluPC-WLAN mit Anmeldeseite: Handys prüfen beim Verbinden fremde Adressen (Android:
             connectivitycheck…/generate_204, iPhone: captive.apple.com, Windows: msftconnecttest.com) – die
             leitet der PC hierher um. Antwort: Weiterleitung zur Spielsteuerung → das Handy zeigt „Im WLAN
             anmelden“ und öffnet sie selbst."""
@@ -660,7 +660,7 @@ def _make_handler(server: CastServer):
                     self._json(200, poll.public(q.get("v", [""])[0]))
             elif path == "/api/freigabe":  # Handy fragt nach: schon am PC erlaubt?
                 self._json(200, server.access_state(parse_qs(urlparse(self.path).query).get("id", [""])[0]))
-            elif path == "/anmelden":  # WLAN-Anmeldeseite (Spiele-WLAN): Mitspielen oder – mit Code – steuern
+            elif path == "/anmelden":  # WLAN-Anmeldeseite (AluPC-WLAN): Mitspielen oder – mit Code – steuern
                 self._send(200, portal_page(server).encode(), "text/html; charset=utf-8")
             elif path == "/spiel":
                 from .game_page import GAME_PAGE

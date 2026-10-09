@@ -61,7 +61,7 @@ class ConnectDialog(QDialog):
                                        "Danach öffnet sich die Anmeldeseite"])
             lay.addWidget(self.wifi_card, 0, Qt.AlignCenter)
         else:
-            msg = QLabel("Das AluPC-WLAN läuft noch nicht – erst starten (Kachel „Hotspot“ bzw. „Spiele-WLAN …“).")
+            msg = QLabel("Das AluPC-WLAN läuft noch nicht – erst starten (Kachel „Hotspot“ oder Minispiele → „WLAN …“).")
             msg.setWordWrap(True)
             lay.addWidget(msg)
         buttons = QHBoxLayout()
@@ -77,8 +77,8 @@ class ConnectDialog(QDialog):
 
 
 class HotspotDialog(QDialog):
-    """Hotspot einstellen und an/aus. kind „normal“ (Hotspot-Kachel) oder „spiele“ (Spiele-WLAN aus dem
-    Minispiele-Fenster: mit Anmeldeseite, geht mit den Spielen aus)."""
+    """Das AluPC-WLAN einstellen und an/aus – EIN WLAN für alles (Hotspot-Kachel, Minispiele, Abstimmen, Steuern).
+    kind ist nur noch aus Kompatibilität da; „Mit den Minispielen automatisch starten“ steht immer dabei."""
 
     def __init__(self, controller, kind: str = "normal", parent=None):
         from PySide6.QtWidgets import QCheckBox, QFormLayout, QLineEdit
@@ -86,17 +86,15 @@ class HotspotDialog(QDialog):
         from ..hotspot import hotspot, settings, supported
 
         super().__init__(parent)
-        self.controller, self.kind = controller, kind
-        games = kind == "spiele"
-        title = "Spiele-WLAN" if games else "Hotspot"
+        self.controller, self.kind = controller, "normal"
+        title = "AluPC-WLAN"
         self.setWindowTitle(title)
         self.setMinimumWidth(540)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 18, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header(title, "Eigenes WLAN für die Spiele · aus, wenn die Spiele enden" if games
-                                 else "Der PC macht ein eigenes WLAN auf", "wifi"))
-        hs = settings(controller.config, kind)
+        lay.addWidget(page_header(title, "Ein WLAN für alles: Anmeldeseite, Minispiele, Abstimmen, Steuern", "wifi"))
+        hs = settings(controller.config)
         ok, why = supported()
         box = QFrame()
         box.setObjectName("Card")
@@ -119,11 +117,9 @@ class HotspotDialog(QDialog):
         if IS_WINDOWS:
             self.hidden.setText("Unsichtbar – geht unter Windows nicht")
         form.addRow("", self.hidden)
-        self.auto = None
-        if games:
-            self.auto = QCheckBox("Mit den Minispielen automatisch starten")
-            self.auto.setChecked(bool(controller.config["games"].get("auto_wifi", True)))
-            form.addRow("", self.auto)
+        self.auto = QCheckBox("Mit den Minispielen automatisch starten (bleibt danach an)")
+        self.auto.setChecked(bool(controller.config["games"].get("auto_wifi", True)))
+        form.addRow("", self.auto)
         bl.addLayout(form)
         row = QHBoxLayout()
         self.toggle = button("", "play", primary=True)
@@ -192,7 +188,7 @@ class HotspotDialog(QDialog):
     def _mine(self) -> bool:
         from ..hotspot import hotspot
 
-        return hotspot.running and hotspot.kind == self.kind
+        return hotspot.running
 
     def _fill_devices(self) -> None:
         from PySide6.QtWidgets import QListWidgetItem
@@ -239,8 +235,7 @@ class HotspotDialog(QDialog):
 
         try:
             on = self._mine()
-            self.toggle.setText(("Spiele-WLAN" if self.kind == "spiele" else "Hotspot") +
-                                (" beenden" if on else " starten"))
+            self.toggle.setText("WLAN beenden" if on else "WLAN starten")
             self.toggle.setIcon(icons.icon("x" if on else "play", theme.current().text, 18))
             t = theme.current()
             color = t.success if on else t.muted
@@ -263,13 +258,11 @@ class HotspotDialog(QDialog):
         if len(pw) < 8:  # WPA braucht mindestens 8 Zeichen (Linux und Windows gleich)
             pw = new_password()
             self.pw.setText(pw)
-        default = "AluPC-Spiele" if self.kind == "spiele" else "AluPC"
-        hs = {"ssid": self.ssid.text().strip() or default, "password": pw, "hidden": self.hidden.isChecked()}
-        if self.kind == "spiele":
-            games = {k: v for k, v in cfg["games"].items() if k not in ("wifi", "wifi_only")}
-            cfg["games"] = {**games, "hotspot": hs, "auto_wifi": self.auto.isChecked()}
-        else:
-            cfg["hotspot"] = {**(cfg.get("hotspot") or {}), **hs}  # Internet-Freigaben behalten
+        hs = {"ssid": self.ssid.text().strip() or "AluPC", "password": pw, "hidden": self.hidden.isChecked()}
+        cfg["hotspot"] = {**(cfg.get("hotspot") or {}), **hs}  # Internet-Freigaben behalten
+        games = {k: v for k, v in cfg["games"].items() if k not in ("wifi", "wifi_only")}
+        if bool(games.get("auto_wifi", True)) != self.auto.isChecked():
+            cfg["games"] = {**games, "auto_wifi": self.auto.isChecked()}
 
     def _toggle(self) -> None:
         from .util import run_async
@@ -288,7 +281,7 @@ class HotspotDialog(QDialog):
             self._refresh()
             self.controller.games_changed.emit()
 
-        run_async(lambda: self.controller.set_hotspot(on, self.kind), done, lambda t: done((False, t)))
+        run_async(lambda: self.controller.set_hotspot(on), done, lambda t: done((False, t)))
 
     def accept(self) -> None:
         self._save()
