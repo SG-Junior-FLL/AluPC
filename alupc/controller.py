@@ -1952,6 +1952,12 @@ class Controller(QObject):
         from .hotspot import hotspot, settings
 
         if on:
+            # Die Anmeldeseite kommt von AluPCs Webserver – ohne ihn liefe Port 80 ins Leere (Handy: „DNS ✓, Anmeldeseite
+            # nicht“). Ist sein Port belegt, nimmt er den nächsten freien; die Weiterleitung von Port 80 folgt ihm.
+            if not self.cast.start():
+                msg = "WLAN nicht gestartet: AluPCs Webserver findet keinen freien Port (8765–8774)."
+                self.message.emit(msg)
+                return False, msg
             hs = settings(self.config, kind)
             ok, msg = hotspot.start(hs["ssid"], hs["password"], kind=kind, portal=True,
                                     hidden=bool(hs.get("hidden", True)))  # Linux: unsichtbar (Windows kann es nicht)

@@ -15,6 +15,7 @@ import json
 import re
 import secrets
 import socket
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -378,6 +379,11 @@ _ACTIVE = None  # laufender CastServer (für die Anmeldeseite auf Port 80)
 _EXTRA: list = []  # zusätzliche Server (Windows: Hotspot-Adresse Port 80 direkt – dann sieht AluPC das Handy)
 
 
+def active_port() -> int:
+    """Port, auf dem AluPCs Webserver gerade wirklich läuft (0 = läuft nicht)."""
+    return _ACTIVE.port if _ACTIVE is not None and _ACTIVE.httpd is not None else 0
+
+
 def serve_extra(host: str, port: int) -> bool:
     """Dieselben Seiten zusätzlich auf host:port (exklusiv) – z. B. 192.168.137.1:80 für die Anmeldeseite."""
     if _ACTIVE is None or _ACTIVE.httpd is None:
@@ -449,8 +455,16 @@ def stop_extra() -> None:
 
 
 class _QuietServer(ThreadingHTTPServer):
-    """Handy bricht eine Verbindung ab (Seite gewechselt, WLAN weg) → kein Fehler-Stapel in der Konsole."""
+    """Handy bricht eine Verbindung ab (Seite gewechselt, WLAN weg) → kein Fehler-Stapel in der Konsole.
+    Ist der Port schon belegt, schlägt das Binden fehl (→ AluPC nimmt den nächsten). Unter Windows würde
+    SO_REUSEADDR einen belegten Port einfach mitbenutzen – dort deshalb exklusiv."""
     daemon_threads = True
+    allow_reuse_address = not sys.platform.startswith("win")
+
+    def server_bind(self):
+        if sys.platform.startswith("win") and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
     def handle_error(self, request, client_address):
         import sys
@@ -463,11 +477,6 @@ class _QuietServer(ThreadingHTTPServer):
 class _ExclusiveServer(_QuietServer):
     """Port für sich allein (Windows: sonst könnte ein anderes Programm mitlauschen)."""
     allow_reuse_address = False
-
-    def server_bind(self):
-        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        super().server_bind()
 
 
 def portal_page(server) -> str:

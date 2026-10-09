@@ -36,6 +36,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 IP, PHONE_IP = "192.168.137.1", "192.168.137.50"
+CAST = {"port": 8765}  # Port von AluPCs Webserver (weicht aus, wenn 8765 belegt ist)
 results: list[tuple[bool, str]] = []
 
 
@@ -82,7 +83,7 @@ try { $tc = New-Object Net.Sockets.TcpClient; $tc.Connect('192.168.137.1', 443);
       $ns.Write([byte[]](22, 3, 1), 0, 3); $buf = New-Object byte[] 8; $null = $ns.Read($buf, 0, 8) } catch {}
 $o.https_ms = $sw.ElapsedMilliseconds
 $pr = Get-Url 'http://192.168.137.1/'; $o.pc_root = "$($pr.s) $(($pr.b -match 'id="n"') -and ($pr.b -match 'Mitspielen'))"
-$base0 = 'http://192.168.137.1:8765'
+$base0 = "http://192.168.137.1:$PORT"
 $o.remote_page = (Get-Url "$base0/").s
 try { Invoke-RestMethod -Uri "$base0/api/freigabe" -Method Post -ContentType 'application/json' -Body '{"name":"Handy"}' -UseBasicParsing | Out-Null; $o.ask_access = 200 }
 catch { $o.ask_access = [int]$_.Exception.Response.StatusCode }
@@ -116,7 +117,7 @@ if ($MODE -eq 'spiele' -and $a.l) {
 
 
 def phone(mode: str, image: str, pump) -> dict:
-    script = f"$MODE = '{mode}'\n" + PHONE
+    script = f"$MODE = '{mode}'\n$PORT = {CAST['port']}\n" + PHONE
     enc = base64.b64encode(script.encode("utf-16-le")).decode()
     cmd = ["docker", "run", "--rm", "--network", "hotspot", "--ip", PHONE_IP, "--mac-address", "00:15:5d:00:00:50",
            "--dns", IP, image,
@@ -230,12 +231,21 @@ def main() -> int:
     cfg["cast"] = {**cfg["cast"], "port": hs_mod.PORTAL_PORT}
     controller = Controller(cfg)
     controller.display.available = lambda: False
+    # Port 8765 belegt (anderes Programm) → AluPC weicht aus; Firewall, Weiterleitung und Anmeldeseite folgen
+    blocker = socket.socket()
+    blocker.bind(("0.0.0.0", hs_mod.PORTAL_PORT))
+    blocker.listen(1)
     controller.cast.start()
+    from alupc.cast_server import active_port
+
+    CAST["port"] = active_port()
+    ok(CAST["port"] and CAST["port"] != hs_mod.PORTAL_PORT,
+       f"Port {hs_mod.PORTAL_PORT} belegt → AluPC nimmt Port {CAST['port']}")
     controller.start_games("tictactoe")
     hub = controller.cast.games
     alias = ps(f"(Get-NetIPAddress -IPAddress {IP}).InterfaceAlias")
     hs = hs_mod.hotspot
-    target = f"http://{IP}:{hs_mod.PORTAL_PORT}/anmelden"
+    target = f"http://{IP}:{CAST['port']}/anmelden"
 
     # ================= Spiele-WLAN: geschlossen
     hs.running, hs.kind, hs.ssid, hs.password, hs.ip = True, "spiele", "AluPC-Spiele", "k7m2p9qa", IP
@@ -280,6 +290,14 @@ def main() -> int:
     ok(own80 or f"{IP}" in ps("netsh interface portproxy show v4tov4"),
        f"Port 80 → AluPC ({'direkt' if own80 else 'Weiterleitung'})")
     ok("AluPC-Portal" in ps("netsh advfirewall firewall show rule name=AluPC-Portal"), "Firewall offen (80, 53)")
+    hs_mod.portal_status()  # Selbsttest läuft im Hintergrund an
+    for _ in range(20):
+        pump(0.3)
+        line = hs_mod.portal_status()
+        if "Anmeldeseite am PC: antwortet nicht" not in line:
+            break
+    ok(line.startswith(f"Port 80 → AluPC-Seite (Port {CAST['port']})") and "Anmeldeseite am PC: " in line and "antwortet nicht" not in line,
+       f"Hotspot-Fenster (gleich auf Windows und Linux): {line}")
     ok(forwarding(alias) == "Disabled", f"Hotspot leitet nichts ins Internet weiter ({forwarding(alias)})")
     r = phone("spiele", image, pump)
     ok(r.get("dns_check") == IP, f"Handy-DNS: connectivitycheck.gstatic.com → {r.get('dns_check')}")
@@ -326,7 +344,7 @@ def main() -> int:
         ok(forwarding(alias) == "Disabled", f"Haken weg: Weiterleitung wieder aus ({forwarding(alias)})")
 
     nat_ip = ps("(Get-NetIPAddress -InterfaceAlias 'vEthernet (nat)' -AddressFamily IPv4).IPAddress").strip()
-    o = outsider(image, f"http://{nat_ip}:{hs_mod.PORTAL_PORT}", hub.token, pump)
+    o = outsider(image, f"http://{nat_ip}:{CAST['port']}", hub.token, pump)
     ok(o and all(v == 403 for v in o.values()),
        f"Handy aus anderem Netz ({nat_ip}): Steuern, Spielen, Abstimmen, Status, Erlaubnis → überall 403 {o}")
     ok(not any(p.name == "Fremd" for p in hub.players.values()), "„Fremd“ ist NICHT im Spiel")
@@ -346,15 +364,13 @@ def main() -> int:
             break
     print("::notice title=Firewall-Sperre erkannt::" + repr(drops[-3:]), flush=True)
     ok(any(d["name"] == rule and d["kind"] == "regel" for d in drops), f"Sperre erkannt: Regel „{rule}“ → {drops[-2:]}")
-    hint = hs_mod.check_hint(PHONE_IP)
-    ok(rule in hint, f"Hotspot-Fenster beim Handy: {hint}")
-    ok(hs_mod.needs_fix(), "Knopf „Firewall-Sperre beheben“ erscheint")
-    hs_mod.request_fix()
-    for _ in range(30):
+    for _ in range(30):  # ohne Knopf: der Wächter schaltet die Sperre selbst aus
         pump(0.5)
-        if hs_mod.fix_result():
+        if rule in hs_mod.fix_result():
             break
-    ok(rule in hs_mod.fix_result(), f"Behoben: {hs_mod.fix_result()}")
+    ok(rule in hs_mod.fix_result(), f"Automatisch freigemacht: {hs_mod.fix_result()}")
+    hint = hs_mod.check_hint(PHONE_IP)
+    ok("automatisch aufgehoben" in hint, f"Hotspot-Fenster beim Handy: {hint}")
     ok(ps(f"(Get-NetFirewallRule -DisplayName '{rule}').Enabled") == "False", "Sperr-Regel vorübergehend aus")
     code = phone_probe(image, pump)
     ok(code == 302, f"Danach kommt das Handy durch → Android-Prüfung {code}")

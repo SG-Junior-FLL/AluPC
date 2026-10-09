@@ -176,6 +176,28 @@ def portal_script(dev: str, port: int, flag: Path, pid: int, closed: bool = True
     final = "iptables -A alupc-fwd -j REJECT" if closed else "true"
     return f"""
 F='{f}'
+Z=''
+UFW=''
+note() {{ if [ -s "$F.fixed" ]; then printf ', %s' "$1" >> "$F.fixed"; else printf '%s' "$1" > "$F.fixed"; fi; }}
+fw_open() {{  # Firewall des Systems für den Hotspot öffnen – nur bis zum Ende (Laufzeit-Regeln)
+  if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+    Z=$(firewall-cmd --get-zone-of-interface={d} 2>/dev/null)
+    if [ "$Z" != trusted ]; then
+      firewall-cmd --zone=trusted --change-interface={d} >/dev/null 2>&1 && note "firewalld: Hotspot vertraut"
+    fi
+  fi
+  if command -v ufw >/dev/null 2>&1 && grep -qi '^ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null; then
+    ufw insert 1 allow in on {d} >/dev/null 2>&1 && UFW=1 && note "ufw: Hotspot erlaubt"
+    ufw route insert 1 allow in on {d} >/dev/null 2>&1
+  fi
+}}
+fw_close() {{
+  if [ -n "$UFW" ]; then ufw delete allow in on {d} >/dev/null 2>&1; ufw route delete allow in on {d} >/dev/null 2>&1; fi
+  if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+    if [ -n "$Z" ] && [ "$Z" != trusted ]; then firewall-cmd --zone="$Z" --change-interface={d} >/dev/null 2>&1
+    elif [ -z "$Z" ]; then firewall-cmd --zone=trusted --remove-interface={d} >/dev/null 2>&1; fi
+  fi
+}}
 cleanup() {{
   {undo}
   ip6tables {ip6.replace("-I ", "-D ", 1)} 2>/dev/null
@@ -191,11 +213,13 @@ build() {{
   iptables -t nat -A alupc-nat -p udp --dport 53 -j REDIRECT --to-ports {dp} &&
   iptables -t nat -A alupc-nat -p tcp --dport 53 -j REDIRECT --to-ports {dp} &&
   iptables -t nat -A alupc-nat -p tcp --dport 80 {local}-j REDIRECT --to-ports {pp} &&
-  {final}
+  {final} &&
+  if [ -s "$F.internet" ] || [ "{"1" if closed else ""}" = "" ]; then echo Enabled > "$F.fwd"; else echo Disabled > "$F.fwd"; fi
 }}
 cleanup
 iptables -t nat -N alupc-nat && iptables -N alupc-fwd && build && {" && ".join("iptables " + j for j in jumps)} || {{ cleanup; exit 1; }}
 {f"command -v ip6tables >/dev/null && ip6tables {ip6}" if closed else "true"}
+fw_open
 echo ok > "$F.ok"
 last=$(cat "$F.internet" 2>/dev/null)
 while [ -e "$F" ] && kill -0 {int(pid)} 2>/dev/null; do
@@ -203,7 +227,9 @@ while [ -e "$F" ] && kill -0 {int(pid)} 2>/dev/null; do
   cur=$(cat "$F.internet" 2>/dev/null)
   if [ "$cur" != "$last" ]; then build; last=$cur; fi
 done
+fw_close
 cleanup
+rm -f "$F.fixed" "$F.fwd"
 """
 
 
@@ -256,12 +282,14 @@ $since = Get-Date
 $seen = @{{}}
 $fnames = @{{}}
 $prof = 'Public'
+$fixed = New-Object System.Collections.ArrayList  # was AluPC automatisch freigemacht hat (zeigt das Hotspot-Fenster)
 function Restore {{  # vorübergehend ausgeschaltete Sperren wieder an
   if (-not (Test-Path -LiteralPath $undoFile)) {{ return }}
   foreach ($line in @(Get-Content -LiteralPath $undoFile -ErrorAction SilentlyContinue)) {{
     $k, $v = ([string]$line).Split('|', 2)
     if ($k -eq 'regel' -and $v) {{ Enable-NetFirewallRule -Name $v -ErrorAction SilentlyContinue }}
     if ($k -eq 'profil' -and $v) {{ Set-NetFirewallProfile -Name $v -AllowInboundRules False -ErrorAction SilentlyContinue }}
+    if ($k -eq 'dienst' -and $v) {{ Start-Service -Name $v -ErrorAction SilentlyContinue }}
   }}
   Remove-Item -LiteralPath $undoFile -ErrorAction SilentlyContinue
 }}
@@ -304,28 +332,49 @@ function Drops {{  # verworfene Handy-Anfragen an Port 80 → <Flagge>.drop (Zei
     $old = @(Get-Content -LiteralPath "$flag.drop" -ErrorAction SilentlyContinue)
     Set-Content -LiteralPath "$flag.drop" -Encoding UTF8 -Value (@($old) + $out | Select-Object -Last 20)
   }}
+  @($out | Where-Object {{ ([string]$_).Split('|')[4] -eq 'regel' }}).Count
 }}
-function FixNow {{  # Knopf „Beheben“ im Hotspot-Fenster: Sperren bis zum Hotspot-Ende ausschalten
+function Note($text) {{
+  [void]$fixed.Add($text)
+  Set-Content -LiteralPath "$flag.fixed" -Encoding UTF8 -Value ($fixed -join ', ')
+}}
+function FixNow {{  # Firewall-Sperren gegen Handys automatisch ausschalten – nur bis der Hotspot endet
   New-Item -ItemType Directory -Force -Path $store | Out-Null
   $names = @(Get-Content -LiteralPath "$flag.drop" -ErrorAction SilentlyContinue | ForEach-Object {{
     $p = ([string]$_).Split('|'); if ($p.Count -ge 6 -and $p[4] -eq 'regel') {{ $p[5] }} }}) | Select-Object -Unique
-  $done = @()
   foreach ($n in $names) {{
     Get-NetFirewallRule -DisplayName $n -ErrorAction SilentlyContinue |
       Where-Object {{ [string]$_.Enabled -eq 'True' -and [string]$_.Direction -eq 'Inbound' -and [string]$_.Action -eq 'Block' }} |
       ForEach-Object {{
         Add-Content -LiteralPath $undoFile -Value "regel|$($_.Name)"
         Disable-NetFirewallRule -Name $_.Name -ErrorAction SilentlyContinue
-        $done += "Regel '$n' aus"
+        Note "Sperr-Regel '$n' aus"
       }}
   }}
   $fp = Get-NetFirewallProfile -Name $prof -ErrorAction SilentlyContinue
   if ([string]$fp.AllowInboundRules -eq 'False') {{
     Add-Content -LiteralPath $undoFile -Value "profil|$prof"
     Set-NetFirewallProfile -Name $prof -AllowInboundRules True -ErrorAction SilentlyContinue
-    $done += "'Alle eingehenden blockieren' ($prof) aus"
+    Note "'Alle eingehenden blockieren' ($prof) aus"
   }}
-  Set-Content -LiteralPath "$flag.fixed" -Encoding UTF8 -Value $(if ($done.Count) {{ $done -join ', ' }} else {{ 'nichts zu tun' }})
+}}
+function Free80 {{  # Port 80 hält ein anderer Dienst (z. B. IIS über http.sys) → bis zum Ende anhalten
+  $helper = (Get-CimInstance Win32_Service -Filter "Name='iphlpsvc'").ProcessId
+  $busy = @(Get-NetTCPConnection -LocalPort 80 -State Listen -ErrorAction SilentlyContinue |
+    Where-Object {{ $_.LocalAddress -in @($ip, '0.0.0.0', '::') -and $_.OwningProcess -notin @($helper, {int(pid)}) }})
+  foreach ($c in $busy) {{
+    $procId = [int]$c.OwningProcess
+    $names = if ($procId -eq 4) {{ @('W3SVC', 'WAS', 'WMSVC') }}
+             else {{ @(Get-CimInstance Win32_Service -Filter "ProcessId=$procId" -ErrorAction SilentlyContinue | ForEach-Object Name) }}
+    if ($names.Count -eq 0 -or $names.Count -gt 3) {{ continue }}  # Sammelprozess vieler Windows-Dienste – nicht anfassen
+    $keep = @('SharedAccess', 'iphlpsvc', 'Dnscache', 'BFE', 'mpssvc', 'nsi', 'Tcpip', 'RpcSs', 'LanmanServer')
+    foreach ($svc in @(Get-Service -Name $names -ErrorAction SilentlyContinue |
+        Where-Object {{ [string]$_.Status -eq 'Running' -and $_.Name -notin $keep }})) {{
+      Add-Content -LiteralPath $undoFile -Value "dienst|$($svc.Name)"
+      Stop-Service -Name $svc.Name -Force -ErrorAction SilentlyContinue
+      Note "Dienst '$($svc.Name)' angehalten (hielt Port 80)"
+    }}
+  }}
 }}
 function WaitFile($path, $seconds) {{
   $end = (Get-Date).AddSeconds($seconds)
@@ -346,6 +395,7 @@ try {{
   Start-Service iphlpsvc -ErrorAction SilentlyContinue
   # Port 53: AluPC nimmt genau die Hotspot-Adresse (genauer als der Windows-DNS auf 0.0.0.0). Den Windows-Dienst
   # NICHT anhalten – das beendet den Mobilen Hotspot.
+  try {{ New-Item -ItemType Directory -Force -Path $store | Out-Null; Free80 }} catch {{}}
   Set-Content -LiteralPath "$flag.frei" -Value (Owner53)
   $null = WaitFile "$flag.dns" 30
   Remove-Item -LiteralPath "$flag.dns" -ErrorAction SilentlyContinue
@@ -386,6 +436,7 @@ try {{
     auditpol /set /subcategory:'{{0CCE9226-69AE-11D9-BED3-505054503030}}' /failure:enable | Out-Null
     if ($LASTEXITCODE -eq 0) {{ Set-Content -LiteralPath "$flag.audit" -Value 'an' }}
   }} catch {{}}
+  try {{ FixNow }} catch {{}}  # „Alle eingehenden blockieren“ gleich zu Beginn aus (bis zum Ende)
   $since = Get-Date
   Set-Content -LiteralPath "$flag.ok" -Value ($(if (Alias) {{ 'ok' }} else {{ 'ok:ohne-adresse' }}))
   while ((Test-Path -LiteralPath $flag) -and (Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue)) {{
@@ -394,11 +445,7 @@ try {{
     # alle 2 s wieder auf Soll stellen.
     $n++
     if ($n % 10 -eq 0) {{ Unblock }}  # Windows-Frage später doch weggeklickt → Sperre wieder weg
-    try {{ Drops }} catch {{}}
-    if (Test-Path -LiteralPath "$flag.fix") {{
-      Remove-Item -LiteralPath "$flag.fix" -ErrorAction SilentlyContinue
-      try {{ FixNow }} catch {{ Set-Content -LiteralPath "$flag.fixed" -Encoding UTF8 -Value "Fehler: $_" }}
-    }}
+    try {{ if ((Drops) -gt 0) {{ FixNow }} }} catch {{}}  # Sperr-Regel hat ein Handy abgewiesen → gleich aus
     $a = Alias
     if ($closed -and $a) {{
       $allow = ''
@@ -423,7 +470,7 @@ try {{
     Remove-Item -LiteralPath $auditBak -ErrorAction SilentlyContinue
   }}
   Remove-Item -LiteralPath "$flag.frei","$flag.bereit","$flag.dns","$flag.fwd","$flag.fw","$flag.laeuft","$flag.drop",
-    "$flag.fix","$flag.fixed","$flag.audit" -ErrorAction SilentlyContinue
+    "$flag.fixed","$flag.audit" -ErrorAction SilentlyContinue
 }}
 """
 
@@ -593,26 +640,15 @@ def audit_active() -> bool:
     return _flag_text(".audit") == "an"
 
 
-def needs_fix() -> bool:
-    """Gibt es eine Windows-Firewall-Sperre, die der Knopf „Beheben“ aufheben kann?"""
-    if not (IS_WINDOWS and hotspot.running and hotspot.portal) or _flag_text(".fixed"):
-        return False
-    return firewall_info().get("erlaubte") == "False" or any(d["kind"] == "regel" for d in drop_info())
-
-
-def request_fix() -> None:
-    """Wächter (Administrator) schaltet die gefundenen Sperren aus – nur bis der Hotspot endet."""
-    Path(f"{portal_flag()}.fix").write_text("ja", encoding="utf-8")
-
-
 def fix_result() -> str:
+    """Was der Wächter automatisch freigemacht hat (Firewall-Sperren, Dienst auf Port 80) – bis der Hotspot endet."""
     return _flag_text(".fixed")
 
 
 _SELFTEST = {"t": 0.0, "ms": None, "running": False}
 
 
-def port80_selftest(ip: str, max_age: float = 10.0) -> int | None:
+def port80_selftest(ip: str, max_age: float = 10.0, port: int = 80) -> int | None:
     """Ruft die Anmeldeseite vom PC aus auf ip:80 ab (im Hintergrund, höchstens alle 10 s) → Millisekunden oder None.
     Geht das am PC, aber nicht am Handy, blockiert etwas dazwischen (Firewall)."""
     import socket
@@ -623,7 +659,7 @@ def port80_selftest(ip: str, max_age: float = 10.0) -> int | None:
         start = time.monotonic()
         ms = None
         try:
-            with socket.create_connection((ip, 80), timeout=4) as s:
+            with socket.create_connection((ip, port), timeout=4) as s:
                 s.sendall(b"GET /generate_204 HTTP/1.1\r\nHost: connectivitycheck.gstatic.com\r\nConnection: close\r\n\r\n")
                 if s.recv(64).startswith(b"HTTP/1."):
                     ms = int((time.monotonic() - start) * 1000)
@@ -646,33 +682,34 @@ def forwarding_state() -> str:
 
 
 def portal_status() -> str:
-    """Eine Zeile für das Hotspot-Fenster: wo es hakt (Port 80, letzte Anfragen, Internet-Sperre)."""
+    """Eine Zeile für das Hotspot-Fenster (Windows und Linux gleich): wohin Port 80 geht, ob die Seite am PC antwortet,
+    was automatisch freigemacht wurde, Internet-Sperre, letzte Prüfung eines Handys."""
     import time
+
+    from .cast_server import active_port
 
     if not (hotspot.running and hotspot.portal):
         return ""
-    parts = []
-    if IS_WINDOWS:
-        parts.append("Port 80: " + ("AluPC direkt" if "Port 80: AluPC" in DNS_INFO else "Weiterleitung"))
-        fwd = forwarding_state()
-        parts.append("Internet-Sperre: " + {"Disabled": "aktiv", "Enabled": "AUS (Weiterleitung an)"}.get(fwd, "?"))
-        ms = port80_selftest(hotspot.ip)
-        parts.append(f"Port 80 am PC: {ms} ms" if ms is not None else "Port 80 am PC: antwortet nicht")
-        fw = firewall_info()
-        other = [n.strip() for n in fw.get("fremd", "").split(",") if n.strip() and "defender" not in n.lower()]
-        if other:
-            parts.append(f"⚠ fremde Firewall: {', '.join(other)} – dort AluPC erlauben")
-        if fw.get("erlaubte") == "False":
-            parts.append(f"⚠ Windows-Firewall ({fw.get('profil')}): „Alle eingehenden blockieren“ ist an")
-        drops = drop_info()
-        if drops:
-            d = drops[-1]
-            who = f"Regel „{d['name']}“" if d["kind"] == "regel" else (f"„{d['name']}“" if d["name"] else "unbekannt")
-            parts.append(f"⛔ gesperrt: {d['ip']} → Port 80 ({who}, vor {int(time.time() - d['t'])} s)")
-        done = fix_result()
-        if done:
-            parts.append(f"Behoben: {done}")
-    recent = [e for e in HTTP_LOG if time.time() - e[0] < 120 and e[3] != hotspot.ip]
+    port = active_port()
+    parts = [f"Port 80 → AluPC-Seite (Port {port})" if port else "⚠ AluPCs Webserver läuft nicht"]
+    fwd = forwarding_state()
+    if fwd:
+        parts.append("Internet-Sperre: " + {"Disabled": "aktiv", "Enabled": "aus (Gerät freigeschaltet)"}.get(fwd, fwd))
+    # Windows: AluPC lauscht selbst auf Port 80; Linux: Port 80 wird nur für Handys umgeleitet → die Seite selbst prüfen
+    ms = port80_selftest(hotspot.ip, port=80 if IS_WINDOWS else (port or PORTAL_PORT))
+    parts.append(f"Anmeldeseite am PC: {ms} ms" if ms is not None else "Anmeldeseite am PC: antwortet nicht")
+    done = fix_result()
+    if done:
+        parts.append(f"automatisch freigemacht: {done}")
+    fw = firewall_info()
+    other = [n.strip() for n in fw.get("fremd", "").split(",") if n.strip() and "defender" not in n.lower()]
+    if other:
+        parts.append(f"⚠ weitere Firewall: {', '.join(other)} – falls Handys nicht durchkommen, dort AluPC erlauben")
+    drops = [d for d in drop_info() if d["kind"] != "regel"]
+    if drops:
+        d = drops[-1]
+        parts.append(f"⛔ gesperrt: {d['ip']} → Port 80 (von „{d['name'] or 'unbekannt'}“, vor {int(time.time() - d['t'])} s)")
+    recent = [e for e in HTTP_LOG if time.time() - e[0] < 120 and hotspot.ip not in (e[1], e[3])]  # nicht der PC selbst
     if recent:
         t, ip, method, host, path = recent[-1]
         parts.append(f"letzte Prüfung: {ip} {method} {host}{path} (vor {int(time.time() - t)} s)")
@@ -696,23 +733,21 @@ CHECK_HOSTS = set(PORTAL_HOSTS) | {"www.google.com", "clients1.google.com", "pla
 
 
 def check_hint(ip: str) -> str:
-    """Kurzer Hinweis, warum ein Handy die Anmeldeseite nicht bekommt (aus den gefragten Namen)."""
+    """Kurzer Hinweis, warum ein Handy die Anmeldeseite nicht bekommt (aus den gefragten Namen und Firewall-Sperren)."""
     names = asked_names(ip)
-    drops = drop_info(ip) if IS_WINDOWS else []
+    drops = drop_info(ip)
     if drops:
         d = drops[-1]
-        if d["kind"] == "regel":
-            return f"Windows-Firewall sperrt (Regel „{d['name']}“) → unten „Firewall-Sperre beheben“"
-        if firewall_info().get("erlaubte") == "False":
-            return "Windows-Firewall sperrt („Alle eingehenden blockieren“) → unten „Firewall-Sperre beheben“"
-        return f"Firewall sperrt ({d['name'] or 'unbekannter Filter'}) – dort AluPC/Port 80 erlauben"
+        if (d["kind"] == "regel" or firewall_info().get("erlaubte") == "False") and fix_result():
+            return "Firewall-Sperre automatisch aufgehoben → WLAN am Handy kurz trennen und neu verbinden"
+        return f"Firewall „{d['name'] or 'unbekannt'}“ sperrt Port 80 – dort AluPC erlauben"
     if not names:
         return ""
     if any(n in CHECK_HOSTS for n in names):
-        if IS_WINDOWS and audit_active():
-            return ("Handy prüft – aber am PC kam auf Port 80 nichts an und die Windows-Firewall hat nichts gesperrt "
-                    "→ andere Sicherheitssoftware? Am Handy mobile Daten aus und neu verbinden")
-        return "Handy prüft – aber nichts kam auf Port 80 an (Firewall?)"
+        if audit_active():
+            return ("Handy prüft – aber am PC kam auf Port 80 nichts an und die Firewall hat nichts gesperrt "
+                    "→ am Handy mobile Daten aus und neu verbinden; sonst andere Sicherheitssoftware?")
+        return "Handy prüft – aber nichts kam auf Port 80 an → am Handy mobile Daten aus und neu verbinden"
     dot = [n for n in names if "dns" in n.split(".")[0] or n.startswith(("dns.", "one.one", "1dot1dot1"))]
     if dot:
         return f"Handy nutzt eigenes DNS ({dot[-1]}) – dort „Privates DNS“ auf Automatisch stellen"
@@ -758,12 +793,17 @@ def stop_dns() -> None:
         _dns = None
 
 
-def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_ready,
+def start_portal(dev: str = "", port: int | None = None, spawn=None, wait=_wait_ready,
                  ip: str = WINDOWS_IP, closed: bool = True, wait_file=_wait_file) -> tuple[bool, str]:
-    """Anmeldeseite einschalten (Linux: vor dem Hotspot-Start, Windows: danach). Fragt einmal nach dem Passwort
-    (Linux, pkexec) bzw. „Ja“ (Windows, Administrator)."""
+    """Anmeldeseite einschalten (Linux: vor dem Hotspot-Start, Windows: danach). Fragt einmal nach Administrator-Rechten.
+    Gleich auf beiden Systemen: Port 80 der Handys → AluPCs Webserver (auf welchem Port er auch läuft), Firewall-Sperren
+    und ein Dienst auf Port 80 werden bis zum Ende automatisch freigemacht, danach ist alles wie vorher."""
+    if port is None:
+        from .cast_server import active_port
+
+        port = active_port() or PORTAL_PORT
     flag = portal_flag()
-    for suffix in (".ok", ".frei", ".bereit", ".dns"):
+    for suffix in (".ok", ".frei", ".bereit", ".dns", ".fixed", ".fwd", ".drop", ".audit", ".fw"):
         Path(f"{flag}{suffix}").unlink(missing_ok=True)
     if IS_WINDOWS:
         import base64
@@ -781,7 +821,7 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
         code, out = (spawn or _ps)(launcher)
         if code != 0:
             flag.unlink(missing_ok=True)
-            return False, "Anmeldeseite aus („Ja“ nicht bestätigt)."
+            return False, "Anmeldeseite aus (Administrator-Rechte nicht bestätigt)."
 
         def fail(text):
             from .cast_server import stop_extra
@@ -837,10 +877,13 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
         return True, "Anmeldeseite an: Handys öffnen sie beim Verbinden selbst."
     if not (shutil.which("pkexec") and shutil.which("iptables")):
         return False, "Anmeldeseite braucht pkexec und iptables."
-    if not start_dns(lambda: hotspot.ip or _linux_ip(dev), closed):
-        return False, f"Anmeldeseite ging nicht: Port {DNS_PORT} ist belegt."
+    # Namensfragen der Handys → AluPCs DNS; ist sein Port belegt, nimmt AluPC den nächsten freien (Umleitung folgt)
+    dns_port = next((p for p in range(DNS_PORT, DNS_PORT + 10)
+                     if start_dns(lambda: hotspot.ip or _linux_ip(dev), closed, port=p)), 0)
+    if not dns_port:
+        return False, f"Anmeldeseite ging nicht: Ports {DNS_PORT}–{DNS_PORT + 9} sind alle belegt."
     flag.write_text("an")
-    cmd = ["pkexec", "sh", "-c", portal_script(dev, port, flag, os.getpid(), closed=closed)]
+    cmd = ["pkexec", "sh", "-c", portal_script(dev, port, flag, os.getpid(), closed=closed, dns_port=dns_port)]
     try:
         proc = (spawn or subprocess.Popen)(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                            stderr=subprocess.DEVNULL, start_new_session=True)
@@ -850,8 +893,8 @@ def start_portal(dev: str = "", port: int = PORTAL_PORT, spawn=None, wait=_wait_
     if not wait(flag, proc, 120):
         flag.unlink(missing_ok=True)  # Wächter (falls doch noch gestartet) räumt dann sofort auf
         stop_dns()
-        return False, "Anmeldeseite aus (Passwort nicht eingegeben) – Handys nehmen den QR-Code."
-    return True, "Anmeldeseite an: Handys öffnen die Spielsteuerung beim Verbinden selbst."
+        return False, "Anmeldeseite aus (Administrator-Rechte nicht bestätigt)."
+    return True, "Anmeldeseite an: Handys öffnen sie beim Verbinden selbst."
 
 
 def stop_portal() -> None:

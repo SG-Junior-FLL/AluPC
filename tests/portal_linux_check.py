@@ -215,6 +215,18 @@ def main() -> int:
     cfg["cast"] = {**cfg["cast"], "port": hs_mod.PORTAL_PORT}
     controller = Controller(cfg)
     controller.display.available = lambda: False
+    # Port 8765 belegt (anderes Programm) → AluPC weicht auf den nächsten freien aus; Umleitung von Port 80 folgt
+    import socket
+
+    blocker = socket.socket()
+    blocker.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    blocker.bind(("0.0.0.0", hs_mod.PORTAL_PORT))
+    blocker.listen(1)
+    controller.cast.start()
+    from alupc.cast_server import active_port
+
+    PORT = active_port()
+    ok(PORT and PORT != hs_mod.PORTAL_PORT, f"Port {hs_mod.PORTAL_PORT} belegt → AluPC nimmt Port {PORT}")
     controller.start_games("tictactoe")
     hs = hs_mod.hotspot
     hs.running, hs.kind, hs.ssid, hs.password, hs.hidden, hs.ip = True, "spiele", "AluPC-Spiele", "k7m2p9qa", False, PC_IP
@@ -223,14 +235,23 @@ def main() -> int:
     if not hs_mod.start_dns(lambda: hs.ip, closed=True):
         ok(False, "AluPC-DNS startet")
         return 1
-    script = hs_mod.portal_script(PC_IF, hs_mod.PORTAL_PORT, flag, os.getpid(), closed=True)
+    script = hs_mod.portal_script(PC_IF, PORT, flag, os.getpid(), closed=True)
     watcher = subprocess.Popen(["sh", "-c", script])
     ok(bool(hs_mod._wait_ready(flag, watcher, 20)), "Root-Skript setzt die Regeln (iptables) und meldet „bereit“")
     hs.portal = True
     rules = sh("iptables-save", check=False)
     want_rules = ["-j alupc-nat", "-j alupc-fwd", "-A alupc-fwd -j REJECT", "--dport 53 -j REDIRECT --to-ports 8753",
-                  "--dport 80 -j REDIRECT --to-ports 8765"]
-    ok(all(w in rules for w in want_rules), "Regeln aktiv: DNS → AluPC, Port 80 → Anmeldeseite, kein Internet")
+                  f"--dport 80 -j REDIRECT --to-ports {PORT}"]
+    ok(all(w in rules for w in want_rules), f"Regeln aktiv: DNS → AluPC, Port 80 → Anmeldeseite (Port {PORT}), kein Internet")
+    ok(hs_mod.forwarding_state() == "Disabled", f"Internet-Sperre gemeldet ({hs_mod.forwarding_state()!r})")
+    hs_mod.portal_status()  # Selbsttest läuft im Hintergrund an
+    for _ in range(20):
+        pump(0.3)
+        line = hs_mod.portal_status()
+        if "Anmeldeseite am PC: antwortet nicht" not in line:
+            break
+    ok(line.startswith(f"Port 80 → AluPC-Seite (Port {PORT})") and "Anmeldeseite am PC: " in line and "antwortet nicht" not in line,
+       f"Hotspot-Fenster (gleich auf Windows und Linux): {line}")
     ok("alupc-portal" in sh("ip6tables-save 2>/dev/null", check=False) or not shutil.which("ip6tables"),
        "IPv6: auch gesperrt (kein Weg an der Anmeldeseite vorbei)")
     controller.cast.start()
@@ -266,7 +287,7 @@ def main() -> int:
     # ---- Handy: Prüfungen wie Android/iPhone + Anmeldeseite + Beitreten (HTTP)
     phone_py = tmp / "phone_http.py"
     phone_py.write_text(PHONE_HTTP)
-    proc = subprocess.Popen(f"ip netns exec {NS} {PHONE_ENV} {sys.executable} {phone_py} {PC_IP} {hs_mod.PORTAL_PORT}",
+    proc = subprocess.Popen(f"ip netns exec {NS} {PHONE_ENV} {sys.executable} {phone_py} {PC_IP} {PORT}",
                             shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     while proc.poll() is None:
         pump(0.05)
@@ -276,7 +297,7 @@ def main() -> int:
     except (ValueError, IndexError):
         ok(False, f"Handy-Prüfung lief nicht: {err[-400:]}")
         r = {}
-    target = f"http://{PC_IP}:{hs_mod.PORTAL_PORT}/anmelden"
+    target = f"http://{PC_IP}:{PORT}/anmelden"
     ok(r.get("dns_check") == PC_IP, f"DNS: connectivitycheck.gstatic.com → {r.get('dns_check')}")
     ok(r.get("dns_any") == PC_IP, f"DNS: jede andere Adresse → {r.get('dns_any')} (geschlossenes WLAN)")
     ok(r.get("android") == [302, target], f"Android-Prüfung → {r.get('android')}")
@@ -358,7 +379,7 @@ def main() -> int:
     outsider = tmp / "outsider.py"
     outsider.write_text(OUTSIDER)
     proc = subprocess.Popen(f"ip netns exec {NS2} {PHONE_ENV} {sys.executable} {outsider} {OUT_PC_IP} "
-                            f"{hs_mod.PORTAL_PORT} {hub.token}", shell=True, stdout=subprocess.PIPE,
+                            f"{PORT} {hub.token}", shell=True, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True)
     while proc.poll() is None:
         pump(0.05)

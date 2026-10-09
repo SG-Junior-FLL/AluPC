@@ -1102,20 +1102,18 @@ class MainWindow(QMainWindow):
         run_async(lambda: self.controller.set_hotspot(on, "normal"))
 
     def _check_firewall_block(self) -> None:
-        from ..hotspot import drop_info, hotspot, needs_fix
+        """Sperrt eine Firewall, die AluPC nicht selbst freimachen kann (fremdes Sicherheitsprogramm)? Einmal melden."""
+        from ..hotspot import drop_info, hotspot
 
         if not (hotspot.running and hotspot.portal):
             self._fw_warned = False
             return
-        drops = drop_info()
-        if self._fw_warned or not drops:
+        other = [d for d in drop_info() if d["kind"] != "regel"]
+        if self._fw_warned or not other:
             return
         self._fw_warned = True
-        if needs_fix():
-            text = "Windows-Firewall sperrt Handys an der Anmeldeseite – Hotspot-Fenster → „Firewall-Sperre beheben“."
-        else:
-            text = (f"Eine Firewall („{drops[-1]['name'] or 'unbekannt'}“) sperrt Handys an der Anmeldeseite – "
-                    "dort AluPC bzw. Port 80 erlauben.")
+        text = (f"Eine Firewall („{other[-1]['name'] or 'unbekannt'}“) sperrt Handys an der Anmeldeseite – "
+                "dort AluPC bzw. Port 80 erlauben.")
         self.show_message(text, "warn")
         if self.tray.isVisible():
             self.tray.showMessage(APP_NAME, text, QSystemTrayIcon.Warning, 8000)

@@ -8,7 +8,28 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.116.0)
+### Neu in dieser Version (0.117.0)
+- **Anmeldeseite – Fehler gefunden (Windows und Linux):** Wurde das WLAN über die Hotspot-Kachel gestartet, lief
+  AluPCs Webserver gar nicht mit (er startete nur über die frühere Kachel „Handy-Steuerung“ oder per Autostart).
+  Port 80 lief dann ins Leere: Handy fragt DNS (✓), die Anmeldeseite kommt nie, per Hand „lädt ewig“. Jetzt startet
+  der Hotspot den Webserver immer mit.
+- **Windows und Linux machen jetzt dasselbe – automatisch, ohne Knopf:**
+  - Belegter Port → AluPC nimmt den nächsten freien (Webserver 8765–8774, Linux-DNS 8753–8762); die Umleitung von
+    Port 80, die Firewall-Freigabe und die Adresse der Anmeldeseite folgen ihm. (Windows erkannte einen belegten Port
+    bisher nicht und benutzte ihn mit.)
+  - Firewall-Sperren werden automatisch freigemacht, nur solange der Hotspot läuft, danach ist alles wie vorher:
+    Windows – Sperr-Regeln, die ein Handy abweisen, und „Alle eingehenden blockieren“; Linux – firewalld (Hotspot
+    vorübergehend „vertraut“) bzw. ufw (Regel für den Hotspot).
+  - Port 80 von einem anderen Dienst belegt (Windows, z. B. IIS) → bis zum Ende angehalten, danach wieder gestartet.
+    Der Hotspot-Dienst selbst wird nie angefasst.
+  - Gleiche Statuszeile im Hotspot-Fenster: „Port 80 → AluPC-Seite (Port …) · Internet-Sperre · Anmeldeseite am PC:
+    … ms · automatisch freigemacht: … · letzte Prüfung …“, gleiche Hinweise je Gerät, gleiche Meldungen.
+  - Knopf „Firewall-Sperre beheben“ entfällt (passiert jetzt von selbst).
+- Geprüft: Windows-CI und Linux-CI mit belegtem Port 8765 (AluPC weicht aus, Handy bekommt die Anmeldeseite);
+  Windows-CI zusätzlich mit echter Sperr-Regel (automatisch freigemacht, danach wieder an). Nicht geprüft: echter PC
+  mit echtem Handy; firewalld/ufw nur als Skript geprüft (nicht mit laufender Firewall).
+
+### Neu in Version 0.116.0
 - **Anmeldeseite (Windows): AluPC findet jetzt selbst heraus, wer Port 80 sperrt.** Solange die Anmeldeseite
   läuft, schaltet der Wächter (Administrator) die Windows-Überwachung „verworfene Pakete/Verbindungen“ ein und
   liest, welche Firewall-Regel bzw. welcher Filter die Anfrage des Handys abgewiesen hat. Am Ende wird die

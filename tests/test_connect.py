@@ -311,8 +311,11 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
                  'program="$prog"', "Owner53", "if ($n % 10 -eq 0) { Unblock }", "Start-Service iphlpsvc",
                  "$_.OwningProcess -eq 77", "$mine.Count -eq 0"):
         assert part in script, part
-    for bad in ("Stop-Service", "Restart-Service", "SharedAccess -Force", "uebernehmen", "captive.apple.com"):
+    for bad in ("Stop-Service SharedAccess", "Stop-Service -Name SharedAccess", "Restart-Service", "SharedAccess -Force",
+                "uebernehmen", "captive.apple.com"):
         assert bad not in script, bad
+    # Port 80 freimachen hält nur fremde Dienste an – nie den Hotspot-Dienst (sonst ist das WLAN weg)
+    assert script.count("Stop-Service") == 1 and "$_.Name -notin $keep" in script and "'SharedAccess', 'iphlpsvc'" in script
     assert "$closed = $false" in hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, closed=False)
     monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
     monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
@@ -339,7 +342,7 @@ def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
                                 " · Port 80: Weiterleitung")  # kein laufender Webserver im Test
     import base64
     sent = base64.b64decode(seen[0].split("'-EncodedCommand','")[1].split("'")[0]).decode("utf-16-le")
-    assert "$closed = $true" in sent and "Stop-Service" not in sent
+    assert "$closed = $true" in sent and "Stop-Service SharedAccess" not in sent and "$_.Name -notin $keep" in sent
     # Hotspot-Adresse nicht zu bekommen → klare Meldung, WLAN bleibt (kein Dienst-Anhalten)
     monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: False)
     ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
@@ -700,15 +703,20 @@ def test_portal_status_line_and_http_log(monkeypatch):
     monkeypatch.setattr(hotspot.hotspot, "ip", "192.168.137.1")
     monkeypatch.setattr(hotspot, "DNS_INFO", "Port 53 vorher: frei · AluPC: 192.168.137.1 exklusiv · Port 80: AluPC")
     monkeypatch.setattr(hotspot, "forwarding_state", lambda: "Disabled")
-    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip: 12)
+    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip, **k: 12)
     monkeypatch.setattr(hotspot, "firewall_info", lambda: {})
+    monkeypatch.setattr(hotspot, "fix_result", lambda: "")
+    monkeypatch.setattr(hotspot, "drop_info", lambda ip="": [])
+    from alupc import cast_server
+
+    monkeypatch.setattr(cast_server, "active_port", lambda: 8765)
     hotspot.HTTP_LOG.clear()
-    assert hotspot.portal_status() == ("Port 80: AluPC direkt · Internet-Sperre: aktiv · Port 80 am PC: 12 ms · "
-                                       "noch keine Prüfung auf Port 80 angekommen")
+    assert hotspot.portal_status() == ("Port 80 → AluPC-Seite (Port 8765) · Internet-Sperre: aktiv · "
+                                       "Anmeldeseite am PC: 12 ms · noch keine Prüfung auf Port 80 angekommen")
     hotspot.note_http("192.168.137.45", "HEAD", "connectivitycheck.gstatic.com:80", "/generate_204")
     monkeypatch.setattr(hotspot, "forwarding_state", lambda: "Enabled")
     line = hotspot.portal_status()
-    assert "Internet-Sperre: AUS" in line and "192.168.137.45 HEAD connectivitycheck.gstatic.com/generate_204" in line
+    assert "Internet-Sperre: aus" in line and "192.168.137.45 HEAD connectivitycheck.gstatic.com/generate_204" in line
     hotspot.HTTP_LOG.clear()
 
 
@@ -773,10 +781,10 @@ def test_https_refused_fast_and_status_shows_firewall(monkeypatch, tmp_path):
     monkeypatch.setattr(hotspot.hotspot, "running", True)
     monkeypatch.setattr(hotspot.hotspot, "portal", True)
     monkeypatch.setattr(hotspot.hotspot, "ip", "127.0.0.1")
-    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip: None)
+    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip, **k: None)
     line = hotspot.portal_status()
-    assert "Port 80 am PC: antwortet nicht" in line and "fremde Firewall: Avast Antivirus" in line
-    assert "„Alle eingehenden blockieren“ ist an" in line
+    assert "Anmeldeseite am PC: antwortet nicht" in line and "weitere Firewall: Avast Antivirus" in line
+    assert "Defender" not in line
 
 
 def test_port80_selftest_measures(monkeypatch):
@@ -810,18 +818,21 @@ def test_port80_selftest_measures(monkeypatch):
     assert isinstance(hotspot._SELFTEST["ms"], int) and hotspot._SELFTEST["ms"] < 2000
 
 
-def test_firewall_drops_shown_and_fix_requested(monkeypatch, tmp_path):
-    """Windows: Wächter meldet verworfene Handy-Anfragen an Port 80 → Hinweis je Gerät, Statuszeile, Knopf „Beheben“."""
+def test_firewall_drops_shown_and_auto_fixed(monkeypatch, tmp_path):
+    """Wächter meldet verworfene Handy-Anfragen an Port 80 und was er automatisch freigemacht hat → Hinweis je Gerät,
+    Statuszeile (gleich auf Windows und Linux)."""
     import time
+
+    from alupc import cast_server
 
     flag = tmp_path / "flag"
     monkeypatch.setattr(hotspot, "portal_flag", lambda: flag)
-    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
     monkeypatch.setattr(hotspot.hotspot, "running", True)
     monkeypatch.setattr(hotspot.hotspot, "portal", True)
     monkeypatch.setattr(hotspot.hotspot, "ip", "192.168.137.1")
-    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip: 12)
-    assert hotspot.drop_info() == [] and not hotspot.needs_fix()
+    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip, **k: 12)
+    monkeypatch.setattr(cast_server, "active_port", lambda: 8766)
+    assert hotspot.drop_info() == [] and hotspot.fix_result() == ""
     now = int(time.time())
     # so schreibt PowerShell (UTF-8 mit BOM); alte Zeilen und Müll werden übergangen
     (tmp_path / "flag.drop").write_text(
@@ -830,22 +841,16 @@ def test_firewall_drops_shown_and_fix_requested(monkeypatch, tmp_path):
     drops = hotspot.drop_info()
     assert [d["name"] for d in drops] == ["Testsperre Port 80"] and drops[0]["ip"] == "192.168.137.50"
     assert hotspot.drop_info("192.168.137.77") == []
-    assert "Regel „Testsperre Port 80“" in hotspot.check_hint("192.168.137.50")
+    assert "Testsperre Port 80" in hotspot.check_hint("192.168.137.50")  # noch nicht freigemacht
+    (tmp_path / "flag.fixed").write_text("\ufeffSperr-Regel 'Testsperre Port 80' aus", encoding="utf-8")
+    assert "automatisch aufgehoben" in hotspot.check_hint("192.168.137.50")
     line = hotspot.portal_status()
-    assert "⛔ gesperrt: 192.168.137.50 → Port 80 (Regel „Testsperre Port 80“" in line
-    assert hotspot.needs_fix()
-    hotspot.request_fix()
-    assert (tmp_path / "flag.fix").read_text(encoding="utf-8") == "ja"
-    (tmp_path / "flag.fixed").write_text("\ufeffRegel „Testsperre Port 80“ aus", encoding="utf-8")
-    assert not hotspot.needs_fix() and "Behoben: Regel „Testsperre Port 80“ aus" in hotspot.portal_status()
-    # fremde Firewall: kein Knopf, aber Name im Hinweis
-    (tmp_path / "flag.fixed").unlink()
+    assert line.startswith("Port 80 → AluPC-Seite (Port 8766)")
+    assert "automatisch freigemacht: Sperr-Regel 'Testsperre Port 80' aus" in line and "⛔" not in line
+    # fremde Firewall: kann AluPC nicht selbst freimachen → Name im Hinweis und in der Statuszeile
     (tmp_path / "flag.drop").write_text(f"{now}|192.168.137.50|80|5152|fremd|Avast Firewall\n", encoding="utf-8")
-    assert not hotspot.needs_fix()
-    assert "Avast Firewall" in hotspot.check_hint("192.168.137.50")
-    # „Alle eingehenden blockieren“ → Knopf
-    (tmp_path / "flag.fw").write_text("profil=Public;an=True;erlaubte=False;fremd=", encoding="utf-8")
-    assert hotspot.needs_fix() and "Alle eingehenden blockieren" in hotspot.check_hint("192.168.137.50")
+    assert "Firewall „Avast Firewall“ sperrt" in hotspot.check_hint("192.168.137.50")
+    assert "⛔ gesperrt: 192.168.137.50 → Port 80 (von „Avast Firewall“" in hotspot.portal_status()
 
 
 def test_check_hint_nothing_arrived_with_audit(monkeypatch, tmp_path):
@@ -856,9 +861,9 @@ def test_check_hint_nothing_arrived_with_audit(monkeypatch, tmp_path):
     monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
     monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
     monkeypatch.setattr(hotspot, "_dns", D())
-    assert "(Firewall?)" in hotspot.check_hint("192.168.137.50")
+    assert "mobile Daten aus" in hotspot.check_hint("192.168.137.50")
     (tmp_path / "flag.audit").write_text("an")
-    assert "Windows-Firewall hat nichts gesperrt" in hotspot.check_hint("192.168.137.50")
+    assert "Firewall hat nichts gesperrt" in hotspot.check_hint("192.168.137.50")
 
 
 def test_watchdog_script_has_firewall_audit_and_restore():
@@ -870,4 +875,39 @@ def test_watchdog_script_has_firewall_audit_and_restore():
     assert "auditpol /restore" in s and "Restore" in s.split("} finally {")[1]
     assert s.index("Restore  # Reste") < s.index("Clean\n  netsh advfirewall firewall add")
     assert "Disable-NetFirewallRule" in s and "Add-Content -LiteralPath $undoFile" in s
+    assert "if ((Drops) -gt 0) { FixNow }" in s  # Sperre gefunden → sofort automatisch aus, kein Knopf
+    assert s.index("Free80 }") < s.index('Set-Content -LiteralPath "$flag.frei"')  # Port 80 frei, bevor AluPC ihn nimmt
+    assert "Start-Service -Name $v" in s  # angehaltener Dienst läuft am Ende wieder
+    assert 'localport="80,443,53,8765"' in s
     assert s.count("{") == s.count("}")
+
+
+def test_linux_script_same_behaviour(tmp_path):
+    """Linux wie Windows: Port 80 → AluPCs tatsächlicher Port, DNS-Port folgt, Firewall (firewalld/ufw) wird nur bis zum
+    Ende geöffnet und gemeldet, Internet-Sperre gemeldet; Skript ist gültiges sh."""
+    import subprocess
+
+    s = hotspot.portal_script("wlan0", 8767, tmp_path / "f", 42, dns_port=8755)
+    assert "-p tcp --dport 80 -j REDIRECT --to-ports 8767" in s and "--dport 53 -j REDIRECT --to-ports 8755" in s
+    assert "firewall-cmd --zone=trusted --change-interface=wlan0" in s and "ufw insert 1 allow in on wlan0" in s
+    assert s.index("fw_open\necho ok") > 0 and s.index("fw_close\ncleanup") > s.index("while [ -e")
+    assert 'echo Disabled > "$F.fwd"' in s
+    assert subprocess.run(["sh", "-n", "-c", s]).returncode == 0
+
+
+def test_hotspot_start_always_starts_webserver(monkeypatch, env):
+    """Hotspot-Kachel: AluPCs Webserver läuft danach immer (sonst ginge Port 80 ins Leere: „DNS ✓, Anmeldeseite nicht“)."""
+    controller = env[0]
+    controller.cast.stop()
+    seen = {}
+
+    def fake_start(ssid, password, kind="normal", portal=False, hidden=True):
+        from alupc import cast_server
+
+        seen["port"] = cast_server.active_port()
+        return True, "an"
+
+    monkeypatch.setattr(hotspot.hotspot, "start", fake_start)
+    ok, _msg = controller.set_hotspot(True, "normal")
+    assert ok and controller.cast.running() and seen["port"] == controller.cast.port > 0
+    controller.cast.stop()

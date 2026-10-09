@@ -144,7 +144,7 @@ class HotspotDialog(QDialog):
         self.state.setWordWrap(True)
         bl.addWidget(self.state)
         hint = QLabel("Einziger Weg fürs Handy: WLAN-Code scannen → Anmeldeseite (Mitspielen oder AluPC steuern). "
-                      "Beim Start einmal bestätigen (Linux: Passwort, Windows: „Ja“). Das normale WLAN des PCs "
+                      "Beim Start einmal als Administrator bestätigen. Das normale WLAN des PCs "
                       "kann dabei getrennt werden.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
@@ -171,13 +171,6 @@ class HotspotDialog(QDialog):
         self.portal_line.setWordWrap(True)
         self.portal_line.setTextInteractionFlags(Qt.TextSelectableByMouse)
         dl.addWidget(self.portal_line)
-        # Windows-Firewall weist Handys an Port 80 ab → Sperre nur für die Dauer des Hotspots aufheben
-        self.fix_btn = button("Firewall-Sperre beheben", "check")
-        self.fix_btn.setToolTip("Schaltet die gefundene Sperre der Windows-Firewall aus, bis der Hotspot endet – "
-                                "danach ist alles wieder wie vorher.")
-        self.fix_btn.clicked.connect(self._fix)
-        self.fix_btn.setVisible(False)
-        dl.addWidget(self.fix_btn, 0, Qt.AlignLeft)
         lay.addWidget(dev_box)
         self._dev_timer = QTimer(self)
         self._dev_timer.timeout.connect(self._fill_devices)
@@ -207,11 +200,7 @@ class HotspotDialog(QDialog):
         try:
             from ..hotspot import portal_status
 
-            from ..hotspot import needs_fix
-
             self.portal_line.setText(portal_status() if self._mine() else "")
-            if self.fix_btn.isEnabled():
-                self.fix_btn.setVisible(self._mine() and needs_fix())
             devices = self.controller.wlan_devices() if self._mine() else []
             key = [(d["ip"], d["mac"], d["name"], d["internet"], bool(d.get("dns")), d.get("probe"), d.get("hint"))
                    for d in devices]
@@ -238,13 +227,6 @@ class HotspotDialog(QDialog):
             self.devices.blockSignals(False)
         except RuntimeError:  # Dialog schon zu
             pass
-
-    def _fix(self) -> None:
-        from ..hotspot import request_fix
-
-        request_fix()
-        self.fix_btn.setEnabled(False)
-        self.fix_btn.setText("Wird behoben … (Handy danach neu verbinden)")
 
     def _device_toggled(self, item) -> None:
         data = item.data(Qt.UserRole)
