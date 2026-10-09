@@ -755,10 +755,10 @@ def test_https_refused_fast_and_status_shows_firewall(monkeypatch, tmp_path):
     try:
         start = time.monotonic()
         with socket.create_connection(("127.0.0.1", 18443), timeout=3) as s:
-            s.sendall(b"\x16\x03\x01")  # TLS-Anfang
-            try:
+            try:  # der Abbruch (RST) darf schon beim Senden ankommen
+                s.sendall(b"\x16\x03\x01")  # TLS-Anfang
                 data = s.recv(10)
-            except ConnectionResetError:
+            except (ConnectionResetError, BrokenPipeError):
                 data = b""
         assert data == b"" and time.monotonic() - start < 1.5
     finally:
