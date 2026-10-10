@@ -99,7 +99,10 @@ jobs:
         run: pip install -e ".[test]" pillow
       - name: Rundgang unter Windows
         shell: bash
-        run: python tools/screens_tour.py "$RUNNER_TEMP/rundgang-win" hell > tour.log 2>&1 || true; tail -3 tour.log
+        run: |
+          python -X faulthandler tools/screens_tour.py "$RUNNER_TEMP/rundgang-win" hell > tour.log 2>&1 || true
+          tail -25 tour.log | sed 's/^/::warning title=Rundgang Windows::/'
+          grep -E "FEHLER|Traceback|Error" tour.log | head -20 | sed 's/^/::warning title=Rundgang Windows (Fehler)::/' || true
       - uses: actions/download-artifact@v4
         with:
           name: rundgang-linux
@@ -339,7 +342,21 @@ jobs:
         shell: pwsh
         run: |
           python -X faulthandler -m pytest -v -rf tests/test_gui.py 2>&1 | Tee-Object -FilePath gui.log
-          if ($LASTEXITCODE -ne 0) {
+          $code = $LASTEXITCODE
+          if ($code -ne 0 -and (Select-String -Path gui.log -Pattern 'Fatal Python error' -Quiet)) {
+            # Absturz von Qt beim Auf-/Abbau zwischen zwei Tests: vollständig melden (Ursache finden) …
+            $lines = Get-Content gui.log
+            $i = ($lines | Select-String -Pattern 'Fatal Python error' | Select-Object -First 1).LineNumber
+            $lines[[Math]::Max(0, $i - 30)..[Math]::Min($lines.Count - 1, $i + 40)] | Where-Object { $_.Trim() } |
+              ForEach-Object { Write-Output ("::warning title=Absturz (Oberflächentests)::" + $_.Trim()) }
+            # … und mit den übrigen Tests weitermachen (ab dem abgestürzten). Ein echter Fehler bleibt rot.
+            $done = Select-String -Path gui.log -Pattern '^(tests/test_gui\.py::\S+) PASSED' |
+              ForEach-Object { $_.Matches[0].Groups[1].Value }
+            $args2 = @(); foreach ($t in $done) { $args2 += "--deselect"; $args2 += $t }
+            python -X faulthandler -m pytest -v -rf tests/test_gui.py @args2 2>&1 | Tee-Object -FilePath gui.log
+            $code = $LASTEXITCODE
+          }
+          if ($code -ne 0) {
             # Fehler als Hinweis (Annotation) ausgeben – die sind auch ohne Anmeldung sichtbar
             # Bei einem Absturz: welcher Test lief gerade? (letzte Testzeile vor „Fatal …“)
             $last = Select-String -Path gui.log -Pattern '^tests/test_gui\.py::' | Select-Object -Last 1
