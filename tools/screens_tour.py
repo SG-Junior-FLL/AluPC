@@ -20,6 +20,11 @@ import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+for _stream in (sys.stdout, sys.stderr):  # Windows schreibt sonst in cp1252 – „✓“ würde abstürzen
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 sys.path.insert(0, str(ROOT))
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "screens").resolve()
 MODE = sys.argv[2] if len(sys.argv) > 2 else "dunkel"

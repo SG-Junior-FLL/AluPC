@@ -88,6 +88,9 @@ jobs:
     # (Bild + sichtbare Texte). Nur Hinweise – hält die Veröffentlichung nicht auf.
     needs: test-linux
     runs-on: windows-latest
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
     timeout-minutes: 30
     continue-on-error: true
     steps:
@@ -100,7 +103,7 @@ jobs:
       - name: Rundgang unter Windows
         shell: bash
         run: |
-          python -X faulthandler tools/screens_tour.py "$RUNNER_TEMP/rundgang-win" hell > tour.log 2>&1; code=$?
+          code=0; python -X faulthandler tools/screens_tour.py "$RUNNER_TEMP/rundgang-win" hell > tour.log 2>&1 || code=$?
           echo "::notice title=Rundgang Windows::Exit $code · $(wc -l < tour.log) Zeilen · $(ls "$RUNNER_TEMP/rundgang-win" 2>/dev/null | wc -l) Dateien · $(tail -1 tour.log | tr -d '\r')"
           grep -E "FEHLER|Traceback|Error|Fatal" tour.log | head -9 | sed 's/^/::error title=Rundgang Windows::/' || true
           tail -9 tour.log | tr -d '\r' | sed 's/^/::warning title=Rundgang Windows (Ende)::/' 

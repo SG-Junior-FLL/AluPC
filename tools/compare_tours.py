@@ -52,6 +52,11 @@ def diff_ratio(a: Path, b: Path) -> tuple[float, Image.Image | None]:
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     lin, win = Path(sys.argv[1]), Path(sys.argv[2])
     out = Path(sys.argv[3]) if len(sys.argv) > 3 else win.parent / "vergleich"
     out.mkdir(parents=True, exist_ok=True)
