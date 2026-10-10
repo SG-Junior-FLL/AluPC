@@ -100,9 +100,10 @@ jobs:
       - name: Rundgang unter Windows
         shell: bash
         run: |
-          python -X faulthandler tools/screens_tour.py "$RUNNER_TEMP/rundgang-win" hell > tour.log 2>&1 || true
-          tail -25 tour.log | sed 's/^/::warning title=Rundgang Windows::/'
-          grep -E "FEHLER|Traceback|Error" tour.log | head -20 | sed 's/^/::warning title=Rundgang Windows (Fehler)::/' || true
+          python -X faulthandler tools/screens_tour.py "$RUNNER_TEMP/rundgang-win" hell > tour.log 2>&1; code=$?
+          echo "::notice title=Rundgang Windows::Exit $code · $(wc -l < tour.log) Zeilen · $(ls "$RUNNER_TEMP/rundgang-win" 2>/dev/null | wc -l) Dateien · $(tail -1 tour.log | tr -d '\r')"
+          grep -E "FEHLER|Traceback|Error|Fatal" tour.log | head -9 | sed 's/^/::error title=Rundgang Windows::/' || true
+          tail -9 tour.log | tr -d '\r' | sed 's/^/::warning title=Rundgang Windows (Ende)::/' 
       - uses: actions/download-artifact@v4
         with:
           name: rundgang-linux

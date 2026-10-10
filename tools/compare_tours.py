@@ -19,7 +19,12 @@ WARN_AT = 0.06  # mehr als 6 % der Fläche sieht anders aus → Hinweis
 
 
 def load(folder: Path) -> dict[str, dict]:
-    data = json.loads((folder / "screens.json").read_text(encoding="utf-8"))
+    path = folder / "screens.json"
+    if not path.is_file():
+        files = sorted(p.name for p in folder.glob("*"))[:10] if folder.is_dir() else []
+        print(f"::error title=Vergleich::{path} fehlt (Ordner: {files or 'leer/fehlt'})")
+        raise SystemExit(1)
+    data = json.loads(path.read_text(encoding="utf-8"))
     out = {}
     for s in data["screens"]:
         key = s["key"]

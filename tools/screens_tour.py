@@ -25,7 +25,12 @@ OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "screens").resolve()
 MODE = sys.argv[2] if len(sys.argv) > 2 else "dunkel"
 OUT.mkdir(parents=True, exist_ok=True)
 TMP = Path(tempfile.mkdtemp(prefix="alupc-tour-"))
-os.environ["QT_QPA_PLATFORM"] = f"offscreen:configfile={ROOT / 'tests' / 'offscreen_two_screens.json'}"
+_screens_cfg = ROOT / "tests" / "offscreen_two_screens.json"
+try:  # Qt trennt Optionen am Doppelpunkt – „D:\…“ (Windows) ginge kaputt → relativer Pfad ohne Laufwerk
+    _screens_cfg = Path(os.path.relpath(_screens_cfg)).as_posix()
+except ValueError:  # anderes Laufwerk
+    pass
+os.environ["QT_QPA_PLATFORM"] = f"offscreen:configfile={_screens_cfg}"
 os.environ["XDG_CONFIG_HOME"] = str(TMP / "cfg")
 os.environ["APPDATA"] = str(TMP / "cfg")
 os.environ["ALUPC_NO_AUTO_WIFI"] = "1"
