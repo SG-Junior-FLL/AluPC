@@ -8,7 +8,20 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.118.0)
+### Neu in dieser Version (0.119.0)
+- **Drei neue Retro-Minispiele** (Handy = Controller, alle gleichzeitig auf Monitor 2):
+  - **👾 Space Invaders** – alle zusammen gegen die Aliens: Schieberegler = Raumschiff, FEUER (gedrückt halten =
+    Dauerfeuer), 3 Leben, jede Welle schneller; kommen die Aliens unten an, ist es für alle vorbei.
+  - **🐤 Flappy Bird** – tippen = flattern, alle durch dieselben Röhren, wer am weitesten kommt, gewinnt
+    (Röhren „normal“ oder „eng“).
+  - **🔴 Vier gewinnt** – Team Rot gegen Team Blau, Spalte antippen, die meistgewählte Spalte zählt; ein leeres Team
+    spielt der PC.
+  - Auch per Sprache: „Spiel Space Invaders / Flappy Bird / Vier gewinnt“.
+- **Linux ↔ Windows:** Die CI macht den Rundgang durch alle Seiten jetzt auch unter Windows und vergleicht jede
+  Seite mit Linux (Bild + sichtbare Texte) – Grundlage, um die letzten Unterschiede anzugleichen.
+- Nicht geprüft: die neuen Spiele mit echten Handys.
+
+### Neu in Version 0.118.0
 - **Nur noch EIN WLAN („AluPC“)** statt „AluPC“ und „AluPC-Spiele“: Hotspot-Kachel, Minispiele, Abstimmen und
   Steuern nutzen dasselbe WLAN mit derselben Anmeldeseite.
 - **Anmeldefenster ging nach ein paar Minuten zu:** Starteten die Minispiele, schaltete AluPC auf das Spiele-WLAN um
