@@ -522,6 +522,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: release
+          pattern: AluPC-*  # nur die Programm-Dateien (nicht Rundgang-/Vergleichsbilder)
           merge-multiple: true
       - name: Release veröffentlichen
         uses: softprops/action-gh-release@v2
@@ -531,3 +532,13 @@ jobs:
           name: AluPC ${{ steps.version.outputs.tag }}
           body_path: packaging/RELEASE_NOTES.md
           files: release/*
+      - name: Release-Seiten aufräumen (nur Programm-Dateien – keine Rundgang-Bilder)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for tag in $(gh release list --repo "$GITHUB_REPOSITORY" --limit 5 --json tagName --jq '.[].tagName'); do
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' |
+              { grep -Ev '^(AluPC-|alupc_)' || true; } | while read -r name; do
+                gh release delete-asset "$tag" "$name" --repo "$GITHUB_REPOSITORY" --yes && echo "$tag: $name entfernt"
+              done
+          done
