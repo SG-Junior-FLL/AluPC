@@ -13,7 +13,7 @@ import time
 EVENT_SOUNDS = {
     "guess": "blip", "reveal": "richtig", "correct": "richtig", "out": "raus", "allfail": "falsch",
     "wrong": "falsch", "go": "los", "early": "falsch", "hit": "treffer", "goal": "tor", "burst": "plopp",
-    "bank": "richtig", "eat": "blip", "crash": "falsch", "finish": "richtig", "word": "tick",
+    "bank": "richtig", "eat": "blip", "crash": "falsch", "finish": "richtig", "word": "tick", "score": "blip",
 }
 
 

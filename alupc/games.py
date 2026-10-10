@@ -18,6 +18,7 @@ import threading
 import time
 from typing import NamedTuple
 
+from .games_arcade import ConnectFourGame, FlappyGame, InvadersGame
 from .games_base import TEAM_COLORS, TEAM_NAMES, Game
 from .games_board import TicTacToeGame
 from .games_classic import RaceGame, SnakeGame
@@ -58,10 +59,21 @@ GAMES: dict[str, GameSpec] = {
     "ssp": GameSpec("Schere, Stein, Papier", "Alle gegen alle, gleichzeitig",
                     "Geheim wählen · jeder geschlagene Gegner = 1 Punkt",
                     RpsGame, {"runden": ("Runden", [(3, "3"), (5, "5"), (8, "8")], 5)}),
+    "invaders": GameSpec("Space Invaders", "Alle zusammen gegen die Aliens",
+                         "Finger ziehen = Raumschiff bewegen · FEUER = schießen · 3 Leben · "
+                         "kommen die Aliens unten an, ist es für alle vorbei",
+                         InvadersGame, {"dauer": ("Dauer", [(120, "2 min"), (180, "3 min"), (300, "5 min")], 180)}),
+    "flappy": GameSpec("Flappy Bird", "Tippen = flattern – wer kommt am weitesten?",
+                       "Tippen lässt deinen Vogel hochflattern · durch die Lücken fliegen · Röhre oder Boden = raus",
+                       FlappyGame, {"roehren": ("Röhren", [("normal", "normal"), ("eng", "eng")], "normal")}),
+    "vierg": GameSpec("Vier gewinnt", "Rot gegen Blau – vier in einer Reihe",
+                      "Euer Team ist dran: Spalte antippen – die Spalte mit den meisten Stimmen wird gesetzt",
+                      ConnectFourGame, {"runden": ("Runden", [(1, "1"), (3, "3")], 1),
+                                        "zeit": ("Bedenkzeit", [(10, "10 s"), (15, "15 s"), (25, "25 s")], 15)}),
 }
 DEFAULT_GAME = "schlangen"
 ICONS = {"schlangen": "🐍", "tictactoe": "⭕", "pong": "🏓", "tetris": "🧱", "rennen": "👆", "simon": "🟢",
-         "ssp": "✊"}
+         "ssp": "✊", "invaders": "👾", "flappy": "🐤", "vierg": "🔴"}
 
 COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ec4899", "#06b6d4", "#f97316", "#84cc16",
           "#eab308", "#14b8a6", "#e11d48", "#6366f1", "#10b981", "#f43f5e", "#0ea5e9"]

@@ -74,6 +74,20 @@ button:disabled { opacity: .35; }
 .avatars button { font-size: 26px; padding: 6px 0; border-radius: 12px; background: #1e293b; border: 2px solid transparent; }
 .avatars button.sel { border-color: var(--c); background: #334155; }
 #ava { font-size: 22px; line-height: 1; }
+.c4 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; width: min(94vw, 460px); padding: 8px;
+  border-radius: 18px; background: #334155; touch-action: none; }
+.c4 span { aspect-ratio: 1; border-radius: 50%; background: #0b1020; }
+.c4 span.X { background: #ef4444; } .c4 span.O { background: #3b82f6; }
+.c4 span.win { box-shadow: 0 0 0 4px #facc15; }
+.c4cols { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; width: min(94vw, 460px); padding: 0 8px; }
+.c4cols button { height: min(13vh, 90px); border-radius: 14px; background: #1e293b; border: 2px solid #334155; font-size: 26px; padding: 0; }
+.c4cols button.vote { background: var(--c); border-color: var(--c); }
+.c4.off { opacity: .7; }
+.htrack { position: relative; width: min(94vw, 460px); height: min(16vh, 110px); border-radius: 26px; background: #1e293b;
+  border: 2px solid #334155; touch-action: none; }
+.hthumb { position: absolute; top: 8px; bottom: 8px; width: 22%; border-radius: 18px; background: var(--c); box-shadow: 0 0 24px var(--c); left: 39%; }
+.fire { width: min(94vw, 460px); height: min(26vh, 200px); border-radius: 26px; font-size: 34px; letter-spacing: 2px;
+  background: radial-gradient(circle at 40% 30%, #fb7185, #e11d48); box-shadow: 0 12px 34px rgba(225,29,72,.45); touch-action: none; }
 .hidden { display: none !important; }
 </style></head><body>
 <header><div class="dot" id="dot"></div><span id="ava"></span><b id="who">AluPC-Spiel</b><span id="count"></span><i id="net"></i></header>
@@ -248,6 +262,39 @@ const BUILD = {
     tr.addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") move(e); });
     return {};
   },
+  shooter(ui, area) {  // Space Invaders: Raumschiff ziehen + FEUER (gedrückt halten = Dauerfeuer)
+    const tr = el("div", "htrack"), th = el("div", "hthumb"); tr.append(th);
+    const fire = el("button", "fire", "FEUER");
+    area.append(tr, fire);
+    let want = null, x = typeof ui.x === "number" ? ui.x : 0.5, t = null;
+    th.style.left = (x * 78) + "%";
+    const move = e => { const r = tr.getBoundingClientRect(); x = Math.min(1, Math.max(0, (e.clientX - r.left - r.width * 0.11) / (r.width * 0.78)));
+      th.style.left = (x * 78) + "%"; if (want === null) want = requestAnimationFrame(() => { want = null; send({x: Math.round(x * 1000) / 1000}); }); };
+    tr.addEventListener("pointerdown", e => { try { tr.setPointerCapture(e.pointerId); } catch (err) {} move(e); });
+    tr.addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") move(e); });
+    const shoot = () => { send({fire: 1}); };
+    fire.addEventListener("pointerdown", e => { e.preventDefault(); fire.classList.add("hit"); shoot(); vibrate(10);
+      if (!t) t = setInterval(shoot, 120); });
+    const stop = () => { fire.classList.remove("hit"); if (t) { clearInterval(t); t = null; } };
+    for (const ev of ["pointerup", "pointercancel", "pointerleave"]) fire.addEventListener(ev, stop);
+    return {move(dx) { x = Math.min(1, Math.max(0, x + dx)); th.style.left = (x * 78) + "%"; send({x}); }, shoot};
+  },
+  connect4(ui, area) {  // Vier gewinnt: Spalte antippen
+    const cols = el("div", "c4cols"), g = el("div", "c4");
+    const btns = [];
+    for (let c = 0; c < 7; c++) {
+      const b = el("button", "", "▼"); press(b, () => { if (!b.disabled) { send({col: c}); vibrate(15); } });
+      cols.append(b); btns.push(b);
+    }
+    const cells = [];
+    for (let i = 0; i < 42; i++) { const s = el("span"); g.append(s); cells.push(s); }
+    area.append(cols, g);
+    return {update(u) {
+      cells.forEach((s, i) => { s.className = (u.cells[i] || "") + ((u.line || []).includes(i) ? " win" : ""); });
+      btns.forEach((b, c) => { b.disabled = !u.enabled || (u.full || [])[c]; b.classList.toggle("vote", u.vote === c); });
+      g.classList.toggle("off", !u.enabled);
+    }};
+  },
   tetris(ui, area) {
     const nrow = el("div", "nextrow"), nlabel = el("span", "", "Nächstes"), np = el("div", "nextp");
     nrow.append(nlabel, np);
@@ -284,6 +331,10 @@ document.addEventListener("keydown", e => {
     if (m) { e.preventDefault(); send({move: m}); }
   }
   else if (e.key === " " && state.ui && state.ui.ui === "tap") send({tap: 1});
+  else if (state.ui && state.ui.ui === "shooter" && comp) {
+    if (e.key === "ArrowLeft") comp.move(-0.05); else if (e.key === "ArrowRight") comp.move(0.05);
+    else if (e.key === " ") { e.preventDefault(); comp.shoot(); }
+  }
 });
 load(); connect();
 </script></body></html>

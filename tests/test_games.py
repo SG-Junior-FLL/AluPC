@@ -276,7 +276,7 @@ def test_hub_full_and_every_game_runs():
         hub.tick()
         for p in ps:
             ui = hub.state_for(p.pid)["ui"]
-            assert ui["ui"] in ("msg", "tap", "pad", "buttons", "board", "paddle", "tetris"), key
+            assert ui["ui"] in ("msg", "tap", "pad", "buttons", "board", "paddle", "tetris", "shooter", "connect4"), key
         hub.finish()
         assert hub.phase == "over" and len(hub.ranking) == 3, key
 
@@ -484,3 +484,132 @@ def test_tictactoe_pc_plays_empty_team_and_draws():
     assert best_move(["O", "O", "", "X", "X", "", "", "", ""], "X", random.Random(0)) == 5  # gewinnen
     assert best_move(["O", "O", "", "X", "", "", "", "", ""], "X", random.Random(0)) == 2  # verhindern
 
+
+
+# --------------------------------------------------------------------------- Retro: Space Invaders, Flappy Bird, Vier gewinnt
+def test_invaders_move_shoot_hit_lives_and_waves():
+    from alupc.games_arcade import InvadersGame
+
+    g = InvadersGame(players("A", "B"), 0.0, random.Random(1), {"dauer": 120})
+    a = g.ships["a"]
+    g.input("a", {"x": 0.0}, 0.0)
+    for k in range(1, 30):
+        g.update(k * 0.05)
+    assert a["x"] < 1.0  # ganz nach links gefahren
+    # direkt unter ein Alien stellen und schießen → Treffer, Punkte
+    target = next(al for al in g.aliens if al["row"] == 3)
+    a["x"] = a["target"] = target["x"]
+    g.bombs.clear()
+    g.next_bomb = 1e9
+    g.input("a", {"fire": 1}, 2.0)
+    g.input("a", {"fire": 1}, 2.01)  # nur ein Schuss gleichzeitig
+    assert len(g.shots) == 1
+    t = 2.0
+    while g.shots and t < 4:
+        t += 0.02
+        g.update(t)
+    assert not target["alive"] and a["score"] == 10 and a["hits"] == 1
+    # Bombe trifft B → Leben weg, kurz unverwundbar; ohne Leben raus
+    b = g.ships["b"]
+    b["safe_until"] = 0
+    for lives in (2, 1, 0):
+        b["safe_until"] = 0
+        g.bombs = [{"x": b["x"], "y": g.SHIP_Y - 0.1}]
+        t += 0.02
+        g.update(t)
+        assert b["lives"] == lives
+    assert "b" not in g.alive_ships() and g.phone("b", t)["big"] == "RAUS"
+    assert g.phone("a", t)["ui"] == "shooter" and "♥♥♥" in g.phone("a", t)["status"]
+    # alle Aliens weg → nächste Welle (schneller)
+    speed1 = g._alien_speed()
+    for al in g.aliens:
+        al["alive"] = False
+    g.update(t + 0.05)
+    assert g.wave == 2 and all(al["alive"] for al in g.aliens) and g._alien_speed() > speed1
+    # Aliens unten → für alle vorbei
+    for al in g.aliens:
+        al["y"] = g.SHIP_Y
+    g.update(t + 0.1)
+    assert g.over and g.lost
+    # kaputte Eingaben stören nicht
+    g2 = InvadersGame(players("A"), 0.0, random.Random(2))
+    for bad in ({"x": "nan"}, {"x": None}, {"x": "inf"}, {"fire": 0}, {}):
+        g2.input("a", bad, 0.1)
+    g2.input("zz", {"fire": 1}, 0.1)
+    assert g2.shots == []
+
+
+def test_flappy_flap_gravity_pipes_and_survival():
+    from alupc.games_arcade import FlappyGame
+
+    g = FlappyGame(players("A", "B"), 0.0, random.Random(3))
+    assert g.phone("a", 0.5)["ui"] == "tap" and g.phone("a", 0.5)["tone"] == "wait"
+    g.update(1.0)  # schweben vor dem Start
+    assert all(b["alive"] for b in g.birds.values())
+    # A flattert immer rechtzeitig durch die Lücke, B tut nichts → B fällt runter
+    t = g.go_at
+    while t < g.go_at + 12:
+        t += 0.02
+        a = g.birds["a"]
+        if a["alive"]:
+            nxt = next(p for p in g.pipes if p["x"] - g.dist + g.PIPE_W / 2 > g.BIRD_X - g.R)
+            if a["y"] > nxt["gap_y"] + 0.15 and a["vy"] > -2:
+                g.input("a", {"tap": 1}, t)
+        g.update(t)
+    a, b = g.birds["a"], g.birds["b"]
+    assert not b["alive"] and b["passed"] == 0
+    assert a["alive"] and a["passed"] >= 5, a
+    assert g.scores()["a"] > g.scores()["b"]
+    assert g.phone("b", t)["ui"] == "msg"
+    # Neue dürfen nicht mitten drin einsteigen
+    assert not g.join("c", players("C")["c"], t)
+
+
+def test_connect_four_drop_win_vote_and_pc():
+    from alupc.games_arcade import COLS4, ConnectFourGame, best_column, drop_row, winner4
+
+    cells = [""] * 42
+    assert drop_row(cells, 3) == 5
+    for r in range(6):
+        cells[r * COLS4] = "X"
+    assert drop_row(cells, 0) is None
+    line = [""] * 42
+    for c in range(4):
+        line[5 * COLS4 + c] = "O"
+    assert winner4(line)[0] == "O" and len(winner4(line)[1]) == 4
+    diag = [""] * 42
+    for k in range(4):
+        diag[(5 - k) * COLS4 + k] = "X"
+    assert winner4(diag)[0] == "X"
+    # PC gewinnt, wenn er kann, und verhindert sonst
+    almost = [""] * 42
+    for c in range(3):
+        almost[5 * COLS4 + c] = "X"
+    assert best_column(almost, "X", random.Random(1)) == 3
+    assert best_column(almost, "O", random.Random(1)) == 3
+    # Abstimmung: Team Rot (A, B) tippt Spalte 2 bzw. 2 → Stein fällt nach unten
+    g = ConnectFourGame(players("A", "B", "C", teams=[0, 0, 1]), 0.0, random.Random(4), {"runden": 1, "zeit": 10})
+    assert g.turn == 0
+    g.input("c", {"col": 1}, 0.1)  # nicht dran
+    g.input("a", {"col": 2}, 0.1)
+    g.input("b", {"col": 2}, 0.2)
+    g.input("a", {"col": "x"}, 0.2)
+    g.input("a", {"col": 99}, 0.2)
+    g.update(0.3)
+    assert g.cells[5 * COLS4 + 2] == "X" and g.turn == 1
+    ui = g.phone("c", 0.4)
+    assert ui["ui"] == "connect4" and ui["enabled"] and len(ui["cells"]) == 42 and ui["full"] == [False] * 7
+    # Zeit um ohne Stimme → irgendeine freie Spalte
+    g.update(0.4 + 11)
+    assert sum(1 for v in g.cells if v) == 2 and g.turn == 0
+    # Vier untereinander für Rot → Sieg
+    g.cells = [""] * 42
+    for r in (5, 4, 3):
+        g.cells[r * COLS4 + 6] = "X"
+    g.votes = {}
+    g.input("a", {"col": 6}, 20)
+    g.input("b", {"col": 6}, 20)
+    g.update(20.1)
+    assert g.result == "X" and g.wins == [1, 0] and len(g.line) == 4
+    g.update(20.1 + g.PAUSE + 0.1)
+    assert g.over and g.winner == 0

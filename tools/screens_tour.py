@@ -37,7 +37,7 @@ from PySide6 import QtWebEngineWidgets  # noqa: E402,F401
 from PySide6.QtCore import QCoreApplication, Qt, QtMsgType, qInstallMessageHandler  # noqa: E402
 
 QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
-from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
+from PySide6.QtWidgets import QApplication, QDialog, QWidget  # noqa: E402
 
 app = QApplication([])
 from alupc.ui import theme  # noqa: E402
@@ -73,11 +73,44 @@ def pump(seconds: float = 0.4) -> None:
         time.sleep(0.01)
 
 
+def visible_texts(widget) -> list[str]:
+    """Alle sichtbaren Beschriftungen (für den Vergleich Linux ↔ Windows)."""
+    from PySide6.QtWidgets import QAbstractButton, QComboBox, QGroupBox, QLabel, QLineEdit
+
+    out = []
+    for w in [widget, *widget.findChildren(QWidget)]:
+        try:
+            if not w.isVisibleTo(widget) and w is not widget:
+                continue
+            if isinstance(w, QLabel):
+                t = w.text()
+            elif isinstance(w, QAbstractButton):
+                t = w.text()
+            elif isinstance(w, QGroupBox):
+                t = w.title()
+            elif isinstance(w, QLineEdit):
+                t = w.placeholderText()
+            elif isinstance(w, QComboBox):
+                t = w.currentText()
+            else:
+                continue
+        except RuntimeError:
+            continue
+        t = " ".join(str(t).split())
+        if t and len(t) < 400:
+            out.append(t)
+    return sorted(set(out))
+
+
 def save(widget, key: str, title: str, area: str, text: str) -> None:
     pump(0.35)
     path = OUT / f"{len(screens) + 1:02d}-{key}.png"
     widget.grab().save(str(path))
-    screens.append({"key": key, "title": title, "area": area, "text": text, "file": path.name})
+    try:
+        texts = visible_texts(widget)
+    except Exception:  # noqa: BLE001 - nur für den Vergleich
+        texts = []
+    screens.append({"key": key, "title": title, "area": area, "text": text, "file": path.name, "ui_text": texts})
     print(f"  ✓ {title}")
 
 

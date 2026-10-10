@@ -115,8 +115,9 @@ def scoreboard(c, rect: QRectF, scores: dict, fmt=str, limit: int = 10, marks: d
         y = c.fx.vals.get(key, y_target)
         y += (y_target - y) * 0.25
         c.fx.vals[key] = y
-        chip(c.p, QRectF(rect.x(), y, rect.width(), row_h * 0.84), pl.name, pl.color, fmt(score),
-             mark=(marks or {}).get(pid, ""), avatar=pl.avatar)
+        mark = (marks or {}).get(pid, "")
+        chip(c.p, QRectF(rect.x(), y, rect.width(), row_h * 0.84), pl.name, pl.color,
+             f"{mark}  {fmt(score)}" if mark else fmt(score), avatar=pl.avatar, dim=0.5 if mark in ("RAUS", "✗") else 1.0)
 
 
 def time_bar(c, rect: QRectF, part: float) -> None:
@@ -530,6 +531,8 @@ def score_label(key: str, score) -> str:
         return "Im Ziel" if score >= 1000 else f"{int(score)} Tipps"
     if key == "simon":
         return f"Runde {int(score)}"
+    if key == "flappy":
+        return f"{int(score)} Röhren"
     if key == "tetris":
         return clock_text(score) + " durchgehalten"
     return f"{int(score)} Punkte"
@@ -1133,5 +1136,278 @@ def tictactoe(c, g, events) -> None:
             text(p, QRectF(x, h * 0.2, w * 0.2, h * 0.06), "PC spielt", h * 0.03, MUTED)
 
 
+# =========================================================================== Space Invaders
+def _alien(p, center: QPointF, size: float, row: int, now: float) -> None:
+    """Pixel-Alien (zwei Bilder im Wechsel – wie im Original)."""
+    shapes = (["..X.....X..", "...X...X...", "..XXXXXXX..", ".XX.XXX.XX.", "XXXXXXXXXXX", "X.XXXXXXX.X",
+               "X.X.....X.X", "...XX.XX..."],
+              ["..X.....X..", "X..X...X..X", "X.XXXXXXX.X", "XXX.XXX.XXX", "XXXXXXXXXXX", ".XXXXXXXXX.",
+               "..X.....X..", ".X.......X."])
+    frame = shapes[int(now * 2) % 2]
+    colors = ("#f472b6", "#a78bfa", "#a78bfa", "#34d399")
+    px = size / 11
+    x0, y0 = center.x() - size / 2, center.y() - px * 4
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(colors[row % 4]))
+    for j, line in enumerate(frame):
+        for i, ch in enumerate(line):
+            if ch == "X":
+                p.drawRect(QRectF(x0 + i * px, y0 + j * px, px + 0.5, px + 0.5))
+
+
+def invaders(c, g, events) -> None:
+    p, w, h, now = c.p, c.w, c.h, c.now
+    m = max(10, int(min(w, h) * 0.03))
+    side_w = w * 0.2
+    top = m + h * 0.07
+    scale = min((w - 3 * m - side_w) / g.W, (h - top - m) / g.H)
+    fx0, fy0 = m + (w - 3 * m - side_w - g.W * scale) / 2, top
+    field = QRectF(fx0, fy0, g.W * scale, g.H * scale)
+
+    def pt(x, y):
+        return QPointF(fx0 + x * scale, fy0 + y * scale)
+
+    for _n, t, kind, data in events:
+        if kind == "hit":
+            q = pt(data["x"], data["y"])
+            burst(c.fx, q.x(), q.y(), color_of(c, data["pid"]), now, n=16, speed=260, size=5, gravity=0, life=0.6)
+        elif kind == "crash" and "pid" in data:
+            q = pt(data["x"], data["y"])
+            burst(c.fx, q.x(), q.y(), "#f87171", now, n=34, speed=320, size=6)
+        elif kind == "go":
+            c.fx.born["wave"] = t
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(0, 0, 0, 90))
+    p.drawRoundedRect(field.adjusted(-6, -6, 6, 6), 14, 14)
+    # Sterne
+    rng = random.Random(7)
+    for _ in range(70):
+        sx, sy = rng.uniform(0, g.W), rng.uniform(0, g.H)
+        a = 0.25 + 0.25 * math.sin(now * 2 + sx * 3)
+        p.setBrush(qc("#ffffff", a))
+        p.drawEllipse(pt(sx, sy), 1.4, 1.4)
+    tag(c, m, m, field.width(), f"SPACE INVADERS · WELLE {g.wave}")
+    left = g.remaining(now)
+    text(p, QRectF(m, m, field.width() + (fx0 - m), h * 0.05), clock_text(left), h * 0.04,
+         "#fbbf24" if left < 15 else TEXT, True, Qt.AlignRight | Qt.AlignVCenter)
+    # Boden-Linie (kommen die Aliens hier an, ist es vorbei)
+    p.setPen(QPen(qc("#ef4444", 0.5), max(2, scale * 0.05)))
+    p.drawLine(pt(0, g.SHIP_Y - 0.6), pt(g.W, g.SHIP_Y - 0.6))
+    for a in g.aliens:
+        if a["alive"]:
+            _alien(p, pt(a["x"], a["y"]), scale * 0.85, a["row"], now)
+    p.setPen(Qt.NoPen)
+    for sh in g.shots:
+        p.setBrush(qc(color_of(c, sh["pid"])))
+        p.drawRoundedRect(QRectF(pt(sh["x"], sh["y"]).x() - scale * 0.05, pt(sh["x"], sh["y"]).y() - scale * 0.25,
+                                 scale * 0.1, scale * 0.5), 2, 2)
+    p.setBrush(QColor("#fde047"))
+    for b in g.bombs:
+        q = pt(b["x"], b["y"])
+        zig = scale * 0.08 * (1 if int(now * 10 + b["x"]) % 2 else -1)
+        p.drawRect(QRectF(q.x() - scale * 0.05 + zig, q.y() - scale * 0.2, scale * 0.1, scale * 0.4))
+    label_rows: list[float] = []
+    for pid, s in g.ships.items():
+        if s["lives"] <= 0:
+            continue
+        near = sum(1 for x in label_rows if abs(x - s["x"]) < 1.6)  # Namen nicht übereinander schreiben
+        label_rows.append(s["x"])
+        if now < s["safe_until"] and int(now * 10) % 2:
+            continue  # blinkt nach einem Treffer
+        q = pt(s["x"], g.SHIP_Y)
+        sw = g.SHIP_W * scale
+        path = QPainterPath()
+        path.moveTo(q.x(), q.y() - sw * 0.45)
+        path.lineTo(q.x() + sw / 2, q.y() + sw * 0.25)
+        path.lineTo(q.x() - sw / 2, q.y() + sw * 0.25)
+        path.closeSubpath()
+        p.setBrush(qc(color_of(c, pid)))
+        p.drawPath(path)
+        text(p, QRectF(q.x() - scale * 2, q.y() + sw * 0.28 + near * scale * 0.38, scale * 4, scale * 0.5),
+             name_of(c, pid), scale * 0.34, qc(color_of(c, pid)).lighter(140))
+    if g.lost:
+        text(p, field, "DIE ALIENS SIND GELANDET!", h * 0.06, "#f87171", True)
+    born = c.fx.born.get("wave")
+    if born is not None and now - born < 1.4:
+        float_text(c, field.center().x(), field.center().y(), f"WELLE {g.wave}", "#a78bfa", born, 1.4, h * 0.1)
+    marks = {pid: "♥" * s["lives"] if s["lives"] > 0 else "RAUS" for pid, s in g.ships.items()}
+    scoreboard(c, QRectF(w - m - side_w, top, side_w, h * 0.62), g.scores(), limit=8, marks=marks)
+    q = min(side_w * 0.5, h * 0.18)
+    if c.wifi:
+        qr_card(c, w - m - side_w / 2 - q / 2, h - m - q - q * 0.06 - h * 0.04, q, caption=False, image=c.wifi_qr())
+        text(p, QRectF(w - m - side_w, h - m - h * 0.035, side_w, h * 0.035), "Einsteigen", h * 0.022, MUTED)
+
+
+# =========================================================================== Flappy Bird
+def flappy(c, g, events) -> None:
+    p, w, h, now = c.p, c.w, c.h, c.now
+    m = max(10, int(min(w, h) * 0.03))
+    side_w = w * 0.2
+    top = m + h * 0.07
+    scale = min((w - 3 * m - side_w) / g.W, (h - top - m) / g.H)
+    fx0, fy0 = m, top
+    field = QRectF(fx0, fy0, g.W * scale, g.H * scale)
+
+    def pt(x, y):
+        return QPointF(fx0 + x * scale, fy0 + y * scale)
+
+    for _n, t, kind, data in events:
+        if kind == "crash":
+            q = pt(g.BIRD_X, data.get("y", g.H / 2))
+            burst(c.fx, q.x(), q.y(), color_of(c, data["pid"]), now, n=26, speed=280, size=6)
+    sky = QLinearGradient(field.topLeft(), field.bottomLeft())
+    sky.setColorAt(0, QColor("#38bdf8"))
+    sky.setColorAt(1, QColor("#bae6fd"))
+    p.save()
+    clip = QPainterPath()
+    clip.addRoundedRect(field, 16, 16)
+    p.setClipPath(clip)
+    p.fillRect(field, sky)
+    # Wolken (wandern langsamer als die Röhren)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(255, 255, 255, 170))
+    for k in range(5):
+        cx = (k * 4.1 - g.dist * 0.3) % (g.W + 4) - 2
+        cy = 1.2 + (k % 3) * 0.9
+        for dx, r in ((0, 0.6), (0.6, 0.45), (-0.6, 0.45)):
+            p.drawEllipse(pt(cx + dx, cy), r * scale, r * scale * 0.7)
+    # Röhren
+    for pipe in g.pipes:
+        x = pipe["x"] - g.dist
+        if x < -g.PIPE_W or x > g.W + g.PIPE_W:
+            continue
+        gx0 = fx0 + (x - g.PIPE_W / 2) * scale
+        top_h = (pipe["gap_y"] - g.gap / 2) * scale
+        bot_y = fy0 + (pipe["gap_y"] + g.gap / 2) * scale
+        grad = QLinearGradient(QPointF(gx0, 0), QPointF(gx0 + g.PIPE_W * scale, 0))
+        grad.setColorAt(0, QColor("#15803d"))
+        grad.setColorAt(0.4, QColor("#4ade80"))
+        grad.setColorAt(1, QColor("#166534"))
+        p.setBrush(grad)
+        p.drawRect(QRectF(gx0, fy0, g.PIPE_W * scale, top_h))
+        p.drawRect(QRectF(gx0, bot_y, g.PIPE_W * scale, field.bottom() - bot_y))
+        lip = scale * 0.35
+        p.drawRect(QRectF(gx0 - scale * 0.12, fy0 + top_h - lip, g.PIPE_W * scale + scale * 0.24, lip))
+        p.drawRect(QRectF(gx0 - scale * 0.12, bot_y, g.PIPE_W * scale + scale * 0.24, lip))
+    # Boden
+    p.setBrush(QColor("#d97706"))
+    p.drawRect(QRectF(fx0, field.bottom() - scale * 0.25, field.width(), scale * 0.25))
+    # Vögel (alle an derselben Stelle – leicht durchsichtig, damit man alle sieht)
+    alive = [(pid, b) for pid, b in g.birds.items() if b["alive"]]
+    for k, (pid, b) in enumerate(alive):
+        q = pt(g.BIRD_X, b["y"])
+        r = g.R * scale
+        tilt = max(-30.0, min(70.0, b["vy"] * 6))
+        p.save()
+        p.translate(q)
+        p.rotate(tilt)
+        p.setBrush(qc(color_of(c, pid), 0.92))
+        p.drawEllipse(QPointF(0, 0), r * 1.25, r)
+        p.setBrush(QColor("#ffffff"))
+        p.drawEllipse(QPointF(r * 0.55, -r * 0.3), r * 0.38, r * 0.38)
+        p.setBrush(QColor("#0f172a"))
+        p.drawEllipse(QPointF(r * 0.65, -r * 0.3), r * 0.16, r * 0.16)
+        p.setBrush(QColor("#f97316"))
+        beak = QPainterPath()
+        beak.moveTo(r * 1.1, -r * 0.05)
+        beak.lineTo(r * 1.7, r * 0.15)
+        beak.lineTo(r * 1.1, r * 0.35)
+        beak.closeSubpath()
+        p.drawPath(beak)
+        flap = math.sin(now * 18 + k) * r * 0.35
+        p.setBrush(qc(color_of(c, pid)).lighter(130))
+        p.drawEllipse(QPointF(-r * 0.3, flap * 0.5), r * 0.55, r * 0.32)
+        p.restore()
+        near = sum(1 for _p, other in alive[:k] if abs(other["y"] - b["y"]) < 0.6)
+        text(p, QRectF(q.x() - scale * 2, q.y() - r * 2.6 - near * scale * 0.4, scale * 4, scale * 0.45),
+             name_of(c, pid), scale * 0.32, qc("#0f172a", 0.8), True)
+    p.restore()
+    tag(c, m, m, field.width(), "FLAPPY BIRD")
+    best = max((b["passed"] for b in g.birds.values()), default=0)
+    text(p, QRectF(m, m, field.width(), h * 0.05), f"{best}", h * 0.05, TEXT, True, Qt.AlignRight | Qt.AlignVCenter)
+    if now < g.go_at:
+        k = int(g.go_at - now) + 1
+        text(p, field, f"{k}", h * 0.2, "#ffffff", True)
+        text(p, field.adjusted(0, h * 0.2, 0, 0), "Tippen = flattern!", h * 0.045, "#ffffff", True)
+    marks = {pid: ("" if b["alive"] else "✗") for pid, b in g.birds.items()}
+    scoreboard(c, QRectF(w - m - side_w, top, side_w, h * 0.62), g.scores(), limit=8, marks=marks)
+
+
+# =========================================================================== Vier gewinnt
+def vierg(c, g, events) -> None:
+    from .games_arcade import COLS4, ROWS4
+
+    p, w, h, now = c.p, c.w, c.h, c.now
+    m = max(10, int(min(w, h) * 0.03))
+    for _n, t, kind, data in events:
+        if kind == "place":
+            c.fx.born[f"c4{data['cell']}"] = t
+        elif kind == "line":
+            confetti(c.fx, w, h, now, n=90, colors=[TEAM_COLORS[data["team"]], "#ffffff"])
+    cs = min(h * 0.6 / ROWS4, w * 0.5 / COLS4)
+    board = QRectF((w - cs * COLS4) / 2, h * 0.19, cs * COLS4, cs * ROWS4)
+    text(p, QRectF(m, m, w * 0.3, h * 0.07), f"●  {TEAM_NAMES[0]}", h * 0.042, TEAM_COLORS[0], True,
+         Qt.AlignLeft | Qt.AlignVCenter)
+    text(p, QRectF(w - m - w * 0.3, m, w * 0.3, h * 0.07), f"{TEAM_NAMES[1]}  ●", h * 0.042, TEAM_COLORS[1], True,
+         Qt.AlignRight | Qt.AlignVCenter)
+    text(p, QRectF(w * 0.35, m, w * 0.3, h * 0.07), f"{g.wins[0]} : {g.wins[1]}", h * 0.06, TEXT, True)
+    text(p, QRectF(w * 0.35, m + h * 0.065, w * 0.3, h * 0.04), f"Runde {g.round} / {g.rounds}", h * 0.026, MUTED)
+    if g.result == "draw":
+        status, color = "Unentschieden!", TEXT
+    elif g.result:
+        team = 0 if g.result == "X" else 1
+        status, color = f"{TEAM_NAMES[team]} hat vier in einer Reihe!", TEAM_COLORS[team]
+    else:
+        status, color = f"{TEAM_NAMES[g.turn]} ist dran", TEAM_COLORS[g.turn]
+    text(p, QRectF(0, board.bottom() + h * 0.02, w, h * 0.06), status, h * 0.045, color, True)
+    if not g.result:
+        time_bar(c, QRectF(board.x(), board.bottom() + h * 0.085, board.width(), h * 0.012),
+                 g.time_left(now) / max(0.1, g.think))
+    # Stimmen über den Spalten
+    counts: dict[int, list] = {}
+    for pid, col in g.votes.items():
+        counts.setdefault(col, []).append(pid)
+    for col, pids in counts.items():
+        if g.result:
+            break
+        for k, pid in enumerate(pids[:6]):
+            p.setPen(Qt.NoPen)
+            p.setBrush(qc(color_of(c, pid)))
+            r = cs * 0.08
+            p.drawEllipse(QPointF(board.x() + (col + 0.5) * cs + (k - (len(pids[:6]) - 1) / 2) * r * 2.4,
+                                  board.y() - cs * 0.25), r, r)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor("#334155"))
+    p.drawRoundedRect(board.adjusted(-cs * 0.12, -cs * 0.12, cs * 0.12, cs * 0.12), cs * 0.25, cs * 0.25)
+    line = set(g.line or [])
+    for i, mark in enumerate(g.cells):
+        r, col = divmod(i, COLS4)
+        center = QPointF(board.x() + (col + 0.5) * cs, board.y() + (r + 0.5) * cs)
+        p.setBrush(QColor("#0b1020"))
+        p.drawEllipse(center, cs * 0.4, cs * 0.4)
+        if not mark:
+            continue
+        born = c.fx.born.get(f"c4{i}")
+        y = center.y()
+        if born is not None and now - born < 0.45:  # Stein fällt herunter
+            k = ease_out((now - born) / 0.45)
+            y = board.y() - cs * 0.5 + (center.y() - board.y() + cs * 0.5) * k
+        color = TEAM_COLORS[0] if mark == "X" else TEAM_COLORS[1]
+        if i in line and int(now * 4) % 2 == 0:
+            p.setBrush(QColor("#facc15"))
+            p.drawEllipse(QPointF(center.x(), y), cs * 0.44, cs * 0.44)
+        p.setBrush(QColor(color))
+        p.drawEllipse(QPointF(center.x(), y), cs * 0.38, cs * 0.38)
+    for team in (0, 1):
+        members = [pid for pid in g.players if g.team_of(pid) == team]
+        x = m if team == 0 else w - m - w * 0.18
+        for k, pid in enumerate(members[:8]):
+            voted = pid in g.votes and g.turn == team and not g.result
+            chip(p, QRectF(x, h * 0.2 + k * h * 0.07, w * 0.18, h * 0.058), name_of(c, pid), color_of(c, pid),
+                 "✓" if voted else "")
+        if not members:
+            text(p, QRectF(x, h * 0.2, w * 0.18, h * 0.06), "PC spielt", h * 0.03, MUTED)
+
+
 DRAW = {"simon": simon, "pong": pong, "tetris": tetris, "schlangen": schlangen, "rennen": rennen, "ssp": ssp,
-        "tictactoe": tictactoe}
+        "tictactoe": tictactoe, "invaders": invaders, "flappy": flappy, "vierg": vierg}

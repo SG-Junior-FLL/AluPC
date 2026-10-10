@@ -101,6 +101,8 @@ GAME_NAMES = {
     "pong": ("pong", "ping pong"), "tetris": ("tetris", "tetrisspiel"),
     "rennen": ("tipp rennen", "rennen", "wettrennen"), "simon": ("simon", "simon sagt"),
     "ssp": ("schere stein papier", "schnick schnack schnuck"),
+    "invaders": ("space invaders", "invaders", "weltraum"), "flappy": ("flappy bird", "flappy", "vogel"),
+    "vierg": ("vier gewinnt", "viergewinnt"),
 }
 
 
@@ -126,7 +128,7 @@ eins zwei drei vier fünf sechs sieben acht neun zehn elf zwölf fünfzehn zwanz
 achtzig hundert prozent lauter leiser lautstärke laut stumm ton fenster schließen minimieren maximieren screenshot
 bildschirmfoto herunterfahren herunter runter fahr ruhezustand öffnen firefox chrome browser youtube google suche
 such nach spotify discord steam nein abbrechen taschenrechner explorer dateien einstellungen editor wikipedia netflix
-wechseln schere stein papier schnick schnack schnuck
+wechseln schere stein papier schnick schnack schnuck space invaders weltraum flappy bird vogel viergewinnt
 """.split()
 
 

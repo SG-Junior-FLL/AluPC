@@ -65,6 +65,13 @@ jobs:
           python tools/screens_tour.py "$RUNNER_TEMP/rundgang" hell > tour.log 2>&1 || {
             grep -E "FEHLER|✗|Traceback|Error" tour.log | head -30 | sed 's/^/::error title=Rundgang::/'; exit 1; }
           echo "::notice title=Rundgang::$(tail -1 tour.log)"
+      - name: Rundgang-Bilder für den Vergleich mit Windows aufheben
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rundgang-linux
+          path: ${{ runner.temp }}/rundgang
+          retention-days: 7
       - name: Sprache echt – Piper spricht (auch über ein virtuelles Mikrofon), Vosk/Whisper hören, AluPC versteht
         run: |
           sudo apt-get install -y pulseaudio pulseaudio-utils
@@ -75,6 +82,37 @@ jobs:
           pactl set-default-source virtmic
           export ALUPC_PULSE=1 QT_QPA_PLATFORM=offscreen
           python tests/voice_real_check.py || python tests/voice_real_check.py
+
+  ui-vergleich:
+    # Gleiche Oberfläche auf Linux und Windows? Rundgang auch unter Windows, dann Seite für Seite vergleichen
+    # (Bild + sichtbare Texte). Nur Hinweise – hält die Veröffentlichung nicht auf.
+    needs: test-linux
+    runs-on: windows-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installieren
+        run: pip install -e ".[test]" pillow
+      - name: Rundgang unter Windows
+        shell: bash
+        run: python tools/screens_tour.py "$RUNNER_TEMP/rundgang-win" hell > tour.log 2>&1 || true; tail -3 tour.log
+      - uses: actions/download-artifact@v4
+        with:
+          name: rundgang-linux
+          path: ${{ runner.temp }}/rundgang-linux
+      - name: Linux ↔ Windows vergleichen
+        shell: bash
+        run: python tools/compare_tours.py "$RUNNER_TEMP/rundgang-linux" "$RUNNER_TEMP/rundgang-win" "$RUNNER_TEMP/vergleich"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vergleich-linux-windows
+          path: ${{ runner.temp }}/vergleich
+          retention-days: 7
 
   build-linux:
     # Ubuntu 22.04 als Basis: das Paket läuft damit auf Kubuntu 22.04, 24.04 und neuer

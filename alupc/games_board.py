@@ -103,10 +103,13 @@ class TicTacToeGame(Game):
         team = self.members(self.turn)
         if not team:  # niemand im Team → der PC zieht (kurz „überlegen“)
             if now - self.turn_start >= 1.0:
-                self._place(best_move(self.cells, MARKS[self.turn], self.rng), now)
+                self._place(self._pc_move(), now)
             return
         if all(pid in self.votes for pid in team) or self.time_left(now) <= 0:
             self._place(self._chosen(), now)
+
+    def _pc_move(self) -> int:
+        return best_move(self.cells, MARKS[self.turn], self.rng)
 
     def _chosen(self) -> int:
         counts: dict[int, int] = {}
