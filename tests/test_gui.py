@@ -3740,11 +3740,19 @@ def test_weather_live_open_meteo():
     from alupc import weather
 
     try:
-        place = weather.geocode("Berlin")
+        _weather_live(weather)
+    except urllib.error.HTTPError as exc:
+        if exc.code >= 500:  # Open-Meteo gerade gestört (503 …) – kein Fehler von AluPC
+            pytest.skip(f"Open-Meteo gestört: {exc}")
+        raise
     except (urllib.error.URLError, OSError) as exc:
         if os.environ.get("CI"):
             raise
         pytest.skip(f"kein Internet: {exc}")
+
+
+def _weather_live(weather):
+    place = weather.geocode("Berlin")
     assert place and abs(place["lat"] - 52.5) < 1 and "Deutschland" in place["label"]
     # Postleitzahl = Deutschland (nicht USA): 80331 = München, 10115 = Berlin
     munich = weather.geocode("80331")
