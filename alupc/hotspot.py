@@ -35,6 +35,37 @@ _PW_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"  # ohne l/1/o/0 – leicht abzules
 IS_WINDOWS = sys.platform.startswith("win")
 
 
+# Warum Handys das AluPC-WLAN verlassen und was hilft – EIN Text für Hotspot-Fenster, Anmeldeseite und Monitor 2.
+# Recherche: Android und iOS verlassen bzw. meiden WLANs ohne Internet; eine Einstellung, die das überall abstellt, gibt
+# es nicht (Menünamen je nach Hersteller, „Netzwerk unverändert verwenden“ fehlt z. B. beim Nothing Phone). Sicher
+# bleibt ein Handy nur, wenn das WLAN für dieses Gerät Internet hat – wie im Hotel-WLAN nach der Anmeldung.
+STAY_WHY = ("Das AluPC-WLAN hat absichtlich kein Internet. Android und iPhone/iPad merken das und verlassen es manchmal "
+            "nach ein paar Sekunden (oder nehmen mobile Daten) – später verbinden sie sich wieder.")
+STAY_STEPS = [
+    ("Android", ["Mobile Daten ausschalten (Schnelleinstellungen) – dann weicht das Handy nicht aus.",
+                 "Im Anmeldefenster oben rechts ⋮ → „Dieses Netzwerk unverändert verwenden“ – nur falls es das gibt "
+                 "(nicht auf jedem Handy, z. B. Nothing Phone nicht).",
+                 "Fragt das Handy „Kein Internet – verbunden bleiben?“: Ja."]),
+    ("iPhone / iPad", ["Im Anmeldefenster oben „Abbrechen“ → „Ohne Internet verwenden“ – das Gerät bleibt verbunden.",
+                       "„WLAN-Unterstützung“ aus: Einstellungen → Mobilfunk → ganz unten."]),
+    ("Klappt immer", ["Am PC im Hotspot-Fenster bei diesem Handy den Haken „Internet“ setzen – mit Internet bleibt "
+                      "jedes Handy im WLAN.",
+                      "Das Anmeldefenster geht dann von selbst zu: weiter im Browser mit der Hotspot-Adresse."]),
+]
+
+
+def stay_help_html() -> str:
+    """Anleitung als HTML (Hotspot-Fenster, Anmeldeseite)."""
+    import html
+
+    out = [html.escape(STAY_WHY), "<br>"]
+    for title, lines in STAY_STEPS:
+        out.append(f"<br><b>{html.escape(title)}</b><ul style='margin:4px 0 0 0'>")
+        out += [f"<li>{html.escape(line)}</li>" for line in lines]
+        out.append("</ul>")
+    return "".join(out)
+
+
 def new_password() -> str:
     return "".join(secrets.choice(_PW_CHARS) for _ in range(10))
 

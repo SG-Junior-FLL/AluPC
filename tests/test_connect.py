@@ -949,7 +949,10 @@ def test_portal_avatar_and_stay_help(env):  # noqa: F811
     """Anmeldeseite: Symbol wählbar (geht mit ins Spiel) und Hilfe „WLAN fliegt raus?“; Hotspot-Fenster: Anleitung."""
     from alupc.cast_server import portal_page
     from alupc.games import AVATARS
-    from alupc.ui.connect_dialog import STAY_HELP, HotspotDialog
+    from alupc.hotspot import stay_help_html
+    from alupc.ui.connect_dialog import HotspotDialog
+
+    STAY_HELP = stay_help_html()
 
     controller = env[0]
     controller.start_games("tictactoe")
@@ -959,10 +962,20 @@ def test_portal_avatar_and_stay_help(env):  # noqa: F811
     from alupc.game_page import GAME_PAGE
 
     assert 'get("avatar")' in GAME_PAGE and "AVATARS.includes(preAva)" in GAME_PAGE
-    for part in ("Android", "iPhone / iPad", "Ohne Internet verwenden", "Mobile Daten aus", "WLAN-Unterstützung",
-                 "Internet</b> setzen"):
-        assert part in STAY_HELP, part
+    for part in ("Android", "iPhone / iPad", "Ohne Internet verwenden", "Mobile Daten ausschalten",
+                 "WLAN-Unterstützung", "Haken „Internet“", "Nothing Phone"):
+        assert part in STAY_HELP and part in page, part
     dlg = HotspotDialog(controller, "normal")
     assert any("Anleitung" in b.text() for b in dlg.findChildren(type(dlg.toggle)))
     dlg.close()
     controller.game_action("aus")
+    # Monitor 2: Anleitung groß (mit WLAN-Code), aus dem Hotspot-Menü und dem Hotspot-Fenster
+    from alupc.sources import WifiHelpSource
+
+    assert controller.show_wifi_help()
+    src = controller.output.content
+    assert isinstance(src, WifiHelpSource)
+    src.resize(1280, 720)
+    assert not src.grab().isNull()
+    menu = env[1].t_hotspot.menu
+    assert any("Anleitung auf Monitor 2" in a.text() for a in menu.actions())

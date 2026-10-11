@@ -8,7 +8,18 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.121.0)
+### Neu in dieser Version (0.122.0)
+- **Anleitung „Handy fliegt aus dem WLAN?“ groß auf Monitor 2:** Hotspot-Kachel → Menü „Handy fliegt aus dem WLAN? –
+  Anleitung auf Monitor 2“ oder im Hotspot-Fenster bei der Anleitung „Auf Monitor 2 zeigen“. Zeigt WLAN-Code, Name,
+  Passwort und die Schritte für Android, iPhone/iPad und „Klappt immer“ – quer und hochkant.
+- **Anleitung überarbeitet:** Android zuerst „Mobile Daten ausschalten“; „Dieses Netzwerk unverändert verwenden“
+  gibt es nicht auf jedem Handy (z. B. Nothing Phone nicht). Sicher klappt nur: im Hotspot-Fenster beim Handy den
+  Haken „Internet“ setzen – ein Handy ohne Internet im WLAN kann Android jederzeit wieder verlassen.
+- Gleicher Text überall (Monitor 2, Hotspot-Fenster, Anmeldeseite am Handy).
+- Geprüft: 443 Tests; WLAN-Anmeldeseite mit virtuellem Handy 29/29; Anzeige in 1920×1080, 1280×720, 1080×1920
+  und 768×1366 angesehen. Nicht geprüft: echte Handys.
+
+### Neu in Version 0.121.0
 - **Symbol wählen beim Beitreten:** Die WLAN-Anmeldeseite zeigt jetzt die Symbole (🦊 🐼 🐙 …) unter dem Namen; das
   gewählte Symbol geht direkt mit ins Spiel (vorher sprang „Mitspielen“ über die Auswahl hinweg).
 - **„WLAN fliegt nach ein paar Sekunden raus?“** – Anleitung auf der Anmeldeseite (am Handy) und im Hotspot-Fenster

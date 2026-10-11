@@ -1076,6 +1076,91 @@ class WifiQrSource(QWidget):
         pass
 
 
+class WifiHelpSource(WifiQrSource):
+    """„Handy fliegt aus dem WLAN?“ groß auf Monitor 2: WLAN-Code (quer links, hochkant oben) und die Anleitung (Android, iPhone/iPad,
+    was immer klappt) – derselbe Text wie im Hotspot-Fenster und auf der Anmeldeseite."""
+
+    def __init__(self, cfg, parent=None):
+        super().__init__({}, parent)  # folgt immer dem laufenden AluPC-WLAN
+
+    def paintEvent(self, _e):
+        from PySide6.QtGui import QFont, QFontMetricsF, QLinearGradient
+
+        from .hotspot import STAY_STEPS, STAY_WHY
+
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+        grad = QLinearGradient(0, 0, w, h)
+        grad.setColorAt(0, QColor("#0b1220"))
+        grad.setColorAt(1, QColor("#1e1b4b"))
+        p.fillRect(self.rect(), grad)
+        m = min(w, h) * 0.05
+        portrait = h > w * 1.1
+        x0, y0 = m, m
+        if self._qr is not None:  # WLAN-Code zum Wiederverbinden: quer links, hochkant oben
+            if portrait:
+                side = min(w * 0.42, h * 0.24)
+                qr = QRectF((w - side) / 2, m, side, side)
+                label_w, label_x = w - 2 * m, m
+            else:
+                side = min(w * 0.3 - m, h * 0.5)
+                qr = QRectF(m, (h - side) / 2 - h * 0.05, side, side)
+                label_w, label_x = w * 0.3 - m * 0.5, m * 0.5
+            pad = side * 0.05
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor("#ffffff"))
+            p.drawRoundedRect(qr.adjusted(-pad, -pad, pad, pad), pad, pad)
+            draw_qr(p, qr, self._qr)
+            label_px = max(12, int(min(w, h) * 0.03))
+            y = qr.bottom() + pad * 2
+            for text, color in ((self.ssid, "#67e8f9"),
+                                (f"Passwort: {self.password}" if self.password else "", "#fbbf24")):
+                if text:
+                    f = fitted_font(p, text, int(label_w), label_px)
+                    f.setBold(True)
+                    p.setFont(f)
+                    p.setPen(QColor(color))
+                    p.drawText(QRectF(label_x, y, label_w, label_px * 1.5), Qt.AlignHCenter | Qt.AlignVCenter, text)
+                y += label_px * 1.55
+            if portrait:
+                y0 = y + m * 0.5
+            else:
+                x0 = w * 0.3 + m
+        width = w - x0 - m
+        # rechts: Anleitung – Schrift so groß, dass alles passt
+        blocks = [("Handy fliegt aus dem WLAN?", "#ffffff", 1.6, True, 0), (STAY_WHY, "#cbd5e1", 0.9, False, 0)]
+        colors = {"Android": "#4ade80", "iPhone / iPad": "#93c5fd", "Klappt immer": "#fbbf24"}
+        for title, lines in STAY_STEPS:
+            blocks.append((title, colors.get(title, "#ffffff"), 1.15, True, 0))
+            blocks += [("•  " + line, "#e2e8f0", 0.9, False, 1) for line in lines]
+
+        def layout(px):
+            rects, y = [], y0
+            for text, _c, scale, bold, indent in blocks:
+                f = QFont(p.font())
+                f.setPixelSize(max(9, int(px * scale)))
+                f.setBold(bold)
+                ind = indent * px * 1.2
+                r = QFontMetricsF(f).boundingRect(QRectF(0, 0, width - ind, 10_000), Qt.TextWordWrap, text)
+                if bold and rects:
+                    y += px * 0.5  # Luft vor jeder Überschrift, nicht danach
+                rects.append((f, QRectF(x0 + ind, y, width - ind, r.height())))
+                y += r.height() + px * 0.35
+            return rects, y
+
+        px = min(h * 0.045, w * 0.04)
+        rects, bottom = layout(px)
+        while bottom > h - m and px > 8:
+            px *= 0.93
+            rects, bottom = layout(px)
+        for (text, color, _s, _b, _i), (f, r) in zip(blocks, rects):
+            p.setFont(f)
+            p.setPen(QColor(color))
+            p.drawText(r, Qt.TextWordWrap, text)
+        p.end()
+
+
 # --------------------------------------------------------------------------- Website
 def allow_autoplay(view) -> None:
     """Ton ohne Klick erlauben. Chromium spielt Videos/Musik sonst erst nach einem Klick auf die Seite mit Ton ab
@@ -1648,6 +1733,7 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             "airplay": AirPlaySource,
             "cast": WifiQrSource,  # früher Link-QR – jetzt nur noch übers AluPC-WLAN
             "wlan": WifiQrSource,
+            "wlanhilfe": WifiHelpSource,
             "website": WebsiteSource,
             "image": ImageSource,
             "video": VideoSource,

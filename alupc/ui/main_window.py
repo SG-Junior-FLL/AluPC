@@ -624,6 +624,8 @@ class MainWindow(QMainWindow):
         hotspot_menu.addAction(icons.icon("phone", theme.current().text, 18),
                                "Handy-Steuerung: WLAN-Code → Anmeldeseite → „AluPC steuern“",
                                self.controller.show_wifi_qr)
+        hotspot_menu.addAction(icons.icon("info", theme.current().text, 18),
+                               "Handy fliegt aus dem WLAN? – Anleitung auf Monitor 2", self.controller.show_wifi_help)
         self.t_hotspot.set_menu(hotspot_menu, split=True)
         c.hotspot_changed.connect(self.refresh)
         c.access_requested.connect(self.ask_access)  # Handy möchte steuern → hier erlauben/ablehnen

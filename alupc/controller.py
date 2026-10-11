@@ -2027,6 +2027,11 @@ class Controller(QObject):
         return only, ("AluPC-WLAN ist aus" + (f" – {why}" if why else "") +
                       " · am PC: Kachel „Hotspot“ oder Minispiele-Fenster → „WLAN …“")
 
+    def show_wifi_help(self) -> bool:
+        """Anleitung „Handy fliegt aus dem WLAN?“ groß auf Monitor 2 (mit WLAN-Code zum Wiederverbinden)."""
+        self.show_source({"type": "wlanhilfe"}, remember=False)
+        return True
+
     def show_wifi_qr(self) -> bool:
         """WLAN-QR-Code des laufenden Hotspots groß auf Monitor 2."""
         from .hotspot import hotspot

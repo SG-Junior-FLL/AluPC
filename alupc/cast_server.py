@@ -493,6 +493,9 @@ def portal_page(server) -> str:
     from .games import AVATARS
 
     avatars = "".join(f'<button type="button" class="av" data-a="{a}">{a}</button>' for a in AVATARS)
+    from .hotspot import stay_help_html
+
+    stay_help = stay_help_html()
     return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>AluPC – WLAN-Anmeldung</title>
 <style>*{{box-sizing:border-box}}body{{margin:0;font-family:system-ui,sans-serif;background:radial-gradient(circle at 50% 0%,#1e293b,#0b1020 70%);
@@ -510,7 +513,7 @@ button:disabled{{opacity:.45}}
 .avs{{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}}
 .av{{padding:6px 0;font-size:26px;border-radius:12px;background:#1e293b;border:2px solid transparent}}
 .av.sel{{border-color:#6366f1;background:#334155}}
-details{{color:#94a3b8;font-size:14px;line-height:1.45;background:#0f172a;border-radius:14px;padding:10px 14px}}
+details ul{{padding-left:18px}}details{{color:#94a3b8;font-size:14px;line-height:1.45;background:#0f172a;border-radius:14px;padding:10px 14px}}
 summary{{cursor:pointer;font-weight:700;color:#cbd5e1}}details b{{color:#f1f5f9}}</style></head>
 <body><div class="card"><div class="logo">📶</div><h1>AluPC-WLAN</h1>
 <p>Du bist verbunden. Wie heißt du?</p>
@@ -519,13 +522,7 @@ summary{{cursor:pointer;font-weight:700;color:#cbd5e1}}details b{{color:#f1f5f9}
 <button class="g" id="play" {"" if games is not None else "disabled"}>🎮 Mitspielen<small>{game_title or "Gerade keine Minispiele – am PC starten"}</small></button>
 {f'<button class="p" id="vote">📊 Abstimmen<small>{html.escape(poll.question)[:60]}</small></button>' if poll is not None else ""}
 <button class="c" id="ctl">🔒 AluPC steuern<small>Am PC freigeben lassen · Fotos senden</small></button>
-<details><summary>WLAN fliegt nach ein paar Sekunden raus?</summary>
-Das WLAN hat absichtlich kein Internet – manche Handys verlassen es dann von selbst.<br>
-<b>Android:</b> hier oben rechts ⋮ → <b>„Dieses Netzwerk unverändert verwenden“</b> (Wortlaut je nach Handy etwas
-anders; oder bei „Kein Internet – verbunden bleiben?“ <b>Ja</b>). Und mobile Daten aus bzw. „Zu mobilen Daten
-wechseln“ aus.<br>
-<b>iPhone/iPad:</b> oben <b>Abbrechen</b> → <b>„Ohne Internet verwenden“</b>. „WLAN-Unterstützung“ (Einstellungen →
-Mobilfunk, ganz unten) aus.<br>Oder am PC im Hotspot-Fenster bei diesem Gerät den Haken „Internet“ setzen.</details>
+<details><summary>WLAN fliegt nach ein paar Sekunden raus?</summary>{stay_help}</details>
 </div><script>
 const n = document.getElementById("n");
 try {{ n.value = localStorage.getItem("alupc-name") || ""; }} catch (e) {{}}
