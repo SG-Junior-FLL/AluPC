@@ -278,15 +278,6 @@ def main() -> int:
         flush=True)
     good, msg = hs_mod.start_portal(ip=IP, closed=True)  # echter Weg: Administrator + Wächter
     ok(good, f"Anmeldeseite an (Port 53 übernommen, Administrator-Skript): {msg}")
-    if controller.cast.games is not None:  # Lobby jetzt mit 2 Codes: 1. WLAN, 2. Seite im Browser (= Ziel oben)
-        src = GameSource({})
-        src.resize(1280, 720)
-        pump(0.3)
-        src.grab().save(str(tmp / "lobby2.png"))
-        codes = sorted(c.text for c in zxingcpp.read_barcodes(Image.open(tmp / "lobby2.png")))
-        ok(codes == sorted([f"WIFI:T:WPA;S:{hs.ssid};P:{hs.password};;", target]),
-           f"Monitor 2 (Lobby) mit Anmeldeseite: WLAN-Code + Seiten-Code → {codes}")
-        src.stop()
     print("::notice title=Port 53 (AluPC)::" + hs_mod.DNS_INFO, flush=True)
     owner = ps(f"(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
                f"Where-Object {{ $_.LocalAddress -in @('0.0.0.0', '{IP}') -and $_.OwningProcess -eq {os.getpid()} }}"
@@ -296,6 +287,15 @@ def main() -> int:
        "Firewall-Sperre für AluPC entfernt")
     ok(ps("(Get-Service SharedAccess).Status") == "Running", "Windows-Hotspot-Dienst läuft weiter (nie angehalten)")
     hs.portal = good
+    if controller.cast.games is not None:  # Lobby jetzt mit 2 Codes: 1. WLAN, 2. Seite im Browser (= Ziel oben)
+        src = GameSource({})
+        src.resize(1280, 720)
+        pump(0.3)
+        src.grab().save(str(tmp / "lobby2.png"))
+        codes = sorted(c.text for c in zxingcpp.read_barcodes(Image.open(tmp / "lobby2.png")))
+        ok(codes == sorted([f"WIFI:T:WPA;S:{hs.ssid};P:{hs.password};;", target]),
+           f"Monitor 2 (Lobby) mit Anmeldeseite: WLAN-Code + Seiten-Code → {codes}")
+        src.stop()
     ok(hs_mod.dns_selftest(IP), "AluPC-DNS beantwortet 192.168.137.1:53 (statt Windows-DNS)")
     own80 = ps(f"Get-NetTCPConnection -LocalPort 80 -State Listen -ErrorAction SilentlyContinue | "
                f"Where-Object {{ $_.LocalAddress -eq '{IP}' -and $_.OwningProcess -eq {os.getpid()} }}")
