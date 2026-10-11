@@ -203,6 +203,17 @@ save(window, "start", "Startseite", "App",
 step(lambda: (window._go(1), save(window, "szenen", "Szenen", "App",
                                   "Eigene Szenen: mehrere Quellen (Kamera, Bild, Text, Uhr …) auf Monitor 2 – anlegen "
                                   "aus Vorlagen, bearbeiten, mit einem Klick zeigen.")), "Szenen")
+step(lambda: (window._go(5), save(window, "gaeste", "Gäste – Chat & Foto-Wand", "App",
+                                  "Chat übers AluPC-WLAN (direkt als Overlay auf Monitor 2, Wortfilter, Sperren) und "
+                                  "Foto-Wand (Collage/Diashow, Fotos entfernen, Handy sperren).")), "Gäste")
+step(lambda: (window._go(6), save(window, "audio", "Audio & Kamera – Mischpult", "App",
+                                  "Mischpult für den ganzen PC: Ausgänge, Eingänge und Programme mit Regler und Pegel, "
+                                  "virtuelle Geräte hinzufügen/entfernen, Weiterleitungen, Monitor 2 als Kamera.")),
+     "Audio")
+step(lambda: (window.toggle_shell(True), save(window.shell, "oberflaeche", "AluPC-Oberfläche (Vollbild)", "App",
+                                              "Statt des Desktops: Uhr, Suche/„Frag AluPC“, Programme, offene "
+                                              "Fenster, Lautstärke, Monitor 2, Energie."),
+              window.toggle_shell(False)), "Oberfläche")
 step(lambda: (window._go(4), save(window, "system", "System – PC steuern", "App",
                                   "Live-Status (Prozessor, Speicher, Grafik, Temperaturen, Laufwerke, Netzwerk). "
                                   "„PC steuern“: Lautstärke, Musik, Fenster, Bildschirmfoto, Programm öffnen (wie "

@@ -31,6 +31,8 @@ class Controller(QObject):
     sync_status = Signal(str)
     games_changed = Signal()  # Minispiele: Spieler/Phase geändert (Steuerfenster)
     hotspot_changed = Signal()  # Hotspot an/aus (Kachel, Spiele-Fenster)
+    shell_requested = Signal()  # AluPC-Oberfläche (Vollbild) an/aus – macht das Hauptfenster
+    guests_changed = Signal()  # Chat/Foto-Wand: neue Nachricht, neues Foto, an/aus (Seite „Gäste“)
     access_requested = Signal(str, str, str)  # Handy bittet um Freigabe zum Steuern: (Anfrage-ID, Name, IP)
     video_resume = Signal(str, int)  # Video schon mal geschaut: (Titel, Position ms) → „Weiterschauen?“
     presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
@@ -118,6 +120,13 @@ class Controller(QObject):
         from .overlays import OverlayWindow
 
         self.tile_overlays: dict[str, dict] = {}  # Kachel-ID → gerade eingeblendetes Overlay dieser Kachel
+        self.live_overlays: dict[str, dict] = {}  # z. B. „chat“ → Chat-Overlay (eigener Schalter, nicht „Overlays“)
+        from .mixer_route import AudioRouting
+
+        self.audio_routing = AudioRouting(config, self)  # virtuelles Mikro / Mithören (Seite „Audio“)
+        from .vcam import VirtualCam
+
+        self.vcam = VirtualCam(self, self)  # Monitor 2 als virtuelle Kamera
         self.overlay_window = OverlayWindow(self)
         # Reihenfolge: Ausgabe → Overlays → Zeichnungen/Laser ganz oben
         self.output.after_raise.insert(0, self.overlay_window.raise_above)
@@ -970,6 +979,13 @@ class Controller(QObject):
                 self.live_text(req["text"])
             else:
                 self.show_text(req["text"])
+        elif kind == "chat":
+            self.overlay_window.chat_changed()
+            self.guests_changed.emit()
+            return
+        elif kind == "fotowand":
+            self.guests_changed.emit()
+            return
         elif kind == "ask":  # „Frag AluPC“ vom Handy (getippt oder mit der Tastatur diktiert)
             self.ask(req.get("text", ""), source="handy")
         elif kind == "laser":
@@ -1453,6 +1469,18 @@ class Controller(QObject):
             "spiel_lobby": lambda: self.game_action("lobby"),
             "spiel_teams": lambda: self.game_action("teams"),
             "spiel_toene": lambda: self.game_action("toene"),
+            "chat": lambda: self.stop_chat() if self.cast.chat is not None else self.start_chat(),
+            "chat_an": self.start_chat,
+            "chat_aus": self.stop_chat,
+            "chat_overlay": lambda: self.set_chat_overlay(None),
+            "chat_wand": lambda: (self.start_chat(overlay=False) if self.cast.chat is None else None,
+                                  self.show_source({"type": "chatwand"}, remember=False)),
+            "fotowand": lambda: self.start_wall(show=True),
+            "fotowand_aus": self.stop_wall,
+            "oberflaeche": self.shell_requested.emit,
+            "vcam": self._toggle_vcam,
+            "vcam_an": lambda: self._toggle_vcam(True),
+            "vcam_aus": lambda: self._toggle_vcam(False),
         }
         action = actions.get(command)
         if action:
@@ -1805,6 +1833,114 @@ class Controller(QObject):
             return
         self.message.emit("AluPC-WLAN startet …")
         threading.Thread(target=lambda: self.set_hotspot(True, "normal"), name="alupc-wlan-an", daemon=True).start()
+
+    # ------------------------------------------------------------ Gäste: Chat und Foto-Wand (übers AluPC-WLAN)
+    def start_chat(self, overlay: bool | None = None) -> None:
+        """Chat öffnen: Handys schreiben übers AluPC-WLAN (Anmeldeseite → „Chat“), Nachrichten direkt als Overlay."""
+        from .chat import Chat
+
+        cfg = self.config["chat"]
+        if self.cast.chat is None:
+            self.cast.chat = Chat(cfg.get("words"), cfg.get("builtin", True), cfg.get("hide_links", True))
+        self.cast.chat.set_open(True)
+        if not self.cast.start():
+            self.message.emit("Chat: Netzwerk-Anschluss belegt.")
+        self.ensure_wlan()
+        if cfg.get("overlay", True) if overlay is None else overlay:
+            self.set_chat_overlay(True)
+        self.guests_changed.emit()
+        self.changed.emit()
+
+    def stop_chat(self) -> None:
+        if self.cast.chat is None:
+            return
+        self.cast.chat = None
+        self.set_chat_overlay(False)
+        if self.mode == "content" and (self.content or {}).get("type") == "chatwand":
+            self.extend()
+        self.message.emit("Chat beendet.")
+        self.guests_changed.emit()
+        self.changed.emit()
+
+    def chat_overlay_item(self) -> dict:
+        cfg = self.config["chat"]
+        keys = ("count", "seconds", "qr", "x", "y", "size", "style", "color")
+        return {"id": "live-chat", "type": "chat", "name": "Chat", "on": True, **{k: cfg[k] for k in keys if k in cfg}}
+
+    def set_chat_overlay(self, on: bool | None) -> None:
+        """Chat-Overlay auf Monitor 2 an/aus (None = umschalten) – eigener Schalter, unabhängig von „Overlays“."""
+        on = "chat" not in self.live_overlays if on is None else bool(on)
+        if on and self.cast.chat is None:
+            self.start_chat(overlay=False)
+        if on:
+            self.live_overlays["chat"] = self.chat_overlay_item()
+        else:
+            self.live_overlays.pop("chat", None)
+        self.config["chat"] = {**self.config["chat"], "overlay": on}
+        self.overlay_window.reload()
+        self._overlays_shown = self.overlay_window.needed()
+        self.guests_changed.emit()
+        self.changed.emit()
+
+    def update_chat_settings(self, **values) -> None:
+        cfg = {**self.config["chat"], **values}
+        self.config["chat"] = cfg
+        if self.cast.chat is not None and {"words", "builtin", "hide_links"} & set(values):
+            self.cast.chat.set_filter(cfg.get("words") or [], cfg.get("builtin", True), cfg.get("hide_links", True))
+        if "chat" in self.live_overlays:
+            self.live_overlays["chat"] = self.chat_overlay_item()
+            self.overlay_window.reload()
+        self.guests_changed.emit()
+
+    def chat_say(self, text: str) -> bool:
+        """Nachricht vom PC (hervorgehoben, ohne Filter-Sperren)."""
+        if self.cast.chat is None:
+            self.start_chat()
+        msg, _why = self.cast.chat.post("AluPC", text, host=True)
+        if msg is not None:
+            self.overlay_window.chat_changed()
+            self.guests_changed.emit()
+        return msg is not None
+
+    def start_wall(self, show: bool = True) -> None:
+        """Foto-Wand öffnen: Handys schicken Fotos übers AluPC-WLAN (Anmeldeseite → „Foto-Wand“)."""
+        from pathlib import Path
+
+        from .photowall import PhotoWall, default_folder
+
+        cfg = self.config["photowall"]
+        folder = Path(cfg["folder"]) if cfg.get("folder") else default_folder()
+        if self.cast.wall is None or self.cast.wall.folder != folder:
+            self.cast.wall = PhotoWall(folder)
+        self.cast.wall.set_open(True)
+        if not self.cast.start():
+            self.message.emit("Foto-Wand: Netzwerk-Anschluss belegt.")
+        self.ensure_wlan()
+        if show:
+            self.show_source({"type": "fotowand"}, remember=False)
+        self.guests_changed.emit()
+        self.changed.emit()
+
+    def stop_wall(self) -> None:
+        if self.cast.wall is None:
+            return
+        self.cast.wall = None
+        if self.mode == "content" and (self.content or {}).get("type") == "fotowand":
+            self.extend()
+        self.message.emit("Foto-Wand beendet – die Fotos bleiben im Ordner.")
+        self.guests_changed.emit()
+        self.changed.emit()
+
+    def _toggle_vcam(self, on: bool | None = None) -> None:
+        """Monitor 2 als virtuelle Kamera an/aus (None = umschalten)."""
+        on = not self.vcam.running if on is None else on
+        if on:
+            ok, why = self.vcam.start()
+            self.message.emit("Virtuelle Kamera „AluPC Monitor 2“ an." if ok else why)
+        else:
+            self.vcam.stop()
+            self.message.emit("Virtuelle Kamera aus.")
+        self.changed.emit()
 
     def start_poll(self, question: str, options: list[str]) -> None:
         from .polls import Poll
@@ -2197,6 +2333,8 @@ class Controller(QObject):
         self._stop_handy_window()
         self.laser.close()
         self.overlay_window.shutdown()
+        self.audio_routing.shutdown()
+        self.vcam.stop(remember=False)
         self.cursor_guard.shutdown()
         from .cursor import tracker
 

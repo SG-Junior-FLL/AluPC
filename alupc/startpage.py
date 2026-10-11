@@ -116,6 +116,13 @@ COMMANDS = {
     "bildschirmschoner_an": "Bildschirmschoner an",
     "bildschirmschoner_aus": "Bildschirmschoner aus",
     "rgb": "RGB an/aus",
+    "chat": "Chat an/aus (übers AluPC-WLAN)",
+    "chat_overlay": "Chat-Overlay an/aus",
+    "chat_wand": "Chat-Wand zeigen",
+    "fotowand": "Foto-Wand zeigen",
+    "fotowand_aus": "Foto-Wand beenden",
+    "vcam": "Virtuelle Kamera (Monitor 2) an/aus",
+    "oberflaeche": "AluPC-Oberfläche (Vollbild statt Desktop)",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann
@@ -128,6 +135,7 @@ TILE_ICONS = {
     "music": "Musik", "layers": "Ebenen", "board": "Whiteboard", "weather": "Wetter", "poll": "Abstimmung",
     "wheel": "Glücksrad", "gamepad": "Spiel", "gauge": "Tacho", "keyboard": "Tastatur", "download": "Download",
     "search": "Suche", "sound": "Lautstärke", "phone": "Handy", "sliders": "Einstellungen", "wifi": "WLAN",
+    "chat": "Chat", "photos": "Fotos", "users": "Gäste", "mixer": "Mixer", "apps": "Apps", "webcam": "Webcam",
 }
 
 TILE_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#64748b"]

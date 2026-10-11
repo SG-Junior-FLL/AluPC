@@ -41,6 +41,13 @@ jobs:
           python tests/audio_linux_check.py 2>&1 | tee audio.log
           test "${PIPESTATUS[0]}" -eq 0 || { grep "✗" audio.log | sed 's/^/::error title=Ton (Linux)::/'; exit 1; }
           echo "::notice title=Ton (Linux)::$(tail -1 audio.log)"
+      - name: Mischpult echt – virtuelle Geräte anlegen, Ton weiterleiten (kommt im virtuellen Mikro an), Pegel
+        run: |
+          pulseaudio --check 2>/dev/null || pulseaudio --start --exit-idle-time=-1 2>/dev/null || true
+          sleep 1
+          python -m pytest -q -rs tests/test_audio_mixer.py -k real 2>&1 | tee mixer.log
+          grep -q "1 passed" mixer.log || { tail -20 mixer.log | sed 's/^/::error title=Mischpult (Linux)::/'; exit 1; }
+          echo "::notice title=Mischpult (Linux)::virtuelles Mikro, Weiterleitung, Lautstärke, Pegel – echt mit PulseAudio"
       - name: WLAN-Anmeldeseite echt – virtuelles Handy im eigenen Netz (DNS, Weiterleitung, Mitspielen)
         run: |
           sudo apt-get install -y dnsutils iproute2 iptables > /dev/null
@@ -313,6 +320,15 @@ jobs:
           $out = python -c "from alupc import hotspot as h; c, o = h._ps(h._PS_STATE, timeout=60); print(o.replace(chr(10), ' | ')); print('MELDUNG', h.windows_message(o)[1])"
           Write-Output "::notice title=Hotspot (Windows)::$($out -join ' ')"
           if (($out -join ' ') -match 'ParserError|Unexpected token|MissingEndCurlyBrace') { Write-Output "::error title=Hotspot::PowerShell-Skript kaputt"; exit 1 }
+      - name: Mischpult + Treiber-Skripte (Windows) – Core Audio aufrufbar, PowerShell gültig
+        shell: pwsh
+        run: |
+          $out = python -c "from alupc import mixer, mixer_meters, drivers; import json; s = mixer.snapshot(); print('GERAETE', len(s['out']), len(s['in']), 'PROGRAMME', len(s['apps']), 'VIRTUELL', json.dumps(s['virtual'])); m = mixer_meters.Meters(); m.set_channels([{'key': d['id'], 'kind': 'out', 'dev': d['id'], 'stream': None, 'sink': ''} for d in s['out']]); import time; time.sleep(0.5); m.stop(); print('PEGEL ok'); print('KAMERA', drivers.vcam_installed())"
+          Write-Output "::notice title=Mischpult (Windows)::$($out -join ' | ')"
+          if (-not (($out -join ' ') -match 'PEGEL ok')) { Write-Output "::error title=Mischpult (Windows)::$($out -join ' | ')"; exit 1 }
+          $script = python -c "from alupc import drivers; print(drivers.vbcable_ps() + drivers.obs_vcam_ps())"
+          $err = $null; [void][System.Management.Automation.Language.Parser]::ParseInput(($script -join "`n"), [ref]$null, [ref]$err)
+          if ($err.Count) { $err | ForEach-Object { Write-Output "::error title=Treiber-Skript::$($_.Message)" }; exit 1 }
       - name: Jede Einstellung echt bedienen (Windows) – gespeichert, zurückstellbar, wirkt
         shell: bash
         env:

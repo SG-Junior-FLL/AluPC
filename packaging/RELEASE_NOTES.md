@@ -8,7 +8,36 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.123.0)
+### Neu in dieser Version (0.124.0)
+- **Chat per QR (Seite „Gäste“):** Handys schreiben übers AluPC-WLAN (Anmeldeseite → „Chat“ oder Seiten-Code),
+  die Nachrichten erscheinen **direkt als Overlay** auf Monitor 2 (mit QR-Code zum Mitschreiben) oder als große
+  Chat-Wand. Schutz: Schimpfwörter-Filter + eigene Wörter, Links ausgeblendet, höchstens 4 Nachrichten in 10 s je
+  Handy. Am PC: Nachrichten löschen, Handy sperren, leeren, als „AluPC“ schreiben. Chat-Overlay auch im
+  Overlay-Editor (Vorlage „Chat“).
+- **Foto-Wand:** Fotos vom Handy (auch mehrere, auf dem Handy verkleinert) – auf Monitor 2 als Collage
+  (Polaroids) oder Diashow, neue Fotos kommen erst groß. Am PC: Vorschau, entfernen (Datei weg), Handy sperren,
+  Wand leeren, Ordner „Bilder/AluPC Foto-Wand“.
+- **Mischpult (Seite „Audio & Kamera“):** Kanalzüge für alle Ausgänge, Eingänge und **jedes Programm** mit Regler,
+  Pegel (dB), Stumm und Standardgerät; Programme auf andere Ausgänge legen (Linux; Windows: Einstellungen).
+  **Virtuelle Geräte:** virtuelles Mikro + virtueller Ausgang, unter Linux beliebig viele dazu („+ Mikro“,
+  „+ Ausgang“) und wieder entfernen; Ton weiterleiten per Knopf (Mikro → virtuelles Mikro, Mithören).
+- **Monitor 2 als virtuelle Kamera** („AluPC Monitor 2“, Windows „OBS Virtual Camera“) – mit Overlays und
+  Zeichnungen, 540p/720p/1080p, 5–60 Bilder/s, spiegelbar.
+- **Installer:** Windows-Installer bietet VB-CABLE (virtuelles Mikro) und die virtuelle Kamera (OBS-Kamera über
+  winget) an; Linux-Installationsskript richtet v4l2loopback ein. Später auch per „Einrichten“ in AluPC.
+- **AluPC-Oberfläche (Strg+Alt+O):** Vollbild statt Desktop – Uhr, Suche/„Frag AluPC“, Programme (anheftbar), offene
+  Fenster, Lautstärke, Monitor 2 live, Gäste, Energie; optional beim Start.
+- **Design fürs System:** Setup → Darstellung → „AluPC-Design aufs System“: Akzentfarbe (die gewählte, nicht nur
+  AluPC-Blau), Hell/Dunkel und ein passendes Hintergrundbild für Windows bzw. KDE; zieht bei Änderungen mit,
+  „Zurück“ stellt alles wieder her.
+- Seitenleiste neu: Start · Szenen · **Gäste** · **Audio** · System · Setup · Fingerabdruck · **Oberfläche**.
+- Geprüft: 457 Tests; Chat/Foto-Wand mit echtem Browser (Chromium als Handy) und echtem Webserver; virtuelles Mikro
+  echt mit PulseAudio (Ton kommt im virtuellen Mikro an, Pegel, eigene Geräte anlegen/entfernen); QR-Codes mit
+  Decoder gelesen; Rundgang 61 Seiten ohne Fehler. **Nicht geprüft:** echte Handys, VB-CABLE und die
+  OBS-Kamera auf echtem Windows (die CI hat keine Audiogeräte/Treiber), v4l2loopback auf echtem Kernel
+  (Kamera mit nachgebautem Treiber getestet), Hintergrundbild/Hell-Dunkel auf echtem KDE.
+
+### Neu in Version 0.123.0
 - **Wieder 2 QR-Codes auf Monitor 2:** 1. AluPC-WLAN, 2. „Seite öffnen“ (Name, Symbol, Mitspielen, Abstimmen).
   Der zweite Code öffnet die Seite im normalen Browser – sie bleibt offen, auch wenn das Anmeldefenster des Handys
   von selbst zugeht. Gilt für den WLAN-Bildschirm, die Spiele-Lobby und die Anleitung „Handy fliegt aus dem WLAN?“.

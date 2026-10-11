@@ -29,6 +29,7 @@ DEFAULT_HOTKEYS = {
     "rgb_monitor2": "",
     "rgb_aus": "",
     "zuhoeren": "Ctrl+Alt+H",
+    "oberflaeche": "Ctrl+Alt+O",
 }
 
 HOTKEY_LABELS = {
@@ -54,6 +55,7 @@ HOTKEY_LABELS = {
     "rgb_monitor2": "RGB: Farbe folgt Monitor 2",
     "rgb_aus": "RGB aus",
     "zuhoeren": "Mikrofon-Schalter (zuhören ohne Startwort)",
+    "oberflaeche": "AluPC-Oberfläche (Vollbild statt Desktop) an/aus",
 }
 
 DEFAULTS: dict = {
@@ -127,6 +129,17 @@ DEFAULTS: dict = {
     "laser": {"size": 100, "trail": True},
     # Overlays über Monitor 2 (Musik, Uhr, Bauchbinde …) – siehe overlays.py
     "overlays": {"on": False, "items": []},
+    # Chat übers AluPC-WLAN (chat.py): Overlay auf Monitor 2, Wortfilter (eigene Wörter + eingebaute Liste)
+    "chat": {"overlay": True, "count": 5, "seconds": 0, "qr": True, "x": 0.0, "y": 1.0, "size": 1.0,
+             "style": "glas", "color": "#6366f1", "words": [], "builtin": True, "hide_links": True},
+    # Seite „Audio“: virtuelle Geräte an, welche Mikrofone ins virtuelle Mikro, virtueller Ausgang ins Mikro, Mithören
+    "audio_mixer": {"virtual": False, "mic_inputs": [], "out_to_mic": True, "listen": False},
+    # AluPC-Oberfläche (Vollbild statt Desktop): beim Start zeigen, angeheftete Programme
+    "shell": {"autostart": False, "pinned": [], "open": False},
+    # Monitor 2 als virtuelle Kamera (vcam.py): an (beim Start wieder an), Größe, Bilder pro Sekunde, gespiegelt
+    "vcam": {"on": False, "size": "720p", "fps": 20, "mirror": False},
+    # Foto-Wand (photowall.py): Ordner (leer = Bilder/AluPC Foto-Wand), Collage oder Diashow, Codes zeigen
+    "photowall": {"folder": "", "mode": "collage", "codes": True, "interval": 7},
     # Whiteboard auf Monitor 2: zuletzt gewählter Hintergrund (whiteboard.BACKGROUNDS)
     "whiteboard": {"background": "weiss"},
     # Fenster „Zeigen & Zeichnen“: Werkzeug, Farbe, Stärke; Zeichnungen automatisch löschen

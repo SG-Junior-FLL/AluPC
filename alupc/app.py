@@ -33,6 +33,8 @@ def parse_args(argv):
     # Lüfter setzen (läuft per pkexec als Administrator, ohne Oberfläche)
     parser.add_argument("--einbindung-entfernen", action="store_true", help=argparse.SUPPRESS)  # Deinstallation
     parser.add_argument("--luefter", metavar="REGLER=WERT,…", help=argparse.SUPPRESS)
+    # Installer: Treiber für virtuelle Geräte (vbcable, kamera) – ohne Oberfläche
+    parser.add_argument("--treiber", metavar="WAS", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
@@ -153,6 +155,10 @@ def main(argv=None) -> int:
         from .platform.fans import apply_request
 
         return apply_request(args.luefter)
+    if args.treiber:
+        from .drivers import main_install
+
+        return main_install(args.treiber)
     if args.selbsttest:
         return self_test(args.selbsttest)
     if args.sprachtest:
@@ -247,6 +253,12 @@ def main(argv=None) -> int:
         ensure_user_entry()
 
     controller.restore_last()
+    from PySide6.QtCore import QTimer as _QT
+
+    _QT.singleShot(1500, controller.audio_routing.restore)  # virtuelles Mikro/Mithören wie zuletzt
+    _QT.singleShot(2500, controller.vcam.restore)  # virtuelle Kamera wieder an, wenn sie an war
+    if (config.get("shell") or {}).get("autostart"):  # AluPC-Oberfläche statt Desktop
+        _QT.singleShot(900, lambda: window.toggle_shell(True))
     try:  # Rechtsklick „Auf Monitor 2 zeigen“ + alupc://-Links (Pfad nach Update/Umzug aktuell halten)
         from .platform import system_integration
 

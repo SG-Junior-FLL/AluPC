@@ -1734,6 +1734,10 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             from .poll_source import PollSource
 
             return PollSource(cfg, parent)
+        if t in ("chatwand", "fotowand"):
+            from .guest_sources import ChatWallSource, PhotoWallSource
+
+            return (ChatWallSource if t == "chatwand" else PhotoWallSource)(cfg, parent)
         if t == "spiel":
             from .game_source import GameSource
 

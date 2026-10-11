@@ -293,6 +293,8 @@ class MainWindow(QMainWindow):
             LazyPage(lambda: _padded(self._setup_page())),
             LazyPage(lambda: _padded(self._finger_page(), scroll=True)),
             LazyPage(lambda: _padded(self._system_page(), scroll=True)),
+            LazyPage(lambda: _padded(self._guests_page(), scroll=True)),
+            LazyPage(lambda: _padded(self._audio_page(), scroll=True)),
         ]
         for page in self.pages:
             self.stack.addWidget(page)
@@ -308,6 +310,8 @@ class MainWindow(QMainWindow):
         controller.video_resume.connect(self.ask_video_resume)  # Kachel „Minispiele“: LOBBY/LÄUFT/ERGEBNIS
         controller.message.connect(self.show_message)
         controller.presenter_requested.connect(self.open_presenter)
+        controller.shell_requested.connect(self.toggle_shell)
+        self.shell = None
         controller.settings_imported.connect(self._settings_imported)
         controller.cast.state_changed.connect(self.refresh)  # Kachel „Handy-Steuerung“: LÄUFT an/aus
         self._watch_system_theme()
@@ -355,8 +359,8 @@ class MainWindow(QMainWindow):
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
         # (Seiten-Nummer, Symbol, Text) – Reihenfolge in der Leiste, Nummer = Seite im Stapel
-        for i, icon_name, text in [(0, "home", "Start"), (1, "scenes", "Szenen"), (4, "gauge", "System"),
-                                   (2, "sliders", "Setup"),
+        for i, icon_name, text in [(0, "home", "Start"), (1, "scenes", "Szenen"), (5, "users", "Gäste"),
+                                   (6, "mixer", "Audio"), (4, "gauge", "System"), (2, "sliders", "Setup"),
                                    (3, "fingerprint", "Fingerabdruck")]:
             b = NavButton(icon_name, text)
             b.setToolTip(text)
@@ -414,6 +418,13 @@ class MainWindow(QMainWindow):
         mic.clicked.connect(lambda: self.controller.toggle_listening())
         self.mic_button = mic
         lay.addWidget(mic)
+        shell = NavButton("apps", "Oberfläche")
+        shell.setCheckable(False)
+        shell.setToolTip("AluPC-Oberfläche im Vollbild statt des Desktops: Programme, Fenster, Lautstärke, Monitor 2 "
+                         "(Strg+Alt+O)")
+        shell.clicked.connect(lambda: self.toggle_shell(True))
+        self.shell_button = shell
+        lay.addWidget(shell)
         lock = NavButton("lock", "Computer sperren")
         lock.setToolTip("Wie Win+L – Monitor 2 zeigt weiter, was gerade läuft")
         lock.setCheckable(False)
@@ -464,6 +475,17 @@ class MainWindow(QMainWindow):
         self.nav_indicator.follow(self.nav_group.button(index), animate=changed)
         if changed:
             fade_in(self.stack.currentWidget(), 200)  # Seitenwechsel: weich einblenden
+
+    # ================================================================ Gäste (Chat, Foto-Wand)
+    def _guests_page(self):
+        from .guests_page import GuestsPage
+
+        return GuestsPage(self.controller)
+
+    def _audio_page(self):
+        from .audio_page import AudioPage
+
+        return AudioPage(self.controller)
 
     # ================================================================ System
     def _system_page(self):
@@ -1619,6 +1641,7 @@ class MainWindow(QMainWindow):
         self.a_status = menu.addAction("")
         self.a_status.setEnabled(False)
         menu.addAction(ic("grid"), "Schnellfenster …", self.open_tray_panel)
+        menu.addAction(ic("apps"), "AluPC-Oberfläche (Vollbild)", self.toggle_shell)
         menu.addSection("Monitor 2")
         self.a_freeze = QAction(ic("snowflake"), "Standbild", menu, checkable=True)
         self.a_freeze.triggered.connect(lambda _=False: c.toggle_freeze())
@@ -1981,6 +2004,18 @@ class MainWindow(QMainWindow):
             self.setup.set_compact(compact)
 
     # ================================================================ Sperre
+    def toggle_shell(self, on: bool | None = None) -> None:
+        """AluPC-Oberfläche (Vollbild auf Monitor 1) zeigen/verlassen."""
+        from .shell import ShellWindow
+
+        if self.shell is None:
+            self.shell = ShellWindow(self, self.controller)
+        on = (not self.shell.isVisible()) if on is None else on
+        if on:
+            self.shell.show_shell()
+        else:
+            self.shell.leave()
+
     def lock(self):
         """Computer sperren – wie Win+L (Linux: Bildschirmsperre)."""
         self.controller.lock_computer()

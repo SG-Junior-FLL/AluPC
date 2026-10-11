@@ -182,6 +182,8 @@ class CastServer(QObject):
         self._lock = threading.Lock()
         self.poll = None  # laufende Abstimmung (polls.Poll) – Handys stimmen ohne Steuer-Code ab
         self.games = None  # Minispiele (games.GameHub) – Handys spielen ohne Steuer-Code mit
+        self.chat = None  # Chat (chat.Chat) – Handys schreiben ohne Steuer-Code, Monitor 2 zeigt es sofort
+        self.wall = None  # Foto-Wand (photowall.PhotoWall) – Handys schicken Fotos ohne Steuer-Code
         self.access: dict[str, dict] = {}  # Freigabe-Anfragen: id → {name, ip, state, key, t}
 
     # ------------------------------------------------------------ Einstellungen
@@ -521,6 +523,7 @@ input:focus{{outline:none;border-color:#6366f1}}
 button{{width:100%;padding:20px;border-radius:18px;border:0;font-size:21px;font-weight:800;color:#fff;cursor:pointer}}
 button small{{display:block;font-size:13px;font-weight:600;opacity:.85;margin-top:3px}}
 .g{{background:linear-gradient(135deg,#6366f1,#ec4899)}}.p{{background:linear-gradient(135deg,#0891b2,#22c55e)}}.c{{background:#1e293b;border:2px solid #334155}}
+.h{{background:linear-gradient(135deg,#2563eb,#06b6d4)}}.f{{background:linear-gradient(135deg,#ec4899,#f59e0b)}}
 button:disabled{{opacity:.45}}
 .avs{{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}}
 .av{{padding:6px 0;font-size:26px;border-radius:12px;background:#1e293b;border:2px solid transparent}}
@@ -533,6 +536,8 @@ summary{{cursor:pointer;font-weight:700;color:#cbd5e1}}details b{{color:#f1f5f9}
 <div class="avs" id="avs">{avatars}</div>
 <button class="g" id="play" {"" if games is not None else "disabled"}>🎮 Mitspielen<small>{game_title or "Gerade keine Minispiele – am PC starten"}</small></button>
 {f'<button class="p" id="vote">📊 Abstimmen<small>{html.escape(poll.question)[:60]}</small></button>' if poll is not None else ""}
+{'<button class="h" id="chat">💬 Chat<small>Nachrichten erscheinen auf Monitor 2</small></button>' if server.chat is not None else ""}
+{'<button class="f" id="wall">📷 Foto-Wand<small>Fotos groß auf Monitor 2</small></button>' if server.wall is not None else ""}
 <button class="c" id="ctl">🔒 AluPC steuern<small>Am PC freigeben lassen · Fotos senden</small></button>
 <details><summary>WLAN fliegt nach ein paar Sekunden raus?</summary>{stay_help}</details>
 </div><script>
@@ -554,6 +559,10 @@ document.getElementById("play").onclick = () => {{ location.href = "{game_url}" 
   "&avatar=" + encodeURIComponent(ava); }};
 const vote = document.getElementById("vote");
 if (vote) vote.onclick = () => {{ name(); location.href = "{poll_url}"; }};
+for (const [id, url] of [["chat", "/chat"], ["wall", "/fotos"]]) {{
+  const b = document.getElementById(id);
+  if (b) b.onclick = () => {{ name(); location.href = url; }};
+}}
 document.getElementById("ctl").onclick = () => {{ location.href = "/?frei=" + encodeURIComponent(name() || "Handy"); }};
 n.addEventListener("keydown", e => {{ if (e.key === "Enter") document.getElementById({"'play'" if games is not None else "'ctl'"}).click(); }});
 </script></body></html>"""
@@ -696,6 +705,43 @@ def _make_handler(server: CastServer):
                 self._json(200, server.access_state(parse_qs(urlparse(self.path).query).get("id", [""])[0]))
             elif path == "/anmelden":  # WLAN-Anmeldeseite (AluPC-WLAN): Mitspielen oder – mit Code – steuern
                 self._send(200, portal_page(server).encode(), "text/html; charset=utf-8")
+            elif path == "/chat":
+                from .chat import CHAT_PAGE
+
+                self._send(200, CHAT_PAGE.encode(), "text/html; charset=utf-8")
+            elif path == "/api/chat":
+                if server.chat is None:
+                    self._json(404, {"error": "Der Chat ist aus"})
+                else:
+                    try:
+                        after = int(parse_qs(urlparse(self.path).query).get("after", ["0"])[0])
+                    except ValueError:
+                        after = 0
+                    self._json(200, server.chat.since(after))
+            elif path == "/fotos":
+                from .photowall import PHOTO_PAGE
+
+                self._send(200, PHOTO_PAGE.encode(), "text/html; charset=utf-8")
+            elif path == "/api/fotowand":
+                if server.wall is None:
+                    self._json(404, {"error": "Die Foto-Wand ist aus"})
+                else:
+                    self._json(200, server.wall.public())
+            elif path == "/api/fotowand/bild":
+                q = parse_qs(urlparse(self.path).query)
+                try:
+                    photo = server.wall.get(int(q.get("id", ["0"])[0])) if server.wall is not None else None
+                except ValueError:
+                    photo = None
+                key = "thumb" if q.get("klein", [""])[0] else "path"
+                try:
+                    data = Path(photo.get(key) or photo["path"]).read_bytes() if photo else b""
+                except OSError:
+                    data = b""
+                if data:
+                    self._send(200, data, "image/jpeg")
+                else:
+                    self._json(404, {"error": "Foto nicht gefunden"})
             elif path == "/spiel":
                 from .game_page import GAME_PAGE
 
@@ -801,6 +847,55 @@ def _make_handler(server: CastServer):
             else:
                 self._json(400, {"error": "Ungültige Anfrage"})
 
+        def _chat_post(self):
+            chat = server.chat
+            if chat is None:
+                self._json(404, {"error": "Der Chat ist aus"})
+                return
+            try:
+                data = self._body_json()
+            except (ValueError, TypeError, json.JSONDecodeError):
+                self._json(400, {"error": "Ungültige Anfrage"})
+                return
+            msg, why = chat.post(str(data.get("name", "")), str(data.get("text", "")), self.client_address[0],
+                                 str(data.get("avatar", "")))
+            if msg is None:
+                code = 429 if "schnell" in why else 403 if "gesperrt" in why else 423 if "geschlossen" in why else 400
+                self._json(code, {"error": why})
+                return
+            server.request.emit({"kind": "chat", "id": msg["id"]})
+            self._json(200, {"id": msg["id"], "filtered": msg["filtered"]})
+
+        def _wall_post(self, q):
+            from .photowall import MAX_BYTES
+
+            wall = server.wall
+            try:
+                size = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                size = 0
+            if wall is None or size <= 0 or size > MAX_BYTES:
+                self.close_connection = True
+                self._json(404 if wall is None else 413 if size > MAX_BYTES else 400,
+                           {"error": "Die Foto-Wand ist aus" if wall is None else
+                            "Foto zu groß (höchstens 25 MB)" if size > MAX_BYTES else "Leere Datei"})
+                return
+            chunks, left = [], size
+            while left > 0:
+                chunk = self.rfile.read(min(left, 1 << 20))
+                if not chunk:
+                    self.close_connection = True
+                    return
+                chunks.append(chunk)
+                left -= len(chunk)
+            photo, why = wall.add(b"".join(chunks), q.get("name", [""])[0], self.client_address[0])
+            if photo is None:
+                code = 429 if "schnell" in why else 403 if "gesperrt" in why else 423 if "geschlossen" in why else 415
+                self._json(code, {"error": why})
+                return
+            server.request.emit({"kind": "fotowand", "id": photo["id"]})
+            self._json(200, {"id": photo["id"]})
+
         def do_POST(self):
             self._note()
             u = urlparse(self.path)
@@ -830,6 +925,12 @@ def _make_handler(server: CastServer):
                     self._json(429, {"error": "Schon angefragt – bitte am PC freigeben"})
                 else:
                     self._json(200, {"id": rid})
+                return
+            if u.path == "/api/chat":  # Chat: ohne Steuer-Code, nur übers AluPC-WLAN
+                self._chat_post()
+                return
+            if u.path == "/api/fotowand":  # Foto-Wand: ohne Steuer-Code, nur übers AluPC-WLAN
+                self._wall_post(parse_qs(u.query))
                 return
             if u.path == "/api/umfrage":  # Abstimmen: ohne Steuer-Code, nur mit dem Stichwort der Abstimmung
                 try:

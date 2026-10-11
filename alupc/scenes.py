@@ -161,6 +161,10 @@ def describe_source(cfg: dict | None) -> str:
         return "Systemstatus"
     if t == "umfrage":
         return "Abstimmung"
+    if t == "chatwand":
+        return "Chat-Wand"
+    if t == "fotowand":
+        return "Foto-Wand"
     if t == "spiel":
         return "Minispiele"
     if t == "countdown":

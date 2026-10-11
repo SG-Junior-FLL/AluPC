@@ -30,6 +30,7 @@ TYPES = {
     "timer": "Timer",
     "qr": "QR-Code",
     "badge": "Hinweis",
+    "chat": "Chat (Handys)",
 }
 STYLES = {"glas": "Glas (dunkel)", "hell": "Hell", "farbe": "Farbe", "schlicht": "Ohne Hintergrund"}
 MUSIC_VARIANTS = {"kompakt": "Kompakt", "leiste": "Leiste (breit)", "cover": "Großes Cover"}
@@ -75,6 +76,8 @@ TEMPLATES: list[tuple[str, str, str, dict]] = [
      {"type": "live", "text": "LIVE", "x": 0.0, "y": 0.0, "color": "#ef4444"}),
     ("Live", "Aufnahme", "„REC“ wie bei einer Kamera", {"type": "live", "text": "REC", "x": 1.0, "y": 0.0,
                                                           "color": "#ef4444", "style": "schlicht"}),
+    ("Live", "Chat", "Nachrichten der Handys (Chat übers AluPC-WLAN) mit QR-Code zum Mitschreiben",
+     {"type": "chat", "count": 5, "seconds": 0, "qr": True, "x": 0.0, "y": 1.0, "color": "#6366f1"}),
 ]
 
 
@@ -137,6 +140,26 @@ class OverlayData:
         self.art = QImage()
         self._images: dict[str, QImage] = {}
         self._qr: dict[str, QImage] = {}
+        self.chat = None  # Funktion → laufender Chat (chat.Chat) oder None
+
+    def chat_messages(self, item: dict) -> list[dict]:
+        chat = self.chat() if callable(self.chat) else None
+        if chat is None:
+            return []
+        n = max(1, min(12, int(item.get("count", 5) or 5)))
+        return chat.latest(n, float(item.get("seconds", 0) or 0))
+
+    def chat_link(self) -> str:
+        from .cast_server import portal_url
+
+        link = portal_url()
+        return link.rsplit("/", 1)[0] + "/chat" if link else ""
+
+    def chat_fresh(self, seconds: float = 0.6) -> bool:
+        """Kam gerade eine Nachricht? (dann kurz animieren)"""
+        chat = self.chat() if callable(self.chat) else None
+        last = chat.latest(1) if chat is not None else []
+        return bool(last) and time.time() - last[0]["t"] < seconds
 
     def set_track(self, track) -> None:
         self.track = track
@@ -264,7 +287,30 @@ def measure(item: dict, w: float, h: float, data: OverlayData) -> QSizeF:
         return QSizeF(side + pad, side + pad + (u * 3.4 if item.get("text") else 0))
     if t == "badge":
         return QSizeF(_tw(item.get("text", ""), u * 3, True) + pad * 2.4, u * 6)
+    if t == "chat":
+        width = min(w * 0.46, u * 62)
+        return QSizeF(width, sum(hh for _m, hh in _chat_rows(item, width, u, data)) + _chat_head(item, u, data))
     return QSizeF(u * 20, u * 6)
+
+
+def _chat_head(item: dict, u: float, data: OverlayData) -> float:
+    """Höhe des Kopfes (QR-Code + „Chat: scannen“), 0 ohne QR."""
+    return u * 13 if item.get("qr", True) and data.chat_link() else 0.0
+
+
+def _chat_rows(item: dict, width: float, u: float, data: OverlayData) -> list[tuple[dict, float]]:
+    """Nachrichten mit ihrer Höhe (Name + umbrochener Text)."""
+    msgs = data.chat_messages(item)
+    if not msgs:
+        return [({"id": 0, "name": "", "text": "Noch keine Nachrichten – QR-Code scannen und schreiben",
+                  "avatar": "💬", "t": 0, "host": True}, u * 7.4)]
+    fm = QFontMetricsF(_font(u * 3))
+    inner = width - u * 4
+    rows = []
+    for m in msgs:
+        lines = fm.boundingRect(QRectF(0, 0, inner, 10_000), int(Qt.TextWordWrap), m["text"]).height()
+        rows.append((m, u * 2.6 * 1.25 + min(lines, u * 3 * 1.35 * 4) + u * 2.6 + u * 0.8))
+    return rows
 
 
 def _panel(p: QPainter, r: QRectF, bg: QColor | None, radius: float) -> None:
@@ -456,7 +502,57 @@ def paint(p: QPainter, item: dict, r: QRectF, h: float, data: OverlayData, now: 
     elif t == "badge":
         _panel(p, r, bg, r.height() / 2)
         _text(p, r, item.get("text", ""), u * 3, fg, True, Qt.AlignCenter, plain)
+    elif t == "chat":
+        _paint_chat(p, item, r, u, data, bg, fg, accent, now)
     p.restore()
+
+
+def _paint_chat(p: QPainter, item: dict, r: QRectF, u: float, data: OverlayData, bg, fg, accent, now: float) -> None:
+    from .chat import name_color
+
+    head = _chat_head(item, u, data)
+    if head:  # QR-Code zum Mitschreiben + Hinweis
+        side = head - u * 2
+        q = QRectF(r.x(), r.y(), side + u * 1.6, side + u * 1.6)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, 240))
+        p.drawRoundedRect(q, u, u)
+        img = data.qr(data.chat_link())
+        if not img.isNull():
+            p.drawImage(q.adjusted(u * 0.8, u * 0.8, -u * 0.8, -u * 0.8), img)
+        tx = q.right() + u * 1.6
+        _text(p, QRectF(tx, r.y() + u * 1.5, r.right() - tx, u * 4.4), "💬 Chat", u * 3.6, fg, True,
+              shadow=True)
+        _text(p, QRectF(tx, r.y() + u * 6, r.right() - tx, u * 3.4), "QR-Code scannen · mitschreiben", u * 2.4,
+              QColor(255, 255, 255, 215), shadow=True)
+    y = r.y() + head
+    wall = time.time()
+    for m, hh in _chat_rows(item, r.width(), u, data):
+        age = wall - m["t"] if m["t"] else 9.0
+        appear = max(0.0, min(1.0, age / 0.35))  # neue Nachricht gleitet herein
+        box = QRectF(r.x() + (1 - appear) * u * 8, y, r.width(), hh - u * 0.8)
+        p.save()
+        p.setOpacity(p.opacity() * (0.3 + 0.7 * appear))
+        fill = QColor(bg) if bg is not None else QColor(12, 16, 28, 175)
+        if m.get("host"):
+            fill = QColor(accent)
+            fill.setAlpha(225)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0, 55))
+        p.drawRoundedRect(box.translated(0, u * 0.3), u * 1.8, u * 1.8)
+        p.setBrush(fill)
+        p.drawRoundedRect(box, u * 1.8, u * 1.8)
+        name = (m.get("avatar", "") + " " if m.get("avatar") else "") + m.get("name", "")
+        if name.strip():
+            _text(p, QRectF(box.x() + u * 2, box.y() + u * 1.1, box.width() - u * 4, u * 2.6 * 1.25), name,
+                  u * 2.6, QColor("#ffffff") if m.get("host") else QColor(name_color(m.get("name", ""))), True)
+        top = box.y() + (u * 1.1 + u * 2.6 * 1.25 if name.strip() else u * 1.4)
+        p.setFont(_font(u * 3))
+        p.setPen(fg if not m.get("host") else QColor("#ffffff"))
+        p.drawText(QRectF(box.x() + u * 2, top, box.width() - u * 4, box.bottom() - top - u * 0.9),
+                   int(Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop), m["text"])
+        p.restore()
+        y += hh
 
 
 def layout(items: list[dict], w: float, h: float, data: OverlayData) -> list[tuple[dict, QRectF]]:
@@ -470,7 +566,7 @@ def paint_all(p: QPainter, items: list[dict], w: float, h: float, data: OverlayD
 
 
 def animated(item: dict) -> bool:
-    return item.get("type") in ("ticker", "live")
+    return item.get("type") in ("ticker", "live", "chat")
 
 
 # --------------------------------------------------------------------------- Fenster über Monitor 2
@@ -486,6 +582,7 @@ class OverlayWindow(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.data = OverlayData()
+        self.data.chat = lambda: getattr(getattr(controller, "cast", None), "chat", None)
         self._kde_done = False
         self._music = False
         self._rects: list[tuple[dict, QRectF]] = []
@@ -501,7 +598,8 @@ class OverlayWindow(QWidget):
     def items(self) -> list[dict]:
         """Alle sichtbaren Overlays: die aus dem Editor (wenn Overlays an) + die von Kacheln der Startseite."""
         own = [it for it in self.cfg().get("items", []) if it.get("on", True)] if self.cfg().get("on") else []
-        return own + list(getattr(self.controller, "tile_overlays", {}).values())
+        return own + list(getattr(self.controller, "tile_overlays", {}).values()) + \
+            list(getattr(self.controller, "live_overlays", {}).values())
 
     def needed(self) -> bool:
         c = self.controller
@@ -597,9 +695,19 @@ class OverlayWindow(QWidget):
         self._relayout()  # Uhr/Timer/Titel können breiter werden
 
     def _animate(self) -> None:
+        fresh = None
         for it, r in self._rects:
+            if it.get("type") == "chat":  # nur kurz nach einer neuen Nachricht (hereingleiten)
+                fresh = self.data.chat_fresh() if fresh is None else fresh
+                if not fresh:
+                    continue
             if animated(it):
                 self.update(r.toAlignedRect().adjusted(-2, -2, 2, 2))
+
+    def chat_changed(self) -> None:
+        """Neue/gelöschte Chat-Nachricht: Größe neu berechnen und neu zeichnen."""
+        if any(it.get("type") == "chat" for it, _r in self._rects):
+            self._relayout()
 
     def resizeEvent(self, _event):
         self._relayout()

@@ -47,15 +47,41 @@ def test_kde_apply_and_restore(qapp, tmp_path, monkeypatch):
     class R:
         returncode, stdout, stderr = 0, "", ""
 
+    (tmp_path / "cfg" / "plasmarc").write_text("[Theme]\nname=default\n")
+    (tmp_path / "cfg" / "plasma-org.kde.plasma.desktop-appletsrc").write_text(
+        "[Containments][1][Wallpaper][org.kde.image][General]\nImage=file:///usr/share/wallpapers/Next/x.png\n")
+    monkeypatch.setattr(dt, "wallpaper_path", lambda: tmp_path / "bg.png")
     run = lambda cmd, **k: (calls.append(cmd), R())[1]  # noqa: E731
-    ok, msg = dt.apply(True, run=run)
-    assert ok and calls[-1] == ["plasma-apply-colorscheme", "AluPCDunkel"] and dt.active()
+    ok, msg = dt.apply(True, run=run, accent="gruen")
+    assert ok and dt.active() and "Hintergrundbild" in msg
+    assert ["plasma-apply-colorscheme", "AluPCDunkel"] in calls
+    assert ["plasma-apply-desktoptheme", "breeze-dark"] in calls
+    assert ["plasma-apply-wallpaperimage", str(tmp_path / "bg.png")] in calls and (tmp_path / "bg.png").is_file()
+    green = (tmp_path / "data" / "color-schemes" / "AluPCDunkel.colors").read_text()
+    assert "DecorationFocus=16,185,129" in green  # gewählte Akzentfarbe (Grün) statt AluPC-Blau
     assert (tmp_path / "data" / "color-schemes" / "AluPC.colors").is_file()
-    assert (tmp_path / "data" / "color-schemes" / "AluPCDunkel.colors").is_file()
-    ok, _ = dt.apply(False, run=run)  # zweimal anwenden: das ursprüngliche Schema bleibt gemerkt
+    ok, _ = dt.apply(False, run=run)  # zweimal anwenden: der ursprüngliche Stand bleibt gemerkt
+    calls.clear()
     ok, msg = dt.restore(run=run)
-    assert ok and calls[-1] == ["plasma-apply-colorscheme", "BreezeDark"] and not dt.active()
+    assert ok and not dt.active()
+    assert calls == [["plasma-apply-colorscheme", "BreezeDark"], ["plasma-apply-desktoptheme", "default"],
+                     ["plasma-apply-wallpaperimage", "/usr/share/wallpapers/Next/x.png"]]
     assert dt.restore(run=run)[0] is False
+    calls.clear()  # nur Hintergrundbild
+    assert dt.apply(False, run=run, colors=False, mode=False)[0]
+    assert [c[0] for c in calls] == ["plasma-apply-wallpaperimage"]
+    dt.restore(run=run)
+
+
+def test_wallpaper_in_design_colors(qapp, tmp_path):
+    from PySide6.QtGui import QColor, QImage
+
+    for dark in (True, False):
+        path = dt.render_wallpaper(dark, "rosa", (640, 360), tmp_path / f"w{dark}.png")
+        img = QImage(str(path))
+        assert (img.width(), img.height()) == (640, 360)
+        light = sum(QColor(img.pixel(x, y)).lightness() for x in range(0, 640, 64) for y in range(0, 360, 60)) / 60
+        assert (light < 110) == dark  # dunkles Design → dunkles Bild
 
 
 def test_not_supported_without_plasma(monkeypatch):

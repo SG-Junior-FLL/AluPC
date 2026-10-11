@@ -619,9 +619,29 @@ class OverlayDialog(QDialog):
             text_field("text", "Beschriftung:", "optional")
         elif t == "badge":
             text_field("text", "Text:")
+        elif t == "chat":
+            from PySide6.QtWidgets import QSpinBox
+
+            count = QSpinBox()
+            count.setRange(1, 12)
+            count.setValue(int(it.get("count", 5) or 5))
+            count.valueChanged.connect(lambda v: self._set(iid, count=v))
+            form.addRow("Nachrichten:", count)
+            secs = QSpinBox()
+            secs.setRange(0, 600)
+            secs.setSuffix(" s")
+            secs.setSpecialValueText("immer zeigen")
+            secs.setValue(int(it.get("seconds", 0) or 0))
+            secs.valueChanged.connect(lambda v: self._set(iid, seconds=v))
+            form.addRow("Ausblenden nach:", secs)
+            check("qr", "QR-Code zum Mitschreiben", True)
+            note = QLabel("Zeigt die Nachrichten aus dem Chat (Seite „Gäste“). Handys schreiben übers AluPC-WLAN.")
+            note.setWordWrap(True)
+            note.setObjectName("Muted")
+            form.addRow(note)
         self.form_host.setWidget(page)
 
 
 def _icon_for(item: dict) -> str:
     return {"music": "music", "clock": "clock", "timer": "timer", "text": "text", "ticker": "text",
-            "image": "image", "live": "cast", "qr": "qr", "badge": "info"}.get(item.get("type"), "layers")
+            "image": "image", "live": "cast", "qr": "qr", "badge": "info", "chat": "chat"}.get(item.get("type"), "layers")

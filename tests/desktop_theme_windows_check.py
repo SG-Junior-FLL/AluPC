@@ -17,7 +17,20 @@ def main() -> int:
     state = Path(tempfile.mkdtemp()) / "desktop-theme.json"
     dt._state_file = lambda: state
     before = dt._win_read()
-    ok, msg = dt.apply(False)
+    mode_before, wall_before = dt._win_mode_read(), dt._win_wallpaper_read()
+    dt.wallpaper_path = lambda: Path(tempfile.mkdtemp()) / "hintergrund.png"
+    ok, msg = dt.apply(True)
+    mode_after = dt._win_mode_read()
+    if mode_after != {"AppsUseLightTheme": 0, "SystemUsesLightTheme": 0}:
+        print(f"::error title=Desktop-Design (Windows)::Dunkel nicht gesetzt: {mode_after}")
+        return 1
+    print(f"::notice title=Desktop-Design (Windows)::{msg} · Hintergrundbild jetzt: {dt._win_wallpaper_read()}")
+    dt.restore()
+    if dt._win_mode_read() != mode_before or dt._win_wallpaper_read() != wall_before:
+        print(f"::error title=Desktop-Design (Windows)::Zurück unvollständig: {dt._win_mode_read()} / "
+              f"{dt._win_wallpaper_read()!r} statt {mode_before} / {wall_before!r}")
+        return 1
+    ok, msg = dt.apply(False, mode=False, wallpaper=False)
     after = dt._win_read()
     want = dt.windows_values(make_theme("hell", "alupc").accent)
     errors = []

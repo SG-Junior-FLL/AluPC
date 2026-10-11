@@ -671,37 +671,70 @@ class SetupPage(QWidget):
         return box
 
     def _desktop_theme_row(self):
-        """AluPC-Farben auch für Windows bzw. KDE übernehmen – mit „Zurück“."""
+        """AluPC-Design aufs System: Farben, Hell/Dunkel, Hintergrundbild – mit „Zurück“. Zieht mit, wenn man in
+        AluPC Akzentfarbe oder Design ändert."""
+        from PySide6.QtWidgets import QCheckBox
+
         from .. import desktop_theme as dt
 
+        holder = QWidget()
+        col = QVBoxLayout(holder)
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(6)
         row = QHBoxLayout()
-        self.desk_apply = button("AluPC-Farben für den Desktop", "palette")
-        self.desk_apply.setToolTip("Windows: Akzentfarbe · KDE: Farbschema „AluPC“ – vorherige Farben werden gemerkt")
+        self.desk_apply = button("AluPC-Design aufs System", "palette")
+        self.desk_apply.setToolTip("Windows: Akzentfarbe, Hell/Dunkel, Hintergrundbild · KDE: Farbschema, Plasma-Stil, "
+                                   "Hintergrundbild – der alte Stand wird gemerkt")
         self.desk_undo = button("Zurück", "undo")
         self.desk_state = QLabel()
         self.desk_state.setObjectName("Muted")
+        self.desk_state.setWordWrap(True)
+        row.addWidget(self.desk_apply)
+        row.addWidget(self.desk_undo)
+        row.addStretch(1)
+        col.addLayout(row)
+        opts = QHBoxLayout()
+        parts = {"colors": True, "mode": True, "wallpaper": True, **(self.config["appearance"].get("desktop") or {})}
+        self.desk_parts = {}
+        for key, label in (("colors", "Farben"), ("mode", "Hell/Dunkel"), ("wallpaper", "Hintergrundbild")):
+            box = QCheckBox(label)
+            box.setChecked(bool(parts.get(key, True)))
+            box.toggled.connect(lambda on, k=key: self._save_appearance(
+                emit=False, desktop={**(self.config["appearance"].get("desktop") or {}), k: bool(on)}))
+            self.desk_parts[key] = box
+            opts.addWidget(box)
+        opts.addStretch(1)
+        col.addLayout(opts)
+        col.addWidget(self.desk_state)
         ok, why = dt.supported()
 
         def refresh():
-            on = dt.active()
-            self.desk_undo.setEnabled(on)
+            self.desk_undo.setEnabled(dt.active())
             self.desk_apply.setEnabled(ok)
-            self.desk_state.setText(why if not ok else ("an" if on else ""))
+            if not ok:
+                self.desk_state.setText(why)
+            elif dt.active() and not self.desk_state.text():
+                self.desk_state.setText("an – zieht mit, wenn du Akzentfarbe oder Design änderst")
 
         def do(action):
             done, msg = action()
             self.desk_state.setText(msg)
             if not done:
                 error_box(self, msg)
-            self.desk_undo.setEnabled(dt.active())
+            refresh()
 
-        self.desk_apply.clicked.connect(lambda: do(lambda: dt.apply(theme.current().dark)))
+        self.desk_apply.clicked.connect(lambda: do(self._apply_desktop_design))
         self.desk_undo.clicked.connect(lambda: do(dt.restore))
-        row.addWidget(self.desk_apply)
-        row.addWidget(self.desk_undo)
-        row.addWidget(self.desk_state, 1)
         refresh()
-        return row
+        return holder
+
+    def _apply_desktop_design(self) -> tuple[bool, str]:
+        from .. import desktop_theme as dt
+
+        a = self.config["appearance"]
+        parts = {"colors": True, "mode": True, "wallpaper": True, **(a.get("desktop") or {})}
+        return dt.apply(theme.current().dark, accent=a.get("accent", "alupc"), colors=parts["colors"],
+                        mode=parts["mode"], wallpaper=parts["wallpaper"])
 
     def _try_transition(self):
         """Aktuellen Inhalt mit dem eingestellten Übergang neu zeigen."""
@@ -726,6 +759,11 @@ class SetupPage(QWidget):
         if emit:
             self.theme_changed.emit()
             self._style_swatches(a.get("accent", "alupc"))
+            from .. import desktop_theme as dt
+
+            if dt.active() and ({"accent", "mode"} & set(changes)):  # Desktop-Design zieht mit
+                QTimer.singleShot(150, lambda: run_async(self._apply_desktop_design,
+                                                         lambda r: self.desk_state.setText(r[1])))
 
     # ================================================================ AluPC
     def _hardware_group(self):

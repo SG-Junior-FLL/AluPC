@@ -626,6 +626,65 @@ def _draw(name: str, p: QPainter, color: QColor):
         for x, y in ((15, 15), (18.5, 18.5), (18.5, 15), (15, 18.5)):
             p.drawRect(QRectF(x, y, 1.5, 1.5))
         p.setBrush(Qt.NoBrush)
+    elif name == "chat":  # Sprechblase mit drei Punkten
+        path = QPainterPath(QPointF(6, 4.5))
+        path.lineTo(18, 4.5)
+        path.quadTo(21, 4.5, 21, 7.5)
+        path.lineTo(21, 14)
+        path.quadTo(21, 17, 18, 17)
+        path.lineTo(11, 17)
+        path.lineTo(6.5, 20.5)
+        path.lineTo(6.5, 17)
+        path.lineTo(6, 17)
+        path.quadTo(3, 17, 3, 14)
+        path.lineTo(3, 7.5)
+        path.quadTo(3, 4.5, 6, 4.5)
+        p.drawPath(path)
+        p.setBrush(fill)
+        for x in (8, 12, 16):
+            p.drawEllipse(QPointF(x, 10.8), 1.05, 1.05)
+        p.setBrush(Qt.NoBrush)
+    elif name == "users":  # zwei Personen (Gäste)
+        p.drawEllipse(QPointF(9, 8), 3.4, 3.4)
+        p.drawArc(QRectF(2.5, 13.5, 13, 11), 0, 180 * 16)
+        p.drawArc(QRectF(13.2, 3.8, 6.4, 6.4), -110 * 16, 260 * 16)
+        p.drawArc(QRectF(15, 13.5, 7.5, 9), 0, 110 * 16)
+    elif name == "mixer":  # drei Schieberegler senkrecht
+        for x, knob in ((6, 14.5), (12, 8), (18, 12)):
+            p.drawLine(QPointF(x, 3.5), QPointF(x, knob - 2.2))
+            p.drawLine(QPointF(x, knob + 2.2), QPointF(x, 20.5))
+            p.drawRoundedRect(QRectF(x - 2.6, knob - 2.2, 5.2, 4.4), 1.2, 1.2)
+    elif name == "apps":  # 3×3 Punkte (App-Raster)
+        p.setBrush(fill)
+        for x in (6, 12, 18):
+            for y in (6, 12, 18):
+                p.drawRoundedRect(QRectF(x - 2.1, y - 2.1, 4.2, 4.2), 1.2, 1.2)
+        p.setBrush(Qt.NoBrush)
+    elif name == "photos":  # zwei übereinanderliegende Fotos
+        p.drawRoundedRect(QRectF(7, 3.5, 13.5, 11), 2, 2)
+        path = QPainterPath(QPointF(4.5, 8.5))
+        path.lineTo(3.5, 8.5)
+        path.lineTo(3.5, 20.5)
+        path.lineTo(16, 20.5)
+        path.lineTo(16, 17.5)
+        p.drawPath(path)
+        path = QPainterPath(QPointF(8.5, 13))
+        path.lineTo(12, 9.5)
+        path.lineTo(14.5, 12)
+        path.lineTo(16.5, 10)
+        path.lineTo(19, 12.5)
+        p.drawPath(path)
+        p.setBrush(fill)
+        p.drawEllipse(QPointF(11, 7), 1.1, 1.1)
+        p.setBrush(Qt.NoBrush)
+    elif name == "webcam":  # Kamera mit Antennenpunkt (virtuelle Kamera)
+        p.drawEllipse(QPointF(12, 10), 6.5, 6.5)
+        p.drawEllipse(QPointF(12, 10), 2.6, 2.6)
+        path = QPainterPath(QPointF(8, 16.2))
+        path.lineTo(6.5, 20.5)
+        path.lineTo(17.5, 20.5)
+        path.lineTo(16, 16.2)
+        p.drawPath(path)
     else:  # unbekannt → Kreis
         p.drawEllipse(QPointF(12, 12), 8, 8)
 
@@ -687,7 +746,7 @@ SOURCE_ICONS = {
     "camera": "camera", "window": "window", "screen": "monitor", "website": "globe", "image": "image",
     "video": "video", "slideshow": "slides", "text": "text", "clock": "clock", "countdown": "timer",
     "color": "palette", "scene": "scenes", "airplay": "phone", "cast": "qr", "wlan": "wifi", "wlanhilfe": "info", "design": "star",
-    "nowplaying": "music", "zufall": "wheel", "wetter": "weather", "system": "gauge", "umfrage": "poll", "spiel": "gamepad", "whiteboard": "board",
+    "nowplaying": "music", "zufall": "wheel", "wetter": "weather", "system": "gauge", "umfrage": "poll", "chatwand": "chat", "fotowand": "photos", "spiel": "gamepad", "whiteboard": "board",
 }
 
 

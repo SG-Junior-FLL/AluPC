@@ -57,6 +57,19 @@ if [ $status -eq 0 ]; then
         echo "ℹ OpenRGB ist für diese Ubuntu-Version nicht in den Paketquellen – bei Bedarf von https://openrgb.org laden"
         echo "  (AluPC → RGB & Lüfter → „OpenRGB installieren“ öffnet die Seite)."
     fi
+    # Monitor 2 als virtuelle Kamera: v4l2loopback mit dem Gerät „AluPC Monitor 2“ (/dev/video42), dauerhaft
+    if apt-get -o DPkg::Lock::Timeout=600 install -y v4l2loopback-dkms >/dev/null 2>&1; then
+        echo 'options v4l2loopback devices=1 video_nr=42 card_label="AluPC Monitor 2" exclusive_caps=1' \
+            > /etc/modprobe.d/alupc-v4l2loopback.conf
+        echo v4l2loopback > /etc/modules-load.d/alupc-v4l2loopback.conf
+        if [ -d /sys/module/v4l2loopback ] || modprobe v4l2loopback >/dev/null 2>&1; then
+            echo "✔ Virtuelle Kamera (v4l2loopback) eingerichtet"
+        else
+            echo "ℹ Virtuelle Kamera: Modul lädt erst nach einem Neustart (bei Secure Boot den Schlüssel bestätigen)"
+        fi
+    else
+        echo "ℹ Virtuelle Kamera: v4l2loopback ließ sich nicht installieren – später in AluPC „Einrichten“"
+    fi
 fi
 if ! [ -t 0 ]; then sleep 4; fi
 exit $status

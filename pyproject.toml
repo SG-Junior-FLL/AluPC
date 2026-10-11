@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alupc"
-version = "0.123.0"
+version = "0.124.0"
 description = "AluPC – zweiten Monitor steuern: Spiegeln, Erweitern, Kamera, Programme, Websites, eigene Szenen, Standbild, Bild-in-Bild, Fingerabdruck"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,6 +27,9 @@ dependencies = [
     "winrt-Windows.Storage.Streams>=2; sys_platform == 'win32'",
     # Windows: Lautsprecher/Mikrofon genau steuern und Gerät wählen (Core Audio)
     "comtypes>=1.2; sys_platform == 'win32'",
+    # Monitor 2 als virtuelle Kamera (Linux v4l2loopback, Windows OBS-Kamera)
+    "pyvirtualcam>=0.12",
+    "numpy>=1.24",
 ]
 
 [project.optional-dependencies]
