@@ -88,6 +88,8 @@ button:disabled { opacity: .35; }
 .hthumb { position: absolute; top: 8px; bottom: 8px; width: 22%; border-radius: 18px; background: var(--c); box-shadow: 0 0 24px var(--c); left: 39%; }
 .fire { width: min(94vw, 460px); height: min(26vh, 200px); border-radius: 26px; font-size: 34px; letter-spacing: 2px;
   background: radial-gradient(circle at 40% 30%, #fb7185, #e11d48); box-shadow: 0 12px 34px rgba(225,29,72,.45); touch-action: none; }
+.off { position: fixed; left: 12px; right: 12px; bottom: 14px; padding: 12px 14px; border-radius: 14px; background: #7f1d1d;
+  color: #fff; font-weight: 700; text-align: center; font-size: 15px; z-index: 9; }
 .hidden { display: none !important; }
 </style></head><body>
 <header><div class="dot" id="dot"></div><span id="ava"></span><b id="who">AluPC-Spiel</b><span id="count"></span><i id="net"></i></header>
@@ -98,10 +100,16 @@ button:disabled { opacity: .35; }
   <button class="primary" id="joinbtn">Mitspielen</button><p id="jerr"></p>
 </main>
 <main id="play" class="hidden"><div class="status" id="status"></div><div id="area"></div></main>
+<div id="off" class="off hidden">Keine Verbindung zu AluPC – bist du noch im AluPC-WLAN? Es geht gleich von selbst weiter.</div>
 <script>
 const token = new URLSearchParams(location.search).get("u") || "";
 const KEY = "alupc-spiel-" + token;
 let pid = ""; try { pid = sessionStorage.getItem(KEY) || ""; } catch (e) {}
+let myName = ""; try { myName = sessionStorage.getItem(KEY + "-name") || ""; } catch (e) {}
+let lastOk = Date.now(), lastRejoin = 0;
+// Verbindung weg (WLAN kurz weg, Handy schläft …): Spieler NICHT vergessen – Hinweis zeigen, weiter versuchen
+function online(ok) { if (ok) lastOk = Date.now(); $("off").classList.toggle("hidden", Date.now() - lastOk < 3000); }
+setInterval(() => online(wsOpen), 1000);
 let state = {}, cur = "", comp = null, ws = null, wsOpen = false, poller = null;
 const $ = id => document.getElementById(id);
 const enc = encodeURIComponent;
@@ -124,9 +132,9 @@ function send(obj) {
 function connect() {
   if (!pid || ws) return;
   try { ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/spiel?u=" + enc(token) + "&p=" + enc(pid)); }
-  catch (e) { ws = null; return; }
+  catch (e) { ws = null; if (pid) setTimeout(connect, 2000); return; }
   ws.onopen = () => { wsOpen = true; $("net").classList.add("on"); };
-  ws.onmessage = ev => { try { render(JSON.parse(ev.data)); } catch (e) {} };
+  ws.onmessage = ev => { try { online(true); render(JSON.parse(ev.data)); } catch (e) {} };
   ws.onclose = () => { ws = null; wsOpen = false; $("net").classList.remove("on"); if (pid) setTimeout(connect, 1200); };
 }
 setInterval(() => { if (ws && ws.readyState === 1) ws.send('{"ping":1}'); }, 4000);
@@ -135,29 +143,33 @@ async function load() {
   try {
     const asked = pid;  // Antwort gehört zu diesem Stand – kam inzwischen ein Beitritt dazwischen, nicht verwenden
     const r = await fetch("/api/spiel?u=" + enc(token) + "&p=" + enc(asked), {cache: "no-store"});
-    if (r.status === 404) { $("jtitle").textContent = "Keine Spielrunde"; $("jhelp").textContent = "Am PC Minispiele starten"; show(false); return; }
+    if (r.status === 404) { online(true); $("jtitle").textContent = "Keine Spielrunde"; $("jhelp").textContent = "Am PC Minispiele starten"; show(false); return; }
+    if (!r.ok) { online(false); return; }  // abgelehnt/Fehler (z. B. gerade nicht im AluPC-WLAN) → Spieler behalten
     const d = await r.json();
+    online(true);
     if (asked !== pid) return;  // sonst würde „noch nicht dabei“ den frisch Beigetretenen wieder rauswerfen
     render(d);
-  } catch (e) {}
+  } catch (e) { online(false); }
 }
 setInterval(load, 400);
-async function join() {
-  const name = $("name").value.trim() || "Spieler";
+async function join(auto) {
+  const name = auto === true ? myName : ($("name").value.trim() || "Spieler");
   $("joinbtn").disabled = true;
   try {
     const r = await post({action: "join", name, avatar});
     const d = await r.json();
-    if (!r.ok) { $("jerr").textContent = d.error || "Geht gerade nicht"; return; }
-    pid = d.p; try { sessionStorage.setItem(KEY, pid); } catch (e) {}
+    if (!r.ok) { if (auto !== true) $("jerr").textContent = d.error || "Geht gerade nicht"; return; }
+    pid = d.p; myName = name;
+    try { sessionStorage.setItem(KEY, pid); sessionStorage.setItem(KEY + "-name", name); } catch (e) {}
+    $("jerr").textContent = ""; online(true);
     connect(); load();
-  } catch (e) { $("jerr").textContent = "Keine Verbindung"; }
+  } catch (e) { if (auto !== true) $("jerr").textContent = "Keine Verbindung – bist du im AluPC-WLAN?"; }
   finally { $("joinbtn").disabled = false; }
 }
-$("joinbtn").onclick = join;
+$("joinbtn").onclick = () => join(false);
 // Von der WLAN-Anmeldeseite: Name ist schon eingegeben → gleich mitspielen
 const preName = new URLSearchParams(location.search).get("name");
-if (preName && !pid) { $("name").value = preName.slice(0, 16); setTimeout(join, 0); }
+if (preName && !pid) { $("name").value = preName.slice(0, 16); setTimeout(() => join(false), 0); }
 // Avatar wählen (zufällig vorausgewählt)
 const AVATARS = ["🦊","🐼","🐸","🐯","🦁","🐨","🐷","🐵","🐙","🦄","🐲","🐧","🦉","🐝","🐢","🐬","🦖","🐱","🐶","🐰","🦀","🦋","🐻","🐮","🤖","👾","🚀","⚽"];
 let avatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
@@ -176,7 +188,7 @@ function buzz(d) {
   if (n !== lastBuzz && d.buzz) vibrate(d.buzz[1]);
   lastBuzz = n;
 }
-$("name").addEventListener("keydown", e => { if (e.key === "Enter") join(); });
+$("name").addEventListener("keydown", e => { if (e.key === "Enter") join(false); });
 function show(playing) { $("join").classList.toggle("hidden", playing); $("play").classList.toggle("hidden", !playing); }
 // ---------------------------------------------------------------- Anzeige
 function render(d) {
@@ -190,6 +202,8 @@ function render(d) {
   $("jtitle").textContent = d.title || "Mitspielen"; $("jhelp").textContent = d.help || "";
   if (!d.joined) {
     if (pid) { pid = ""; try { sessionStorage.removeItem(KEY); } catch (e) {} if (ws) ws.close(); }
+    // War schon dabei (Lobby hat uns nach einer Funkpause entfernt) → mit demselben Namen still wieder rein
+    if (myName && Date.now() - lastRejoin > 3000) { lastRejoin = Date.now(); join(true); return; }
     show(false); cur = ""; return;
   }
   show(true);

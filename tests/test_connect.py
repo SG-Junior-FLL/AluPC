@@ -913,3 +913,33 @@ def test_hotspot_start_always_starts_webserver(monkeypatch, env):  # noqa: F811 
     ok, _msg = controller.set_hotspot(True, "normal")
     assert ok and controller.cast.running() and seen["port"] == controller.cast.port > 0
     controller.cast.stop()
+
+
+def test_wlan_never_started_twice(env, monkeypatch):  # noqa: F811
+    """Läuft das AluPC-WLAN schon, startet es nicht neu; ein zweiter Start mittendrin wird abgelehnt (sonst
+    flögen alle Handys raus und die Anmeldeseite wäre kurz weg)."""
+    import threading
+    import time
+
+    controller = env[0]
+    calls = []
+    gate = threading.Event()
+
+    def slow_start(*a, **k):
+        calls.append(1)
+        gate.wait(3)
+        return True, "an"
+
+    monkeypatch.setattr(hotspot.hotspot, "start", slow_start)
+    first = threading.Thread(target=lambda: controller.set_hotspot(True))
+    first.start()
+    time.sleep(0.2)
+    ok, msg = controller.set_hotspot(True)  # z. B. Minispiele starten, während die Kachel das WLAN hochfährt
+    assert not ok and "gerade schon" in msg and calls == [1]
+    gate.set()
+    first.join(5)
+    monkeypatch.setattr(hotspot.hotspot, "running", True)
+    monkeypatch.setattr(hotspot.hotspot, "portal", True)
+    ok, msg = controller.set_hotspot(True)
+    assert ok and "läuft schon" in msg and calls == [1]  # kein Neustart
+    controller.cast.stop()

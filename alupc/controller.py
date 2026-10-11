@@ -150,6 +150,9 @@ class Controller(QObject):
         self.cast.wifi_provider = self.games_wifi  # AluPC-WLAN läuft → Lobby zeigt dessen WLAN-Code
         self.cast.wifi_status_provider = self.games_wifi_status  # nur über das WLAN: was steht statt des Codes?
         self._games_wifi_starting = False
+        import threading
+
+        self._wlan_lock = threading.Lock()  # AluPC-WLAN nie zweimal gleichzeitig starten/beenden
         self.cast.request.connect(self._cast_request)
         from PySide6.QtCore import QTimer as _QTimer
 
@@ -1951,6 +1954,18 @@ class Controller(QObject):
         WLAN (Hotspot-Kachel, Minispiele, Abstimmen …) – kind ist nur noch aus Kompatibilität da."""
         from .hotspot import hotspot, settings
 
+        if on and hotspot.running and hotspot.portal:  # läuft schon → NICHT neu starten (Handys flögen raus)
+            self.cast.start()
+            return True, "AluPC-WLAN läuft schon."
+        lock = self._wlan_lock
+        if not lock.acquire(blocking=False):  # ein zweiter Start/Stopp mittendrin bräche WLAN und Anmeldeseite ab
+            return False, "AluPC-WLAN wird gerade schon gestartet bzw. beendet …"
+        try:
+            return self._set_hotspot(on, hotspot, settings)
+        finally:
+            lock.release()
+
+    def _set_hotspot(self, on: bool, hotspot, settings) -> tuple[bool, str]:
         if on:
             # Die Anmeldeseite kommt von AluPCs Webserver – ohne ihn liefe Port 80 ins Leere (Handy: „DNS ✓, Anmeldeseite
             # nicht“). Ist sein Port belegt, nimmt er den nächsten freien; die Weiterleitung von Port 80 folgt ihm.

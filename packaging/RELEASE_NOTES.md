@@ -8,7 +8,20 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.119.0)
+### Neu in dieser Version (0.120.0)
+- **Minispiele: Handys fliegen nicht mehr raus.** Bekam die Spielseite am Handy einmal keine Antwort (WLAN kurz weg,
+  Handy kurz gesperrt, Anfrage abgelehnt), vergaß sie den Spieler und sprang zur Namenseingabe – und Beitreten
+  scheiterte, solange die Verbindung fehlte. Jetzt: Spieler bleibt, unten steht „Keine Verbindung zu AluPC …“, und
+  sobald die Verbindung zurück ist, geht es von selbst weiter (wurde man aus der Lobby entfernt: still mit demselben
+  Namen wieder rein). Echt geprüft mit Browser-Handys: 35 s ohne Netz bzw. 20 s „abgelehnt“ → danach wieder dabei.
+- **AluPC-WLAN startet nie doppelt:** Startete man z. B. die Minispiele, während die Hotspot-Kachel das WLAN noch
+  hochfuhr, wurde es ein zweites Mal gestartet (WLAN und Anmeldeseite kurz weg → alle Handys raus). Jetzt: läuft
+  es schon, bleibt es; ein zweiter Start mittendrin wird abgelehnt.
+- Release enthält nur noch die Programm-Dateien (0.119.0 hatte versehentlich Rundgang-Bilder dabei – werden entfernt).
+- Geprüft: alle 10 Spiele mit 3 Browser-Handys (keine Abbrüche), WLAN-Anmeldeseite mit virtuellem Handy (29/29),
+  442 Tests. Nicht geprüft: echte Handys im echten WLAN.
+
+### Neu in Version 0.119.0
 - **Drei neue Retro-Minispiele** (Handy = Controller, alle gleichzeitig auf Monitor 2):
   - **👾 Space Invaders** – alle zusammen gegen die Aliens: Schieberegler = Raumschiff, FEUER (gedrückt halten =
     Dauerfeuer), 3 Leben, jede Welle schneller; kommen die Aliens unten an, ist es für alle vorbei.
