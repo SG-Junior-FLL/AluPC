@@ -145,6 +145,10 @@ class HotspotDialog(QDialog):
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         bl.addWidget(hint)
+        stay = button("Handy fliegt aus dem WLAN? – Anleitung", "info")
+        stay.setToolTip("Android und iPhone/iPad verlassen WLANs ohne Internet manchmal von selbst – so bleibt es verbunden")
+        stay.clicked.connect(self.show_stay_help)
+        bl.addWidget(stay, 0, Qt.AlignLeft)
         lay.addWidget(box)
         # Geräte im WLAN: standardmäßig KEIN Internet (nur AluPC) – hier einzeln freischalten
         from PySide6.QtWidgets import QListWidget
@@ -224,6 +228,15 @@ class HotspotDialog(QDialog):
         except RuntimeError:  # Dialog schon zu
             pass
 
+    def show_stay_help(self) -> None:
+        from PySide6.QtWidgets import QMessageBox
+
+        box = QMessageBox(self)
+        box.setWindowTitle("Handy bleibt im AluPC-WLAN")
+        box.setTextFormat(Qt.RichText)
+        box.setText(STAY_HELP)
+        box.exec()
+
     def _device_toggled(self, item) -> None:
         data = item.data(Qt.UserRole)
         if data:
@@ -290,3 +303,21 @@ class HotspotDialog(QDialog):
 
 
 WifiDialog = HotspotDialog  # (alter Name)
+
+# Warum Handys das AluPC-WLAN verlassen und wie man es abstellt (Android, iPhone/iPad). Menünamen je nach Hersteller und
+# Version etwas anders.
+STAY_HELP = (
+    "<b>Warum?</b> Das AluPC-WLAN hat absichtlich kein Internet. Android und iPhone/iPad merken das und verlassen "
+    "solche WLANs manchmal nach ein paar Sekunden von selbst (oder wechseln zu mobilen Daten) – später verbinden "
+    "sie sich wieder, und die Anmeldeseite kommt erneut.<br><br>"
+    "<b>Android</b><ul>"
+    "<li>Im Anmeldefenster oben rechts <b>⋮ → „Dieses Netzwerk unverändert verwenden“</b> (Wortlaut je nach Handy "
+    "etwas anders). Fragt das Handy „Kein Internet – verbunden bleiben?“: <b>Ja</b>, nicht mehr fragen.</li>"
+    "<li><b>Mobile Daten aus</b> – oder „Zu mobilen Daten wechseln“ ausschalten (Samsung: Einstellungen → "
+    "Verbindungen → WLAN → ⋮ → Intelligentes WLAN).</li></ul>"
+    "<b>iPhone / iPad</b><ul>"
+    "<li>Im Anmeldefenster oben <b>Abbrechen → „Ohne Internet verwenden“</b> – das Gerät bleibt verbunden.</li>"
+    "<li><b>WLAN-Unterstützung</b> ausschalten: Einstellungen → Mobilfunk → ganz unten.</li></ul>"
+    "<b>Sicher für ein Gerät:</b> oben unter „Geräte im WLAN“ den Haken <b>Internet</b> setzen – dann hat das "
+    "Handy Internet und bleibt (die Anmeldeseite öffnet sich dann nicht mehr von selbst; im Browser "
+    "<i>Hotspot-Adresse</i> eingeben).")

@@ -943,3 +943,26 @@ def test_wlan_never_started_twice(env, monkeypatch):  # noqa: F811
     ok, msg = controller.set_hotspot(True)
     assert ok and "läuft schon" in msg and calls == [1]  # kein Neustart
     controller.cast.stop()
+
+
+def test_portal_avatar_and_stay_help(env):  # noqa: F811
+    """Anmeldeseite: Symbol wählbar (geht mit ins Spiel) und Hilfe „WLAN fliegt raus?“; Hotspot-Fenster: Anleitung."""
+    from alupc.cast_server import portal_page
+    from alupc.games import AVATARS
+    from alupc.ui.connect_dialog import STAY_HELP, HotspotDialog
+
+    controller = env[0]
+    controller.start_games("tictactoe")
+    page = portal_page(controller.cast)
+    assert page.count('class="av"') == len(AVATARS) and '"&avatar=" + encodeURIComponent(ava)' in page
+    assert "Ohne Internet verwenden" in page and "unverändert verwenden" in page
+    from alupc.game_page import GAME_PAGE
+
+    assert 'get("avatar")' in GAME_PAGE and "AVATARS.includes(preAva)" in GAME_PAGE
+    for part in ("Android", "iPhone / iPad", "Ohne Internet verwenden", "Mobile Daten aus", "WLAN-Unterstützung",
+                 "Internet</b> setzen"):
+        assert part in STAY_HELP, part
+    dlg = HotspotDialog(controller, "normal")
+    assert any("Anleitung" in b.text() for b in dlg.findChildren(type(dlg.toggle)))
+    dlg.close()
+    controller.game_action("aus")

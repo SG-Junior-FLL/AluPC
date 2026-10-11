@@ -8,7 +8,18 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.120.0)
+### Neu in dieser Version (0.121.0)
+- **Symbol wählen beim Beitreten:** Die WLAN-Anmeldeseite zeigt jetzt die Symbole (🦊 🐼 🐙 …) unter dem Namen; das
+  gewählte Symbol geht direkt mit ins Spiel (vorher sprang „Mitspielen“ über die Auswahl hinweg).
+- **„WLAN fliegt nach ein paar Sekunden raus?“** – Anleitung auf der Anmeldeseite (am Handy) und im Hotspot-Fenster
+  (Knopf „Handy fliegt aus dem WLAN? – Anleitung“): Das AluPC-WLAN hat absichtlich kein Internet; Android und
+  iPhone/iPad verlassen solche WLANs manchmal von selbst. Abhilfe: Android ⋮ → „Dieses Netzwerk unverändert
+  verwenden“ bzw. „verbunden bleiben“, mobile Daten aus; iPhone/iPad „Abbrechen → Ohne Internet verwenden“,
+  WLAN-Unterstützung aus; oder im Hotspot-Fenster beim Gerät den Haken „Internet“ setzen.
+- Geprüft: Symbol im Browser gewählt → im Spiel mit diesem Symbol; 443 Tests; WLAN-Anmeldeseite mit virtuellem
+  Handy 29/29. Nicht geprüft: echte Android-/Apple-Geräte (Menünamen je nach Hersteller/Version etwas anders).
+
+### Neu in Version 0.120.0
 - **Minispiele: Handys fliegen nicht mehr raus.** Bekam die Spielseite am Handy einmal keine Antwort (WLAN kurz weg,
   Handy kurz gesperrt, Anfrage abgelehnt), vergaß sie den Spieler und sprang zur Namenseingabe – und Beitreten
   scheiterte, solange die Verbindung fehlte. Jetzt: Spieler bleibt, unten steht „Keine Verbindung zu AluPC …“, und

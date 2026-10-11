@@ -490,6 +490,9 @@ def portal_page(server) -> str:
     poll = server.poll
     poll_url = html.escape("/abstimmung?u=" + poll.token) if poll is not None else ""
     game_title = html.escape(games.spec.title) if games is not None else ""
+    from .games import AVATARS
+
+    avatars = "".join(f'<button type="button" class="av" data-a="{a}">{a}</button>' for a in AVATARS)
     return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>AluPC – WLAN-Anmeldung</title>
 <style>*{{box-sizing:border-box}}body{{margin:0;font-family:system-ui,sans-serif;background:radial-gradient(circle at 50% 0%,#1e293b,#0b1020 70%);
@@ -503,13 +506,26 @@ input:focus{{outline:none;border-color:#6366f1}}
 button{{width:100%;padding:20px;border-radius:18px;border:0;font-size:21px;font-weight:800;color:#fff;cursor:pointer}}
 button small{{display:block;font-size:13px;font-weight:600;opacity:.85;margin-top:3px}}
 .g{{background:linear-gradient(135deg,#6366f1,#ec4899)}}.p{{background:linear-gradient(135deg,#0891b2,#22c55e)}}.c{{background:#1e293b;border:2px solid #334155}}
-button:disabled{{opacity:.45}}</style></head>
+button:disabled{{opacity:.45}}
+.avs{{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}}
+.av{{padding:6px 0;font-size:26px;border-radius:12px;background:#1e293b;border:2px solid transparent}}
+.av.sel{{border-color:#6366f1;background:#334155}}
+details{{color:#94a3b8;font-size:14px;line-height:1.45;background:#0f172a;border-radius:14px;padding:10px 14px}}
+summary{{cursor:pointer;font-weight:700;color:#cbd5e1}}details b{{color:#f1f5f9}}</style></head>
 <body><div class="card"><div class="logo">📶</div><h1>AluPC-WLAN</h1>
 <p>Du bist verbunden. Wie heißt du?</p>
 <input id="n" maxlength="16" placeholder="Dein Name" autocomplete="off" enterkeyhint="go">
+<div class="avs" id="avs">{avatars}</div>
 <button class="g" id="play" {"" if games is not None else "disabled"}>🎮 Mitspielen<small>{game_title or "Gerade keine Minispiele – am PC starten"}</small></button>
 {f'<button class="p" id="vote">📊 Abstimmen<small>{html.escape(poll.question)[:60]}</small></button>' if poll is not None else ""}
 <button class="c" id="ctl">🔒 AluPC steuern<small>Am PC freigeben lassen · Fotos senden</small></button>
+<details><summary>WLAN fliegt nach ein paar Sekunden raus?</summary>
+Das WLAN hat absichtlich kein Internet – manche Handys verlassen es dann von selbst.<br>
+<b>Android:</b> hier oben rechts ⋮ → <b>„Dieses Netzwerk unverändert verwenden“</b> (Wortlaut je nach Handy etwas
+anders; oder bei „Kein Internet – verbunden bleiben?“ <b>Ja</b>). Und mobile Daten aus bzw. „Zu mobilen Daten
+wechseln“ aus.<br>
+<b>iPhone/iPad:</b> oben <b>Abbrechen</b> → <b>„Ohne Internet verwenden“</b>. „WLAN-Unterstützung“ (Einstellungen →
+Mobilfunk, ganz unten) aus.<br>Oder am PC im Hotspot-Fenster bei diesem Gerät den Haken „Internet“ setzen.</details>
 </div><script>
 const n = document.getElementById("n");
 try {{ n.value = localStorage.getItem("alupc-name") || ""; }} catch (e) {{}}
@@ -517,7 +533,16 @@ function name() {{ const v = n.value.trim(); try {{ localStorage.setItem("alupc-
   try {{ navigator.sendBeacon ? navigator.sendBeacon("/api/hallo", JSON.stringify({{name: v}})) :
     fetch("/api/hallo", {{method: "POST", body: JSON.stringify({{name: v}})}}); }} catch (e) {{}}
   return v; }}
-document.getElementById("play").onclick = () => {{ location.href = "{game_url}" + "&name=" + encodeURIComponent(name() || "Spieler"); }};
+let ava = "";
+try {{ ava = localStorage.getItem("alupc-avatar") || ""; }} catch (e) {{}}
+const avs = [...document.querySelectorAll(".av")];
+if (!avs.some(b => b.dataset.a === ava)) ava = avs[Math.floor(Math.random() * avs.length)].dataset.a;
+function pick(a) {{ ava = a; try {{ localStorage.setItem("alupc-avatar", a); }} catch (e) {{}}
+  for (const b of avs) b.classList.toggle("sel", b.dataset.a === a); }}
+for (const b of avs) b.onclick = () => pick(b.dataset.a);
+pick(ava);
+document.getElementById("play").onclick = () => {{ location.href = "{game_url}" + "&name=" + encodeURIComponent(name() || "Spieler") +
+  "&avatar=" + encodeURIComponent(ava); }};
 const vote = document.getElementById("vote");
 if (vote) vote.onclick = () => {{ name(); location.href = "{poll_url}"; }};
 document.getElementById("ctl").onclick = () => {{ location.href = "/?frei=" + encodeURIComponent(name() || "Handy"); }};
