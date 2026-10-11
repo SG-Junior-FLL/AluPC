@@ -269,9 +269,13 @@ def main() -> int:
         shot = tmp / "lobby.png"
         pump(0.3)
         src.grab().save(str(shot))
-        codes = [c.text for c in zxingcpp.read_barcodes(Image.open(shot))]
+        codes = sorted(c.text for c in zxingcpp.read_barcodes(Image.open(shot)))
         want = f"WIFI:T:WPA;S:{hs.ssid};P:{hs.password};;"
-        ok(codes == [want], f"Monitor 2 (Lobby): genau 1 QR-Code = WLAN „{hs.ssid}“ → {codes}")
+        from alupc.cast_server import portal_url
+
+        link = portal_url()
+        ok(link and codes == sorted([want, link]) and not any("k=" in c for c in codes),
+           f"Monitor 2 (Lobby): 2 QR-Codes = WLAN „{hs.ssid}“ + Seite (ohne Steuer-Code) → {codes}")
         src.stop()
         from alupc.poll_source import PollSource
 
@@ -298,6 +302,9 @@ def main() -> int:
         ok(False, f"Handy-Prüfung lief nicht: {err[-400:]}")
         r = {}
     target = f"http://{PC_IP}:{PORT}/anmelden"
+    from alupc.cast_server import portal_url
+
+    ok(portal_url() == target, f"Zweiter QR-Code auf Monitor 2 („Seite öffnen“) = diese Seite → {portal_url()}")
     ok(r.get("dns_check") == PC_IP, f"DNS: connectivitycheck.gstatic.com → {r.get('dns_check')}")
     ok(r.get("dns_any") == PC_IP, f"DNS: jede andere Adresse → {r.get('dns_any')} (geschlossenes WLAN)")
     ok(r.get("android") == [302, target], f"Android-Prüfung → {r.get('android')}")

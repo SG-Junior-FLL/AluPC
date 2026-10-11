@@ -673,9 +673,8 @@ class Controller(QObject):
 
     # ------------------------------------------------------------ AluCast (Handy per Browser)
     def start_cast(self) -> None:
-        """Handy-Steuerung: WLAN-QR-Code auf Monitor 2 – EINZIGER Weg: Handy scannt → ist im AluPC-WLAN →
-        die Anmeldeseite öffnet sich → „AluPC steuern“ (am PC erlauben) oder mitspielen. Startet das WLAN, falls
-        noch keins von AluPC läuft."""
+        """Monitor 2: WLAN-Code + Seiten-Code (Mitspielen, Abstimmen – öffnet im Browser). Der Steuer-Code (Adresse
+        mit Code) steht nur im Fenster am PC. Startet das WLAN, falls noch keins von AluPC läuft."""
         if not self.cast.start():
             self.message.emit("Handy-Steuerung konnte nicht starten: Netzwerk-Anschluss belegt.")
             return

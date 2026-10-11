@@ -42,15 +42,17 @@ IS_WINDOWS = sys.platform.startswith("win")
 STAY_WHY = ("Das AluPC-WLAN hat absichtlich kein Internet. Android und iPhone/iPad merken das und verlassen es manchmal "
             "nach ein paar Sekunden (oder nehmen mobile Daten) – später verbinden sie sich wieder.")
 STAY_STEPS = [
-    ("Android", ["Mobile Daten ausschalten (Schnelleinstellungen) – dann weicht das Handy nicht aus.",
+    ("Anmeldefenster geht zu?", ["Zweiten QR-Code auf Monitor 2 („Seite öffnen“) mit der Kamera scannen – die Seite "
+                                 "öffnet im Browser und bleibt offen."]),
+    ("Android", ["Mobile Daten ausschalten (Schnelleinstellungen) – dann weicht das Handy nicht aus und die Seite "
+                 "lädt auch im Browser.",
                  "Im Anmeldefenster oben rechts ⋮ → „Dieses Netzwerk unverändert verwenden“ – nur falls es das gibt "
                  "(nicht auf jedem Handy, z. B. Nothing Phone nicht).",
                  "Fragt das Handy „Kein Internet – verbunden bleiben?“: Ja."]),
     ("iPhone / iPad", ["Im Anmeldefenster oben „Abbrechen“ → „Ohne Internet verwenden“ – das Gerät bleibt verbunden.",
                        "„WLAN-Unterstützung“ aus: Einstellungen → Mobilfunk → ganz unten."]),
     ("Klappt immer", ["Am PC im Hotspot-Fenster bei diesem Handy den Haken „Internet“ setzen – mit Internet bleibt "
-                      "jedes Handy im WLAN.",
-                      "Das Anmeldefenster geht dann von selbst zu: weiter im Browser mit der Hotspot-Adresse."]),
+                      "jedes Handy im WLAN."]),
 ]
 
 

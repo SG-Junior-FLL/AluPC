@@ -166,7 +166,19 @@ def test_wifi_qr_on_monitor2(env, tmp_path, monkeypatch):  # noqa: F811
     path = tmp_path / "wlan.png"
     src.grab().save(str(path))
     texts = [r.text for r in zx.read_barcodes(pil.open(path))]
-    assert texts == [wifi_payload("AluPC", "k7pm2qa9xr", hidden=True)]
+    assert texts == [wifi_payload("AluPC", "k7pm2qa9xr", hidden=True)]  # Webserver aus → nur das WLAN
+    # Webserver an + Anmeldeseite → zweiter Code: die Handy-Seite im Browser (ohne Steuer-Code)
+    monkeypatch.setattr(hs, "portal", True)
+    assert controller.cast.start()
+    src._follow()
+    for size in ((1280, 720), (1080, 1920)):
+        src.resize(*size)
+        src.grab().save(str(path))
+        texts = sorted(r.text for r in zx.read_barcodes(pil.open(path)))
+        link = f"http://10.42.0.1:{controller.cast.port}/anmelden"
+        assert texts == sorted([wifi_payload("AluPC", "k7pm2qa9xr", hidden=True), link]), size
+        assert not any("k=" in t or controller.cast.code() in t for t in texts)  # Steuer-Code bleibt privat
+    controller.cast.stop()
 
 
 
@@ -584,7 +596,15 @@ def test_games_start_games_wifi_and_lobby_shows_one_wlan_code(env, tmp_path, mon
     path = tmp_path / "lobby-wlan.png"
     src.grab().save(str(path))
     texts = [r.text for r in zx.read_barcodes(pil.open(path))]
-    assert texts == [wifi_payload("AluPC", "", hidden=True)]  # nur EIN Code: das WLAN
+    assert texts == [wifi_payload("AluPC", "", hidden=True)]  # ohne Anmeldeseite nur EIN Code: das WLAN
+    monkeypatch.setattr(hs, "portal", True)
+    monkeypatch.setattr(hs, "ip", "10.42.0.1")
+    for size in ((1280, 720), (1920, 1080)):
+        src.resize(*size)
+        src.grab().save(str(path))
+        texts = sorted(r.text for r in zx.read_barcodes(pil.open(path)))
+        assert texts == sorted([wifi_payload("AluPC", "", hidden=True),
+                                f"http://10.42.0.1:{controller.cast.port}/anmelden"]), size  # 1. WLAN, 2. Seite
     src.stop()
     controller.game_action("aus")
 
@@ -979,3 +999,37 @@ def test_portal_avatar_and_stay_help(env):  # noqa: F811
     assert not src.grab().isNull()
     menu = env[1].t_hotspot.menu
     assert any("Anleitung auf Monitor 2" in a.text() for a in menu.actions())
+
+
+def test_control_qr_only_on_pc(env, tmp_path, monkeypatch):  # noqa: F811
+    """Steuer-Code (Adresse + Code) nur im Fenster am PC: Hotspot-Fenster und „Handy verbinden“ zeigen ihn als QR,
+    Monitor 2 („qr“-Befehl) zeigt nur WLAN + Seite."""
+    zx = pytest.importorskip("zxingcpp")
+    pil = pytest.importorskip("PIL.Image")
+    controller, window, _ = env
+    hs = hotspot.hotspot
+    for k, v in (("running", True), ("portal", True), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
+                 ("hidden", False), ("ip", "10.42.0.1")):
+        monkeypatch.setattr(hs, k, v)
+    assert controller.cast.start()
+    ctl = f"http://10.42.0.1:{controller.cast.port}/?k={controller.cast.code()}"
+    from alupc.ui.connect_dialog import HotspotDialog, control_code
+
+    assert control_code(controller.cast)[0] == ctl
+    dlg = HotspotDialog(controller, parent=window)
+    dlg._refresh()
+    assert dlg.ctl_qr.isVisibleTo(dlg) and controller.cast.code() in dlg.qr_labels[1].text()
+    path = tmp_path / "ctl.png"
+    dlg.ctl_qr.pixmap().save(str(path))
+    assert [r.text for r in zx.read_barcodes(pil.open(path))] == [ctl]
+    dlg.close()
+    controller.run_command("qr")  # Monitor 2: WLAN + Seite, NICHT der Steuer-Code
+    from alupc.sources import WifiQrSource
+
+    src = WifiQrSource(controller.content)
+    src.resize(1280, 720)
+    src.grab().save(str(path))
+    texts = sorted(r.text for r in zx.read_barcodes(pil.open(path)))
+    assert texts == sorted([wifi_payload("AluPC", "k7pm2qa9xr"), f"http://10.42.0.1:{controller.cast.port}/anmelden"])
+    assert ctl not in texts
+    controller.cast.stop()

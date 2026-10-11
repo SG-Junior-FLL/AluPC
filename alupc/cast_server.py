@@ -384,6 +384,18 @@ def active_port() -> int:
     return _ACTIVE.port if _ACTIVE is not None and _ACTIVE.httpd is not None else 0
 
 
+def portal_url() -> str:
+    """Öffentliche Handy-Seite (Name, Symbol, Mitspielen, Abstimmen) als Link – für den zweiten QR-Code auf Monitor 2.
+    Mit der Kamera gescannt öffnet sie im normalen Browser und bleibt offen (das Anmeldefenster des Handys schließt
+    sich von selbst). Ohne Steuer-Code: steuern geht damit nicht. "" = AluPC-WLAN oder Webserver aus."""
+    from .hotspot import hotspot
+
+    port = active_port()
+    if not (port and hotspot.running and hotspot.portal and hotspot.ip):
+        return ""
+    return f"http://{hotspot.ip}:{port}/anmelden"
+
+
 def serve_extra(host: str, port: int) -> bool:
     """Dieselben Seiten zusätzlich auf host:port (exklusiv) – z. B. 192.168.137.1:80 für die Anmeldeseite."""
     if _ACTIVE is None or _ACTIVE.httpd is None:

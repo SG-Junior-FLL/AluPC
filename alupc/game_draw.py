@@ -287,8 +287,14 @@ def avatar_of(c, pid) -> str:
 def lobby(c) -> None:
     p, w, h, hub = c.p, c.w, c.h, c.hub
     m = max(14, int(min(w, h) * 0.05))
-    qr_side = int(min(h * 0.46, w * 0.26))
-    left_w = w - 3 * m - qr_side
+    wifi = getattr(c, "wifi", None)
+    link = c.link_qr() if wifi and getattr(c, "link_qr", None) else None
+    if link is not None:  # zwei Codes nebeneinander: 1. WLAN, 2. Seite im Browser
+        qr_side = int(min(h * 0.34, w * 0.19))
+        left_w = w - 4 * m - 2 * qr_side
+    else:
+        qr_side = int(min(h * 0.46, w * 0.26))
+        left_w = w - 3 * m - qr_side
     tag(c, m, m, left_w, "MINISPIELE · HANDY = CONTROLLER")
     spec = hub.spec
     t = c.now - c.fx.born.setdefault(("lobby", hub.game_key), c.now)
@@ -324,7 +330,22 @@ def lobby(c) -> None:
     if line:
         text(p, QRectF(m, h - m - h * 0.1, left_w, h * 0.05), line, h * 0.03, "#fbbf24", True,
              Qt.AlignLeft | Qt.AlignVCenter)
-    wifi = getattr(c, "wifi", None)
+    if link is not None:
+        qy = (h - qr_side) / 2 - h * 0.02
+        for i, (step, title, img, lines) in enumerate((
+                ("1", "WLAN", c.wifi_qr(), [(f"„{wifi[0]}“", "#67e8f9", True),
+                                            (f"Passwort: {wifi[1]}" if wifi[1] else "", "#fbbf24", True)]),
+                ("2", "Mitspielen", link, [("Name + Symbol wählen", TEXT, True),
+                                           ("bleibt im Browser offen", MUTED, False)]))):
+            qx = w - m - qr_side - (1 - i) * (qr_side + m)
+            text(p, QRectF(qx - m / 2, qy - h * 0.1, qr_side + m, h * 0.06), f"{step} · {title}", h * 0.038, TEXT,
+                 True)
+            qr_card(c, qx, qy, qr_side, caption=False, image=img)
+            for k, (line, color, bold) in enumerate(lines):
+                if line:
+                    text(p, QRectF(qx - m / 2, qy + qr_side + h * (0.03 + 0.045 * k), qr_side + m, h * 0.04), line,
+                         h * 0.024, color, bold)
+        return
     if wifi:  # AluPC-WLAN: EIN Code – Handy ist im WLAN, die Anmeldeseite (Name → mitspielen) öffnet sich selbst
         qx, qy = w - m - qr_side, (h - qr_side) / 2 - h * 0.02
         text(p, QRectF(qx - m, qy - h * 0.11, qr_side + 2 * m, h * 0.06), "WLAN scannen", h * 0.04, TEXT, True)

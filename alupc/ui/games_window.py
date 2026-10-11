@@ -192,8 +192,12 @@ class GamesWindow(QWidget):
 
             QMessageBox.information(self, "AluPC-WLAN", c.games_wifi_status()[1] or "AluPC-WLAN ist aus.")
             return
-        ConnectDialog("Mitspielen", wifi, "WLAN-Code scannen – die Anmeldeseite öffnet sich, Name eingeben",
-                      parent=self).exec()
+        from ..cast_server import portal_url
+
+        link = portal_url()
+        codes = [("Mitspielen", link, ["Name + Symbol wählen", "Öffnet im Browser und bleibt offen"])] if link else []
+        ConnectDialog("Mitspielen", wifi, "1. WLAN-Code scannen · 2. Seite öffnen – Name eingeben, mitspielen",
+                      parent=self, codes=codes).exec()
 
     def open_wifi(self) -> None:
         from .connect_dialog import HotspotDialog

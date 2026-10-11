@@ -240,20 +240,22 @@ class HandyPage(QWidget):
 
     def open_connect(self) -> None:
         """Großer QR-Code (und WLAN-Code, falls bekannt) zum Scannen."""
-        from .connect_dialog import ConnectDialog
+        from .connect_dialog import ConnectDialog, control_code
 
         c = self.controller
         if not c.cast.running():
             c.cast.start()
+        ctl = control_code(c.cast)
+        codes = [("AluPC steuern (privat)", ctl[0], ctl[1])] if ctl else []
         dlg = ConnectDialog("Handy verbinden", c.guest_wifi(),
-                            "WLAN-Code scannen → Anmeldeseite → „AluPC steuern“ → am PC erlauben",
-                            on_monitor=lambda: c.run_command("qr"), parent=self)
+                            "1. WLAN-Code scannen · 2. Steuer-Code scannen – der steht nur hier am PC",
+                            on_monitor=lambda: c.run_command("qr"), parent=self, codes=codes)
         dlg.exec()
 
     # ================================================================ AluCast
     def _cast_card(self) -> MethodCard:
         card = MethodCard("qr", "#8b5cf6", "Jedes Handy", "AluPC-WLAN + Anmeldeseite · ohne App")
-        card.body.addWidget(steps_label("WLAN-Code zeigen", "Handy scannt → Anmeldeseite", "„AluPC steuern“ erlauben"))
+        card.body.addWidget(steps_label("WLAN-Code scannen", "Steuer-Code (nur hier am PC) scannen", "Handy steuert AluPC"))
         row = QHBoxLayout()
         self.qr = QLabel()
         self.qr.setFixedSize(132, 132)
@@ -405,13 +407,13 @@ class HandyPage(QWidget):
             if getattr(self, "_qr_for", "") != payload:  # QR-Code nur neu berechnen, wenn sich das WLAN ändert
                 self._qr_for = payload
                 self.qr.setPixmap(qr_pixmap(payload, 120, self.devicePixelRatioF()))
-            cast.set_status("LÄUFT", LIVE, f"WLAN <b>{wifi[0]}</b> · Anmeldeseite → „AluPC steuern“")
+            cast.set_status("LÄUFT", LIVE, f"WLAN <b>{wifi[0]}</b> · Steuer-Code: auf den QR-Code klicken")
         else:
             cast.set_status("BEREIT", READY, "Sofort nutzbar")
             if getattr(self, "_qr_for", None) != "":
                 self._qr_for = ""
                 self.qr.setPixmap(icons.pixmap("qr", "#94a3b8", 40))
-        self.cast_url.setText("Nur übers AluPC-WLAN" if not (on and wifi) else "Am PC erlauben = Zugang")
+        self.cast_url.setText("Nur übers AluPC-WLAN" if not (on and wifi) else "Klick: WLAN- + Steuer-Code (privat)")
         self.cast_toggle.setText("Beenden" if on else "Starten")
         self.cast_toggle.setIcon(icons.icon("x" if on else "play", theme.current().text, 18))
         self.cast_auto.blockSignals(True)

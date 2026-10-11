@@ -56,6 +56,15 @@ class GameSource(QWidget):
             self._wifi_for, self._wifi_img = payload, qr_image(payload or " ")
         return self._wifi_img
 
+    def link_qr(self):
+        """Zweiter Code: die Handy-Seite (Name, Symbol, Mitspielen) im Browser – bleibt offen."""
+        from .cast_server import portal_url
+
+        link = portal_url()
+        if link != getattr(self, "_link_for", None):
+            self._link_for, self._link_img = link, (qr_image(link) if link else None)
+        return self._link_img
+
     def _fx_key(self, hub):
         return (id(hub), hub.phase if hub.phase != "running" else "running", id(hub.game))
 
@@ -69,7 +78,7 @@ class GameSource(QWidget):
         except Exception:  # noqa: BLE001
             wifi_only, wifi_status = False, ""
         c = SimpleNamespace(p=p, w=self.width(), h=self.height(), now=0.0, hub=hub, fx=self.fx, qr=self.qr,
-                            url=self.server.games_url, wifi=self.wifi(), wifi_qr=self.wifi_qr,
+                            url=self.server.games_url, wifi=self.wifi(), wifi_qr=self.wifi_qr, link_qr=self.link_qr,
                             wifi_only=wifi_only, wifi_status=wifi_status)
         if hub is None or not self.ok:
             import time

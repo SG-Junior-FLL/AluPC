@@ -1,6 +1,5 @@
-"""„Handy verbinden“: großer, scharfer QR-Code zum Scannen – und, wenn ein WLAN bekannt ist (eigener Hotspot oder
-im Setup eingetragenes Gäste-WLAN), davor ein WLAN-QR-Code: Handy scannt → ist im WLAN → scannt den zweiten Code
-→ Seite ist offen. Kein Abtippen."""
+"""„Handy verbinden“: QR-Codes zum Scannen – erst das AluPC-WLAN, dann die Seite (Mitspielen) oder, privat nur im
+Fenster am PC, AluPC steuern (Adresse mit Code). Kein Abtippen."""
 
 from __future__ import annotations
 
@@ -41,11 +40,21 @@ def _qr_card(step: str, title: str, payload: str, lines: list[str]) -> QFrame:
     return card
 
 
-class ConnectDialog(QDialog):
-    """EIN QR-Code: das AluPC-WLAN. Handy scannt → ist im WLAN → die Anmeldeseite öffnet sich (Mitspielen oder
-    AluPC steuern). Einen anderen Weg (Link, anderes WLAN) gibt es nicht. wifi: (Name, Passwort[, unsichtbar])."""
+def control_code(cast) -> tuple[str, list[str]] | None:
+    """Privater Steuer-Zugang (Adresse + Code im QR) – NUR im Fenster am PC zeigen, nie auf Monitor 2.
+    None = Webserver aus."""
+    if not cast.running():
+        return None
+    return cast.url(True), [f"Adresse: <b>{cast.base().split('://', 1)[-1].rstrip('/')}</b> · Code: "
+                            f"<b>{cast.code()}</b>", "Privat – nur hier am PC, nicht auf Monitor 2"]
 
-    def __init__(self, title: str, wifi: tuple | None, hint: str = "", on_monitor=None, parent=None):
+
+class ConnectDialog(QDialog):
+    """QR-Codes zum Scannen: 1. das AluPC-WLAN, dann (codes) z. B. 2. die Seite zum Mitspielen oder – privat, nur
+    hier am PC – AluPC steuern. wifi: (Name, Passwort[, unsichtbar]); codes: [(Titel, Inhalt, Zeilen), …]."""
+
+    def __init__(self, title: str, wifi: tuple | None, hint: str = "", on_monitor=None, parent=None,
+                 codes: list | tuple = ()):
         super().__init__(parent)
         self.setWindowTitle(title)
         lay = QVBoxLayout(self)
@@ -53,13 +62,21 @@ class ConnectDialog(QDialog):
         lay.setSpacing(14)
         lay.addWidget(page_header(title, hint or "WLAN-Code scannen – die Anmeldeseite öffnet sich", "qr"))
         self.wifi_card = None
+        self.cards = []
         if wifi and wifi[0]:
             ssid, password = wifi[0], wifi[1]
             hidden = bool(wifi[2]) if len(wifi) > 2 else False
-            self.wifi_card = _qr_card("", "AluPC-WLAN", wifi_payload(ssid, password, hidden),
+            row = QHBoxLayout()
+            row.setSpacing(14)
+            self.wifi_card = _qr_card("1" if codes else "", "AluPC-WLAN", wifi_payload(ssid, password, hidden),
                                       [f"WLAN: <b>{ssid}</b>", f"Passwort: <b>{password}</b>",
                                        "Danach öffnet sich die Anmeldeseite"])
-            lay.addWidget(self.wifi_card, 0, Qt.AlignCenter)
+            row.addWidget(self.wifi_card)
+            for i, (code_title, payload, lines) in enumerate(codes):
+                card = _qr_card(str(i + 2), code_title, payload, lines)
+                self.cards.append(card)
+                row.addWidget(card)
+            lay.addLayout(row)
         else:
             msg = QLabel("Das AluPC-WLAN läuft noch nicht – erst starten (Kachel „Hotspot“ oder Minispiele → „WLAN …“).")
             msg.setWordWrap(True)
@@ -67,6 +84,7 @@ class ConnectDialog(QDialog):
         buttons = QHBoxLayout()
         if on_monitor is not None:
             mon = button("Auf Monitor 2 zeigen", "monitor")
+            mon.setToolTip("Zeigt WLAN-Code und Seiten-Code auf Monitor 2 – den privaten Steuer-Code nicht")
             mon.clicked.connect(on_monitor)
             buttons.addWidget(mon)
         buttons.addStretch(1)
@@ -139,7 +157,8 @@ class HotspotDialog(QDialog):
         self.state.setObjectName("Muted")
         self.state.setWordWrap(True)
         bl.addWidget(self.state)
-        hint = QLabel("Einziger Weg fürs Handy: WLAN-Code scannen → Anmeldeseite (Mitspielen oder AluPC steuern). "
+        hint = QLabel("Handy: WLAN-Code scannen → Anmeldeseite. Geht sie zu: zweiten Code auf Monitor 2 scannen "
+                      "(öffnet im Browser). Steuern: der Steuer-Code unten – privat, nur hier am PC. "
                       "Beim Start einmal als Administrator bestätigen. Das normale WLAN des PCs "
                       "kann dabei getrennt werden.")
         hint.setObjectName("Muted")
@@ -175,10 +194,24 @@ class HotspotDialog(QDialog):
         self._dev_timer = QTimer(self)
         self._dev_timer.timeout.connect(self._fill_devices)
         self._dev_timer.start(2000)
-        self.qr = QLabel()
-        self.qr.setAlignment(Qt.AlignCenter)
-        self.qr.setStyleSheet("background:#ffffff; border-radius:14px; padding:10px;")
-        lay.addWidget(self.qr, 0, Qt.AlignCenter)
+        qr_row = QHBoxLayout()  # 1. WLAN · 2. AluPC steuern (privat – nur hier am PC, nie auf Monitor 2)
+        qr_row.addStretch(1)
+        self.qr, self.ctl_qr, self.qr_labels = QLabel(), QLabel(), []
+        for qr, caption in ((self.qr, "1 · WLAN"), (self.ctl_qr, "2 · AluPC steuern – privat, nur hier am PC")):
+            col = QVBoxLayout()
+            qr.setAlignment(Qt.AlignCenter)
+            qr.setStyleSheet("background:#ffffff; border-radius:14px; padding:10px;")
+            col.addWidget(qr, 0, Qt.AlignCenter)
+            lab = QLabel(caption)
+            lab.setObjectName("Muted")
+            lab.setAlignment(Qt.AlignCenter)
+            lab.setWordWrap(True)
+            lab.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            col.addWidget(lab)
+            self.qr_labels.append(lab)
+            qr_row.addLayout(col)
+        qr_row.addStretch(1)
+        lay.addLayout(qr_row)
         bottom = QHBoxLayout()
         bottom.addStretch(1)
         close = button("Fertig", "check")
@@ -261,11 +294,18 @@ class HotspotDialog(QDialog):
             self.pill.setText(("● AN" + (" · unsichtbar" if hotspot.hidden else "")) if on else "○ AUS")
             self.pill.setStyleSheet(f"color:{color}; background:{t.soft(color, 0.14)}; border-radius:11px;"
                                     "padding:3px 12px; font-weight:700;")
+            ctl = control_code(self.controller.cast) if on else None
             self.qr.setVisible(on)
+            self.ctl_qr.setVisible(ctl is not None)
+            self.qr_labels[0].setVisible(on)
+            self.qr_labels[1].setVisible(ctl is not None)
             self.show_qr.setEnabled(on)
             if on:
                 dpr = self.devicePixelRatioF()
-                self.qr.setPixmap(qr_pixmap(wifi_payload(hotspot.ssid, hotspot.password, hotspot.hidden), 220, dpr))
+                self.qr.setPixmap(qr_pixmap(wifi_payload(hotspot.ssid, hotspot.password, hotspot.hidden), 170, dpr))
+            if ctl is not None:
+                self.ctl_qr.setPixmap(qr_pixmap(ctl[0], 170, self.devicePixelRatioF()))
+                self.qr_labels[1].setText("2 · AluPC steuern<br>" + "<br>".join(ctl[1]))
         except RuntimeError:  # Dialog schon zu
             pass
 

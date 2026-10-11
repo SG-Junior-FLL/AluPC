@@ -8,7 +8,18 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.122.0)
+### Neu in dieser Version (0.123.0)
+- **Wieder 2 QR-Codes auf Monitor 2:** 1. AluPC-WLAN, 2. „Seite öffnen“ (Name, Symbol, Mitspielen, Abstimmen).
+  Der zweite Code öffnet die Seite im normalen Browser – sie bleibt offen, auch wenn das Anmeldefenster des Handys
+  von selbst zugeht. Gilt für den WLAN-Bildschirm, die Spiele-Lobby und die Anleitung „Handy fliegt aus dem WLAN?“.
+- **Steuern ist privat:** Adresse + Code zum Steuern gibt es nur als QR-Code im Fenster am PC (Hotspot-Fenster,
+  „Handy verbinden“) – nie auf Monitor 2. Wer ihn scannt (im AluPC-WLAN), steuert sofort.
+- Anleitung ergänzt: „Anmeldefenster geht zu? Zweiten QR-Code scannen.“
+- Geprüft: 444 Tests; QR-Codes mit echtem Decoder gelesen (Monitor 2: genau WLAN + Seite, kein Steuer-Code;
+  PC-Fenster: Steuer-Code); WLAN-Anmeldeseite mit virtuellem Handy 30/30. Nicht geprüft: echte Handys – vor allem,
+  ob Android die Seite im Browser lädt, solange mobile Daten an sind (sonst: mobile Daten aus).
+
+### Neu in Version 0.122.0
 - **Anleitung „Handy fliegt aus dem WLAN?“ groß auf Monitor 2:** Hotspot-Kachel → Menü „Handy fliegt aus dem WLAN? –
   Anleitung auf Monitor 2“ oder im Hotspot-Fenster bei der Anleitung „Auf Monitor 2 zeigen“. Zeigt WLAN-Code, Name,
   Passwort und die Schritte für Android, iPhone/iPad und „Klappt immer“ – quer und hochkant.

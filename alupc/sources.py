@@ -973,29 +973,23 @@ def qr_pixmap(text: str, px: int, dpr: float = 1.0):
 
 
 class WifiQrSource(QWidget):
-    """WLAN-QR-Code des Hotspots groß auf Monitor 2: Handy scannt → ist im WLAN → die Anmeldeseite öffnet sich
-    (Mitspielen oder AluPC steuern). Ohne Name in cfg: folgt dem laufenden AluPC-WLAN (startet es gerade, steht
-    das da)."""
+    """Zwei QR-Codes groß auf Monitor 2: 1. das AluPC-WLAN, 2. die Handy-Seite (Name, Mitspielen, Abstimmen) als
+    Link – die öffnet im Browser und bleibt offen, auch wenn das Anmeldefenster des Handys von selbst zugeht.
+    Steuern ist hier NICHT dabei (der Steuer-Code steht nur am PC). Ohne Name in cfg: folgt dem laufenden AluPC-WLAN
+    (startet es gerade, steht das da)."""
 
     def __init__(self, cfg, parent=None):
         super().__init__(parent)
         self.live = not cfg.get("ssid")
         self.ssid, self.password, self.hidden, self._qr = "", "", False, None
+        self.link, self._link_qr = "", None
         self.note = ""
         self._set(cfg.get("ssid", ""), cfg.get("password", ""), bool(cfg.get("hidden")))
         self.setAttribute(Qt.WA_OpaquePaintEvent)
-        if self.live:
-            self._follow()
-            self._timer = QTimer(self)
-            self._timer.timeout.connect(self._follow)
-            self._timer.start(1000)
-
-    @staticmethod
-    def _portal_host() -> str:
-        """Adresse für den Browser, wenn die Anmeldeseite nicht von selbst aufgeht (nur mit Anmeldeseite)."""
-        from .hotspot import hotspot
-
-        return hotspot.ip if hotspot.running and hotspot.portal and hotspot.ip else ""
+        self._follow()
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._follow)
+        self._timer.start(1000)
 
     def _set(self, ssid, password, hidden):
         from .screens import wifi_payload
@@ -1007,14 +1001,51 @@ class WifiQrSource(QWidget):
         return True
 
     def _follow(self):
+        from .cast_server import portal_url
         from .hotspot import hotspot
 
-        changed = self._set(hotspot.ssid, hotspot.password, hotspot.hidden) if hotspot.running else \
-            self._set("", "", False)
-        note = "" if hotspot.running else (hotspot.message or "AluPC-WLAN startet … (am PC bestätigen)")
+        changed, note = False, ""
+        if self.live:
+            changed = self._set(hotspot.ssid, hotspot.password, hotspot.hidden) if hotspot.running else \
+                self._set("", "", False)
+            note = "" if hotspot.running else (hotspot.message or "AluPC-WLAN startet … (am PC bestätigen)")
+        link = portal_url()
+        if link != self.link:
+            self.link, self._link_qr = link, (qr_image(link) if link else None)
+            changed = True
         if changed or note != self.note:
             self.note = note
             self.update()
+
+    @staticmethod
+    def _panel(p, rect: QRectF, step: str, title: str, qr, lines) -> None:
+        """Ein QR-Code mit Nummer, Überschrift und Zeilen darunter – mittig in rect."""
+        u = min(rect.width() * 0.8, rect.height() * 0.62)  # Größe des QR-Codes
+        head_px = max(12, int(u * 0.11))
+        y = rect.y()
+        head = f"{step}  {title}"
+        font = fitted_font(p, head, int(rect.width() * 0.95), head_px)
+        font.setBold(True)
+        p.setFont(font)
+        p.setPen(QColor("#ffffff"))
+        p.drawText(QRectF(rect.x(), y, rect.width(), head_px * 1.4), Qt.AlignCenter, head)
+        y += head_px * 1.4 + u * 0.08
+        pad = u * 0.05
+        qr_rect = QRectF(rect.center().x() - u / 2, y, u, u)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#ffffff"))
+        p.drawRoundedRect(qr_rect.adjusted(-pad, -pad, pad, pad), pad, pad)
+        draw_qr(p, qr_rect, qr)
+        y = qr_rect.bottom() + pad + u * 0.06
+        for text, color, size, bold in lines:
+            px = max(10, int(u * size))
+            if text:
+                font = fitted_font(p, text, int(rect.width() * 0.95), px)
+                font.setBold(bold)
+                p.setFont(font)
+                p.setPen(QColor(color))
+                p.drawText(QRectF(rect.x(), y, rect.width(), px * 1.5), Qt.AlignCenter, text)
+            y += px * 1.5
 
     def paintEvent(self, _e):
         from PySide6.QtGui import QLinearGradient
@@ -1033,43 +1064,26 @@ class WifiQrSource(QWidget):
             p.drawText(self.rect().adjusted(w // 10, 0, -w // 10, 0), Qt.AlignCenter | Qt.TextWordWrap, msg)
             p.end()
             return
-        horizontal = w > h * 1.25
-        if horizontal:
-            side = int(min(h * 0.66, w * 0.42))
-            qr_rect = QRectF(w * 0.08, (h - side) / 2, side, side)
-            text_rect = QRectF(qr_rect.right() + w * 0.06, h * 0.2, w - qr_rect.right() - w * 0.12, h * 0.6)
-        else:
-            side = int(min(w * 0.72, h * 0.5))
-            qr_rect = QRectF((w - side) / 2, h * 0.08, side, side)
-            text_rect = QRectF(w * 0.08, qr_rect.bottom() + h * 0.05, w * 0.84, h * 0.35)
-        pad = side * 0.05
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor("#ffffff"))
-        p.drawRoundedRect(qr_rect.adjusted(-pad, -pad, pad, pad), pad, pad)
-        draw_qr(p, qr_rect, self._qr)
-        lines = [("WLAN verbinden", "#ffffff", 0.13, True),
-                 ("QR-Code mit der Kamera-App scannen", "#cbd5e1", 0.065, False),
-                 ("", "", 0.04, False),
-                 (f"Name: {self.ssid}", "#67e8f9", 0.08, True),
-                 (f"Passwort: {self.password}" if self.password else "ohne Passwort", "#fbbf24", 0.08, True),
-                 ("unsichtbar – nur per QR-Code oder Name + Passwort" if self.hidden else "", "#94a3b8", 0.05,
-                  False),
-                 ("", "", 0.03, False),
-                 ("Dann öffnet sich die Anmeldeseite", "#e2e8f0", 0.06, True),
-                 (f"Nicht offen? Im Browser: {self._portal_host()}" if self._portal_host() else "", "#94a3b8",
-                  0.05, False)]
-        y = text_rect.y()
-        unit = text_rect.height() if horizontal else text_rect.height() * 1.2
-        for text, color, size, bold in lines:
-            px = max(10, int(unit * size))
-            if text:
-                font = fitted_font(p, text, int(text_rect.width()), px)
-                font.setBold(bold)
-                p.setFont(font)
-                p.setPen(QColor(color))
-                p.drawText(QRectF(text_rect.x(), y, text_rect.width(), px * 1.5),
-                           (Qt.AlignLeft if horizontal else Qt.AlignHCenter) | Qt.AlignVCenter, text)
-            y += px * 1.55
+        wifi_lines = [(f"Name: {self.ssid}", "#67e8f9", 0.085, True),
+                      (f"Passwort: {self.password}" if self.password else "ohne Passwort", "#fbbf24", 0.085, True),
+                      ("unsichtbar – nur per QR-Code" if self.hidden else "", "#94a3b8", 0.055, False)]
+        m = min(w, h) * 0.05
+        if self._link_qr is None:  # Webserver (noch) nicht da: nur das WLAN
+            self._panel(p, QRectF(m, m, w - 2 * m, h - 2 * m), "", "WLAN verbinden", self._qr, wifi_lines)
+            p.end()
+            return
+        short = self.link.split("://", 1)[-1]
+        link_lines = [("Mitspielen · Abstimmen", "#e2e8f0", 0.075, True),
+                      ("öffnet im Browser und bleibt offen", "#94a3b8", 0.055, False),
+                      (short, "#93c5fd", 0.05, False)]
+        if w > h * 1.1:  # quer: nebeneinander
+            col = (w - 3 * m) / 2
+            panels = [QRectF(m, m * 1.4, col, h - 2.4 * m), QRectF(2 * m + col, m * 1.4, col, h - 2.4 * m)]
+        else:  # hochkant: untereinander
+            row = (h - 3 * m) / 2
+            panels = [QRectF(m, m, w - 2 * m, row), QRectF(m, 2 * m + row, w - 2 * m, row)]
+        self._panel(p, panels[0], "1", "WLAN verbinden", self._qr, wifi_lines)
+        self._panel(p, panels[1], "2", "Seite öffnen", self._link_qr, link_lines)
         p.end()
 
     def stop(self):
@@ -1077,8 +1091,9 @@ class WifiQrSource(QWidget):
 
 
 class WifiHelpSource(WifiQrSource):
-    """„Handy fliegt aus dem WLAN?“ groß auf Monitor 2: WLAN-Code (quer links, hochkant oben) und die Anleitung (Android, iPhone/iPad,
-    was immer klappt) – derselbe Text wie im Hotspot-Fenster und auf der Anmeldeseite."""
+    """„Handy fliegt aus dem WLAN?“ groß auf Monitor 2: WLAN-Code und Seiten-Code (quer links, hochkant oben) und die
+    Anleitung (Android, iPhone/iPad, was immer klappt) – derselbe Text wie im Hotspot-Fenster und auf der
+    Anmeldeseite."""
 
     def __init__(self, cfg, parent=None):
         super().__init__({}, parent)  # folgt immer dem laufenden AluPC-WLAN
@@ -1098,39 +1113,52 @@ class WifiHelpSource(WifiQrSource):
         m = min(w, h) * 0.05
         portrait = h > w * 1.1
         x0, y0 = m, m
-        if self._qr is not None:  # WLAN-Code zum Wiederverbinden: quer links, hochkant oben
+        if self._qr is not None:  # 1. WLAN-Code, 2. Seite im Browser – quer links untereinander, hochkant oben nebeneinander
+            codes = [(self._qr, [(f"1 · {self.ssid}" if self._link_qr is not None else self.ssid, "#67e8f9"),
+                                 (f"Passwort: {self.password}" if self.password else "", "#fbbf24")])]
+            if self._link_qr is not None:
+                codes.append((self._link_qr, [("2 · Seite öffnen", "#f472b6"), ("bleibt im Browser offen", "#cbd5e1")]))
+            label_px = max(12, int(min(w, h) * (0.03 if len(codes) == 1 else 0.026)))
+            labels_h = label_px * 1.55 * 2 + m * 0.3
+            n = len(codes)
             if portrait:
-                side = min(w * 0.42, h * 0.24)
-                qr = QRectF((w - side) / 2, m, side, side)
-                label_w, label_x = w - 2 * m, m
+                cell_w = (w - (n + 1) * m) / n
+                side = min(cell_w * 0.9, h * 0.24)
+                cells = [QRectF(m + i * (cell_w + m), m, cell_w, side + labels_h) for i in range(n)]
             else:
-                side = min(w * 0.3 - m, h * 0.5)
-                qr = QRectF(m, (h - side) / 2 - h * 0.05, side, side)
-                label_w, label_x = w * 0.3 - m * 0.5, m * 0.5
-            pad = side * 0.05
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor("#ffffff"))
-            p.drawRoundedRect(qr.adjusted(-pad, -pad, pad, pad), pad, pad)
-            draw_qr(p, qr, self._qr)
-            label_px = max(12, int(min(w, h) * 0.03))
-            y = qr.bottom() + pad * 2
-            for text, color in ((self.ssid, "#67e8f9"),
-                                (f"Passwort: {self.password}" if self.password else "", "#fbbf24")):
-                if text:
-                    f = fitted_font(p, text, int(label_w), label_px)
-                    f.setBold(True)
-                    p.setFont(f)
-                    p.setPen(QColor(color))
-                    p.drawText(QRectF(label_x, y, label_w, label_px * 1.5), Qt.AlignHCenter | Qt.AlignVCenter, text)
-                y += label_px * 1.55
+                cell_w = w * 0.3 - m
+                side = min(cell_w, (h - 2 * m - n * labels_h - (n - 1) * m) / n)
+                total = n * (side + labels_h) + (n - 1) * m
+                top = (h - total) / 2
+                cells = [QRectF(m, top + i * (side + labels_h + m), cell_w, side + labels_h) for i in range(n)]
+            y_end = 0.0
+            for (img, labels), cell in zip(codes, cells):
+                qr = QRectF(cell.center().x() - side / 2, cell.y(), side, side)
+                pad = side * 0.05
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor("#ffffff"))
+                p.drawRoundedRect(qr.adjusted(-pad, -pad, pad, pad), pad, pad)
+                draw_qr(p, qr, img)
+                y = qr.bottom() + pad * 2
+                for text, color in labels:
+                    if text:
+                        f = fitted_font(p, text, int(cell.width() + m * 0.6), label_px)
+                        f.setBold(True)
+                        p.setFont(f)
+                        p.setPen(QColor(color))
+                        p.drawText(QRectF(cell.x() - m * 0.3, y, cell.width() + m * 0.6, label_px * 1.5),
+                                   Qt.AlignHCenter | Qt.AlignVCenter, text)
+                    y += label_px * 1.55
+                y_end = max(y_end, y)
             if portrait:
-                y0 = y + m * 0.5
+                y0 = y_end + m * 0.5
             else:
                 x0 = w * 0.3 + m
         width = w - x0 - m
         # rechts: Anleitung – Schrift so groß, dass alles passt
         blocks = [("Handy fliegt aus dem WLAN?", "#ffffff", 1.6, True, 0), (STAY_WHY, "#cbd5e1", 0.9, False, 0)]
-        colors = {"Android": "#4ade80", "iPhone / iPad": "#93c5fd", "Klappt immer": "#fbbf24"}
+        colors = {"Anmeldefenster geht zu?": "#f472b6", "Android": "#4ade80", "iPhone / iPad": "#93c5fd",
+                  "Klappt immer": "#fbbf24"}
         for title, lines in STAY_STEPS:
             blocks.append((title, colors.get(title, "#ffffff"), 1.15, True, 0))
             blocks += [("•  " + line, "#e2e8f0", 0.9, False, 1) for line in lines]

@@ -259,8 +259,11 @@ def main() -> int:
     src.resize(1280, 720)
     pump(0.3)
     src.grab().save(str(tmp / "lobby.png"))
-    codes = [c.text for c in zxingcpp.read_barcodes(Image.open(tmp / "lobby.png"))]
-    ok(codes == [f"WIFI:T:WPA;S:{hs.ssid};P:{hs.password};;"], f"Monitor 2 (Lobby): genau 1 QR-Code = WLAN → {codes}")
+    codes = sorted(c.text for c in zxingcpp.read_barcodes(Image.open(tmp / "lobby.png")))
+    from alupc.cast_server import portal_url
+
+    want = sorted([f"WIFI:T:WPA;S:{hs.ssid};P:{hs.password};;"] + ([portal_url()] if portal_url() else []))
+    ok(codes == want, f"Monitor 2 (Lobby): WLAN-Code (+ Seiten-Code, wenn die Anmeldeseite läuft) → {codes}")
     src.stop()
     controller.start_poll("Pizza oder Pasta?", ["Pizza", "Pasta"])  # Abstimmen: auch nur übers WLAN
     # Wie nach einer weggeklickten Windows-Firewall-Frage: Sperr-Regel für AluPC (hier: python.exe)
@@ -275,6 +278,15 @@ def main() -> int:
         flush=True)
     good, msg = hs_mod.start_portal(ip=IP, closed=True)  # echter Weg: Administrator + Wächter
     ok(good, f"Anmeldeseite an (Port 53 übernommen, Administrator-Skript): {msg}")
+    if controller.cast.games is not None:  # Lobby jetzt mit 2 Codes: 1. WLAN, 2. Seite im Browser (= Ziel oben)
+        src = GameSource({})
+        src.resize(1280, 720)
+        pump(0.3)
+        src.grab().save(str(tmp / "lobby2.png"))
+        codes = sorted(c.text for c in zxingcpp.read_barcodes(Image.open(tmp / "lobby2.png")))
+        ok(codes == sorted([f"WIFI:T:WPA;S:{hs.ssid};P:{hs.password};;", target]),
+           f"Monitor 2 (Lobby) mit Anmeldeseite: WLAN-Code + Seiten-Code → {codes}")
+        src.stop()
     print("::notice title=Port 53 (AluPC)::" + hs_mod.DNS_INFO, flush=True)
     owner = ps(f"(Get-NetUDPEndpoint -LocalPort 53 -ErrorAction SilentlyContinue | "
                f"Where-Object {{ $_.LocalAddress -in @('0.0.0.0', '{IP}') -and $_.OwningProcess -eq {os.getpid()} }}"
