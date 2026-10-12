@@ -1662,6 +1662,10 @@ class MainWindow(QMainWindow):
         self.a_status.setEnabled(False)
         menu.addAction(ic("grid"), "Schnellfenster …", self.open_tray_panel)
         menu.addAction(ic("apps"), "AluPC-Oberfläche (Vollbild)", self.toggle_shell)
+        from ..platform import desktop_shell as _ds
+
+        if _ds.IS_WINDOWS or (sys.platform.startswith("linux") and _ds.is_kde()):  # Oberfläche als echter Desktop
+            menu.addAction(ic("home"), "AluPC als Desktop (statt Explorer/Plasma)", lambda: self.system_desktop(True))
         menu.addSection("Monitor 2")
         self.a_freeze = QAction(ic("snowflake"), "Standbild", menu, checkable=True)
         self.a_freeze.triggered.connect(lambda _=False: c.toggle_freeze())
@@ -2031,11 +2035,45 @@ class MainWindow(QMainWindow):
         if self.shell is None:
             self.shell = ShellWindow(self, self.controller)
             self.destroyed.connect(self.shell.deleteLater)  # eigenes Fenster: mit dem Hauptfenster aufräumen
+        if self.shell.system:  # ist gerade der System-Desktop: nicht wegschalten, nur zeigen
+            self.shell.show_shell()
+            return
         on = (not self.shell.isVisible()) if on is None else on
         if on:
             self.shell.show_shell()
         else:
             self.shell.leave()
+
+    def system_desktop(self, on: bool, startup: bool = False) -> None:
+        """AluPC-Oberfläche als echter Desktop in dieser Sitzung (an: normaler Desktop wird beendet) bzw. zurück zum
+        normalen Desktop (Explorer/Plasma). Die AluPC-Oberfläche verschwindet erst, wenn der normale Desktop läuft –
+        so bleibt der Bildschirm nie leer."""
+        from ..platform import desktop_shell as ds
+        from .shell import ShellWindow
+        from .util import run_async
+
+        if self.shell is None:
+            self.shell = ShellWindow(self, self.controller)
+            self.destroyed.connect(self.shell.deleteLater)
+        if on:
+            self.shell.set_system(True)
+            self.shell.show_shell()
+            if startup:
+                if ds.IS_WINDOWS and not ds.normal_running():  # ohne Explorer startet sonst kein Autostart-Programm
+                    run_async(ds.run_startup_programs, owner=self)
+                return
+            run_async(ds.stop_normal, lambda r: (not r[0]) and self.controller.message.emit(r[1]), owner=self)
+            return
+
+        def done(result):
+            ok, msg = result
+            if ok:
+                self.shell.set_system(False)
+                self.shell.leave()
+            self.controller.message.emit(msg)
+
+        run_async(ds.start_normal, done, lambda e: self.controller.message.emit(f"Normaler Desktop: {e}"),
+                  owner=self)
 
     def lock(self):
         """Computer sperren – wie Win+L (Linux: Bildschirmsperre)."""

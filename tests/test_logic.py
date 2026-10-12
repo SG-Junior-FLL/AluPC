@@ -1968,3 +1968,157 @@ def test_sync_includes_desktop_shell_but_keeps_local_parts(tmp_path, monkeypatch
     assert sh["pinned"] == ["Dolphin"] and sh["autostart"] is True
     assert sh["pos"] == {"icon:/home/a/Schreibtisch/x.txt": [0.1, 0.1], "widget:clock": [0.7, 0.2]}
     assert ss.sync_once(lin)[0] == "Alles aktuell."  # übernommen, nicht zurückgeschrieben
+
+
+# ---------------------------------------------------------------- AluPC-Oberfläche als System-Desktop
+def test_system_desktop_kde_systemd_enable_disable(tmp_path, monkeypatch):
+    """KDE mit systemd: Drop-in für plasma-plasmashell.service startet den Wächter statt plasmashell (Type=simple,
+    ExecStart zurückgesetzt). Ausschalten löscht nur AluPCs Datei. AluPCs eigener Autostart wird solange pausiert."""
+    from alupc.platform import desktop_shell as ds
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setattr(ds, "kind", lambda: "kde-systemd")
+    calls = []
+    monkeypatch.setattr(ds, "_run", lambda cmd, timeout=15: calls.append(cmd) or
+                        type("R", (), {"returncode": 0, "stdout": "inactive\n"})())
+    auto = {"on": True}
+    monkeypatch.setattr("alupc.platform.autostart.is_enabled", lambda: auto["on"])
+    monkeypatch.setattr("alupc.platform.autostart.set_enabled", lambda on: auto.update(on=on))
+    monkeypatch.setattr(ds, "_mark", lambda: tmp_path / "mark")
+    monkeypatch.setattr(ds, "command", lambda arg: ["/opt/alupc/AluPC", arg])
+    ok, _msg = ds.enable()
+    text = ds.dropin_path().read_text()
+    assert ok and ds.enabled() and "Type=simple" in text
+    # fehlt AluPC (deinstalliert/verschoben), startet trotzdem Plasma
+    assert 'ExecStart=\nExecStart=/bin/sh -c "/opt/alupc/AluPC --desktop-waechter || exec plasmashell --no-respawn"' \
+        in text
+    assert not ds.refresh()  # Pfad stimmt → nichts zu tun
+    monkeypatch.setattr(ds, "command", lambda arg: ["/neu/AluPC", arg])
+    assert ds.refresh() and "/neu/AluPC --desktop-waechter" in ds.dropin_path().read_text()
+    assert ["systemctl", "--user", "daemon-reload"] in calls and auto["on"] is False
+    other = ds.dropin_path().with_name("eigenes.conf")
+    other.write_text("[Service]\n")  # fremde Zusätze bleiben
+    ok, _msg = ds.disable()
+    assert ok and not ds.enabled() and other.is_file() and auto["on"] is True and not (tmp_path / "mark").exists()
+    # Normaler Desktop in der Sitzung: Drop-in aktiv → plasmashell als eigener kurzlebiger Dienst
+    ds.enable()
+    calls.clear()
+    monkeypatch.setattr(ds, "normal_running", lambda: False)
+    ds.start_normal(wait=0)
+    assert calls[0][:3] == ["systemd-run", "--user", "--unit=alupc-plasma-normal"] and "plasmashell" in calls[0]
+    ds.disable()
+    calls.clear()
+    ds.start_normal(wait=0)  # ohne Drop-in (nur ausprobiert): den normalen Dienst wieder starten
+    assert calls[0] == ["systemctl", "--user", "start", ds.UNIT]
+
+
+def test_system_desktop_kde_without_systemd(tmp_path, monkeypatch):
+    from alupc.platform import desktop_shell as ds
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setattr(ds, "kind", lambda: "kde")
+    monkeypatch.setattr(ds, "_pause_own_autostart", lambda: None)
+    monkeypatch.setattr(ds, "_restore_own_autostart", lambda: None)
+    monkeypatch.setattr(ds, "command", lambda arg: ["alupc", arg])
+    assert ds.enable()[0] and ds.enabled()
+    hidden = tmp_path / "cfg" / "autostart" / ds.PLASMA_AUTOSTART
+    assert "Hidden=true" in hidden.read_text()
+    assert 'Exec=/bin/sh -c "alupc --desktop-waechter || exec plasmashell --no-respawn"' in \
+        (tmp_path / "cfg" / "autostart" / ds.OWN_AUTOSTART).read_text()
+    assert ds.disable()[0] and not hidden.exists() and not ds.enabled()
+    hidden.write_text("[Desktop Entry]\nHidden=true\n")  # vom Benutzer selbst ausgeblendet → nicht anfassen
+    ds.disable()
+    assert hidden.exists()
+
+
+def test_system_desktop_windows_registry_and_explorer(monkeypatch):
+    """Windows: HKCU-Winlogon-Eintrag; „Normaler Desktop“ nimmt ihn kurz weg (sonst kommt der Explorer nur als
+    Dateifenster) und stellt ihn danach wieder her – auch wenn der Explorer nicht als Desktop kam."""
+    from alupc.platform import desktop_shell as ds
+
+    reg = {}
+    monkeypatch.setattr(ds, "kind", lambda: "windows")
+    monkeypatch.setattr(ds, "_reg_get_shell", lambda: reg.get("Shell", ""))
+    monkeypatch.setattr(ds, "_reg_set_shell", lambda v: reg.update(Shell=v))
+    monkeypatch.setattr(ds, "_reg_del_shell", lambda: reg.pop("Shell", None))
+    monkeypatch.setattr(ds, "_pause_own_autostart", lambda: None)
+    monkeypatch.setattr(ds, "_restore_own_autostart", lambda: None)
+    monkeypatch.setattr(ds, "command", lambda arg: [r"C:\Program Files\AluPC\AluPC.exe", arg])
+    assert ds.enable()[0] and reg["Shell"] == r'"C:\Program Files\AluPC\AluPC.exe" --desktop-waechter'
+    seen = []
+    tray = {"up": False}
+    monkeypatch.setattr(ds, "_tray_window", lambda: 1 if tray["up"] else 0)
+
+    def fake_popen(cmd, **kw):
+        seen.append(reg.get("Shell"))  # beim Start des Explorers darf der Eintrag NICHT gesetzt sein
+        tray["up"] = True
+
+    monkeypatch.setattr(ds.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(ds.time, "sleep", lambda s: None)
+    monkeypatch.setattr(ds, "IS_WINDOWS", True)
+    ok, msg = ds.start_normal(wait=0.5)
+    assert ok and seen == [None] and "--desktop-waechter" in reg["Shell"]
+    tray["up"] = False
+    monkeypatch.setattr(ds.subprocess, "Popen", lambda cmd, **kw: seen.append(reg.get("Shell")))
+    ok, msg = ds.start_normal(wait=0.2)  # kam nur als Dateifenster → ehrliche Meldung, Eintrag trotzdem zurück
+    assert not ok and "Dateifenster" in msg and "--desktop-waechter" in reg["Shell"]
+    assert ds.disable()[0] and "Shell" not in reg
+    reg["Shell"] = "C:\\fremd.exe"  # fremde Shell eines anderen Programms bleibt
+    ds.disable()
+    assert reg["Shell"] == "C:\\fremd.exe"
+
+
+def test_system_desktop_watchdog_and_startup_entries(monkeypatch):
+    """Wächter: endet AluPC (Absturz/Beenden) → normaler Desktop; AluPC lief schon (übergeben) → nichts tun.
+    Windows-Autostart ohne Explorer: ohne AluPC selbst und ohne im Task-Manager abgeschaltete Einträge."""
+    from alupc.platform import desktop_shell as ds
+
+    monkeypatch.setenv("TEMP", "C:\\Temp")
+    for code, expect in ((1, 1), (-11, 1), (0, 1), (ds.HANDED_OVER, 0)):
+        started = []
+        monkeypatch.setattr(ds.subprocess, "call", lambda cmd, c=code: c)
+        assert ds.watchdog(["alupc", "--desktop"], start=lambda: started.append(1)) == 0
+        assert len(started) == expect, code
+    entries = ds.startup_entries([("Discord", r"%TEMP%\Discord.exe --min"), ("AluPC", "x.exe --minimiert"),
+                                  ("Steam", "steam.exe -silent")],
+                                 [r"C:\S\OneNote.lnk", r"C:\S\desktop.ini", r"C:\S\alupc.lnk"], {"Steam"})
+    assert entries[0].endswith(r"\Discord.exe --min") and "%TEMP%" not in entries[0]
+    assert entries[1:] == [r"C:\S\OneNote.lnk"]
+
+
+def test_system_desktop_real_windows_registry():
+    """Nur unter Windows (CI): der echte HKCU-Winlogon-Eintrag lässt sich setzen, lesen und wieder entfernen."""
+    import sys
+
+    import pytest
+
+    if not sys.platform.startswith("win"):
+        pytest.skip("nur Windows")
+    from alupc.platform import desktop_shell as ds
+
+    before = ds._reg_get_shell()
+    try:
+        ds._reg_set_shell('"C:\\Test\\AluPC.exe" --desktop-waechter')
+        assert ds._reg_get_shell() == '"C:\\Test\\AluPC.exe" --desktop-waechter' and ds.enabled()
+        ds._reg_del_shell()
+        assert ds._reg_get_shell() == "" and not ds.enabled()
+    finally:
+        if before:
+            ds._reg_set_shell(before)
+        else:
+            ds._reg_del_shell()
+    assert ds._reg_get_shell() == before and ds.kind() == "windows"
+
+
+def test_system_desktop_start_arguments(monkeypatch):
+    """Anmeldung: „--desktop-waechter“ läuft ohne Oberfläche (nur Wächter); der Wächter startet AluPC mit
+    „--desktop“. Läuft AluPC schon, übernimmt es und das Kind meldet „übergeben“ (Wächter macht dann nichts)."""
+    from alupc import app
+    from alupc.platform import desktop_shell as ds
+
+    args = app.parse_args(["--desktop"])
+    assert args.desktop and not args.desktop_waechter
+    monkeypatch.setattr(ds, "watchdog", lambda: 42)
+    assert app.main(["--desktop-waechter"]) == 42
+    monkeypatch.setattr("alupc.platform.autostart.launch_command", lambda: ["AluPC.exe"])
+    assert ds.command(ds.CHILD_ARG) == ["AluPC.exe", "--desktop"] and ds.command(ds.WATCH_ARG)[-1] == ds.WATCH_ARG

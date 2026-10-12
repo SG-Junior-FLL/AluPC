@@ -24,10 +24,19 @@ class ShellSettings(QDialog):
         super().__init__(shell)
         self.shell = shell
         self.setWindowTitle("Oberfläche anpassen")
-        self.setMinimumWidth(520)
+        self.setMinimumWidth(980)
         cfg = shell.cfg()
-        lay = QVBoxLayout(self)
-        lay.setSpacing(12)
+        outer = QVBoxLayout(self)
+        outer.setSpacing(12)
+        cols = QHBoxLayout()  # zwei Spalten: passt auch auf Bildschirme mit 900 px Höhe
+        cols.setSpacing(14)
+        left, right = QVBoxLayout(), QVBoxLayout()
+        left.setSpacing(12)
+        right.setSpacing(12)
+        cols.addLayout(left, 1)
+        cols.addLayout(right, 1)
+        outer.addLayout(cols)
+        lay = left
 
         bg = QGroupBox("Hintergrund")
         f = QFormLayout(bg)
@@ -76,6 +85,8 @@ class ShellSettings(QDialog):
         f.addRow(self.secs)
         f.addRow(QLabel("Programme anheften: im Startmenü Rechtsklick → „An die Taskleiste anheften“."))
         lay.addWidget(bar)
+        lay.addStretch(1)
+        lay = right
 
         wid = QGroupBox("Widgets (frei verschiebbar – einfach ziehen)")
         row = QHBoxLayout(wid)
@@ -104,15 +115,83 @@ class ShellSettings(QDialog):
         f.addRow(QLabel("Wieder öffnen oder schließen: Strg+Alt+O."))
         lay.addWidget(beh)
 
+        lay.addWidget(self._system_group())
+        lay.addStretch(1)
+        lay = outer
+
         foot = QHBoxLayout()
-        close_shell = button("Oberfläche schließen", "x")
-        close_shell.clicked.connect(lambda: (self.accept(), self.shell.leave()))
+        if self.shell.system:
+            close_shell = button("Zum normalen Desktop", "window")
+            close_shell.clicked.connect(lambda: (self.accept(), self.shell.main_window.system_desktop(False)))
+        else:
+            close_shell = button("Oberfläche schließen", "x")
+            close_shell.clicked.connect(lambda: (self.accept(), self.shell.leave()))
         foot.addWidget(close_shell)
         foot.addStretch(1)
         done = button("Fertig", "check", primary=True)
         done.clicked.connect(self.accept)
         foot.addWidget(done)
         lay.addLayout(foot)
+
+    def _system_group(self) -> QGroupBox:
+        """Als echter Desktop statt Explorer (Windows) bzw. Plasma (KDE) – mit Wächter und Knopf zurück."""
+        from ..platform import desktop_shell as ds
+
+        box = QGroupBox("Als System-Desktop (statt Explorer bzw. Plasma)")
+        f = QVBoxLayout(box)
+        st = ds.status()
+        info = QLabel(st["why"] + (" Stürzt AluPC ab oder wird beendet, startet sofort der normale Desktop."
+                                   if st["supported"] else ""))
+        info.setWordWrap(True)
+        info.setObjectName("Muted")
+        f.addWidget(info)
+        self.system_login = QCheckBox("Bei jeder Anmeldung die AluPC-Oberfläche als Desktop starten")
+        self.system_login.setChecked(bool(st["enabled"]))
+        self.system_login.setEnabled(st["supported"])
+        self.system_login.toggled.connect(self._system_login)
+        f.addWidget(self.system_login)
+        row = QHBoxLayout()
+        self.system_now = button("Zum normalen Desktop" if self.shell.system else "Jetzt ausprobieren", "window")
+        self.system_now.setEnabled(st["supported"])
+        self.system_now.clicked.connect(self._system_now)
+        row.addWidget(self.system_now)
+        row.addStretch(1)
+        f.addLayout(row)
+        self.system_msg = QLabel(("Ohne Explorer" if ds.IS_WINDOWS else "Ohne Plasma") + " fehlen: Symbole anderer "
+                                 "Programme im Infobereich, "
+                                 "Benachrichtigungen anderer Programme" + (", Windows-Startmenü (Win-Taste) und "
+                                 "Info-Center. Notfall: Strg+Alt+Entf → Task-Manager → „Neuen Task ausführen“ → "
+                                 "explorer." if ds.IS_WINDOWS else ", Plasma-Widgets und -Leisten. Fenster, Alt+Tab und "
+                                 "Tastenkürzel (KWin) bleiben."))
+        self.system_msg.setWordWrap(True)
+        self.system_msg.setObjectName("Muted")
+        f.addWidget(self.system_msg)
+        return box
+
+    def _system_login(self, on: bool) -> None:
+        from PySide6.QtWidgets import QMessageBox
+
+        from ..platform import desktop_shell as ds
+
+        if on and QMessageBox.question(
+                self, "AluPC als Desktop",
+                "Ab der nächsten Anmeldung startet die AluPC-Oberfläche statt des normalen Desktops.\n\n"
+                "Zurück jederzeit über den Knopf „Normaler Desktop“ in der Taskleiste. Stürzt AluPC ab oder wird es "
+                "beendet, startet der normale Desktop von selbst.\n\nEinschalten?") != QMessageBox.Yes:
+            self.system_login.blockSignals(True)
+            self.system_login.setChecked(False)
+            self.system_login.blockSignals(False)
+            return
+        ok, msg = ds.enable() if on else ds.disable()
+        self.system_msg.setText(msg)
+        if not ok:
+            self.system_login.blockSignals(True)
+            self.system_login.setChecked(ds.enabled())
+            self.system_login.blockSignals(False)
+
+    def _system_now(self) -> None:
+        self.accept()
+        self.shell.main_window.system_desktop(not self.shell.system)
 
     def _set(self, **values) -> None:
         self.shell.save(**values)

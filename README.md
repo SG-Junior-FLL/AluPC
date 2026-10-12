@@ -34,7 +34,7 @@ und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beide
 | 💬 **Chat & 📷 Foto-Wand** | Handys schreiben übers AluPC-WLAN, Nachrichten erscheinen **direkt als Overlay** auf Monitor 2 – als Liste oder als **Pop-up** (kurz, ohne QR) – oder als Chat-Wand – mit Wortfilter, Link-Sperre, Tempo-Grenze, Löschen und Handy sperren. Fotos vom Handy als Collage oder Diashow, neue Fotos erst groß. Verwalten auf der Seite **„Gäste“** |
 | 🎚️ **Mischpult für den ganzen PC** | Seite **„Audio & Kamera“**: Kanalzüge für jeden Ausgang, jedes Mikro und jedes Programm (Regler, Pegel, Stumm, ★ Standard), **virtuelle Geräte hinzufügen/entfernen** (Linux beliebig viele, Windows über VB-CABLE), Ton weiterleiten (Mikro → virtuelles Mikro, Mithören) |
 | 🎥 **Monitor 2 als Webcam** | Virtuelle Kamera mit allem, was Monitor 2 zeigt (inkl. Overlays/Zeichnungen) – für Zoom, Teams, Discord, OBS. Treiber richtet der Installer ein (Linux v4l2loopback, Windows OBS-Kamera) |
-| 🪟 **AluPC-Oberfläche** | Eigener Desktop im Vollbild (Strg+Alt+O): Symbole aus dem Desktop-Ordner (Dateien, Ordner, Verknüpfungen – frei verschiebbar, neue erscheinen von selbst), Widgets (Uhr, Monitor 2, AluPC-Aktionen), eigene Taskleiste mit Startmenü, echten App-Logos, offenen Fenstern, Lautstärke und Uhr – alles anpassbar (Hintergrund, Größe, Raster, Taskleiste, Widgets) |
+| 🪟 **AluPC-Oberfläche** | Eigener Desktop im Vollbild (Strg+Alt+O): Symbole aus dem Desktop-Ordner (Dateien, Ordner, Verknüpfungen – frei verschiebbar, neue erscheinen von selbst), Widgets (Uhr, Monitor 2, AluPC-Aktionen), eigene Taskleiste mit Startmenü, echten App-Logos, offenen Fenstern, Lautstärke und Uhr – alles anpassbar (Hintergrund, Größe, Raster, Taskleiste, Widgets). **Auch als echter System-Desktop** statt Windows-Explorer bzw. KDE-Plasma – mit Knopf „Normaler Desktop“ |
 | 🎨 **Design fürs ganze System** | AluPC-Akzentfarbe, Hell/Dunkel und ein passendes Hintergrundbild (Aurora in den Design-Farben) auf Windows, KDE oder GNOME übertragen – zieht bei Änderungen mit, „Zurück“ stellt alles wieder her |
 | 🔁 **Dual-Boot-Abgleich** | Windows ↔ Linux: Einstellungen, Szenen, Bilder/Videos zusammenführen, Bereiche wählbar, Prüfen, Sicherungen |
 | 🗣️ **Sprache, offline** | Startwort „Alu PC“ oder „Computer“, ganze Sätze, Antwort per Stimme |
@@ -487,6 +487,16 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   keine allgemeine Schnittstelle** – dort Hersteller-Programm oder „FanControl“ nutzen. Keine
   Lüfterkurven (dafür bräuchte es einen ständig laufenden Administrator-Dienst); nach einem Neustart
   regelt wieder das Mainboard. Nicht auf echter Hardware getestet.
+- **AluPC-Oberfläche als System-Desktop** (Anpassen → „Als System-Desktop“): Windows über den Benutzer-Eintrag
+  `HKCU\…\Winlogon\Shell` (ohne Administrator), KDE Plasma über eine Zusatzdatei für `plasma-plasmashell.service`
+  (ohne systemd-Start: Plasma im Autostart ausgeblendet). Ein Wächter startet bei Absturz oder „Beenden“ sofort den
+  normalen Desktop. **Nicht auf echter Hardware getestet** – nur mit Tests, `systemd-analyze verify` und der
+  Windows-Registry in der CI. Ohne Explorer bzw. Plasma fehlen: Symbole anderer Programme im Infobereich,
+  Benachrichtigungen anderer Programme; Windows: Startmenü der Win-Taste, Info-Center (Notfall: Strg+Alt+Entf →
+  Task-Manager → „Neuen Task ausführen“ → `explorer`); KDE: Plasma-Widgets/-Leisten. Unter KDE/Wayland reserviert
+  niemand Platz für die Taskleiste – maximierte Fenster liegen dort unter ihr (X11 und Windows: Platz reserviert).
+  Ob der Explorer per Knopf als vollständiger Desktop startet (statt nur als Dateifenster), ist unter Windows
+  nicht geprüft – AluPC prüft es und meldet es, wenn nicht. GNOME: nicht möglich.
 - **Dual-Boot-Abgleich**: Windows kann keine Linux-Laufwerke lesen – der Ordner muss auf dem
   Windows-Laufwerk (oder einer gemeinsamen NTFS/exFAT-Partition) liegen. Ist in Windows der
   **„Schnellstart“** an, darf Linux das Windows-Laufwerk nur lesen – dann in Windows Schnellstart

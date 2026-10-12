@@ -8,7 +8,26 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.130.0)
+### Neu in dieser Version (0.131.0)
+- **AluPC-Oberfläche als echter System-Desktop** – statt Windows-Explorer bzw. KDE-Plasma (Anpassen → „Als
+  System-Desktop“):
+  - **„Jetzt ausprobieren“** (nur diese Sitzung) oder **„Bei jeder Anmeldung“** (Windows: nur für diesen Benutzer,
+    ohne Administrator; KDE: mit und ohne systemd-Start). Ausschalten entfernt alles wieder.
+  - **Wie ein richtiger Desktop:** die Oberfläche liegt ganz unten hinter allen Programmen, die Taskleiste ist eine
+    eigene Leiste immer oben (unter Windows und KDE/X11 mit reserviertem Platz), offene Fenster in der Taskleiste –
+    jetzt auch unter KDE/Wayland, inklusive AluPC selbst. Unter Windows startet AluPC die Autostart-Programme
+    (das macht sonst der Explorer).
+  - **Knopf „Normaler Desktop“** in der Taskleiste: startet Explorer bzw. Plasma, AluPC läuft weiter. Die
+    AluPC-Oberfläche verschwindet erst, wenn der normale Desktop wirklich läuft – nie ein schwarzer Bildschirm.
+    Zurück: Infobereich → „AluPC als Desktop“ oder Strg+Alt+O.
+  - **Sicher:** Ein Wächter startet bei Absturz oder „Beenden“ von AluPC sofort den normalen Desktop. Fehlt AluPC
+    (KDE: deinstalliert/verschoben), startet direkt Plasma. Deinstallation und „Alle Daten löschen“ tragen den
+    AluPC-Desktop wieder aus; nach Update/Umzug trägt AluPC den neuen Pfad selbst ein.
+  - Nicht auf echter Hardware getestet (README → „Ehrliche Grenzen“); geprüft mit Tests, `systemd-analyze
+    verify` am echten Plasma-Dienst und der echten Windows-Registry in der CI.
+- „Oberfläche anpassen“ zweispaltig (passt auf Bildschirme mit 900 px Höhe).
+
+### Davor: 0.130.0
 - **Dual-Boot-Abgleich jetzt auch für die AluPC-Oberfläche (Desktop):** Hintergrundbild, Symbolgröße, Raster,
   Taskleiste mittig/links, Uhr mit Sekunden, Widgets an/aus samt Position und „Esc schließt“ gelten auf Windows
   und Linux gleich. Bewusst je System getrennt: angeheftete Programme (heißen unter Windows und Linux anders),

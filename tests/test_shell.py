@@ -126,3 +126,79 @@ def test_icon_lookup_without_theme(tmp_path, monkeypatch):
         assert sd.icon_file_for(str(f)).endswith("256x256/apps/meinprog.png")
     finally:
         sd.icon_index.cache_clear()
+
+
+def test_shell_as_system_desktop(env, monkeypatch, tmp_path):  # noqa: F811
+    """Als System-Desktop: Oberfläche ganz unten (hinter Programmen), Taskleiste als eigene Leiste oben, Programm
+    starten lässt den Desktop stehen, Knopf „Normaler Desktop“ startet Explorer/Plasma und erst DANN verschwindet
+    die Oberfläche (nie schwarzer Bildschirm). Ging der normale Desktop nicht, bleibt AluPC sichtbar."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QMessageBox
+
+    import alupc.pc_control as pc
+    from alupc.platform import desktop_shell as ds
+    from alupc.ui import shell_desktop
+
+    controller, window, _ = env
+    monkeypatch.setattr(shell_desktop, "desktop_dirs", lambda: [tmp_path])
+    monkeypatch.setattr(pc, "installed_apps", lambda: [])
+    monkeypatch.setattr(pc, "get_volume", lambda: 40)
+    monkeypatch.setattr(pc, "launch_installed", lambda n: (True, ""))
+    calls = []
+    normal = {"ok": True}
+    monkeypatch.setattr(ds, "stop_normal", lambda: calls.append("stop") or (True, "AluPC-Desktop ist zurück."))
+    monkeypatch.setattr(ds, "start_normal", lambda: calls.append("start") or
+                        ((True, "Normaler Desktop läuft.") if normal["ok"] else (False, "ging nicht")))
+    monkeypatch.setattr(ds, "set_work_area", lambda *a: calls.append(("area", a)))
+    monkeypatch.setattr(ds, "normal_running", lambda: False)
+    monkeypatch.setattr(ds, "run_startup_programs", lambda: calls.append("autostart") or [])
+
+    def wait_for(cond, sec=3):
+        end = time.monotonic() + sec
+        while time.monotonic() < end and not cond():
+            _pump(0.05)
+        return cond()
+
+    window.system_desktop(True)
+    sh = window.shell
+    assert wait_for(lambda: "stop" in calls)
+    assert sh.system and sh.isVisible() and sh.windowFlags() & Qt.WindowStaysOnBottomHint
+    bar = sh.bar_win
+    assert bar is not None and bar.isVisible() and bar.windowFlags() & Qt.WindowStaysOnTopHint
+    assert sh.bar.parentWidget() is bar and sh.bar.normal.isVisible()
+    assert abs(bar.geometry().bottom() - sh.geometry().bottom()) <= 1 and bar.height() == sh.bar.height()
+    sh._launch("Firefox")  # Programm starten: Desktop bleibt (liegt ja hinten)
+    assert sh.isVisible() and not sh.menu.isVisible()
+    window.toggle_shell()  # Strg+Alt+O schaltet den System-Desktop nicht weg
+    assert sh.isVisible()
+    assert sh._skip_window(sh.TITLE) and not sh._skip_window("AluPC")  # Hauptfenster gehört in die Taskleiste
+    # Zurück zum normalen Desktop – klappt nicht: AluPC bleibt sichtbar (sonst schwarz)
+    normal["ok"] = False
+    sh.bar.normal.click()
+    assert wait_for(lambda: "start" in calls) and _pump(0.2) is None
+    assert sh.system and sh.isVisible()
+    normal["ok"] = True
+    calls.clear()
+    sh.bar.normal.click()
+    assert wait_for(lambda: not sh.isVisible())
+    assert calls == ["start"] and not sh.system and sh.bar_win is None and sh.bar.parentWidget() is sh
+    assert not sh.bar.normal.isVisible()
+    # Anpassen: Abschnitt „Als System-Desktop“ – einschalten fragt nach und ruft enable()
+    from alupc.ui.shell_settings import ShellSettings
+
+    monkeypatch.setattr(ds, "status", lambda: {"kind": "kde-systemd", "supported": True, "why": "Statt Plasma.",
+                                               "enabled": False})
+    monkeypatch.setattr(ds, "enable", lambda: calls.append("enable") or (True, "Ab der nächsten Anmeldung …"))
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
+    dlg = ShellSettings(sh)
+    dlg.system_login.setChecked(True)
+    assert "enable" in calls and "nächsten Anmeldung" in dlg.system_msg.text()
+    assert dlg.system_now.text() == "Jetzt ausprobieren"
+    dlg.close()
+    # Start als System-Desktop (Wächter): Oberfläche sofort, unter Windows Autostart-Programme
+    calls.clear()
+    monkeypatch.setattr(ds, "IS_WINDOWS", True)
+    window.system_desktop(True, startup=True)
+    assert wait_for(lambda: "autostart" in calls) and sh.system and sh.isVisible() and "stop" not in calls
+    window.system_desktop(False)
+    wait_for(lambda: not sh.isVisible())

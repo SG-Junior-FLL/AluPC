@@ -19,6 +19,9 @@ def parse_args(argv):
     parser.add_argument("--zeigen", metavar="DATEI", help="Bild, Video, PDF oder Ordner (Diashow) auf Monitor 2 zeigen")
     parser.add_argument("link", nargs="?", help=argparse.SUPPRESS)  # alupc://… oder Datei (Rechtsklick, Links)
     parser.add_argument("--minimiert", action="store_true", help="Nur als Symbol in der Taskleiste starten")
+    # AluPC-Oberfläche als System-Desktop (statt Explorer/Plasma): Wächter bei der Anmeldung bzw. AluPC als Desktop
+    parser.add_argument("--desktop-waechter", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--desktop", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     # Für den automatischen Test des fertigen Programms (baut alles auf, zeigt nichts, beendet sich)
     parser.add_argument("--selbsttest", metavar="LOGDATEI", help=argparse.SUPPRESS)
@@ -139,6 +142,10 @@ def main(argv=None) -> int:
     restore_system_env()  # fertige Linux-Version: gestartete Programme (UxPlay …) bekommen die System-Bibliotheken
     args = parse_args(sys.argv[1:] if argv is None else argv)
     args.befehl = startup_command(args)
+    if args.desktop_waechter:  # ohne Qt: startet AluPC und bei dessen Ende den normalen Desktop
+        from .platform.desktop_shell import watchdog
+
+        return watchdog()
     if args.fingerabdruck_pam:
         from .platform.zw_fingerprint import pam_check
 
@@ -147,9 +154,11 @@ def main(argv=None) -> int:
         from .platform.windows_serial_login import run_request_file
 
         return run_request_file(args.fingerabdruck_windows)
-    if args.einbindung_entfernen:
-        from .platform import system_integration
+    if args.einbindung_entfernen:  # Deinstallation: auch „AluPC als Desktop“ austragen (sonst schwarzer Bildschirm)
+        from .platform import desktop_shell, system_integration
 
+        if desktop_shell.kind() and desktop_shell.enabled():
+            desktop_shell.disable()
         return 0 if system_integration.set_enabled(False)[0] else 1
     if args.luefter:
         from .platform.fans import apply_request
@@ -187,7 +196,11 @@ def main(argv=None) -> int:
     app.setQuitOnLastWindowClosed(False)
 
     # Läuft AluPC schon? Dann nur den Befehl weitergeben.
-    if send_to_running(args.befehl or "zeigen"):
+    if send_to_running("desktop" if args.desktop else (args.befehl or "zeigen")):
+        if args.desktop:
+            from .platform.desktop_shell import HANDED_OVER
+
+            return HANDED_OVER  # Wächter: das laufende AluPC ist jetzt der Desktop
         return 0
     if args.befehl and args.befehl != "zeigen":
         print("AluPC läuft nicht – Befehl wird nach dem Start ausgeführt.", file=sys.stderr)
@@ -240,6 +253,8 @@ def main(argv=None) -> int:
     def on_command(cmd):
         if cmd == "zeigen":
             window.show_normal_front()
+        elif cmd == "desktop":
+            window.system_desktop(True)
         else:
             controller.run_command(cmd)
 
@@ -257,7 +272,9 @@ def main(argv=None) -> int:
 
     _QT.singleShot(1500, controller.audio_routing.restore)  # virtuelles Mikro/Mithören wie zuletzt
     _QT.singleShot(2500, controller.vcam.restore)  # virtuelle Kamera wieder an, wenn sie an war
-    if (config.get("shell") or {}).get("autostart"):  # AluPC-Oberfläche statt Desktop
+    if args.desktop:  # als System-Desktop gestartet (Wächter): Oberfläche sofort, Hauptfenster bleibt zu
+        window.system_desktop(True, startup=True)
+    elif (config.get("shell") or {}).get("autostart"):  # AluPC-Oberfläche statt Desktop
         _QT.singleShot(900, lambda: window.toggle_shell(True))
     try:  # Rechtsklick „Auf Monitor 2 zeigen“ + alupc://-Links (Pfad nach Update/Umzug aktuell halten)
         from .platform import system_integration
@@ -265,13 +282,21 @@ def main(argv=None) -> int:
         system_integration.sync(config)
     except Exception:  # noqa: BLE001 - darf den Start nie verhindern
         pass
+    try:  # „AluPC als Desktop“: Pfad nach Update/Umzug aktuell halten
+        from .platform import desktop_shell
+
+        desktop_shell.refresh()
+    except Exception:  # noqa: BLE001
+        pass
     # AirPlay „immer bereit“: UxPlay mit AluPCs Name/Code im Hintergrund (übernimmt fremde Autostarts)
     from PySide6.QtCore import QTimer
 
     QTimer.singleShot(2500, controller.airplay_background)
     if args.befehl and args.befehl != "zeigen":
         on_command(args.befehl)
-    if not (args.minimiert or config["start_minimized"]) or not window.tray.isVisible():
+    if args.desktop:
+        pass  # Desktop-Modus: AluPC öffnet man über die Taskleiste der Oberfläche
+    elif not (args.minimiert or config["start_minimized"]) or not window.tray.isVisible():
         window.show()
     if not config["first_run_done"]:  # erster Start: alles mit einem Klick einrichten
         from PySide6.QtCore import QTimer

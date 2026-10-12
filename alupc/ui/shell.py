@@ -75,6 +75,12 @@ def activate_window(win_id: str) -> bool:
         import shutil
         import subprocess
 
+        from ..platform.linux_display import is_wayland
+
+        if is_wayland():  # wmctrl geht dort nicht – KWin holt das Fenster nach vorne
+            from ..platform.linux_windows import kwin_activate
+
+            return kwin_activate(win_id)
         if shutil.which("wmctrl"):
             return subprocess.run(["wmctrl", "-i", "-a", win_id], timeout=5).returncode == 0
     except (OSError, ValueError):
@@ -401,6 +407,16 @@ class Taskbar(QFrame):
         tray.addSpacing(6)
         self.gear = _round_button(icons.icon("sliders", "#e0e7ff", 20), "Oberfläche anpassen", 40, 20)
         tray.addWidget(self.gear)
+        # nur als System-Desktop: zurück zum normalen Desktop (Explorer bzw. Plasma)
+        self.normal = QToolButton()
+        self.normal.setText("Normaler Desktop")
+        self.normal.setIcon(icons.icon("window", "#e0e7ff", 18))
+        self.normal.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.normal.setCursor(Qt.PointingHandCursor)
+        self.normal.setToolTip("Zum normalen Desktop wechseln (Explorer bzw. Plasma) – AluPC läuft weiter")
+        self.normal.setStyleSheet(self.mon.styleSheet())
+        self.normal.setVisible(False)
+        tray.addWidget(self.normal)
         lay.addLayout(tray)
 
     def set_centered(self, on: bool) -> None:
@@ -421,6 +437,9 @@ class ShellWindow(QWidget):
         self._tiles: list[AppTile] = []
         self._windows: list = []
         self._win_key = None
+        self._listing = False
+        self.system = False  # als echter System-Desktop (statt Explorer/Plasma)
+        self.bar_win: QWidget | None = None
         self._bg: tuple[tuple, QPixmap] | None = None
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -455,6 +474,7 @@ class ShellWindow(QWidget):
         self.bar.gear.clicked.connect(self.customize)
         self.bar.mon.clicked.connect(self._monitor_menu)
         self.bar.wifi.clicked.connect(lambda: self._open_page(5))
+        self.bar.normal.clicked.connect(lambda: self.main_window.system_desktop(False))
         QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self._escape)
         self._clock = QTimer(self, interval=1000)
         self._clock.timeout.connect(self._tick)
@@ -515,20 +535,27 @@ class ShellWindow(QWidget):
         p.drawPixmap(0, 0, self._bg[1])
 
     # ---------------------------------------------------------------- Zeigen / Verlassen
-    def show_shell(self) -> None:
+    def _screen(self):
         screen = QGuiApplication.primaryScreen()
         out = self.controller.output_screen()
         if screen is out:  # nie auf Monitor 2
             screen = next((s for s in QGuiApplication.screens() if s is not out), screen)
+        return screen
+
+    def show_shell(self) -> None:
+        screen = self._screen()
         self.setGeometry(screen.geometry())
-        self.setWindowOpacity(0.0)
-        self.showFullScreen()
-        self.raise_()
-        self.activateWindow()
-        self._fade.stop()
-        self._fade.setStartValue(0.0)
-        self._fade.setEndValue(1.0)
-        self._fade.start()
+        if self.system:
+            self._show_as_desktop(screen)
+        else:
+            self.setWindowOpacity(0.0)
+            self.showFullScreen()
+            self.raise_()
+            self.activateWindow()
+            self._fade.stop()
+            self._fade.setStartValue(0.0)
+            self._fade.setEndValue(1.0)
+            self._fade.start()
         self.area.reload()
         self._tick()
         self._refresh_slow()
@@ -543,20 +570,94 @@ class ShellWindow(QWidget):
         self.menu.hide()
         self.vol.hide()
         self.hide()
+        if self.bar_win is not None:
+            self.bar_win.hide()
         self.save(open=False)
 
     def step_aside(self) -> None:
-        """Programm wurde gestartet/vorgeholt: Oberfläche weg, das Programm ist vorne."""
+        """Programm wurde gestartet/vorgeholt: Oberfläche weg, das Programm ist vorne. Als System-Desktop bleibt sie
+        (ganz unten, hinter dem Programm) – nur Startmenü/Lautstärke gehen zu."""
+        self.menu.hide()
+        self.vol.hide()
+        if self.system:
+            return
         self._clock.stop()
         self._slow.stop()
-        self.menu.hide()
         self.hide()
 
     def _escape(self) -> None:
         if self.menu.isVisible():
             self.menu.hide()
-        elif self.cfg()["esc_closes"]:
+        elif self.cfg()["esc_closes"] and not self.system:
             self.leave()
+
+    # ---------------------------------------------------------------- Als System-Desktop
+    BAR_TITLE = "AluPC – Taskleiste"
+
+    def set_system(self, on: bool) -> None:
+        """An: dieses Fenster ist der Desktop (immer ganz unten, hinter allen Programmen), die Taskleiste eine eigene
+        Leiste (immer oben, Platz dafür reserviert). Aus: wieder ein Vollbild mit Taskleiste darin."""
+        if bool(on) == self.system:
+            return
+        was = self.isVisible()
+        self.hide()
+        root = self.layout()
+        if on:
+            self.bar_win = QWidget(None, Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+                                   | Qt.WindowDoesNotAcceptFocus)
+            self.bar_win.setWindowTitle(self.BAR_TITLE)
+            self.bar_win.setObjectName("TaskbarWindow")  # eigenes Fenster: kein Desktop dahinter → fester Grund
+            self.bar_win.setAttribute(Qt.WA_StyledBackground, True)
+            self.bar_win.setStyleSheet("#TaskbarWindow { background: #0d1022; }")
+            self.bar_win.setAttribute(Qt.WA_X11NetWmWindowTypeDock, True)
+            lay = QVBoxLayout(self.bar_win)
+            lay.setContentsMargins(0, 0, 0, 0)
+            root.removeWidget(self.bar)
+            lay.addWidget(self.bar)
+            root.setContentsMargins(0, 0, 0, self.bar.height())  # Symbole nicht unter die Taskleiste legen
+            self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnBottomHint
+                                | Qt.WindowDoesNotAcceptFocus)
+            self.setAttribute(Qt.WA_X11NetWmWindowTypeDesktop, True)
+        else:
+            root.setContentsMargins(0, 0, 0, 0)
+            root.addWidget(self.bar)
+            if self.bar_win is not None:
+                self.bar_win.hide()
+                self.bar_win.deleteLater()
+                self.bar_win = None
+            self.setAttribute(Qt.WA_X11NetWmWindowTypeDesktop, False)
+            self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+        self.system = bool(on)
+        self.bar.normal.setVisible(self.system)
+        self._win_key = None
+        if was:
+            self.show_shell()
+
+    def _show_as_desktop(self, screen) -> None:
+        geo = screen.geometry()
+        h = self.bar.height()
+        self.setWindowOpacity(1.0)
+        self.show()
+        self.lower()
+        bar = (geo.left(), geo.bottom() + 1 - h, geo.width(), h)
+        self.bar_win.setGeometry(*bar)
+        self.bar_win.show()
+        self.bar_win.raise_()
+        if IS_WINDOWS:  # ohne Explorer reserviert niemand Platz für die Taskleiste
+            from ..platform.desktop_shell import set_work_area
+
+            set_work_area(geo.left(), geo.top(), geo.right() + 1, geo.bottom() + 1 - h)
+            return
+        from ..platform import linux_windows
+        from ..platform.linux_display import is_wayland
+
+        if is_wayland():  # Wayland: KWin legt die Fenster hin (Programme dürfen das dort nicht selbst)
+            linux_windows.kwin_window_props(self.TITLE, below=True, geo=(geo.x(), geo.y(), geo.width(), geo.height()))
+            linux_windows.kwin_window_props(self.BAR_TITLE, above=True, geo=bar)
+        else:
+            virt = screen.virtualGeometry()
+            linux_windows.set_x11_strut(int(self.bar_win.winId()), virt.bottom() - geo.bottom() + h, geo.left(),
+                                        geo.right())
 
     # ---------------------------------------------------------------- Startmenü / Popups
     def toggle_menu(self) -> None:
@@ -656,15 +757,39 @@ class ShellWindow(QWidget):
                 return self._app_icon(name, path)
         return icons.icon("window", "#e2e8f0", 24)
 
+    def _skip_window(self, title: str) -> bool:
+        # als Desktop gehört das AluPC-Fenster in die Taskleiste (es gibt dann kein Infobereich-Symbol)
+        return title in (self.TITLE, self.BAR_TITLE) if self.system else title.startswith("AluPC")
+
     def _fill_windows(self) -> None:
         from ..sources import window_backend
 
         backend = window_backend()
+        if not getattr(backend, "can_list", False) and not IS_WINDOWS:
+            from ..platform.linux_display import is_wayland
+
+            if is_wayland() and not self._listing:  # KDE/Wayland: KWin fragen (dauert etwas → im Hintergrund)
+                from ..platform.base import WindowInfo
+                from ..platform.kwin_capture import window_list
+
+                self._listing = True
+
+                def got(items):
+                    self._listing = False
+                    self._set_windows([WindowInfo(str(w["id"]), str(w.get("title", "")), str(w.get("app", "")),
+                                                  bool(w.get("minimized"))) for w in items or []])
+
+                run_async(lambda: window_list(skip=self._skip_window), got,
+                          lambda _e: setattr(self, "_listing", False), owner=self)
+            return
         try:
-            wins = [w for w in backend.list_windows() if not w.title.startswith("AluPC")] \
+            wins = [w for w in backend.list_windows() if not self._skip_window(w.title)] \
                 if getattr(backend, "can_list", False) else []
         except Exception:  # noqa: BLE001
             wins = []
+        self._set_windows(wins)
+
+    def _set_windows(self, wins: list) -> None:
         key = tuple((w.id, w.title) for w in wins)
         if key == self._win_key:
             return

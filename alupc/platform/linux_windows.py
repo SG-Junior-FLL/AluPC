@@ -259,3 +259,102 @@ def kwin_place_window(caption: str, x: int, y: int, w: int, h: int) -> bool:
         return True
     except Exception:  # noqa: BLE001
         return False
+
+
+PROPS_SCRIPT = r"""
+(function () {
+    var list = (workspace.windowList !== undefined) ? workspace.windowList() : workspace.clientList();
+    for (var i = 0; i < list.length; i++) {
+        var w = list[i];
+        if (w && String(w.caption) === %(caption)s) {
+            w.keepBelow = %(below)s;
+            w.keepAbove = %(above)s;
+            w.skipTaskbar = true;
+            w.skipSwitcher = true;
+            w.skipPager = true;
+            if (%(geo)s) { w.frameGeometry = %(geo)s; }
+        }
+    }
+})();
+"""
+
+ACTIVATE_SCRIPT = r"""
+(function () {
+    var list = (workspace.windowList !== undefined) ? workspace.windowList() : workspace.clientList();
+    for (var i = 0; i < list.length; i++) {
+        var w = list[i];
+        if (w && String(w.internalId) === %(id)s) {
+            w.minimized = false;
+            if (workspace.activeWindow !== undefined) { workspace.activeWindow = w; } else { workspace.activeClient = w; }
+        }
+    }
+})();
+"""
+
+
+def build_props_script(caption: str, below: bool, above: bool, geo: tuple[int, int, int, int] | None) -> str:
+    g = "null" if geo is None else json.dumps({"x": geo[0], "y": geo[1], "width": geo[2], "height": geo[3]})
+    return PROPS_SCRIPT % {"caption": json.dumps(caption), "below": json.dumps(below), "above": json.dumps(above),
+                           "geo": g}
+
+
+def kwin_window_props(caption: str, below: bool = False, above: bool = False,
+                      geo: tuple[int, int, int, int] | None = None) -> bool:
+    """KDE: eigenes Fenster ganz unten/oben halten, aus Taskleiste und Alt+Tab nehmen, an eine Stelle legen
+    (unter Wayland dürfen Programme das nicht selbst – AluPC-Oberfläche als Desktop braucht es)."""
+    if not dbus_util.HAVE_JEEPNEY:
+        return False
+    try:
+        run_kwin_script(build_props_script(caption, below, above, geo))
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def kwin_activate(internal_id: str) -> bool:
+    """KDE/Wayland: Fenster (KWin-Kennung) nach vorne holen – wmctrl geht dort nicht."""
+    if not dbus_util.HAVE_JEEPNEY:
+        return False
+    try:
+        run_kwin_script(ACTIVATE_SCRIPT % {"id": json.dumps(str(internal_id))})
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def set_x11_strut(win_id: int, bottom: int, start_x: int, end_x: int) -> bool:
+    """X11: am unteren Rand Platz für ein Fenster (Taskleiste) reservieren – maximierte Fenster bleiben darüber.
+    `bottom` zählt vom unteren Rand des ganzen (Mehr-Monitor-)Bildschirms."""
+    if is_wayland():
+        return False
+    import ctypes
+    import ctypes.util
+
+    name = ctypes.util.find_library("X11")
+    if not name:
+        return False
+    try:
+        x = ctypes.CDLL(name)
+        x.XOpenDisplay.restype = ctypes.c_void_p
+        x.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        x.XInternAtom.restype = ctypes.c_ulong
+        x.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+        x.XChangeProperty.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_int,
+                                      ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+        x.XFlush.argtypes = [ctypes.c_void_p]
+        x.XCloseDisplay.argtypes = [ctypes.c_void_p]
+        dpy = x.XOpenDisplay(None)
+        if not dpy:
+            return False
+        try:
+            partial = (ctypes.c_long * 12)(0, 0, 0, bottom, 0, 0, 0, 0, 0, 0, start_x, end_x)
+            simple = (ctypes.c_long * 4)(0, 0, 0, bottom)
+            for atom_name, data, n in ((b"_NET_WM_STRUT_PARTIAL", partial, 12), (b"_NET_WM_STRUT", simple, 4)):
+                atom = x.XInternAtom(dpy, atom_name, 0)
+                x.XChangeProperty(dpy, int(win_id), atom, 6, 32, 0, ctypes.cast(data, ctypes.c_void_p), n)  # CARDINAL
+            x.XFlush(dpy)
+        finally:
+            x.XCloseDisplay(dpy)
+        return True
+    except (OSError, AttributeError, TypeError, ValueError):
+        return False

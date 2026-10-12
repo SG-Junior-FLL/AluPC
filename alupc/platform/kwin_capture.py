@@ -217,7 +217,7 @@ def build_window_list_script(service: str) -> str:
                                  "iface": json.dumps(WINDOWS_IFACE)}
 
 
-def window_list(timeout: float = 3.0) -> list[dict]:
+def window_list(timeout: float = 3.0, skip=lambda title: title.startswith("AluPC")) -> list[dict]:
     """Programmfenster unter KDE/Wayland: [{"id", "title", "app", "minimized"}] – die „id“ ist KWins
     Kennung für capture_window. Leer, wenn es nicht geht (kein KDE/Wayland, KWin antwortet nicht)."""
     import json
@@ -252,7 +252,7 @@ def window_list(timeout: float = 3.0) -> list[dict]:
                 raw = msg.body[0][1] if isinstance(msg.body[0], tuple) else msg.body[0]
                 try:
                     wins = json.loads(raw)
-                    return [w for w in wins if w.get("id") and not str(w.get("title", "")).startswith("AluPC")]
+                    return [w for w in wins if w.get("id") and not skip(str(w.get("title", "")))]
                 except (ValueError, TypeError):
                     return []
         return []
