@@ -30,12 +30,13 @@ jobs:
         run: |
           set -o pipefail
           timeout -k 30 1200 python -X faulthandler -m pytest -v --timeout=240 --timeout-method=thread 2>&1 | tee tests.log || {
-            # Fehler und Absturz-Stapel als Hinweise (ohne Anmeldung lesbar)
-            grep -E "^(FAILED|E   |ERROR)|Fatal Python|Timeout|File \"/home/runner/work" tests.log | head -40 | sed 's/^/::error::/'
-            grep -B2 -A30 "Fatal Python" tests.log | grep -E "File|Fatal|line" | head -30 | sed 's/^/::warning::/'
-            # Absturzstelle im Hauptprogramm (faulthandler: „Current thread … (most recent call first)“)
-            grep -A24 "^Current thread" tests.log | head -26 | sed 's/^/::error title=Absturzstelle::/'
-            grep -E "::test_" tests.log | tail -3 | sed 's/^/::error title=Zuletzt::/'
+            # Fehler und Absturz-Stapel als Hinweise (ohne Anmeldung lesbar). GitHub zeigt nur 10 Hinweise je Art –
+            # darum zuerst je EIN Hinweis mit dem ganzen Stapel des abgestürzten Threads und dem letzten Test.
+            crash=$(grep -A30 "^Current thread" tests.log | head -32 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            [ -n "$crash" ] && echo "::error title=Absturzstelle::$crash"
+            last=$(grep -E "::test_" tests.log | tail -3 | awk '{printf "%s%%0A", $0}')
+            [ -n "$last" ] && echo "::error title=Zuletzt::$last"
+            grep -E "^(FAILED|E   |ERROR)|Timeout" tests.log | head -8 | sed 's/^/::error::/'
             exit 1; }
       - name: Ton echt – PulseAudio mit 2 Lautsprechern und 2 Mikrofonen (Gerät wählen, Pegel, stumm)
         run: |

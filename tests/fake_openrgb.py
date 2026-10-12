@@ -54,6 +54,9 @@ def device(name: str, dtype: int, zones: list[tuple[str, int, bool, int]], versi
     return struct.pack("<I", 4 + len(body)) + body
 
 
+ALIVE: list["FakeOpenRGB"] = []  # conftest schließt sie nach jedem Test (keine Threads, die ewig in accept() hängen)
+
+
 class FakeOpenRGB:
     def __init__(self, version: int = 4, silent_version: bool = False):
         self.version = version
@@ -67,7 +70,20 @@ class FakeOpenRGB:
         self.sock.listen(4)
         self.port = self.sock.getsockname()[1]
         self.used_version = None
+        self.conns: list[socket.socket] = []
+        ALIVE.append(self)
         threading.Thread(target=self._serve, daemon=True).start()
+
+    def close(self) -> None:
+        for s in [self.sock] + self.conns:
+            try:
+                s.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                s.close()
+            except OSError:
+                pass
 
     def _serve(self):
         while True:
@@ -75,6 +91,7 @@ class FakeOpenRGB:
                 conn, _ = self.sock.accept()
             except OSError:
                 return
+            self.conns.append(conn)
             threading.Thread(target=self._client, args=(conn,), daemon=True).start()
 
     def _client(self, conn):
@@ -127,6 +144,3 @@ class FakeOpenRGB:
                 n = struct.unpack("<H", body[4:6])[0]
                 return [tuple(body[6 + 4 * i:9 + 4 * i]) for i in range(n)]
         return []
-
-    def close(self):
-        self.sock.close()

@@ -25,3 +25,19 @@ def pytest_runtest_logreport(report):
 
 # Wie beim echten Start: Videoplayer darf RTP/UDP lesen (AirPlay)
 os.environ.setdefault("QT_FFMPEG_PROTOCOL_WHITELIST", "file,crypto,data,udp,rtp,http,https,tcp,tls")
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _close_fake_servers():
+    """Nach jedem Test die OpenRGB-Testserver schließen – sonst hängen Dutzende Threads bis zum Ende in accept()
+    (Verdacht beim seltenen Segfault in der Linux-CI)."""
+    yield
+    try:
+        import fake_openrgb
+    except ImportError:
+        return
+    while fake_openrgb.ALIVE:
+        fake_openrgb.ALIVE.pop().close()
