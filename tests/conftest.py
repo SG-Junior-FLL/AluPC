@@ -53,7 +53,7 @@ def pytest_sessionfinish(session, exitstatus):
     except ImportError:
         return
     app = QApplication.instance()
-    if app is None:
+    if not isinstance(app, QApplication):  # keine oder nur QGuiApplication/QCoreApplication (Windows-Logiktests)
         return
     for widget in app.topLevelWidgets():
         widget.close()
