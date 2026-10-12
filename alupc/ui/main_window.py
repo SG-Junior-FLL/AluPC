@@ -2010,6 +2010,7 @@ class MainWindow(QMainWindow):
 
         if self.shell is None:
             self.shell = ShellWindow(self, self.controller)
+            self.destroyed.connect(self.shell.deleteLater)  # eigenes Fenster: mit dem Hauptfenster aufräumen
         on = (not self.shell.isVisible()) if on is None else on
         if on:
             self.shell.show_shell()

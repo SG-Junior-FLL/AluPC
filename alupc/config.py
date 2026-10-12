@@ -135,7 +135,9 @@ DEFAULTS: dict = {
     # Seite „Audio“: virtuelle Geräte an, welche Mikrofone ins virtuelle Mikro, virtueller Ausgang ins Mikro, Mithören
     "audio_mixer": {"virtual": False, "mic_inputs": [], "out_to_mic": True, "listen": False},
     # AluPC-Oberfläche (Vollbild statt Desktop): beim Start zeigen, angeheftete Programme
-    "shell": {"autostart": False, "pinned": [], "open": False},
+    "shell": {"autostart": False, "pinned": [], "open": False, "wallpaper": "", "desktop_icons": True, "icon_size": 56,
+              "snap": True, "pos": {}, "taskbar_center": True, "clock_seconds": False,
+              "widgets": {"clock": True, "monitor": True, "quick": True}, "esc_closes": False},
     # Monitor 2 als virtuelle Kamera (vcam.py): an (beim Start wieder an), Größe, Bilder pro Sekunde, gespiegelt
     "vcam": {"on": False, "size": "720p", "fps": 20, "mirror": False},
     # Foto-Wand (photowall.py): Ordner (leer = Bilder/AluPC Foto-Wand), Collage oder Diashow, Codes zeigen

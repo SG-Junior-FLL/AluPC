@@ -213,10 +213,24 @@ step(lambda: (window._go(6), save(window, "audio", "Audio & Kamera – Mischpult
 
 
 def _shell_tour():
-    # feste Programm-Liste: auf Windows und Linux gleich (sonst stünden die installierten Programme da)
+    # feste Programme und ein Beispiel-Desktop: auf Windows und Linux gleich (sonst stünde da, was installiert ist)
     import alupc.pc_control as pcc
+    from alupc.ui import shell_desktop
 
-    real = pcc.installed_apps
+    real, real_dirs = pcc.installed_apps, shell_desktop.desktop_dirs
+    desk = TMP / "Desktop"
+    if not desk.exists():
+        desk.mkdir()
+        for d in ("Schule", "Projekte", "Fotos vom Ausflug"):
+            (desk / d).mkdir()
+        for f in ("Referat.pdf", "Notizen.txt", "Einkaufsliste.docx"):
+            (desk / f).write_text("x")
+        from PySide6.QtGui import QColor, QImage
+
+        img = QImage(320, 200, QImage.Format_RGB32)
+        img.fill(QColor("#38bdf8"))
+        img.save(str(desk / "Urlaub.jpg"))
+    shell_desktop.desktop_dirs = lambda: [desk]
     pcc.installed_apps = lambda: [(n, str(TMP / f"{n}.desktop")) for n in (
         "Firefox", "Spotify", "VLC", "GIMP", "LibreOffice Writer", "Discord", "Steam", "OBS Studio", "Zoom",
         "Visual Studio Code", "Thunderbird", "Rechner")]
@@ -225,12 +239,26 @@ def _shell_tour():
                                              "pinned": ["Firefox", "Spotify", "Discord"]}
         window.toggle_shell(True)
         pump(1.2)
-        save(window.shell, "oberflaeche", "AluPC-Oberfläche (Vollbild)", "App",
-             "Statt des Desktops: große Uhr, Suche/„Frag AluPC“, Programme (angeheftete auch im Dock), Monitor 2 "
-             "mit Schaltern, AluPC-Aktionen, Lautstärke, offene Fenster – auf dem AluPC-Hintergrundbild.")
+        save(window.shell, "oberflaeche", "AluPC-Oberfläche (eigener Desktop)", "App",
+             "Statt des Desktops: Symbole aus dem Desktop-Ordner (frei verschiebbar), Widgets (Uhr, Monitor 2, "
+             "AluPC-Aktionen), eigene Taskleiste mit Start, angehefteten Programmen, offenen Fenstern, Lautstärke, "
+             "Uhr – auf dem AluPC-Hintergrundbild.")
+        window.shell.toggle_menu()
+        pump(0.5)
+        save(window.shell.menu, "oberflaeche-start", "AluPC-Oberfläche – Startmenü", "App",
+             "Suche und „Frag AluPC“, alle Programme mit Logos, angeheftete zuerst; AluPC, Anpassen, Sperren, Energie.")
+        window.shell.menu.hide()
+        from alupc.ui.shell_settings import ShellSettings
+
+        dlg = ShellSettings(window.shell)
+        dlg.show()
+        save(dlg, "oberflaeche-anpassen", "AluPC-Oberfläche – Anpassen", "App",
+             "Hintergrund (Aurora oder eigenes Bild), Desktop-Symbole (Größe, Raster), Taskleiste (mittig/links, "
+             "Sekunden), Widgets, Verhalten.")
+        dlg.close()
         window.toggle_shell(False)
     finally:
-        pcc.installed_apps = real
+        pcc.installed_apps, shell_desktop.desktop_dirs = real, real_dirs
 
 
 step(_shell_tour, "Oberfläche")

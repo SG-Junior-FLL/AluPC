@@ -8,7 +8,21 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.126.0)
+### Neu in dieser Version (0.127.0)
+- **AluPC-Oberfläche = eigener Desktop:**
+  - **Desktop-Ordner automatisch:** Dateien, Ordner und Verknüpfungen von deinem Desktop erscheinen als Symbole
+    (Ordner zuerst, Bilder als Vorschau, Programme mit Logo). Neue Dateien tauchen von selbst auf.
+  - **Frei verschiebbar:** Symbole (am Raster oder ganz frei) und Widgets (Uhr, Monitor 2, AluPC-Aktionen) einfach
+    ziehen – die Position wird gemerkt. Doppelklick öffnet, Rechtsklick: Öffnen, Im Ordner zeigen, Anordnen.
+  - **Eigene Taskleiste:** Start-Knopf mit Startmenü (Suche + „Frag AluPC“, alle Programme mit Logos), angeheftete
+    Programme, offene Fenster mit Logo; rechts Monitor 2, AluPC-WLAN, Lautstärke (mit Regler), Akku, Uhr, Anpassen.
+  - **Echte App-Logos:** Windows aus den Verknüpfungen, Linux aus dem Icon-Theme – und wenn Qt kein Theme kennt,
+    sucht AluPC selbst (hicolor, Breeze, Adwaita, Papirus, Pixmaps, Flatpak). Erst ohne Treffer: Buchstaben-Kachel.
+  - **Anpassen:** Hintergrund (Aurora oder eigenes Bild), Symbolgröße, Raster, Taskleiste mittig/links, Uhr mit
+    Sekunden, Widgets an/aus, beim Start zeigen, „Esc schließt“ (Standard: aus). Der Knopf „Zum Desktop“ ist weg –
+    schließen über Strg+Alt+O oder „Anpassen → Oberfläche schließen“.
+
+### Davor: 0.126.0
 - **Chat als Pop-up:** Seite „Gäste“ → Anzeige „Pop-up (kurz, ohne QR)“: jede neue Nachricht ploppt auf
   Monitor 2 auf (mit Rand in der Namensfarbe), bleibt ein paar Sekunden (Standard 8 s) und blendet aus – ohne
   QR-Code, ohne Liste. Auch im Overlay-Editor und als Befehl „Chat als Pop-up / Liste umschalten“.
