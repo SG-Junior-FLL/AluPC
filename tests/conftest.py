@@ -41,3 +41,25 @@ def _close_fake_servers():
         return
     while fake_openrgb.ALIVE:
         fake_openrgb.ALIVE.pop().close()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Am Ende alle übrig gebliebenen Fenster löschen, solange Qt (samt QML/WebEngine) noch läuft. Sonst räumt PySide
+    sie erst beim Beenden von Python auf – in falscher Reihenfolge; das gab selten einen Segfault nach allen Tests
+    (gdb: destroyQCoreApplication → ~QWidget → ~QQmlData → ~QPropertyObserver)."""
+    try:
+        from PySide6.QtCore import QCoreApplication, QEvent
+        from PySide6.QtWidgets import QApplication
+    except ImportError:
+        return
+    app = QApplication.instance()
+    if app is None:
+        return
+    for widget in app.topLevelWidgets():
+        widget.close()
+        widget.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+    import gc
+
+    gc.collect()
