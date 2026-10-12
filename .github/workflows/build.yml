@@ -33,6 +33,8 @@ jobs:
             # Fehler und Absturz-Stapel als Hinweise (ohne Anmeldung lesbar)
             grep -E "^(FAILED|E   |ERROR)|Fatal Python|Timeout|File \"/home/runner/work" tests.log | head -40 | sed 's/^/::error::/'
             grep -B2 -A30 "Fatal Python" tests.log | grep -E "File|Fatal|line" | head -30 | sed 's/^/::warning::/'
+            # Absturzstelle im Hauptprogramm (faulthandler: „Current thread … (most recent call first)“)
+            grep -A24 "^Current thread" tests.log | head -26 | sed 's/^/::error title=Absturzstelle::/'
             grep -E "::test_" tests.log | tail -3 | sed 's/^/::error title=Zuletzt::/'
             exit 1; }
       - name: Ton echt – PulseAudio mit 2 Lautsprechern und 2 Mikrofonen (Gerät wählen, Pegel, stumm)
