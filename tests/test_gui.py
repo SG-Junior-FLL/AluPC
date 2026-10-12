@@ -2496,7 +2496,8 @@ def test_new_screensavers_and_design_pages(env):
         v.stop()
     for key in DESIGNS:
         img = render_preview(design_defaults(key), 320, 180)
-        colors = {img.pixelColor(x, y).name() for x in range(0, 320, 8) for y in range(0, 180, 8)}
+        # dicht abtasten: „glitch“ ist zufällig und hat manchmal fast nur Hintergrund + Schrift (Windows-CI 0.128)
+        colors = {img.pixelColor(x, y).name() for x in range(0, 320, 2) for y in range(0, 180, 2)}
         assert len(colors) > 3, key
     assert wifi_payload("Mein;Netz", "p:w") == r"WIFI:T:WPA;S:Mein\;Netz;P:p\:w;;"
     assert wifi_payload("Offen", "") == "WIFI:T:nopass;S:Offen;P:;;"
