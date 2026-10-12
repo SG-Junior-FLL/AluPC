@@ -8,7 +8,17 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.124.0)
+### Neu in dieser Version (0.125.0)
+- **Handy-Steuerung fürs iPad:** ab Tablet-Breite Leiste links statt unten, Live-Bild und „Monitor 2“ oben, Karten
+  zweispaltig; quer bleibt das Live-Bild links stehen, die Steuerung scrollt daneben. **Zeichnen** mit großem Bild
+  und Werkzeugen daneben, **Folien** mit riesigen Weiter/Zurück-Knöpfen und großem Touchpad nebeneinander,
+  **Senden** in Spalten. Größere Knöpfe, Farbe Weiß auch im hellen Modus sichtbar. Handy-Ansicht wie gewohnt.
+- **Chat, Foto-Wand, Abstimmung und WLAN-Anmeldung** auf dem iPad als Karte bzw. Spalte in der Mitte statt
+  quer gestreckt; Foto-Wand mit mehr Fotos pro Reihe.
+- **Stabiler unter Windows:** Seite „Audio & Kamera“ und AluPC-Oberfläche verwerfen späte Antworten, wenn das
+  Fenster schon zu ist (konnte AluPC beim Schließen abstürzen lassen); Pegelmessung endet sicher.
+
+Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
 - **Chat per QR (Seite „Gäste“):** Handys schreiben übers AluPC-WLAN (Anmeldeseite → „Chat“ oder Seiten-Code),
   die Nachrichten erscheinen **direkt als Overlay** auf Monitor 2 (mit QR-Code zum Mitschreiben) oder als große
   Chat-Wand. Schutz: Schimpfwörter-Filter + eigene Wörter, Links ausgeblendet, höchstens 4 Nachrichten in 10 s je

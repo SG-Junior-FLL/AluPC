@@ -529,7 +529,9 @@ button:disabled{{opacity:.45}}
 .av{{padding:6px 0;font-size:26px;border-radius:12px;background:#1e293b;border:2px solid transparent}}
 .av.sel{{border-color:#6366f1;background:#334155}}
 details ul{{padding-left:18px}}details{{color:#94a3b8;font-size:14px;line-height:1.45;background:#0f172a;border-radius:14px;padding:10px 14px}}
-summary{{cursor:pointer;font-weight:700;color:#cbd5e1}}details b{{color:#f1f5f9}}</style></head>
+summary{{cursor:pointer;font-weight:700;color:#cbd5e1}}details b{{color:#f1f5f9}}
+@media(min-width:700px){{.card{{max-width:500px;padding:36px;border-radius:30px;background:rgba(15,23,42,.6);
+border:1px solid #1e293b;box-shadow:0 20px 60px rgba(0,0,0,.4)}}}}</style></head>
 <body><div class="card"><div class="logo">📶</div><h1>AluPC-WLAN</h1>
 <p>Du bist verbunden. Wie heißt du?</p>
 <input id="n" maxlength="16" placeholder="Dein Name" autocomplete="off" enterkeyhint="go">

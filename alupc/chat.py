@@ -215,6 +215,14 @@ button:disabled { opacity: .45; }
 #who { display: flex; gap: 8px; padding: 0 12px 8px; }
 #who input { font-size: 15px; padding: 9px 12px; }
 #info { color: #fca5a5; font-size: 13.5px; text-align: center; min-height: 18px; padding: 0 12px; }
+/* iPad/Tablet: Gespräch als Spalte in der Mitte, Eingabe als schwebende Leiste */
+@media (min-width: 700px) {
+  header, #who, #list, #info, form { width: min(100% - 32px, 760px); margin-left: auto; margin-right: auto; }
+  header { padding: 22px 4px 14px; } #who { padding: 0 0 10px; } #list { padding: 6px 0 14px; }
+  .m { max-width: 72%; } .m .t { font-size: 17px; }
+  form { border: 1px solid rgba(255,255,255,.1); border-radius: 22px; margin-bottom: calc(16px + env(safe-area-inset-bottom));
+         padding: 10px; background: rgba(15,23,42,.85); box-shadow: 0 14px 40px rgba(0,0,0,.35); }
+}
 </style></head><body>
 <header><div class="logo">💬</div><div><b>Chat</b><small>Erscheint groß auf Monitor 2 · bitte freundlich</small></div>
 <a href="/anmelden">Zurück</a></header>

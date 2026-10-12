@@ -221,6 +221,35 @@ def test_audio_page_builds(env, monkeypatch):  # noqa: F811
     page.close()
 
 
+def test_audio_page_late_answer_after_delete(env, monkeypatch):  # noqa: F811
+    """Antwort von mixer.snapshot kommt erst, nachdem die Seite gelöscht ist (Windows: COM ist langsam) – darf
+    nichts mehr an der Seite anfassen (sonst Absturz). Pegelmessung endet auch ohne „hide“."""
+    import threading
+    import time
+
+    import shiboken6
+    from PySide6.QtWidgets import QApplication
+
+    from alupc.ui.audio_page import AudioPage
+
+    controller, _window, _ = env
+    gate, filled = threading.Event(), []
+    monkeypatch.setattr(mixer, "snapshot", lambda: (gate.wait(5), {"out": [], "in": [], "apps": []})[1])
+    page = AudioPage(controller)
+    monkeypatch.setattr(page, "_fill", lambda: filled.append(1))
+    stopped = []
+    monkeypatch.setattr(page.meters, "stop", lambda: stopped.append(1))
+    page.reload()
+    shiboken6.delete(page)  # wie beim Schließen des Fensters: C++-Seite weg, Python-Hülle bleibt
+    assert not shiboken6.isValid(page) and stopped
+    gate.set()
+    end = time.monotonic() + 2
+    while time.monotonic() < end:
+        QApplication.processEvents()
+        time.sleep(0.02)
+    assert filled == []  # späte Antwort ist verworfen
+
+
 class FakeCam:
     def __init__(self, width, height, fps, fmt=None, device=None, backend=None):
         self.width, self.height, self.frames, self.device = width, height, [], device or "/dev/video42"

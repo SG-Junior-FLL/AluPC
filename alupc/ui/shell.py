@@ -422,7 +422,7 @@ class ShellWindow(QWidget):
                 self.vol_label.setText(f"{int(v)} %")
             self._mute_icon()
 
-        run_async(pc_control.get_volume, got_volume)
+        run_async(pc_control.get_volume, got_volume, owner=self)
         self._fill_windows()
 
     def _fill_windows(self) -> None:

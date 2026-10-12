@@ -194,6 +194,13 @@ input[type=file] { display: none; }
 h2 { font-size: 15px; color: #cbd5e1; margin: 8px 0 0; }
 #grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 #grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; background: #1e293b; }
+/* iPad/Tablet: breiter, mehr Fotos pro Reihe */
+@media (min-width: 700px) {
+  main { max-width: 900px; padding: 28px 28px 48px; gap: 16px; }
+  label.pick { padding: 34px 16px; font-size: 24px; }
+  #grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  #grid img { border-radius: 14px; }
+}
 </style></head><body><main>
 <header><div class="logo">📷</div><div><b>Foto-Wand</b><small>Deine Fotos erscheinen groß auf Monitor 2</small></div>
 <a href="/anmelden">Zurück</a></header>

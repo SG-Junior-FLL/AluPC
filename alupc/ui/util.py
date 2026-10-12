@@ -52,11 +52,20 @@ def wait_for_background(ms: int = 3000) -> None:
     QThreadPool.globalInstance().waitForDone(ms)
 
 
-def run_async(fn, on_done=None, on_error=None, on_progress=None):
+def run_async(fn, on_done=None, on_error=None, on_progress=None, owner=None):
     """`fn` im Hintergrund ausführen; Rückmeldungen kommen im GUI-Thread an.
 
     Mit `on_progress` bekommt `fn` eine Funktion status(text, stufe, gesamt) übergeben.
+    Mit `owner` (ein Widget) kommen die Rückmeldungen nur an, solange es das Widget noch gibt – sonst würde eine
+    späte Antwort auf schon gelöschte Elemente zugreifen (unter Windows ein harter Absturz).
     """
+    if owner is not None:
+        import shiboken6
+
+        def guard(cb):
+            return None if cb is None else (lambda *a: cb(*a) if shiboken6.isValid(owner) else None)
+
+        on_done, on_error, on_progress = guard(on_done), guard(on_error), guard(on_progress)
     signals = _Signals()
     _running.add(signals)
 

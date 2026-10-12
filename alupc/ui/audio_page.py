@@ -242,11 +242,11 @@ class Strip(QFrame):
 
     def _default(self) -> None:
         dev, kind = self.item["id"], self.kind
-        run_async(lambda: mixer.set_default(kind, dev), lambda _r: self.page.reload())
+        run_async(lambda: mixer.set_default(kind, dev), lambda _r: self.page.reload(), owner=self.page)
 
     def _move(self, _i: int) -> None:
         dev, sid, kind = self.target.currentData(), self.item["id"], self.kind
-        run_async(lambda: mixer.move_stream(kind, sid, dev), lambda r: self.page.show_result(r))
+        run_async(lambda: mixer.move_stream(kind, sid, dev), lambda r: self.page.show_result(r), owner=self.page)
 
 
 class AudioPage(QWidget):
@@ -257,6 +257,7 @@ class AudioPage(QWidget):
         self.controller = controller
         self.routing = controller.audio_routing
         self.meters = Meters()
+        self.destroyed.connect(lambda *_, m=self.meters: m.stop())  # Fenster weg ohne „hide“: Messung trotzdem beenden
         self._snap: dict = {}
         self._signature = None
         self._strips: dict[str, Strip] = {}
@@ -553,7 +554,7 @@ class AudioPage(QWidget):
         def failed(_e):
             self._busy = False
 
-        run_async(mixer.snapshot, done, failed)
+        run_async(mixer.snapshot, done, failed, owner=self)
 
     def _routes_for(self, item_id: str, kind: str, virtual_out: bool) -> list[tuple[str, str, bool]]:
         """Weiterleitungs-Knöpfe eines Kanals: Mikros und virtuelle Ausgänge → jedes virtuelle Mikro (+ Mithören)."""
@@ -584,7 +585,7 @@ class AudioPage(QWidget):
                 not getattr(self, "_reapplied", False):
             self._reapplied = True  # eingeschaltet, aber weg (Audio-Dienst neu gestartet) → neu anlegen
             self.routing.apply()
-            QTimer.singleShot(300, self.reload)
+            QTimer.singleShot(300, self, self.reload)
         outs, ins, apps = snap.get("out", []), snap.get("in", []), snap.get("apps", [])
         vdevs = {d["id"] for d in self.routing.devices() if d["kind"] == "out"} if self.routing.cfg()["virtual"] \
             else set()

@@ -98,6 +98,12 @@ button .n { float: right; color: #c7d2fe; font-variant-numeric: tabular-nums; }
 button:disabled { opacity: .9; }
 p.info { color: #94a3b8; font-size: 15px; text-align: center; margin-top: 18px; }
 p.ok { color: #86efac; }
+@media (min-width: 700px) {  /* iPad/Tablet: größer, als Karte */
+  body { display: flex; align-items: center; }
+  main { max-width: 640px; width: 100%; padding: 40px; margin: 40px auto; background: rgba(15,23,42,.55);
+         border: 1px solid rgba(255,255,255,.08); border-radius: 28px; }
+  h1 { font-size: 32px; } button { font-size: 20px; padding: 20px 22px; }
+}
 </style></head><body><main>
 <div class="tag">Abstimmung</div><h1 id="q">…</h1><div id="opts"></div><p class="info" id="info"></p>
 </main><script>

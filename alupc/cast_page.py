@@ -105,6 +105,7 @@ input[type=range] { width:100%; accent-color:#8b5cf6; height:30px; }
 .bar { height:8px; border-radius:4px; background:var(--line); overflow:hidden; margin-top:10px; display:none; }
 .bar > div { height:100%; width:0; background:var(--on); transition:width .15s; }
 .scenes { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; margin-top:8px; }
+#recent { grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); }
 .preview { position:relative; border-radius:16px; overflow:hidden; background:#000; aspect-ratio:16/9; touch-action:none;
            box-shadow:0 10px 30px rgba(0,0,0,.35); }
 .preview img, .preview canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block;
@@ -135,6 +136,7 @@ input[type=range] { width:100%; accent-color:#8b5cf6; height:30px; }
 .tools button { flex-direction:column; gap:4px; padding:10px 4px; font-size:12.5px; }
 .colors { display:flex; gap:10px; justify-content:space-between; margin-top:12px; }
 .colors button { width:38px; height:38px; flex:none; border-radius:50%; padding:0; border:3px solid transparent; }
+.colors button { box-shadow:inset 0 0 0 1px rgba(127,127,127,.35); }  /* Weiß auf heller Karte sichtbar */
 .colors button.sel { border-color:var(--text); transform:scale(1.08); }
 /* Seitenverhältnis = Monitor 2 (per JS aus dem Live-Bild), damit Finger und Monitor genau übereinstimmen */
 /* Vergrößern: das Bild hängt dann direkt an der Seite (sonst läge es unter der schwarzen Abdeckung) */
@@ -162,8 +164,9 @@ nav button { flex:1; background:transparent; color:var(--muted); padding:8px 4px
 nav button.sel { color:#fff; }
 nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
 /* Leuchtpunkt, der zum gewählten Tab gleitet */
-#nav-pill { position:absolute; top:6px; bottom:6px; left:6px; width:0; border-radius:16px; background:var(--on);
-            box-shadow:0 6px 18px rgba(99,102,241,.45); transition:left .38s cubic-bezier(.3,1.35,.5,1), width .38s; }
+#nav-pill { position:absolute; top:6px; height:0; left:6px; width:0; border-radius:16px; background:var(--on);
+            box-shadow:0 6px 18px rgba(99,102,241,.45);
+            transition:left .38s cubic-bezier(.3,1.35,.5,1), top .38s cubic-bezier(.3,1.35,.5,1), width .38s, height .38s; }
 .page { display:none; animation:fade .18s ease; }
 .page.sel { display:block; }
 @keyframes fade { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
@@ -175,6 +178,89 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
 .toast.bad { background:var(--bad); }
 #login { display:none; margin-top:20px; }
 .hide { display:none !important; }
+/* Feinschliff für alle Größen */
+.side { min-width:0; }
+.page.sel .side > .card, .page.sel #control > .card { animation:rise .42s cubic-bezier(.2,.9,.25,1.15) both; }
+.page.sel #control > .card:nth-child(2) { animation-delay:.04s; } .page.sel #control > .card:nth-child(3) { animation-delay:.08s; }
+.page.sel #control > .card:nth-child(n+4) { animation-delay:.12s; }
+#c-live { background:linear-gradient(160deg, rgba(99,102,241,.22), rgba(236,72,153,.08)); border-color:rgba(139,92,246,.28); }
+.card h2 .i { width:16px; height:16px; }
+@media (hover:hover) and (pointer:fine) {
+  button:hover, .btn:hover { filter:brightness(1.12); }
+  nav button:hover { color:var(--text); filter:none; }
+}
+/* ---- Tablet (iPad hochkant und größer): Leiste links, mehr Platz, größere Flächen */
+@media (min-width: 740px) {
+  body { padding:0 calc(20px + env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom))
+         calc(114px + env(safe-area-inset-left)); font-size:16.5px; }
+  header { padding-top:calc(18px + env(safe-area-inset-top)); padding-bottom:16px; }
+  header h1 { font-size:21px; }
+  header .now { font-size:14px; }
+  nav { left:calc(14px + env(safe-area-inset-left)); right:auto; top:calc(14px + env(safe-area-inset-top));
+        bottom:calc(14px + env(safe-area-inset-bottom)); width:84px; flex-direction:column; justify-content:center;
+        gap:8px; padding:8px; border-radius:28px; }
+  nav button { flex:0 0 auto; min-height:76px; padding:8px 0; font-size:12px; gap:6px; border-radius:20px; }
+  nav button svg.i { width:26px; height:26px; }
+  #nav-pill { border-radius:20px; }
+  .toast { bottom:calc(26px + env(safe-area-inset-bottom)); left:calc(50% + 50px); }
+  #main { max-width:1500px; }
+  .card { padding:18px; border-radius:26px; margin-bottom:16px; }
+  .card h2 { font-size:12.5px; margin-bottom:12px; }
+  button, .btn { padding:15px 10px; font-size:15px; border-radius:18px; }
+  .tile { padding:18px 6px; font-size:14px; gap:8px; }
+  .tile svg.i { width:30px; height:30px; }
+  .grid, .grid4, .tools { gap:10px; }
+  .row { gap:10px; }
+  .row + .row { margin-top:10px; }
+  input[type=range] { height:36px; }
+  .timer { font-size:60px; }
+  /* Start: Live-Bild + Monitor 2 (eine Reihe) oben; breite Karten über die ganze Breite, kleine paarweise */
+  #c-mon2 .grid { grid-template-columns:repeat(6,1fr); }
+  #control:not(.hide) { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:16px;
+                        grid-auto-flow:row dense; align-items:start; }
+  #control > .card { grid-column:1 / -1; }
+  #control > #c-ablauf, #control > #c-scenes, #control > #c-resume, #control > #c-recent, #control > #c-music,
+  #control > #c-vol { grid-column:auto; }
+  /* Zeichnen: großes Bild, Werkzeuge daneben bzw. darunter nebeneinander */
+  #p-zeichnen.sel { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:16px; align-items:start; }
+  #p-zeichnen > .card:first-child { grid-column:1 / -1; }
+  .tools button { padding:14px 4px; font-size:13.5px; }
+  .tools svg.i { width:26px; height:26px; }
+  .colors { gap:4px; }
+  .colors button { width:38px; height:38px; }
+  .wbg button { flex-basis:40%; min-width:0; padding:13px 4px; font-size:14px; }
+  /* Folien: riesige Knöpfe, großes Touchpad */
+  .clicker button { min-height:220px; font-size:20px; border-radius:30px; }
+  .clicker button svg.i { width:56px; height:56px; }
+  .pad { height:min(52vh, 460px); font-size:15px; border-radius:26px; }
+  /* Senden: Karten nebeneinander */
+  #p-senden.sel { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:16px; align-items:start; }
+  #p-senden > .card:last-child { grid-column:1 / -1; }
+  textarea { min-height:140px; }
+  #login { max-width:520px; margin:40px auto; }
+}
+/* ---- iPad quer: Live-Bild bleibt links stehen, Steuerung rechts daneben */
+@media (min-width: 1060px) and (min-aspect-ratio: 1/1) {
+  #p-start.sel { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:18px; align-items:start; }
+  .side { position:sticky; top:calc(84px + env(safe-area-inset-top)); display:block; }
+  #c-mon2 .grid { grid-template-columns:repeat(3,1fr); }
+  #control:not(.hide) { grid-column:2; display:block; }
+  #c-nocontrol { grid-column:2; }
+  #p-zeichnen.sel { grid-template-columns:minmax(0,1fr) 330px; }
+  #p-zeichnen > .card:first-child { grid-column:1; grid-row:1 / span 2; position:sticky; top:calc(84px + env(safe-area-inset-top)); }
+  #p-zeichnen .tools { grid-template-columns:repeat(2,1fr); }
+  #p-zeichnen .colors { gap:6px; }
+  #p-zeichnen .colors button { width:36px; height:36px; }
+  #c-keys:not(.hide) { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:16px; align-items:stretch; }
+  #c-keys > .card { margin:0; display:flex; flex-direction:column; }
+  #c-keys .clicker { flex:1; }
+  #c-keys .clicker button { min-height:0; height:100%; }
+  .pad { height:min(56vh, 520px); }
+  #p-senden.sel { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  #p-senden > .card:last-child { grid-column:auto; }
+}
+@media (min-width: 1500px) and (min-aspect-ratio: 1/1) {
+  #control:not(.hide) { display:grid; } #p-start.sel { grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); } }
 @media (prefers-reduced-motion: reduce) { *, *::before { animation:none !important; transition:none !important; } }
 </style>
 </head>
@@ -236,10 +322,23 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
 <div id="main">
 <!-- ============================================================ Start -->
 <div class="page sel" id="p-start">
-  <div class="card" style="padding:10px" id="c-live">
-    <div class="preview" id="preview"><img id="prev" alt=""><div class="laser" id="laser"></div>
-      <span class="badge"><i></i>LIVE · <span id="live-hint">Finger = Laser</span></span>
-      <button class="corner small" onclick="toggleFull('preview')" aria-label="Vergrößern"><svg class="i"><use href="#i-expand"/></svg></button></div>
+  <div class="side" id="side">
+    <div class="card" style="padding:10px" id="c-live">
+      <div class="preview" id="preview"><img id="prev" alt=""><div class="laser" id="laser"></div>
+        <span class="badge"><i></i>LIVE · <span id="live-hint">Finger = Laser</span></span>
+        <button class="corner small" onclick="toggleFull('preview')" aria-label="Vergrößern"><svg class="i"><use href="#i-expand"/></svg></button></div>
+    </div>
+    <div class="card" id="c-mon2">
+      <h2>Monitor 2</h2>
+      <div class="grid">
+        <button class="tile" id="b-schwarz" onclick="cmd('schwarz')"><svg class="i"><use href="#i-black"/></svg>Schwarz</button>
+        <button class="tile" id="b-standbild" onclick="cmd('standbild')"><svg class="i"><use href="#i-freeze"/></svg>Standbild</button>
+        <button class="tile" id="b-schoner" onclick="cmd('bildschirmschoner')"><svg class="i"><use href="#i-moon"/></svg>Schoner</button>
+        <button class="tile" id="b-spiegeln" onclick="cmd('spiegeln')"><svg class="i"><use href="#i-mirror"/></svg>Spiegeln</button>
+        <button class="tile" id="b-erweitern" onclick="cmd('erweitern')"><svg class="i"><use href="#i-extend"/></svg>Erweitern</button>
+        <button class="tile" onclick="cmd('zeichnungen_loeschen')"><svg class="i"><use href="#i-erase"/></svg>Radieren</button>
+      </div>
+    </div>
   </div>
   <div id="control">
   <div class="card ask">
@@ -256,18 +355,7 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
     </div>
     <div class="hint">🎤 Sprechen: Mikrofon auf der Handy-Tastatur antippen – AluPC versteht ganze Sätze.</div>
   </div>
-  <div class="card">
-    <h2>Monitor 2</h2>
-    <div class="grid">
-      <button class="tile" id="b-schwarz" onclick="cmd('schwarz')"><svg class="i"><use href="#i-black"/></svg>Schwarz</button>
-      <button class="tile" id="b-standbild" onclick="cmd('standbild')"><svg class="i"><use href="#i-freeze"/></svg>Standbild</button>
-      <button class="tile" id="b-schoner" onclick="cmd('bildschirmschoner')"><svg class="i"><use href="#i-moon"/></svg>Schoner</button>
-      <button class="tile" id="b-spiegeln" onclick="cmd('spiegeln')"><svg class="i"><use href="#i-mirror"/></svg>Spiegeln</button>
-      <button class="tile" id="b-erweitern" onclick="cmd('erweitern')"><svg class="i"><use href="#i-extend"/></svg>Erweitern</button>
-      <button class="tile" onclick="cmd('zeichnungen_loeschen')"><svg class="i"><use href="#i-erase"/></svg>Radieren</button>
-    </div>
-  </div>
-  <div class="card">
+  <div class="card" id="c-zeigen">
     <h2>Zeigen</h2>
     <div class="grid4">
       <button class="tile" onclick="cmd('kamera')"><svg class="i"><use href="#i-camera"/></svg>Kamera</button>
@@ -382,7 +470,7 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
     <input type="range" id="vol" min="0" max="100" step="5" oninput="$('vol-val').textContent = this.value + ' %'"
            onchange="cmd('lautstaerke:' + this.value)">
   </div>
-  <div class="card">
+  <div class="card" id="c-timer">
     <h2>Timer</h2>
     <div class="timer" id="timer">–</div>
     <div class="chips">
@@ -443,7 +531,7 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
       <button onclick="cmd('whiteboard:liniert')">Liniert</button>
       <button onclick="cmd('whiteboard:punkte')">Punkteraster</button>
       <button onclick="cmd('whiteboard:millimeter')">Millimeterpapier</button>
-      <button onclick="cmd('whiteboard:koordinaten')">Koordinatensystem</button>
+      <button onclick="cmd('whiteboard:koordinaten')">Koordinaten</button>
       <button onclick="cmd('whiteboard:noten')">Notenlinien</button>
       <button onclick="cmd('whiteboard:tafel')">Tafel (grün)</button>
       <button onclick="cmd('whiteboard:schwarz')">Tafel (schwarz)</button>
@@ -543,6 +631,7 @@ function movePill() {
   if (!nav || !sel) return;
   if (!pill) { pill = document.createElement("span"); pill.id = "nav-pill"; nav.prepend(pill); }
   pill.style.left = sel.offsetLeft + "px"; pill.style.width = sel.offsetWidth + "px";
+  pill.style.top = sel.offsetTop + "px"; pill.style.height = sel.offsetHeight + "px";  // iPad: Leiste links
 }
 window.addEventListener("resize", movePill);
 // Tipp-Welle auf allen Knöpfen
@@ -687,6 +776,7 @@ async function refresh() {
       document.querySelector('nav button[data-p="' + p + '"]').classList.toggle("hide", !on);
     if (document.querySelector('nav button[data-p="' + current + '"]').classList.contains("hide")) tab("start");
     $("control").classList.toggle("hide", !allow.steuern);
+    $("c-mon2").classList.toggle("hide", !allow.steuern);
     $("c-nocontrol").classList.toggle("hide", allow.steuern);
     $("c-live").classList.toggle("hide", !allow.live);
     $("live-hint").textContent = allow.laser ? "Finger = Laser" : "Live-Bild";

@@ -51,7 +51,7 @@ def test_overlay_positions_and_templates():
     assert ov.position_name(0.0, 1.0) == "unten links" and ov.position_name(0.3, 0.5) == "frei"
 
 
-def test_overlay_window_follows_settings(env):
+def test_overlay_window_follows_settings(env):  # noqa: F811
     """Overlays an → eigenes Fenster über Monitor 2 (auch über fremden Fenstern); Schwarz/aus → weg.
     Vorschau-Bilder (Bild-in-Bild, Live-Bild, Handy) enthalten sie."""
     controller, window, _ = env
@@ -94,7 +94,7 @@ def test_overlay_window_follows_settings(env):
     assert "overlays" in ALLOWED_COMMANDS
 
 
-def test_overlay_music_uses_now_playing(env, monkeypatch):
+def test_overlay_music_uses_now_playing(env, monkeypatch):  # noqa: F811
     """Musik-Overlay: holt sich den Titel von „Läuft gerade“ (nur solange es an ist)."""
     controller, _window, _ = env
     from alupc.now_playing_view import feed
@@ -113,7 +113,7 @@ def test_overlay_music_uses_now_playing(env, monkeypatch):
     assert started == ["an", "aus"]
 
 
-def test_overlay_tiles_on_start_page(env):
+def test_overlay_tiles_on_start_page(env):  # noqa: F811
     """Wie Bildschirmschoner-Kacheln: beliebig viele Overlay-Kacheln auf der Startseite, jede mit eigenem
     Overlay. Klick = einblenden, nochmal = aus – unabhängig von den Overlays aus dem Editor."""
     controller, window, _ = env
@@ -159,7 +159,7 @@ def test_overlay_tiles_on_start_page(env):
     assert not controller.tile_overlays and not win.isVisible()
 
 
-def test_overlay_quick_add(env):
+def test_overlay_quick_add(env):  # noqa: F811
     """Schnellwahl unter der Vorschau: ein Klick legt die Vorlage an, schaltet Overlays ein und wählt sie aus."""
     controller, window, _ = env
     from alupc.ui.overlay_dialog import OverlayDialog
@@ -177,7 +177,7 @@ def test_overlay_quick_add(env):
     assert controller.config["overlays"]["items"][0]["type"] == "clock" and controller.overlay_window.isVisible()
 
 
-def test_start_page_fits_window(env):
+def test_start_page_fits_window(env):  # noqa: F811
     """Startseite ragt nie rechts über den Rand: die Statuskarte zeigt je nach Platz Schalter mit Namen, nur
     Symbole oder alles untereinander."""
     controller, window, _ = env
@@ -207,7 +207,7 @@ def _mouse(widget, kind, pos: QPointF, buttons=Qt.LeftButton):
      QMouseEvent.MouseButtonRelease: widget.mouseReleaseEvent}[kind](ev)
 
 
-def test_overlay_editor_drag_snap_and_forms(env):
+def test_overlay_editor_drag_snap_and_forms(env):  # noqa: F811
     """Editor: jede Vorlage lässt sich einstellen; Ziehen verschiebt frei und rastet an Ecken/Mitte ein;
     Mausrad ändert die Größe; alles gilt sofort auf Monitor 2."""
     controller, window, _ = env

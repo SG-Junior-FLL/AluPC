@@ -1033,3 +1033,19 @@ def test_control_qr_only_on_pc(env, tmp_path, monkeypatch):  # noqa: F811
     assert texts == sorted([wifi_payload("AluPC", "k7pm2qa9xr"), f"http://10.42.0.1:{controller.cast.port}/anmelden"])
     assert ctl not in texts
     controller.cast.stop()
+
+
+def test_cast_page_tablet_layout_and_ids():
+    """Handy-Seite: jede per $("…") genutzte ID gibt es im HTML; iPad-Layout (Leiste links, 2 Spalten) vorhanden."""
+    import re
+
+    from alupc.cast_page import PAGE
+
+    html, script = PAGE.split("<script>", 1)
+    ids = set(re.findall(r'id="([\w-]+)"', html))
+    used = set(re.findall(r'\$\("([\w-]+)"\)', script))
+    created = {"nav-pill", "fullclose"}  # legt das Skript selbst an
+    assert used - ids - created == set()
+    assert "@media (min-width: 740px)" in PAGE and "@media (min-width: 1060px) and (min-aspect-ratio: 1/1)" in PAGE
+    assert 'id="side"' in html and 'id="c-mon2"' in html and '$("c-mon2").classList.toggle("hide", !allow.steuern)' in script
+    assert "pill.style.top" in script  # Leuchtpunkt gleitet auch in der senkrechten Leiste
