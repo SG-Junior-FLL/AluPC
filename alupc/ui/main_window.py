@@ -312,6 +312,7 @@ class MainWindow(QMainWindow):
         controller.presenter_requested.connect(self.open_presenter)
         controller.board_requested.connect(self.open_board)
         controller.shell_requested.connect(self.toggle_shell)
+        controller.window_requested.connect(self.open_front)
         self.shell = None
         controller.settings_imported.connect(self._settings_imported)
         controller.cast.state_changed.connect(self.refresh)  # Kachel „Handy-Steuerung“: LÄUFT an/aus
@@ -1799,6 +1800,12 @@ class MainWindow(QMainWindow):
         self.showNormal()
         self.raise_()
         self.activateWindow()
+
+    def open_front(self) -> None:
+        """Tastenkürzel „AluPC öffnen“: Hauptfenster vorn – auch über der Oberfläche/dem System-Desktop."""
+        if self.shell is not None and self.shell.isVisible():
+            self.shell.step_aside()
+        self.show_normal_front()
 
     # ================================================================ Status
     def _sync_tray_volume(self):

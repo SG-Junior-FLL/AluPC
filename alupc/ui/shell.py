@@ -372,6 +372,9 @@ class Taskbar(QFrame):
         self.start = _round_button(icons.icon("grid", "#ffffff", 24), "Start (Programme, Suche)", 46, 24,
                                    "qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #6366f1, stop:1 #ec4899)")
         lay.addWidget(self.start)
+        # AluPC selbst – immer direkt erreichbar (als System-Desktop gibt es kein Infobereich-Symbol)
+        self.alupc = _round_button(icons.app_icon(), "AluPC öffnen (Hauptfenster)", 46, 30)
+        lay.addWidget(self.alupc)
         self.apps = QHBoxLayout()
         self.apps.setSpacing(4)
         lay.addLayout(self.apps)
@@ -475,6 +478,7 @@ class ShellWindow(QWidget):
         self.bar.mon.clicked.connect(self._monitor_menu)
         self.bar.wifi.clicked.connect(lambda: self._open_page(5))
         self.bar.normal.clicked.connect(lambda: self.main_window.system_desktop(False))
+        self.bar.alupc.clicked.connect(self._open_alupc)
         QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self._escape)
         self._clock = QTimer(self, interval=1000)
         self._clock.timeout.connect(self._tick)
@@ -654,7 +658,7 @@ class ShellWindow(QWidget):
         if is_wayland():  # Wayland: KWin legt die Fenster hin (Programme dürfen das dort nicht selbst)
             linux_windows.kwin_window_props(self.TITLE, below=True, geo=(geo.x(), geo.y(), geo.width(), geo.height()))
             linux_windows.kwin_window_props(self.BAR_TITLE, above=True, geo=bar)
-        else:
+        elif QGuiApplication.platformName() == "xcb":  # nur echtes X11 (nicht offscreen/Tests)
             virt = screen.virtualGeometry()
             linux_windows.set_x11_strut(int(self.bar_win.winId()), virt.bottom() - geo.bottom() + h, geo.left(),
                                         geo.right())

@@ -34,7 +34,7 @@ und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beide
 | 💬 **Chat & 📷 Foto-Wand** | Handys schreiben übers AluPC-WLAN, Nachrichten erscheinen **direkt als Overlay** auf Monitor 2 – als Liste oder als **Pop-up** (kurz, ohne QR) – oder als Chat-Wand – mit Wortfilter, Link-Sperre, Tempo-Grenze, Löschen und Handy sperren. Fotos vom Handy als Collage oder Diashow, neue Fotos erst groß. Verwalten auf der Seite **„Gäste“** |
 | 🎚️ **Mischpult für den ganzen PC** | Seite **„Audio & Kamera“**: Kanalzüge für jeden Ausgang, jedes Mikro und jedes Programm (Regler, Pegel, Stumm, ★ Standard), **virtuelle Geräte hinzufügen/entfernen** (Linux beliebig viele, Windows über VB-CABLE), Ton weiterleiten (Mikro → virtuelles Mikro, Mithören) |
 | 🎥 **Monitor 2 als Webcam** | Virtuelle Kamera mit allem, was Monitor 2 zeigt (inkl. Overlays/Zeichnungen) – für Zoom, Teams, Discord, OBS. Treiber richtet der Installer ein (Linux v4l2loopback, Windows OBS-Kamera) |
-| 🪟 **AluPC-Oberfläche** | Eigener Desktop im Vollbild (Strg+Alt+O): Symbole aus dem Desktop-Ordner (Dateien, Ordner, Verknüpfungen – frei verschiebbar, neue erscheinen von selbst), Widgets (Uhr, Monitor 2, AluPC-Aktionen), eigene Taskleiste mit Startmenü, echten App-Logos, offenen Fenstern, Lautstärke und Uhr – alles anpassbar (Hintergrund, Größe, Raster, Taskleiste, Widgets). **Auch als echter System-Desktop** statt Windows-Explorer bzw. KDE-Plasma – mit Knopf „Normaler Desktop“ |
+| 🪟 **AluPC-Oberfläche** | Eigener Desktop im Vollbild (Strg+Alt+O): Symbole aus dem Desktop-Ordner (Dateien, Ordner, Verknüpfungen – frei verschiebbar, neue erscheinen von selbst), Widgets (Uhr, Monitor 2, AluPC-Aktionen), eigene Taskleiste mit Startmenü, echten App-Logos, offenen Fenstern, Lautstärke und Uhr – alles anpassbar (Hintergrund, Größe, Raster, Taskleiste, Widgets). **Auch als echter System-Desktop** statt Windows-Explorer bzw. KDE-Plasma – mit Knopf „Normaler Desktop“ und AluPC-Knopf bzw. `Strg+Alt+A` fürs Hauptfenster |
 | 🎨 **Design fürs ganze System** | AluPC-Akzentfarbe, Hell/Dunkel und ein passendes Hintergrundbild (Aurora in den Design-Farben) auf Windows, KDE oder GNOME übertragen – zieht bei Änderungen mit, „Zurück“ stellt alles wieder her |
 | 🔁 **Dual-Boot-Abgleich** | Windows ↔ Linux: Einstellungen, Szenen, Bilder/Videos zusammenführen, Bereiche wählbar, Prüfen, Sicherungen |
 | 🗣️ **Sprache, offline** | Startwort „Alu PC“ oder „Computer“, ganze Sätze, Antwort per Stimme |
@@ -306,6 +306,8 @@ Außerdem:
   | Zeigen & Zeichnen | `Strg+Alt+K` |
   | Spiegeln | `Strg+Alt+M` |
   | Erweitern | `Strg+Alt+E` |
+  | AluPC-Oberfläche an/aus | `Strg+Alt+O` |
+  | AluPC-Hauptfenster öffnen (auch als System-Desktop) | `Strg+Alt+A` |
   | jede Szene | frei wählbar im Szenen-Editor |
   | jede eigene Kachel | frei wählbar unter „Startseite anpassen“ |
 

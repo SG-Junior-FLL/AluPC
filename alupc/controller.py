@@ -32,6 +32,7 @@ class Controller(QObject):
     games_changed = Signal()  # Minispiele: Spieler/Phase geändert (Steuerfenster)
     hotspot_changed = Signal()  # Hotspot an/aus (Kachel, Spiele-Fenster)
     shell_requested = Signal()  # AluPC-Oberfläche (Vollbild) an/aus – macht das Hauptfenster
+    window_requested = Signal()  # AluPC-Hauptfenster nach vorn (Tastenkürzel, auch als System-Desktop)
     guests_changed = Signal()  # Chat/Foto-Wand: neue Nachricht, neues Foto, an/aus (Seite „Gäste“)
     access_requested = Signal(str, str, str)  # Handy bittet um Freigabe zum Steuern: (Anfrage-ID, Name, IP)
     video_resume = Signal(str, int)  # Video schon mal geschaut: (Titel, Position ms) → „Weiterschauen?“
@@ -1544,6 +1545,7 @@ class Controller(QObject):
             "fotowand": lambda: self.start_wall(show=True),
             "fotowand_aus": self.stop_wall,
             "oberflaeche": self.shell_requested.emit,
+            "alupc_oeffnen": self.window_requested.emit,
             "vcam": self._toggle_vcam,
             "vcam_an": lambda: self._toggle_vcam(True),
             "vcam_aus": lambda: self._toggle_vcam(False),

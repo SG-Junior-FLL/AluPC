@@ -30,6 +30,7 @@ DEFAULT_HOTKEYS = {
     "rgb_aus": "",
     "zuhoeren": "Ctrl+Alt+H",
     "oberflaeche": "Ctrl+Alt+O",
+    "alupc_oeffnen": "Ctrl+Alt+A",
 }
 
 HOTKEY_LABELS = {
@@ -56,6 +57,7 @@ HOTKEY_LABELS = {
     "rgb_aus": "RGB aus",
     "zuhoeren": "Mikrofon-Schalter (zuhören ohne Startwort)",
     "oberflaeche": "AluPC-Oberfläche (Vollbild statt Desktop) an/aus",
+    "alupc_oeffnen": "AluPC-Hauptfenster öffnen",
 }
 
 DEFAULTS: dict = {

@@ -257,8 +257,43 @@ def _shell_tour():
              "Sekunden), Widgets, Verhalten.")
         dlg.close()
         window.toggle_shell(False)
+        _system_desktop_shot()
     finally:
         pcc.installed_apps, shell_desktop.desktop_dirs = real, real_dirs
+
+
+def _system_desktop_shot():
+    """AluPC als System-Desktop: Desktop ganz unten + eigene Taskleiste – zu einem Bild zusammengesetzt. Explorer/
+    Plasma werden dabei NICHT angefasst (Plattform-Aufrufe ersetzt)."""
+    from PySide6.QtGui import QPainter, QPixmap
+    from PySide6.QtWidgets import QLabel
+
+    from alupc.platform import desktop_shell as ds
+
+    saved = {n: getattr(ds, n) for n in ("stop_normal", "start_normal", "set_work_area", "normal_running")}
+    ds.stop_normal = ds.start_normal = lambda *a: (True, "")
+    ds.set_work_area = lambda *a: True
+    ds.normal_running = lambda: False
+    try:
+        window.system_desktop(True)
+        pump(1.5)
+        sh = window.shell
+        pm = QPixmap(sh.size())
+        p = QPainter(pm)
+        p.drawPixmap(0, 0, sh.grab())
+        p.drawPixmap(0, sh.height() - sh.bar_win.height(), sh.bar_win.grab())
+        p.end()
+        label = QLabel()
+        label.setPixmap(pm)
+        label.resize(pm.size())
+        save(label, "oberflaeche-desktop", "AluPC als System-Desktop", "App",
+             "Statt Explorer bzw. Plasma: die Oberfläche liegt ganz unten hinter allen Programmen, eigene Taskleiste "
+             "mit Knopf für das AluPC-Programm (neben Start) und „Normaler Desktop“.")
+        window.system_desktop(False)
+        pump(1.0)
+    finally:
+        for n, f in saved.items():
+            setattr(ds, n, f)
 
 
 step(_shell_tour, "Oberfläche")

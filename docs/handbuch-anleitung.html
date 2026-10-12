@@ -1,0 +1,161 @@
+<!-- Anleitung fürs Handbuch-PDF (tools/make_handbook.py): Text hier pflegen. IMG(schlüssel) = Bild aus dem
+     Rundgang (tools/screens_tour.py, Schlüssel wie in screens.json), VERSION = aktuelle Version. -->
+<h1>AluPC-Handbuch</h1>
+      <p class="lead">Monitor 2 für die anderen – du arbeitest am Hauptmonitor weiter. Für Windows 11 und Kubuntu/Linux (KDE, Wayland und X11), überall mit derselben Oberfläche.</p>
+      <p class="version">Stand: Version VERSION</p>
+
+      <section id="hb-start">
+        <h2>Erste Schritte</h2>
+        <div class="tbl"><table>
+          <thead><tr><th>System</th><th>Datei</th><th>So geht's</th></tr></thead>
+          <tbody>
+            <tr><td>Windows 11</td><td><code>AluPC-Setup-….exe</code></td><td>Doppelklick, installieren – AluPC steht im Startmenü</td></tr>
+            <tr><td>Windows 11</td><td><code>AluPC-windows-portable-….zip</code></td><td>entpacken, <code>AluPC.exe</code> starten</td></tr>
+            <tr><td>Kubuntu / Ubuntu 22.04, 24.04+</td><td><code>alupc_…_amd64.deb</code></td><td><code>sudo apt install ./alupc_…_amd64.deb</code></td></tr>
+            <tr><td>Linux x86_64</td><td><code>AluPC-linux-x86_64-….tar.gz</code></td><td>entpacken, <code>AluPC/AluPC</code> starten</td></tr>
+          </tbody>
+        </table></div>
+        <p>Beim ersten Start richtet die <b>Ersteinrichtung</b> alles mit einem Klick ein: Monitor 2 wählen, Handy-Steuerung, AirPlay (iPhone), Firewall-Freigabe. Danach landest du auf der <b>Startseite</b>: oben siehst du, was Monitor 2 gerade zeigt, darunter die Kacheln.</p>
+        <figure><img src="IMG(start)" alt="Startseite von AluPC mit Vorschau von Monitor 2 und Kacheln"><figcaption>Startseite: Vorschau oben, Kacheln darunter. Der Pfeil an einer Kachel öffnet mehr Möglichkeiten.</figcaption></figure>
+      </section>
+
+      <section id="hb-m2">
+        <h2>Monitor 2</h2>
+        <p>Jede Kachel schaltet Monitor 2 sofort um. Monitor 1 bleibt dein Arbeitsplatz.</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Kachel</th><th>Was auf Monitor 2 passiert</th></tr></thead>
+          <tbody>
+            <tr><td>Spiegeln</td><td>zeigt dasselbe wie Monitor 1, mit Mauszeiger</td></tr>
+            <tr><td>Erweitern</td><td>Monitor 2 ist ein normaler zweiter Bildschirm</td></tr>
+            <tr><td>Kamera</td><td>Kamera im Vollbild, mit Zoom 1–5×, Spiegeln, Drehen, Helligkeit</td></tr>
+            <tr><td>Programm · Website · Bild/Video</td><td>ein Programmfenster, eine Website (auch fernsteuerbar) oder Medien aus der Mediathek</td></tr>
+            <tr><td>Text · Uhr · Timer</td><td>Schnelltext groß, Uhr, Countdown mit Warnfarben</td></tr>
+            <tr><td>Schwarz</td><td>Sichtschutz: schwarz, eigener Text oder Logo</td></tr>
+            <tr><td>Standbild</td><td>friert Monitor 2 ein – du arbeitest unbemerkt weiter</td></tr>
+            <tr><td>Bild-in-Bild</td><td>kleines Fenster auf Monitor 1 mit dem Live-Bild von Monitor 2</td></tr>
+            <tr><td>Bildschirmschoner</td><td>Uhr, Polarlicht, Matrix, Diashow und mehr – automatisch oder per Klick</td></tr>
+            <tr><td>Zeigen &amp; Zeichnen</td><td>Laserpointer, Stift und Textmarker direkt auf Monitor 2</td></tr>
+          </tbody>
+        </table></div>
+        <p>Weitere Anzeigen: Abstimmung (Live-Ergebnis), Glücksrad, Wetter &amp; Uhr, „Läuft gerade“ (Musik am PC), System-Dashboard und Overlays (Uhr, Logo, Laufschrift) über allem.</p>
+      </section>
+
+      <section id="hb-szenen">
+        <h2>Szenen &amp; Karten</h2>
+        <p>Eine <b>Szene</b> kombiniert mehrere Quellen auf Monitor 2 – etwa Kamera groß und Uhr in der Ecke. Neue Szenen entstehen leer oder aus Vorlagen: <b>32 gestaltete Karten</b> (Neon, Glitch, Synthwave, Willkommen, Agenda, Quiz …) und <b>24 Szenen-Vorlagen</b>. Text eintragen, im Editor anpassen, speichern.</p>
+        <div class="figs">
+          <figure><img src="IMG(szenen-editor)" alt="Szenen-Editor"><figcaption>Szenen-Editor: Quellen anordnen, Ebenen, Texte und Farben.</figcaption></figure>
+          <figure><img src="IMG(design-neon)" alt="Karte Neon auf Monitor 2"><figcaption>Karte „Neon“ auf Monitor 2.</figcaption></figure>
+        </div>
+      </section>
+
+      <section id="hb-handy">
+        <h2>Handy &amp; AluPC-WLAN</h2>
+        <p>Der PC macht ein eigenes WLAN. Auf Monitor 2 stehen zwei QR-Codes: <b>1.</b> ins WLAN, <b>2.</b> die Seite im Browser. Gäste spielen mit, stimmen ab oder schreiben in den Chat. Wer AluPC <b>steuern</b> darf, scannt den privaten Steuer-Code – den gibt es nur am PC, nie auf Monitor 2 – oder wird am PC per „Erlauben“ freigegeben.</p>
+        <p>Die Handy-Seite hat vier Reiter: <b>Start</b> (Live-Bild mit Laserpointer, Schwarz, Standbild, Szenen, Video, Lautstärke, Timer), <b>Zeichnen</b>, <b>Folien</b> (Präsentations-Klicker und Touchpad für die Maus) und <b>Senden</b> (Foto, Link, Text). Auf dem iPad gibt es ein eigenes Layout.</p>
+        <div class="figs">
+          <figure><img src="IMG(wlan-qr)" alt="Zwei QR-Codes auf Monitor 2"><figcaption>Monitor 2: WLAN-Code und Seiten-Code.</figcaption></figure>
+          <figure><img src="IMG(handy-verbinden)" alt="Handy verbinden"><figcaption>Handy verbinden: WLAN-Code und privater Steuer-Code – nur am PC.</figcaption></figure>
+        </div>
+        <p>iPhone und iPad können per <b>AirPlay</b> spiegeln (UxPlay; unter Windows „uxplay-windows“). Ohne verbundenes iPhone zeigt Monitor 2 „AirPlay bereit“.</p>
+      </section>
+
+      <section id="hb-gaeste">
+        <h2>Gäste, Chat, Spiele</h2>
+        <p>Auf der Seite <b>Gäste</b> verwaltest du Chat und Foto-Wand. Chat-Nachrichten erscheinen als Liste, als Chat-Wand oder als <b>Pop-up</b> (kurz, ohne QR-Code) auf Monitor 2 – mit Wortfilter, Link-Sperre, Tempo-Grenze, Löschen und Handy sperren. Fotos vom Handy laufen als Collage oder Diashow.</p>
+        <p><b>Minispiele</b> mit dem Handy als Controller: Snake, Tic-Tac-Toe, Pong, Tetris (alle bekommen dieselben Teile), Tipp-Rennen, Simon sagt, Schere-Stein-Papier, Space Invaders, Flappy Bird und Vier gewinnt – mit Bestenliste über den ganzen Abend.</p>
+        <div class="figs">
+          <figure><img src="IMG(gaeste)" alt="Seite Gäste"><figcaption>Gäste: Chat und Foto-Wand verwalten.</figcaption></figure>
+          <figure><img src="IMG(spiel-tetris)" alt="Tetris auf Monitor 2"><figcaption>Tetris auf Monitor 2 – gesteuert vom Handy.</figcaption></figure>
+        </div>
+      </section>
+
+      <section id="hb-tafel">
+        <h2>Whiteboard</h2>
+        <p>Die Kachel <b>Whiteboard</b> öffnet am PC ein eigenes Fenster wie in einer Notiz-App, Monitor 2 zeigt genau denselben Ausschnitt.</p>
+        <ul>
+          <li><b>Zoomen:</b> <kbd>Strg</kbd>+Mausrad oder zwei Finger, genau an der Stelle; <kbd>0</kbd> zeigt die ganze Seite.</li>
+          <li><b>Seiten</b> mit eigenem Papier (Kariert, Liniert, Punkte, Millimeter, Tafel …), Formate 16:9, A4 oder unendlich.</li>
+          <li><b>Werkzeuge:</b> Stift mit Druckstärke, Marker, Radierer, Lasso, Formen, Text, Laser; Rückgängig/Wiederholen.</li>
+          <li><b>Speichern:</b> automatisch, mehrere Tafeln, Export als PNG oder PDF.</li>
+          <li>Vom Handy oder iPad: gleiche Tafel, Pinch-Zoom, Apple-Pencil-Druck, „Nur der Stift zeichnet“.</li>
+        </ul>
+        <figure><img src="IMG(whiteboard-fenster)" alt="Whiteboard-Fenster mit Sinuskurve"><figcaption>Whiteboard am PC: Werkzeuge oben, Seiten links.</figcaption></figure>
+      </section>
+
+      <section id="hb-desktop">
+        <h2>AluPC-Oberfläche</h2>
+        <p>Ein eigener Desktop (<kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd>): Symbole aus deinem Desktop-Ordner (frei verschiebbar), Widgets für Uhr, Monitor 2 und AluPC-Aktionen, eine eigene Taskleiste mit Startmenü, „Frag AluPC“, echten Programm-Logos und offenen Fenstern. Unter <b>Anpassen</b> stellst du Hintergrund, Symbolgröße, Raster, Taskleiste und Widgets ein.</p>
+        <h3>Als System-Desktop</h3>
+        <p>Unter Anpassen → <b>Als System-Desktop</b> ersetzt die Oberfläche auf Wunsch den Windows-Explorer bzw. KDE-Plasma:</p>
+        <ul>
+          <li><b>Jetzt ausprobieren</b> gilt nur für diese Sitzung, <b>Bei jeder Anmeldung</b> dauerhaft (Windows: nur für deinen Benutzer, ohne Administrator).</li>
+          <li>Die Oberfläche liegt ganz unten hinter allen Programmen, die Taskleiste ist eine eigene Leiste.</li>
+          <li>Das <b>AluPC-Programm</b> öffnest du jederzeit mit dem Knopf mit dem AluPC-Logo direkt neben „Start“ (auch im Startmenü unten) oder mit <kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd>. Als System-Desktop steht das AluPC-Fenster außerdem in der Taskleiste bei den offenen Fenstern.</li>
+          <li>Der Knopf <b>Normaler Desktop</b> startet Explorer bzw. Plasma; die AluPC-Oberfläche verschwindet erst, wenn der normale Desktop wirklich läuft. Zurück über „AluPC als Desktop“ im Infobereich oder <kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd>.</li>
+          <li>Stürzt AluPC ab oder wird es beendet, startet ein Wächter sofort den normalen Desktop.</li>
+        </ul>
+        <div class="callout warn">Ohne Explorer bzw. Plasma fehlen Symbole anderer Programme im Infobereich und deren Benachrichtigungen; unter Windows das Startmenü der Win-Taste. Notfall unter Windows: <kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>Entf</kbd> → Task-Manager → „Neuen Task ausführen“ → <code>explorer</code>.</div>
+        <div class="figs">
+          <figure><img src="IMG(oberflaeche-desktop)" alt="AluPC-Oberfläche als Desktop mit eigener Taskleiste"><figcaption>Als Desktop: eigene Taskleiste mit „Normaler Desktop“.</figcaption></figure>
+          <figure><img src="IMG(oberflaeche-anpassen)" alt="Fenster Oberfläche anpassen"><figcaption>Anpassen, rechts unten der Bereich „Als System-Desktop“.</figcaption></figure>
+        </div>
+      </section>
+
+      <section id="hb-sync">
+        <h2>Dual-Boot-Abgleich</h2>
+        <p>Windows und Linux teilen sich einen Ordner „AluPC-Sync“ auf dem Windows-Laufwerk. AluPC gleicht beim Start, nach jeder Änderung, jede Minute und beim Beenden ab: Startseite, Szenen, Tastenkürzel, Design, Töne, Handy, RGB, Oberfläche und mehr. Was je System anders ist (Monitore, Kameras, Programmpfade), bleibt getrennt.</p>
+        <ol>
+          <li>Unter Setup → Sichern &amp; Sync einschalten und das Windows-Laufwerk wählen.</li>
+          <li>Auf dem anderen System verbindet sich AluPC beim Start selbst (oder „Automatisch suchen“).</li>
+          <li>Jeder Stand hat eine Kennung und eine Prüfsumme. Das andere System übernimmt ihn nur und schreibt nicht zurück; beschädigte Stände werden nie übernommen.</li>
+          <li><b>Neu anfangen …</b> löscht alle alten Stände (auch vergessene zweite Sync-Ordner) und schreibt den Stand dieses Systems neu.</li>
+        </ol>
+        <div class="callout">Windows-<b>Schnellstart</b> ausschalten – sonst kann Linux das Windows-Laufwerk nur lesen. „Prüfen“ warnt unter Windows davor.</div>
+        <figure><img src="IMG(setup-sichern-und-sync)" alt="Setup Sichern und Sync"><figcaption>„Verbunden ✓“ mit Stand-Nummer und „geprüft ✓“.</figcaption></figure>
+      </section>
+
+      <section id="hb-tasten">
+        <h2>Tastenkürzel</h2>
+        <p>Jede Funktion lässt sich unter Setup → Tastenkürzel auf eine Taste legen – auch global, wenn AluPC im Hintergrund ist. Ab Werk:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Kürzel</th><th>Funktion</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd></td><td>Standbild an/aus</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>B</kbd></td><td>Sichtschutz (Schwarz) an/aus</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>P</kbd></td><td>Bild-in-Bild an/aus</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>M</kbd> / <kbd>E</kbd></td><td>Spiegeln / Erweitern</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>W</kbd></td><td>Bildschirmschoner an/aus</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>Bild↓</kbd> / <kbd>Bild↑</kbd></td><td>nächste / vorherige Szene</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd></td><td>Timer starten/pausieren</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>K</kbd></td><td>Zeigen &amp; Zeichnen</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>H</kbd></td><td>Zuhören (Sprachbefehle)</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd></td><td>AluPC-Oberfläche</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd></td><td>AluPC-Hauptfenster öffnen</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>K</kbd></td><td>Befehlssuche (in AluPC)</td></tr>
+          </tbody>
+        </table></div>
+        <p>Sprachbefehle gehen offline mit dem Startwort „Alu PC“ oder „Computer“, z. B. „Alu PC, Standbild“ oder „Alu PC, Timer 5 Minuten“.</p>
+      </section>
+
+      <section id="hb-hilfe">
+        <h2>Wenn etwas nicht geht</h2>
+        <p>Setup → Allgemein → <b>Diagnose kopieren</b> prüft Monitore, Spiegeln, AirPlay, RGB und Lüfter und kopiert das Ergebnis. <b>Ersteinrichtung starten</b> richtet alles neu ein. <b>Fehlerbericht</b> speichert eine ZIP-Datei zum Weitergeben.</p>
+        <ul>
+          <li><b>Spiegeln zeigt nichts:</b> AluPC schaltet nach 4 s selbst auf das Spiegeln des Betriebssystems um.</li>
+          <li><b>iPhone findet den PC nicht:</b> gleiches WLAN? Unter Kubuntu muss avahi laufen, unter Windows Bonjour – die Ersteinrichtung erledigt das.</li>
+          <li><b>Handys erreichen den PC nicht:</b> Steht das WLAN in Windows auf „Öffentlich“, auf „Privat“ stellen.</li>
+          <li><b>Dual-Boot gleicht nicht ab:</b> „Prüfen“ zeigt, ob der Ordner erreichbar und beschreibbar ist; bei Durcheinander hilft „Neu anfangen …“.</li>
+        </ul>
+      </section>
+
+      <section id="hb-grenzen">
+        <h2>Ehrliche Grenzen</h2>
+        <ul>
+          <li>Der System-Desktop ist nicht auf echter Hardware getestet; ob der Explorer per Knopf als voller Desktop startet, prüft AluPC und meldet es, wenn nicht. Unter KDE/Wayland liegen maximierte Fenster unter der Taskleiste. GNOME geht nicht.</li>
+          <li>Der Dual-Boot-Abgleich ist mit zwei simulierten Systemen getestet, nicht mit echtem Dual-Boot.</li>
+          <li>Druckstärke (Apple Pencil, Grafiktablett) und Pinch-Zoom sind nicht auf echten Geräten getestet.</li>
+          <li>Schul- und Gäste-WLANs trennen Geräte oft voneinander – dann gehen AirPlay und Handy-Steuerung dort nicht; dafür gibt es das AluPC-WLAN.</li>
+        </ul>
+        <p>Vollständige Liste im README auf GitHub unter „Ehrliche Grenzen“.</p>
+      </section>

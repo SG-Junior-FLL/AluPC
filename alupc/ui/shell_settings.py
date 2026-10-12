@@ -112,7 +112,7 @@ class ShellSettings(QDialog):
         self.esc.setChecked(bool(cfg["esc_closes"]))
         self.esc.toggled.connect(lambda on: self._set(esc_closes=on))
         f.addRow(self.esc)
-        f.addRow(QLabel("Wieder öffnen oder schließen: Strg+Alt+O."))
+        f.addRow(QLabel("Wieder öffnen oder schließen: Strg+Alt+O. AluPC-Hauptfenster: Strg+Alt+A."))
         lay.addWidget(beh)
 
         lay.addWidget(self._system_group())

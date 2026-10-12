@@ -8,7 +8,18 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.131.0)
+### Neu in dieser Version (0.132.0)
+- **AluPC-Knopf in der Taskleiste der AluPC-Oberfläche** (direkt neben Start): öffnet das AluPC-Hauptfenster mit
+  einem Klick – wichtig, wenn AluPC der System-Desktop ist (dann gibt es kein Infobereich-Symbol). Die Oberfläche
+  bleibt dahinter.
+- **Neues Tastenkürzel `Strg+Alt+A`: AluPC-Hauptfenster öffnen** – von überall, auch als System-Desktop
+  (änderbar unter Setup → Tastenkürzel).
+- Behoben: Unter Linux/X11 konnte ein Fehler beim Platz-Reservieren für die Taskleiste (System-Desktop) AluPC
+  sofort beenden – wird jetzt abgefangen.
+- **Handbuch (PDF) neu:** vorne eine Anleitung (Start, Monitor 2, Handy, Spiele, Whiteboard, AluPC als Desktop,
+  Dual-Boot-Abgleich, Grenzen), hinten wie bisher alle Screens.
+
+### Davor: 0.131.0
 - **AluPC-Oberfläche als echter System-Desktop** – statt Windows-Explorer bzw. KDE-Plasma (Anpassen → „Als
   System-Desktop“):
   - **„Jetzt ausprobieren“** (nur diese Sitzung) oder **„Bei jeder Anmeldung“** (Windows: nur für diesen Benutzer,

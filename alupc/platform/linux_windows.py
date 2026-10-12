@@ -322,6 +322,18 @@ def kwin_activate(internal_id: str) -> bool:
         return False
 
 
+def _x_ignore(display, event) -> int:
+    return 0
+
+
+try:
+    import ctypes as _ct
+
+    _X_IGNORE = _ct.CFUNCTYPE(_ct.c_int, _ct.c_void_p, _ct.c_void_p)(_x_ignore)  # bleibt am Leben (Rückruf aus C)
+except (ImportError, AttributeError):  # pragma: no cover
+    _X_IGNORE = None
+
+
 def set_x11_strut(win_id: int, bottom: int, start_x: int, end_x: int) -> bool:
     """X11: am unteren Rand Platz für ein Fenster (Taskleiste) reservieren – maximierte Fenster bleiben darüber.
     `bottom` zählt vom unteren Rand des ganzen (Mehr-Monitor-)Bildschirms."""
@@ -341,20 +353,25 @@ def set_x11_strut(win_id: int, bottom: int, start_x: int, end_x: int) -> bool:
         x.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
         x.XChangeProperty.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_int,
                                       ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
-        x.XFlush.argtypes = [ctypes.c_void_p]
+        x.XSync.argtypes = [ctypes.c_void_p, ctypes.c_int]
         x.XCloseDisplay.argtypes = [ctypes.c_void_p]
+        x.XSetErrorHandler.restype = ctypes.c_void_p
+        x.XSetErrorHandler.argtypes = [ctypes.c_void_p]
         dpy = x.XOpenDisplay(None)
         if not dpy:
             return False
+        # X-Fehler (z. B. ungültiges Fenster) beenden sonst den ganzen Prozess – hier nur ignorieren
+        old = x.XSetErrorHandler(ctypes.cast(_X_IGNORE, ctypes.c_void_p))
         try:
             partial = (ctypes.c_long * 12)(0, 0, 0, bottom, 0, 0, 0, 0, 0, 0, start_x, end_x)
             simple = (ctypes.c_long * 4)(0, 0, 0, bottom)
             for atom_name, data, n in ((b"_NET_WM_STRUT_PARTIAL", partial, 12), (b"_NET_WM_STRUT", simple, 4)):
                 atom = x.XInternAtom(dpy, atom_name, 0)
                 x.XChangeProperty(dpy, int(win_id), atom, 6, 32, 0, ctypes.cast(data, ctypes.c_void_p), n)  # CARDINAL
-            x.XFlush(dpy)
+            x.XSync(dpy, 0)
         finally:
             x.XCloseDisplay(dpy)
+            x.XSetErrorHandler(old)
         return True
     except (OSError, AttributeError, TypeError, ValueError):
         return False

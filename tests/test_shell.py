@@ -169,6 +169,16 @@ def test_shell_as_system_desktop(env, monkeypatch, tmp_path):  # noqa: F811
     assert abs(bar.geometry().bottom() - sh.geometry().bottom()) <= 1 and bar.height() == sh.bar.height()
     sh._launch("Firefox")  # Programm starten: Desktop bleibt (liegt ja hinten)
     assert sh.isVisible() and not sh.menu.isVisible()
+    window.hide()
+    sh.bar.alupc.click()  # AluPC-Knopf in der Taskleiste: Hauptfenster vorne, Desktop bleibt dahinter
+    assert window.isVisible() and sh.isVisible() and sh.bar.alupc.isVisible()
+    window.hide()
+    from alupc.config import DEFAULT_HOTKEYS
+
+    assert DEFAULT_HOTKEYS["alupc_oeffnen"] == "Ctrl+Alt+A"
+    controller.run_command("alupc_oeffnen")  # Tastenkürzel Strg+Alt+A: ebenso
+    assert window.isVisible() and sh.isVisible()
+    window.hide()
     window.toggle_shell()  # Strg+Alt+O schaltet den System-Desktop nicht weg
     assert sh.isVisible()
     assert sh._skip_window(sh.TITLE) and not sh._skip_window("AluPC")  # Hauptfenster gehört in die Taskleiste

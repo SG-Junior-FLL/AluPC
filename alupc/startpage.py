@@ -133,6 +133,7 @@ COMMANDS = {
     "fotowand_aus": "Foto-Wand beenden",
     "vcam": "Virtuelle Kamera (Monitor 2) an/aus",
     "oberflaeche": "AluPC-Oberfläche (Vollbild statt Desktop)",
+    "alupc_oeffnen": "AluPC-Hauptfenster öffnen",
 }
 
 # Symbole, die man für eigene Kacheln wählen kann
