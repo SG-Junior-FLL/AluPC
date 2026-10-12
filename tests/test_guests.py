@@ -206,3 +206,30 @@ def test_overlay_template_and_icons():
     assert any(t[3]["type"] == "chat" for t in ov.TEMPLATES) and "chat" in ov.TYPES
     for name in ("chat", "users", "mixer", "apps", "photos", "webcam"):
         assert not icons.pixmap(name, "#ffffff", 24).isNull()
+
+
+def test_chat_popup_mode(env):  # noqa: F811
+    """Chat als Pop-up: nur neue Nachrichten (8 s), kein QR-Code, ohne Nachricht unsichtbar; Befehl schaltet um."""
+    from PySide6.QtCore import QSizeF
+
+    from alupc import overlays
+
+    controller, _window, _ = env
+    chat = Chat([], True, True)
+    data = overlays.OverlayData()
+    data.chat = lambda: chat
+    item = {"type": "chat", "mode": "popup", "count": 5, "seconds": 0, "qr": True, "x": 1.0, "y": 1.0}
+    assert overlays.measure(item, 1280, 720, data) == QSizeF(overlays.measure(item, 1280, 720, data).width(), 0)
+    chat.post("Tom", "alt", ip="a")
+    chat.post("Mia", "neu", ip="b")
+    chat.messages[0]["t"] -= 20  # älter als 8 s → weg
+    assert [m["text"] for m in data.chat_messages(item)] == ["neu"]
+    assert overlays._chat_head(item, 10, data) == 0  # nie ein QR-Code
+    liste = {**item, "mode": "liste"}
+    assert [m["text"] for m in data.chat_messages(liste)] == ["alt", "neu"]
+    controller.config["chat"] = {**controller.config["chat"], "mode": "liste"}
+    controller.run_command("chat_popup")
+    assert controller.config["chat"]["mode"] == "popup" and controller.live_overlays["chat"]["mode"] == "popup"
+    controller.run_command("chat_popup")
+    assert controller.config["chat"]["mode"] == "liste"
+    controller.stop_chat()

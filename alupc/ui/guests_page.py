@@ -181,40 +181,58 @@ class GuestsPage(QWidget):
             lambda _i: self.controller.update_chat_settings(x=self.chat_pos.currentData()[0],
                                                             y=self.chat_pos.currentData()[1]))
         opts.addWidget(self.chat_pos, 0, 1)
+        opts.addWidget(QLabel("Anzeige:"), 1, 0)
+        self.chat_mode = QComboBox()
+        self.chat_mode.addItem("Liste (mit QR-Code)", "liste")
+        self.chat_mode.addItem("Pop-up (kurz, ohne QR)", "popup")
+        self.chat_mode.setToolTip("Pop-up: jede neue Nachricht ploppt kurz auf und verschwindet wieder")
+        self.chat_mode.setCurrentIndex(1 if cfg.get("mode") == "popup" else 0)
+        self.chat_mode.currentIndexChanged.connect(self._chat_mode)
+        opts.addWidget(self.chat_mode, 1, 1)
         self.chat_count = QSpinBox()
         self.chat_count.setRange(1, 12)
         self.chat_count.setSuffix(" Nachrichten")
         self.chat_count.setValue(int(cfg.get("count", 5)))
         self.chat_count.valueChanged.connect(lambda v: self.controller.update_chat_settings(count=v))
-        opts.addWidget(self.chat_count, 1, 1)
+        opts.addWidget(self.chat_count, 2, 1)
         self.chat_secs = QSpinBox()
         self.chat_secs.setRange(0, 600)
         self.chat_secs.setSuffix(" s sichtbar")
         self.chat_secs.setSpecialValueText("bleiben stehen")
         self.chat_secs.setValue(int(cfg.get("seconds", 0)))
         self.chat_secs.valueChanged.connect(lambda v: self.controller.update_chat_settings(seconds=v))
-        opts.addWidget(self.chat_secs, 1, 2)
+        opts.addWidget(self.chat_secs, 2, 2)
         self.chat_qr = QCheckBox("QR-Code im Overlay")
         self.chat_qr.setChecked(bool(cfg.get("qr", True)))
         self.chat_qr.toggled.connect(lambda on: self.controller.update_chat_settings(qr=on))
         opts.addWidget(self.chat_qr, 0, 2)
+        self._chat_mode_ui()
         self.chat_links = QCheckBox("Links ausblenden")
         self.chat_links.setChecked(bool(cfg.get("hide_links", True)))
         self.chat_links.toggled.connect(lambda on: self.controller.update_chat_settings(hide_links=on))
-        opts.addWidget(self.chat_links, 2, 1)
+        opts.addWidget(self.chat_links, 3, 1)
         self.chat_builtin = QCheckBox("Schimpfwörter-Filter")
         self.chat_builtin.setChecked(bool(cfg.get("builtin", True)))
         self.chat_builtin.toggled.connect(lambda on: self.controller.update_chat_settings(builtin=on))
-        opts.addWidget(self.chat_builtin, 2, 2)
-        opts.addWidget(QLabel("Eigene Wörter:"), 3, 0)
+        opts.addWidget(self.chat_builtin, 3, 2)
+        opts.addWidget(QLabel("Eigene Wörter:"), 4, 0)
         self.chat_words = QLineEdit(", ".join(cfg.get("words") or []))
         self.chat_words.setPlaceholderText("werden zu *** (mit Komma trennen)")
         self.chat_words.editingFinished.connect(
             lambda: self.controller.update_chat_settings(
                 words=[w.strip() for w in self.chat_words.text().split(",") if w.strip()]))
-        opts.addWidget(self.chat_words, 3, 1, 1, 2)
+        opts.addWidget(self.chat_words, 4, 1, 1, 2)
         lay.addLayout(opts)
         return card
+
+    def _chat_mode(self, _i: int) -> None:
+        self.controller.update_chat_settings(mode=self.chat_mode.currentData())
+        self._chat_mode_ui()
+
+    def _chat_mode_ui(self) -> None:
+        popup = self.chat_mode.currentData() == "popup"
+        self.chat_qr.setEnabled(not popup)  # Pop-up zeigt nie einen QR-Code
+        self.chat_secs.setSpecialValueText("8 s (Standard)" if popup else "bleiben stehen")
 
     def _toggle_chat(self) -> None:
         if self.controller.cast.chat is None:

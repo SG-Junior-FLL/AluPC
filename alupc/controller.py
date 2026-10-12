@@ -1473,6 +1473,9 @@ class Controller(QObject):
             "chat_an": self.start_chat,
             "chat_aus": self.stop_chat,
             "chat_overlay": lambda: self.set_chat_overlay(None),
+            "chat_popup": lambda: (self.update_chat_settings(
+                mode="liste" if self.config["chat"].get("mode") == "popup" else "popup"),
+                self.set_chat_overlay(True)),
             "chat_wand": lambda: (self.start_chat(overlay=False) if self.cast.chat is None else None,
                                   self.show_source({"type": "chatwand"}, remember=False)),
             "fotowand": lambda: self.start_wall(show=True),
@@ -1864,7 +1867,7 @@ class Controller(QObject):
 
     def chat_overlay_item(self) -> dict:
         cfg = self.config["chat"]
-        keys = ("count", "seconds", "qr", "x", "y", "size", "style", "color")
+        keys = ("mode", "count", "seconds", "qr", "x", "y", "size", "style", "color")
         return {"id": "live-chat", "type": "chat", "name": "Chat", "on": True, **{k: cfg[k] for k in keys if k in cfg}}
 
     def set_chat_overlay(self, on: bool | None) -> None:

@@ -422,6 +422,12 @@ def stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
     card_bottom = t.mix(t.surface, t.bg, 0.35 if t.dark else 0.0).name()
     card = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {card_top}, stop:1 {card_bottom})"
     edge = t.mix(t.border, a1, 0.18).name()
+    edge_soft = t.soft(edge, 0.9)
+    # Glas: Karten leicht durchscheinend (das Aurora-Leuchten dahinter schimmert durch), oben etwas heller
+    glass = (f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {t.soft(card_top, 0.9 if t.dark else 0.94)},"
+             f" stop:1 {t.soft(card_bottom, 0.84 if t.dark else 0.9)})")
+    hero = (f"qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {t.soft(t.mix(t.surface, a1, 0.16).name(), 0.92)},"
+            f" stop:1 {t.soft(t.mix(t.surface, t.accent2, 0.06).name(), 0.9)})")
     return f"""
 * {{ outline: none; }}
 QWidget {{ color: {t.text}; }}
@@ -429,10 +435,9 @@ QMainWindow, QDialog {{ background: {t.bg}; }}
 QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {edge};
             border-radius: 8px; padding: 6px 9px; }}
 
-#Sidebar {{ background: {t.surface if not t.dark else t.mix(t.bg, t.surface, 0.55).name()};
-             border-right: 1px solid {t.border}; }}
-#Content {{ background: qradialgradient(cx:0.92, cy:0.0, radius:1.0, fx:0.92, fy:0.0,
-                stop:0 {t.accent_soft(0.13 if t.dark else 0.09)}, stop:0.55 {t.bg}, stop:1 {t.bg}); }}
+#Sidebar {{ background: {t.soft(t.surface if not t.dark else t.mix(t.bg, t.surface, 0.55).name(), 0.72)};
+             border-right: 1px solid {t.soft(t.border, 0.8)}; }}
+#Content {{ background: transparent; }}
 #PageIcon {{ background: {grad}; border-radius: 14px; }}
 #Brand {{ font-size: 15pt; font-weight: 800; }}
 #BrandSub, #Muted, QLabel[muted="true"] {{ color: {t.muted}; }}
@@ -442,8 +447,8 @@ QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {edge};
 #StartSection {{ font-size: 8.5pt; font-weight: 800; letter-spacing: 1.4px; color: {t.muted};
                  padding: 10px 0 2px 2px; border-bottom: 1px solid {t.border}; }}
 
-#Card, QGroupBox {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 16px; }}
-#Hero {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 20px; }}
+#Card, QGroupBox {{ background: {glass}; border: 1px solid {edge_soft}; border-radius: 18px; }}
+#Hero {{ background: {hero}; border: 1px solid {edge}; border-radius: 22px; }}
 QPushButton#Chip {{ border-radius: 17px; padding: 7px 14px; background: {t.surface2}; font-weight: 600; }}
 QPushButton#Chip:checked {{ background: {grad_h}; border-color: transparent; color: #ffffff; }}
 QGroupBox {{ margin-top: 30px; padding: 18px 18px 16px 18px; font-weight: 700; }}

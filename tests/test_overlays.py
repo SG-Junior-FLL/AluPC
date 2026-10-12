@@ -226,7 +226,10 @@ def test_overlay_editor_drag_snap_and_forms(env):  # noqa: F811
         dlg.items.append(ov.from_template(tpl, name))
     dlg._fill_list()
     for row in range(len(dlg.items)):
+        dlg.list.blockSignals(True)
         dlg.list.setCurrentRow(row)
+        dlg.list.blockSignals(False)
+        dlg._build_form()  # direkt: ein Fehler im Formular lässt den Test scheitern (im Signal würde Qt ihn schlucken)
         pump(1)
     # nur ein Overlay (Uhr) zum Ziehen
     dlg.items[:] = [ov.from_template({"type": "clock", "x": 1.0, "y": 1.0}, "Uhr")]

@@ -684,7 +684,8 @@ class SetupPage(QWidget):
         row = QHBoxLayout()
         self.desk_apply = button("AluPC-Design aufs System", "palette")
         self.desk_apply.setToolTip("Windows: Akzentfarbe, Hell/Dunkel, Hintergrundbild · KDE: Farbschema, Plasma-Stil, "
-                                   "Hintergrundbild – der alte Stand wird gemerkt")
+                                   "Hintergrundbild · GNOME: Hell/Dunkel, Akzentfarbe, Hintergrundbild – der alte "
+                                   "Stand wird gemerkt")
         self.desk_undo = button("Zurück", "undo")
         self.desk_state = QLabel()
         self.desk_state.setObjectName("Muted")

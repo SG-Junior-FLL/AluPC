@@ -118,6 +118,7 @@ COMMANDS = {
     "rgb": "RGB an/aus",
     "chat": "Chat an/aus (übers AluPC-WLAN)",
     "chat_overlay": "Chat-Overlay an/aus",
+    "chat_popup": "Chat als Pop-up / Liste umschalten",
     "chat_wand": "Chat-Wand zeigen",
     "fotowand": "Foto-Wand zeigen",
     "fotowand_aus": "Foto-Wand beenden",

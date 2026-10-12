@@ -622,6 +622,12 @@ class OverlayDialog(QDialog):
         elif t == "chat":
             from PySide6.QtWidgets import QSpinBox
 
+            mode = QComboBox()
+            mode.addItem("Liste", "liste")
+            mode.addItem("Pop-up (kurz, ohne QR)", "popup")
+            mode.setCurrentIndex(1 if it.get("mode") == "popup" else 0)
+            mode.currentIndexChanged.connect(lambda _i: self._set(iid, mode=mode.currentData()))
+            form.addRow("Anzeige:", mode)
             count = QSpinBox()
             count.setRange(1, 12)
             count.setValue(int(it.get("count", 5) or 5))

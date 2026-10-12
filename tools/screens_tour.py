@@ -210,10 +210,30 @@ step(lambda: (window._go(6), save(window, "audio", "Audio & Kamera – Mischpult
                                   "Mischpult für den ganzen PC: Ausgänge, Eingänge und Programme mit Regler und Pegel, "
                                   "virtuelle Geräte hinzufügen/entfernen, Weiterleitungen, Monitor 2 als Kamera.")),
      "Audio")
-step(lambda: (window.toggle_shell(True), save(window.shell, "oberflaeche", "AluPC-Oberfläche (Vollbild)", "App",
-                                              "Statt des Desktops: Uhr, Suche/„Frag AluPC“, Programme, offene "
-                                              "Fenster, Lautstärke, Monitor 2, Energie."),
-              window.toggle_shell(False)), "Oberfläche")
+
+
+def _shell_tour():
+    # feste Programm-Liste: auf Windows und Linux gleich (sonst stünden die installierten Programme da)
+    import alupc.pc_control as pcc
+
+    real = pcc.installed_apps
+    pcc.installed_apps = lambda: [(n, str(TMP / f"{n}.desktop")) for n in (
+        "Firefox", "Spotify", "VLC", "GIMP", "LibreOffice Writer", "Discord", "Steam", "OBS Studio", "Zoom",
+        "Visual Studio Code", "Thunderbird", "Rechner")]
+    try:
+        window.controller.config["shell"] = {**(window.controller.config.data.get("shell") or {}),
+                                             "pinned": ["Firefox", "Spotify", "Discord"]}
+        window.toggle_shell(True)
+        pump(1.2)
+        save(window.shell, "oberflaeche", "AluPC-Oberfläche (Vollbild)", "App",
+             "Statt des Desktops: große Uhr, Suche/„Frag AluPC“, Programme (angeheftete auch im Dock), Monitor 2 "
+             "mit Schaltern, AluPC-Aktionen, Lautstärke, offene Fenster – auf dem AluPC-Hintergrundbild.")
+        window.toggle_shell(False)
+    finally:
+        pcc.installed_apps = real
+
+
+step(_shell_tour, "Oberfläche")
 step(lambda: (window._go(4), save(window, "system", "System – PC steuern", "App",
                                   "Live-Status (Prozessor, Speicher, Grafik, Temperaturen, Laufwerke, Netzwerk). "
                                   "„PC steuern“: Lautstärke, Musik, Fenster, Bildschirmfoto, Programm öffnen (wie "

@@ -130,7 +130,7 @@ DEFAULTS: dict = {
     # Overlays über Monitor 2 (Musik, Uhr, Bauchbinde …) – siehe overlays.py
     "overlays": {"on": False, "items": []},
     # Chat übers AluPC-WLAN (chat.py): Overlay auf Monitor 2, Wortfilter (eigene Wörter + eingebaute Liste)
-    "chat": {"overlay": True, "count": 5, "seconds": 0, "qr": True, "x": 0.0, "y": 1.0, "size": 1.0,
+    "chat": {"overlay": True, "mode": "liste", "count": 5, "seconds": 0, "qr": True, "x": 0.0, "y": 1.0, "size": 1.0,
              "style": "glas", "color": "#6366f1", "words": [], "builtin": True, "hide_links": True},
     # Seite „Audio“: virtuelle Geräte an, welche Mikrofone ins virtuelle Mikro, virtueller Ausgang ins Mikro, Mithören
     "audio_mixer": {"virtual": False, "mic_inputs": [], "out_to_mic": True, "listen": False},

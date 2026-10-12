@@ -17,7 +17,7 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QAbstractButton,
     QBoxLayout,
@@ -353,6 +353,8 @@ class NavButton(HoverMixin, QAbstractButton):
             h.setAlphaF(0.06 * self._hover)
             p.fillPath(rounded(r, 12), h)
         sel = (t.mix(t.accent, "#ffffff", 0.25) if t.dark else QColor(t.accent).darker(110)).name()
+        if self.isChecked() and self.external_indicator:  # auf der leuchtenden Pille: weiß
+            sel = "#ffffff"
         col = sel if self.isChecked() else t.muted
         if self.compact:
             icons.paint(p, self.icon_name, QRectF(r.center().x() - 10, r.center().y() - 10, 20, 20), col, 2.0)
@@ -724,7 +726,6 @@ def _chip_width(chip) -> int:
 
 
 def _chip_pixmap(icon_name: str, color: str, size: int):
-    from PySide6.QtGui import QPixmap
 
     dpr = 2
     px = QPixmap(size * dpr, size * dpr)
@@ -845,11 +846,46 @@ class NavIndicator(QWidget):
         r = QRectF(self.rect()).adjusted(8, 2, -8, -2)
         if self.compact:
             r = QRectF(self.rect().center().x() - 22, 2, 44, self.height() - 4)
-        tint = QColor(t.accent)
-        tint.setAlphaF(0.16 if t.dark else 0.11)
-        p.fillPath(rounded(r, 12), tint)
-        if not self.compact:
-            p.fillPath(rounded(QRectF(r.left() + 1, r.center().y() - 9, 3, 18), 1.5), QColor(t.accent))
+        g = QLinearGradient(r.topLeft(), r.bottomRight())  # leuchtende Pille im Farbverlauf
+        g.setColorAt(0, QColor(t.accent))
+        g.setColorAt(1, QColor(t.accent2))
+        glow = QColor(t.accent)
+        glow.setAlpha(60)
+        p.fillPath(rounded(r.adjusted(-1, 1, 1, 3), 13), glow)  # weicher Schein darunter
+        p.fillPath(rounded(r, 12), g)
+        hi = QLinearGradient(r.topLeft(), r.bottomLeft())  # feiner Glanz oben
+        hi.setColorAt(0, QColor(255, 255, 255, 46))
+        hi.setColorAt(0.5, QColor(255, 255, 255, 0))
+        p.fillPath(rounded(r, 12), hi)
+        p.end()
+
+
+class AuroraBackdrop(QWidget):
+    """Hintergrund des Hauptfensters: das AluPC-Hintergrundbild („Aurora“, wie Desktop und Oberfläche), stark
+    gedämpft in die Hintergrundfarbe – nur ein Hauch Farbe hinter Seitenleiste und Seiten. Einmal je Design klein
+    gemalt und dann nur noch gestreckt (die Grafik ist weich, das sieht man nicht)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cache: tuple[tuple, QPixmap] | None = None
+
+    def paintEvent(self, _e):
+        from ..desktop_theme import paint_wallpaper
+
+        t = theme.current()
+        key = (t.dark, t.accent, t.accent2, t.bg)
+        if self._cache is None or self._cache[0] != key:
+            pm = QPixmap(960, 600)
+            q = QPainter(pm)
+            paint_wallpaper(q, 960, 600, t.dark, colors=(t.accent, t.accent2))
+            veil = QColor(t.bg)
+            veil.setAlphaF(0.70 if t.dark else 0.78)
+            q.fillRect(pm.rect(), veil)
+            q.end()
+            self._cache = (key, pm)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        p.drawPixmap(self.rect(), self._cache[1])
         p.end()
 
 

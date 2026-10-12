@@ -6,7 +6,9 @@
 * Hell/Dunkel – Windows: Apps und System hell oder dunkel. KDE: steckt im Farbschema, dazu der Plasma-Stil
   (Breeze bzw. Breeze Dunkel), falls plasma-apply-desktoptheme da ist.
 * Hintergrundbild – AluPC malt eins in den Design-Farben (Bildschirmgröße) und setzt es (Windows:
-  SystemParametersInfo, KDE: plasma-apply-wallpaperimage).
+  SystemParametersInfo, KDE: plasma-apply-wallpaperimage, GNOME: gsettings).
+* Linux ohne KDE (GNOME, Ubuntu-Standard): über gsettings – Hell/Dunkel (color-scheme), Akzentfarbe (accent-color,
+  ab GNOME 47 – die nächste der GNOME-Farben) und Hintergrundbild (hell + dunkel).
 Vorher wird gemerkt, was eingestellt war – „Zurück“ stellt genau das wieder her. Ändert man in AluPC Akzentfarbe
 oder Hell/Dunkel, zieht der Desktop mit (solange das Desktop-Design an ist).
 """
@@ -178,12 +180,62 @@ def _win_broadcast() -> None:
 
 
 # ------------------------------------------------------------------ gemeinsam
-def supported() -> tuple[bool, str]:
+GNOME_KEYS = (("org.gnome.desktop.interface", "color-scheme"), ("org.gnome.desktop.interface", "accent-color"),
+              ("org.gnome.desktop.background", "picture-uri"), ("org.gnome.desktop.background", "picture-uri-dark"),
+              ("org.gnome.desktop.background", "picture-options"))
+
+
+
+def _linux_desktop(run=subprocess.run) -> str:
+    """"kde" (Plasma), "gnome" (gsettings mit GNOME-Schemas) oder ""."""
+    if shutil.which("plasma-apply-colorscheme"):
+        return "kde"
+    if shutil.which("gsettings"):
+        try:
+            r = run(["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"], capture_output=True,
+                    text=True, timeout=10)
+            if r.returncode == 0:
+                return "gnome"
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return ""
+
+
+GNOME_FOR_ACCENT = {"alupc": "blue", "blau": "blue", "violett": "purple", "gruen": "green", "orange": "orange",
+                    "rosa": "pink"}
+
+
+def gnome_accent(color: str) -> str:
+    """GNOME-Akzentfarbe (GNOME kennt nur feste Farben, siehe theme.GNOME_ACCENTS): AluPC-Farben nach Namen
+    („Grün“ → green), eigene Farben nach dem nächsten Farbton – kaum gesättigt → „slate“."""
+    from PySide6.QtGui import QColor
+
+    from .ui.theme import ACCENTS, GNOME_ACCENTS
+
+    if color in GNOME_FOR_ACCENT:
+        return GNOME_FOR_ACCENT[color]
+    named = next((k for k, v in ACCENTS.items() if v[1].lower() == str(color).lower()), "")
+    if named in GNOME_FOR_ACCENT:
+        return GNOME_FOR_ACCENT[named]
+    h, s, _v, _a = QColor(color).getHsv()
+    if h < 0 or s < 40:
+        return "slate"
+    order = ("blue", "green", "teal", "yellow", "orange", "red", "pink", "purple")
+
+    def dist(name):
+        gh = QColor(GNOME_ACCENTS[name]).hue()
+        d = abs(gh - h) % 360
+        return min(d, 360 - d)
+
+    return min(order, key=dist)
+
+
+def supported(run=subprocess.run) -> tuple[bool, str]:
     if IS_WINDOWS:
         return True, ""
-    if shutil.which("plasma-apply-colorscheme"):
+    if _linux_desktop(run):
         return True, ""
-    return False, "Geht unter Linux nur mit KDE Plasma (plasma-apply-colorscheme fehlt)."
+    return False, "Geht unter Linux mit KDE Plasma oder GNOME (weder plasma-apply-colorscheme noch gsettings gefunden)."
 
 
 def active() -> bool:
@@ -267,37 +319,104 @@ def wallpaper_path() -> Path:
     return config_dir() / "desktop-hintergrund.png"
 
 
-def render_wallpaper(dark: bool, accent: str, size: tuple[int, int] = (2560, 1440), path: Path | None = None) -> Path:
-    """Hintergrundbild in den Design-Farben: Verlauf, weiches Leuchten in Akzentfarbe, dezentes Wellenmuster."""
-    from PySide6.QtCore import QPointF, QRectF
-    from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
+def _hue(color, deg: int):
+    from PySide6.QtGui import QColor
+
+    c = QColor(color)
+    h, sat, v, _a = c.getHsv()
+    return QColor.fromHsv(((h if h >= 0 else 230) + deg) % 360, max(sat, 120), v)
+
+
+def paint_wallpaper(p, w: float, h: float, dark: bool, accent: str = "alupc", seed: int = 7,
+                    colors: tuple[str, str] | None = None) -> None:
+    """Das AluPC-Hintergrundbild malen („Aurora“): tiefe Grundfarbe, große weiche Farbwolken in Akzent- und
+    Partnerfarbe, leuchtende Bänder, feines Korn und ein dunkler Rand. Gleiche Grafik für das System-Hintergrundbild
+    (Windows/KDE/GNOME) und die AluPC-Oberfläche – darum hier als Funktion."""
+    import random
+
+    from PySide6.QtCore import QPointF, QRectF, Qt
+    from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
 
     from .ui.theme import make_theme
 
-    t = make_theme("dunkel" if dark else "hell", accent)
+    if colors is None:
+        t = make_theme("dunkel" if dark else "hell", accent)
+        colors = (t.accent, t.accent2)
+    a1, a2 = QColor(colors[0]), QColor(colors[1])
+    a3, a4 = _hue(colors[0], 48), _hue(colors[0], -70)
+    full = QRectF(0, 0, w, h)
+    p.save()
+    p.setRenderHint(QPainter.Antialiasing)
+    base = QLinearGradient(0, 0, w * 0.4, h)
+    if dark:
+        base.setColorAt(0, QColor(a1).darker(560))
+        base.setColorAt(0.6, QColor("#070a16"))
+        base.setColorAt(1, QColor(a2).darker(620))
+    else:
+        base.setColorAt(0, QColor(a1).lighter(190))
+        base.setColorAt(0.6, QColor("#f3f5fc"))
+        base.setColorAt(1, QColor(a2).lighter(185))
+    p.fillRect(full, base)
+    big = max(w, h)
+    blobs = ((0.84, 0.16, 0.62, a1, 175), (0.10, 0.92, 0.58, a2, 150), (0.52, 0.62, 0.42, a3, 80),
+             (0.04, 0.06, 0.40, a4, 75), (0.98, 0.98, 0.35, a3, 70))
+    for cx, cy, r, col, alpha in blobs:  # weiche Farbwolken
+        glow = QRadialGradient(QPointF(w * cx, h * cy), big * r)
+        c = QColor(col) if dark else QColor(col).lighter(118)
+        for stop, k in ((0, 1.0), (0.35, 0.55), (0.7, 0.16), (1, 0.0)):
+            c.setAlpha(int((alpha if dark else alpha * 0.8) * k))
+            glow.setColorAt(stop, c)
+        p.fillRect(full, glow)
+    rng = random.Random(seed)
+    p.setCompositionMode(QPainter.CompositionMode_Screen if dark else QPainter.CompositionMode_SourceOver)
+    p.setBrush(Qt.NoBrush)
+    import math
+
+    for y0, amp, thick, col, alpha in ((0.60, 0.17, 0.22, a1, 34), (0.70, 0.13, 0.15, a2, 30),
+                                       (0.50, 0.21, 0.10, a3, 26)):  # seidige Bänder (Aurora) aus vielen Linien
+        k1, k2, wob = rng.uniform(0.2, 0.4), rng.uniform(0.55, 0.8), rng.uniform(0.6, 1.4)
+        n = 30
+        for j in range(n):
+            f = j / (n - 1)
+            off = thick * f
+            sway = 0.02 * math.sin(f * math.pi * wob)
+            path = QPainterPath(QPointF(-w * 0.05, h * (y0 + amp * 0.3 + off)))
+            path.cubicTo(QPointF(w * (k1 + sway), h * (y0 - amp + off * 0.6)),
+                         QPointF(w * (k2 - sway), h * (y0 + amp + off * 1.3)),
+                         QPointF(w * 1.05, h * (y0 - amp * 0.4 + off)))
+            c = QColor(col) if dark else QColor(col).lighter(140)
+            c.setAlpha(int(alpha * math.sin(math.pi * f) ** 1.5 * (1.0 if dark else 1.6)))
+            p.setPen(QPen(c, h * thick / n * 3.0))
+            p.drawPath(path)
+        top = QPainterPath(QPointF(-w * 0.05, h * (y0 + amp * 0.3)))
+        top.cubicTo(QPointF(w * k1, h * (y0 - amp)), QPointF(w * k2, h * (y0 + amp)), QPointF(w * 1.05, h * (y0 - amp * 0.4)))
+        p.setPen(QPen(QColor(255, 255, 255, 34 if dark else 110), max(1.0, w / 1600)))  # feine Lichtkante
+        p.drawPath(top)
+    p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+    vig = QRadialGradient(QPointF(w * 0.5, h * 0.45), big * 0.75)  # Rand dunkler (bzw. heller)
+    edge = QColor(0, 0, 0) if dark else QColor(255, 255, 255)
+    edge.setAlpha(0)
+    vig.setColorAt(0.55, edge)
+    edge.setAlpha(150 if dark else 70)
+    vig.setColorAt(1, edge)
+    p.fillRect(full, vig)
+    tile = QImage(128, 128, QImage.Format_ARGB32)  # feines Korn gegen Streifen im Verlauf
+    for y in range(128):
+        for x in range(128):
+            v = rng.randint(0, 255)
+            tile.setPixelColor(x, y, QColor(v, v, v, 7 if dark else 5))
+    p.drawTiledPixmap(full, QPixmap.fromImage(tile))
+    p.restore()
+
+
+def render_wallpaper(dark: bool, accent: str, size: tuple[int, int] = (2560, 1440), path: Path | None = None) -> Path:
+    """Hintergrundbild in den Design-Farben (siehe paint_wallpaper) als PNG speichern."""
+    from PySide6.QtGui import QImage, QPainter
+
     w, h = size
     img = QImage(w, h, QImage.Format_RGB32)
     p = QPainter(img)
-    p.setRenderHint(QPainter.Antialiasing)
-    base = QLinearGradient(0, 0, w, h)
-    base.setColorAt(0, QColor(t.bg).darker(130) if dark else QColor(t.bg).lighter(103))
-    base.setColorAt(1, QColor(t.accent).darker(330) if dark else QColor(t.accent).lighter(185))
-    p.fillRect(QRectF(0, 0, w, h), base)
-    for cx, cy, r, col, alpha in ((0.78, 0.22, 0.55, t.accent, 95), (0.18, 0.85, 0.45, t.accent2, 70)):
-        glow = QRadialGradient(QPointF(w * cx, h * cy), w * r)
-        c = QColor(col)
-        c.setAlpha(alpha if dark else alpha // 2)
-        glow.setColorAt(0, c)
-        c.setAlpha(0)
-        glow.setColorAt(1, c)
-        p.fillRect(QRectF(0, 0, w, h), glow)
-    for i in range(7):  # Wellenlinien
-        wave = QPainterPath(QPointF(0, h * (0.55 + i * 0.045)))
-        wave.cubicTo(QPointF(w * 0.3, h * (0.35 + i * 0.05)), QPointF(w * 0.65, h * (0.85 + i * 0.03)),
-                     QPointF(w, h * (0.5 + i * 0.05)))
-        c = QColor(255, 255, 255, 14) if dark else QColor(0, 0, 0, 10)
-        p.setPen(QPen(c, max(1.0, w / 1400)))
-        p.drawPath(wave)
+    paint_wallpaper(p, w, h, dark, accent)
     p.end()
     target = wallpaper_path() if path is None else path
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -322,7 +441,7 @@ def apply(dark: bool, run=subprocess.run, accent: str = "alupc", colors: bool = 
           wallpaper: bool = True) -> tuple[bool, str]:
     """AluPC-Design aufs System: Farben (Akzent/Farbschema), Hell/Dunkel, Hintergrundbild. Mehrfach aufrufbar – das
     erste Mal wird der alte Stand gemerkt, später nur noch angepasst."""
-    ok, why = supported()
+    ok, why = supported(run)
     if not ok:
         return False, why
     from .ui.theme import make_theme
@@ -345,6 +464,29 @@ def apply(dark: bool, run=subprocess.run, accent: str = "alupc", colors: bool = 
             if wallpaper:
                 previous.setdefault("windows_wallpaper", _win_wallpaper_read())
                 if _win_wallpaper_set(str(render_wallpaper(dark, accent, _screen_size()))):
+                    done.append("Hintergrundbild")
+        elif _linux_desktop(run) == "gnome":
+            def gget(schema, key):
+                r = run(["gsettings", "get", schema, key], capture_output=True, text=True, timeout=10)
+                return r.stdout.strip() if r.returncode == 0 else None
+
+            def gset(schema, key, value):
+                return run(["gsettings", "set", schema, key, value], capture_output=True, text=True,
+                           timeout=10).returncode == 0
+
+            previous.setdefault("gnome", {f"{s} {k}": gget(s, k) for s, k in GNOME_KEYS})
+            if mode and gset("org.gnome.desktop.interface", "color-scheme", "prefer-dark" if dark else "default"):
+                done.append("dunkel" if dark else "hell")
+            if colors and previous["gnome"].get("org.gnome.desktop.interface accent-color") is not None and gset(
+                    "org.gnome.desktop.interface", "accent-color",
+                    gnome_accent(accent if accent in GNOME_FOR_ACCENT else
+                                 make_theme("dunkel" if dark else "hell", accent).accent)):
+                done.append("Akzentfarbe")
+            if wallpaper:
+                uri = render_wallpaper(dark, accent, _screen_size()).resolve().as_uri()
+                if gset("org.gnome.desktop.background", "picture-uri", uri) and \
+                        gset("org.gnome.desktop.background", "picture-uri-dark", uri):
+                    gset("org.gnome.desktop.background", "picture-options", "zoom")
                     done.append("Hintergrundbild")
         else:
             if colors or mode:
@@ -388,6 +530,11 @@ def restore(run=subprocess.run) -> tuple[bool, str]:
                 _win_mode_write(previous["windows_mode"])
             if previous.get("windows_wallpaper") is not None and "windows_wallpaper" in previous:
                 _win_wallpaper_set(previous["windows_wallpaper"])
+        elif "gnome" in previous:
+            for sk, value in (previous.get("gnome") or {}).items():
+                if value is not None:
+                    schema, key = sk.split(" ", 1)
+                    run(["gsettings", "set", schema, key, value], capture_output=True, text=True, timeout=10)
         else:
             if "kde" in previous:
                 run(["plasma-apply-colorscheme", previous.get("kde") or "BreezeLight"], capture_output=True,

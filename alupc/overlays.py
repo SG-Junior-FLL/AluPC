@@ -13,6 +13,7 @@ dazwischen. Die Größe richtet sich nach der Höhe von Monitor 2 (`size` = 1 �
 from __future__ import annotations
 
 import copy
+import math
 import time
 import uuid
 
@@ -147,6 +148,8 @@ class OverlayData:
         if chat is None:
             return []
         n = max(1, min(12, int(item.get("count", 5) or 5)))
+        if chat_popup(item):  # Pop-up: nur die neuesten, nur kurz
+            return chat.latest(min(n, 4), popup_seconds(item))
         return chat.latest(n, float(item.get("seconds", 0) or 0))
 
     def chat_link(self) -> str:
@@ -293,14 +296,26 @@ def measure(item: dict, w: float, h: float, data: OverlayData) -> QSizeF:
     return QSizeF(u * 20, u * 6)
 
 
+def chat_popup(item: dict) -> bool:
+    """Chat als Pop-up: neue Nachrichten ploppen kurz auf und verschwinden wieder – ohne QR-Code, ohne Liste."""
+    return item.get("mode") == "popup"
+
+
+def popup_seconds(item: dict) -> float:
+    """So lange bleibt ein Pop-up stehen (Einstellung „sichtbar“, sonst 8 s)."""
+    return float(item.get("seconds", 0) or 0) or 8.0
+
+
 def _chat_head(item: dict, u: float, data: OverlayData) -> float:
-    """Höhe des Kopfes (QR-Code + „Chat: scannen“), 0 ohne QR."""
-    return u * 13 if item.get("qr", True) and data.chat_link() else 0.0
+    """Höhe des Kopfes (QR-Code + „Chat: scannen“), 0 ohne QR (und immer 0 als Pop-up)."""
+    return u * 13 if item.get("qr", True) and not chat_popup(item) and data.chat_link() else 0.0
 
 
 def _chat_rows(item: dict, width: float, u: float, data: OverlayData) -> list[tuple[dict, float]]:
     """Nachrichten mit ihrer Höhe (Name + umbrochener Text)."""
     msgs = data.chat_messages(item)
+    if not msgs and chat_popup(item):
+        return []  # Pop-up: ohne Nachricht ist nichts zu sehen
     if not msgs:
         return [({"id": 0, "name": "", "text": "Noch keine Nachrichten – QR-Code scannen und schreiben",
                   "avatar": "💬", "t": 0, "host": True}, u * 7.4)]
@@ -527,12 +542,24 @@ def _paint_chat(p: QPainter, item: dict, r: QRectF, u: float, data: OverlayData,
               QColor(255, 255, 255, 215), shadow=True)
     y = r.y() + head
     wall = time.time()
+    popup = chat_popup(item)
     for m, hh in _chat_rows(item, r.width(), u, data):
         age = wall - m["t"] if m["t"] else 9.0
         appear = max(0.0, min(1.0, age / 0.35))  # neue Nachricht gleitet herein
         box = QRectF(r.x() + (1 - appear) * u * 8, y, r.width(), hh - u * 0.8)
         p.save()
-        p.setOpacity(p.opacity() * (0.3 + 0.7 * appear))
+        if popup:  # aufploppen (kurz größer als nötig), am Ende ausblenden
+            k = min(1.0, age / 0.45)
+            scale = 0.6 + 0.4 * k + 0.08 * math.sin(math.pi * k)
+            box = QRectF(r.x(), y, r.width(), hh - u * 0.8)
+            c = box.center()
+            p.translate(c)
+            p.scale(scale, scale)
+            p.translate(-c)
+            vanish = max(0.0, min(1.0, (popup_seconds(item) - age) / 0.8))
+            p.setOpacity(p.opacity() * min(k * 1.6, 1.0) * vanish)
+        else:
+            p.setOpacity(p.opacity() * (0.3 + 0.7 * appear))
         fill = QColor(bg) if bg is not None else QColor(12, 16, 28, 175)
         if m.get("host"):
             fill = QColor(accent)
@@ -542,6 +569,12 @@ def _paint_chat(p: QPainter, item: dict, r: QRectF, u: float, data: OverlayData,
         p.drawRoundedRect(box.translated(0, u * 0.3), u * 1.8, u * 1.8)
         p.setBrush(fill)
         p.drawRoundedRect(box, u * 1.8, u * 1.8)
+        if popup and not m.get("host"):  # Pop-up: leuchtender Rand in der Farbe des Namens
+            ring = QColor(name_color(m.get("name", "")))
+            ring.setAlpha(200)
+            p.setPen(QPen(ring, max(1.5, u * 0.3)))
+            p.setBrush(Qt.NoBrush)
+            p.drawRoundedRect(box.adjusted(u * 0.15, u * 0.15, -u * 0.15, -u * 0.15), u * 1.7, u * 1.7)
         name = (m.get("avatar", "") + " " if m.get("avatar") else "") + m.get("name", "")
         if name.strip():
             _text(p, QRectF(box.x() + u * 2, box.y() + u * 1.1, box.width() - u * 4, u * 2.6 * 1.25), name,
@@ -697,12 +730,17 @@ class OverlayWindow(QWidget):
     def _animate(self) -> None:
         fresh = None
         for it, r in self._rects:
-            if it.get("type") == "chat":  # nur kurz nach einer neuen Nachricht (hereingleiten)
-                fresh = self.data.chat_fresh() if fresh is None else fresh
-                if not fresh:
-                    continue
+            if it.get("type") == "chat":  # nur kurz nach einer neuen Nachricht (hereingleiten / Pop-up läuft)
+                if chat_popup(it):
+                    if not self.data.chat_fresh(popup_seconds(it) + 0.2):
+                        continue
+                else:
+                    fresh = self.data.chat_fresh() if fresh is None else fresh
+                    if not fresh:
+                        continue
             if animated(it):
-                self.update(r.toAlignedRect().adjusted(-2, -2, 2, 2))
+                pad = 40 if it.get("type") == "chat" else 2  # Pop-up ploppt kurz über seinen Platz hinaus
+                self.update(r.toAlignedRect().adjusted(-pad, -pad, pad, pad))
 
     def chat_changed(self) -> None:
         """Neue/gelöschte Chat-Nachricht: Größe neu berechnen und neu zeichnen."""

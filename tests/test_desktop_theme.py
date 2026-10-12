@@ -95,3 +95,48 @@ def test_windows_values(qapp):
     v = dt.windows_values("#4f6bef")
     assert v["AccentColor"] == 0xFFEF6B4F and v["AccentColorMenu"] == v["AccentColor"]
     assert len(v["AccentPalette"]) == 32 and v["AutoColorization"] == "0"
+
+
+def test_gnome_apply_and_restore(qapp, monkeypatch, tmp_path):
+    """Linux ohne KDE (GNOME): Hell/Dunkel, Akzentfarbe, Hintergrundbild per gsettings – und genau zurück."""
+    store = {"org.gnome.desktop.interface color-scheme": "'default'",
+             "org.gnome.desktop.interface accent-color": "'blue'",
+             "org.gnome.desktop.background picture-uri": "'file:///usr/share/backgrounds/alt.png'",
+             "org.gnome.desktop.background picture-uri-dark": "'file:///usr/share/backgrounds/alt-d.png'",
+             "org.gnome.desktop.background picture-options": "'zoom'"}
+    before = dict(store)
+
+    class R:
+        def __init__(self, rc, out=""):
+            self.returncode, self.stdout, self.stderr = rc, out, ""
+
+    def run(cmd, **_k):
+        if cmd[:2] == ["gsettings", "get"]:
+            key = f"{cmd[2]} {cmd[3]}"
+            return R(0, store[key] + "\n") if key in store else R(1)
+        if cmd[:2] == ["gsettings", "set"]:
+            store[f"{cmd[2]} {cmd[3]}"] = cmd[4]
+            return R(0)
+        return R(1)
+
+    monkeypatch.setattr(dt, "IS_WINDOWS", False)
+    monkeypatch.setattr(dt.shutil, "which", lambda name: "/usr/bin/gsettings" if name == "gsettings" else None)
+    monkeypatch.setattr(dt, "_state_file", lambda: tmp_path / "state.json")
+    monkeypatch.setattr(dt, "wallpaper_path", lambda: tmp_path / "bg.png")
+    monkeypatch.setattr(dt, "_screen_size", lambda: (640, 360))
+    ok, msg = dt.apply(True, run=run, accent="gruen")
+    assert ok and "Hintergrundbild" in msg, msg
+    assert store["org.gnome.desktop.interface color-scheme"] == "prefer-dark"
+    assert store["org.gnome.desktop.interface accent-color"] == "green"
+    assert store["org.gnome.desktop.background picture-uri"] == (tmp_path / "bg.png").resolve().as_uri()
+    assert store["org.gnome.desktop.background picture-uri-dark"] == store["org.gnome.desktop.background picture-uri"]
+    ok, _msg = dt.restore(run=run)
+    assert ok and store == before
+
+
+def test_gnome_accent_names(qapp):
+    assert dt.gnome_accent("#4f6bef") == "blue" and dt.gnome_accent("#22c55e") == "green"
+    assert dt.gnome_accent("gruen") == "green" and dt.gnome_accent("orange") == "orange"
+    assert dt.gnome_accent("#10b981") == "green"  # AluPC-Grün als Farbwert
+    assert dt.gnome_accent("#ec4899") == "pink" and dt.gnome_accent("#8b5cf6") == "purple"
+    assert dt.gnome_accent("#808080") == "slate"

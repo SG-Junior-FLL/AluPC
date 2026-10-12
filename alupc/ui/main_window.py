@@ -50,7 +50,7 @@ from .setup_page import SetupPage
 from .source_picker import IMAGE_FILTER, VIDEO_FILTER
 from ..startpage import BUILTIN_TILES, custom_key, find_custom, ordered_keys, section_of, sections
 from .start_page_dialog import StartPageDialog
-from .widgets import (EmptyState, MonitorCard, NavButton, NavIndicator, SceneCard, SectionHeader, StatusCard, Tile, Toast,
+from .widgets import (AuroraBackdrop, EmptyState, MonitorCard, NavButton, NavIndicator, SceneCard, SectionHeader, StatusCard, Tile, Toast,
                       animate_height, button, fade_in, font, mark_current, menu_header, page_header)
 
 __all__ = ["MainWindow", "app_icon"]
@@ -274,7 +274,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(480, 460)
         self.compact = False
 
-        central = QWidget()
+        central = AuroraBackdrop()
         root = QHBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)

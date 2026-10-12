@@ -8,7 +8,23 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.125.0)
+### Neu in dieser Version (0.126.0)
+- **Chat als Pop-up:** Seite „Gäste“ → Anzeige „Pop-up (kurz, ohne QR)“: jede neue Nachricht ploppt auf
+  Monitor 2 auf (mit Rand in der Namensfarbe), bleibt ein paar Sekunden (Standard 8 s) und blendet aus – ohne
+  QR-Code, ohne Liste. Auch im Overlay-Editor und als Befehl „Chat als Pop-up / Liste umschalten“.
+- **AluPC-Oberfläche komplett neu:** Aurora-Hintergrund in der Akzentfarbe, große Uhr, Suche als Pille,
+  Programme mit echten Symbolen (sonst farbige Buchstaben-Kacheln), Monitor 2 mit Live-Bild und leuchtenden
+  Schaltern, bunte AluPC-Aktionen, Lautstärke, offene Fenster und ein schwebendes **Dock** (AluPC, Gäste, Audio,
+  Einstellungen, angeheftete Programme, Sperren, Energie). Passt sich kleinen Bildschirmen an.
+- **Neues Hintergrundbild fürs System („Aurora“):** weiche Farbwolken und seidige Lichtbänder in den
+  Design-Farben, hell und dunkel. **Linux jetzt auch mit GNOME** (Ubuntu-Standard): Hell/Dunkel, Akzentfarbe
+  (nächste GNOME-Farbe) und Hintergrundbild – „Zurück“ stellt alles genau wieder her. KDE und Windows wie bisher.
+- **Schöneres App-Design:** sanftes Aurora-Leuchten hinter allen Seiten, leuchtende Markierung im Menü
+  (Farbverlauf), Karten mit Glas-Tiefe – gleich unter Windows und Linux, hell und dunkel.
+- **Behoben:** Overlay-Editor – eine Änderung dieser Version hätte die Einstellungen der Overlays kaputt gemacht;
+  vor dem Release gefunden, Test prüft das jetzt streng.
+
+### Davor: 0.125.0
 - **Handy-Steuerung fürs iPad:** ab Tablet-Breite Leiste links statt unten, Live-Bild und „Monitor 2“ oben, Karten
   zweispaltig; quer bleibt das Live-Bild links stehen, die Steuerung scrollt daneben. **Zeichnen** mit großem Bild
   und Werkzeugen daneben, **Folien** mit riesigen Weiter/Zurück-Knöpfen und großem Touchpad nebeneinander,
