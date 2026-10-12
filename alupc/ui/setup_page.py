@@ -216,6 +216,7 @@ class SetupPage(QWidget):
         ("palette", "Darstellung", "Design · Farbe"),
         ("moon", "Bildschirmschoner", "Stil · Zeit"),
         ("timer", "Timer", "Dauer · Warnfarben"),
+        ("board", "Whiteboard", "Stift · Seiten · Farben"),
         ("sound", "Töne", "Bei Aktionen"),
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
         ("mic", "Sprache", "Sprechen · Stimme · Test"),
@@ -237,6 +238,7 @@ class SetupPage(QWidget):
             "Darstellung": [self._appearance_group],
             "Bildschirmschoner": [self._screensaver_group],
             "Timer": [self._timer_group],
+            "Whiteboard": [self._board_group],
             "Töne": [self._sound_group],
             "Tastenkürzel": [self._hotkey_group],
             "Sprache": [self._voice_group],
@@ -323,6 +325,24 @@ class SetupPage(QWidget):
         for i, (_icon, name, _sub) in enumerate(self.SECTIONS):
             if name == title:
                 self.nav.setCurrentRow(i)
+
+    # ================================================================ Whiteboard
+    def _board_group(self):
+        from .board_settings import board_settings_widget
+
+        box = QGroupBox("Whiteboard")
+        lay = QVBoxLayout(box)
+        note = QLabel("Wie ein Notizbuch: Seiten, Zoomen, Stift mit Druck, Lasso, Formen, Text. Öffnen über die "
+                      "Kachel „Whiteboard“ (am PC) oder „Tafel“ auf dem Handy.")
+        note.setWordWrap(True)
+        note.setObjectName("Muted")
+        lay.addWidget(note)
+        open_btn = button("Whiteboard öffnen", "board", primary=True)
+        open_btn.clicked.connect(lambda: self.controller.show_whiteboard())
+        lay.addWidget(open_btn, 0, Qt.AlignLeft)
+        self.board_form = board_settings_widget(self.controller.board)
+        lay.addWidget(self.board_form)
+        return box
 
     # ================================================================ Monitore
     def _display_group(self):

@@ -131,11 +131,13 @@ input[type=range] { width:100%; accent-color:#8b5cf6; height:30px; }
 .big { font-size:30px; letter-spacing:8px; text-align:center; }
 /* Zeichnen */
 .wbg { display:flex; flex-wrap:wrap; gap:8px; }
-.wbg button { flex:1 1 30%; min-width:96px; padding:12px 8px; font-size:14px; }
+.wbg button { flex:1 1 30%; min-width:96px; padding:12px 6px; font-size:14px; overflow-wrap:anywhere; }
 .tools { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
 .tools button { flex-direction:column; gap:4px; padding:10px 4px; font-size:12.5px; }
-.colors { display:flex; gap:10px; justify-content:space-between; margin-top:12px; }
-.colors button { width:38px; height:38px; flex:none; border-radius:50%; padding:0; border:3px solid transparent; }
+.colors { display:flex; gap:8px; justify-content:space-between; margin-top:12px; }
+/* schrumpfen statt überstehen: 7–8 Farben passen auch aufs kleine Handy */
+.colors button { flex:1 1 0; min-width:0; max-width:40px; height:auto; aspect-ratio:1; border-radius:50%; padding:0;
+                 border:3px solid transparent; }
 .colors button { box-shadow:inset 0 0 0 1px rgba(127,127,127,.35); }  /* Weiß auf heller Karte sichtbar */
 .colors button.sel { border-color:var(--text); transform:scale(1.08); }
 /* Seitenverhältnis = Monitor 2 (per JS aus dem Live-Bild), damit Finger und Monitor genau übereinstimmen */
@@ -178,6 +180,16 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
 .toast.bad { background:var(--bad); }
 #login { display:none; margin-top:20px; }
 .hide { display:none !important; }
+/* Tafel-Modus (Whiteboard auf Monitor 2): zusätzliche Werkzeuge und die Tafel-Karte */
+.bonly, .bonly-card { display:none !important; }
+body.board .bonly { display:flex !important; }
+body.board .bonly.hide { display:none !important; }
+body.board .bonly-card { display:block !important; }
+body.board .tools { grid-template-columns:repeat(4,1fr); }
+body.board #draw-actions .lbl { display:none; }
+body.board #draw-actions > #b-undo, body.board #draw-actions > #b-redo { flex:0 0 56px; }
+#widths button.on { background:var(--on); color:#fff; }
+#b-zoom { font-variant-numeric:tabular-nums; min-width:76px; }
 /* Feinschliff für alle Größen */
 .side { min-width:0; }
 .page.sel .side > .card, .page.sel #control > .card { animation:rise .42s cubic-bezier(.2,.9,.25,1.15) both; }
@@ -227,7 +239,6 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
   .tools button { padding:14px 4px; font-size:13.5px; }
   .tools svg.i { width:26px; height:26px; }
   .colors { gap:4px; }
-  .colors button { width:38px; height:38px; }
   .wbg button { flex-basis:40%; min-width:0; padding:13px 4px; font-size:14px; }
   /* Folien: riesige Knöpfe, großes Touchpad */
   .clicker button { min-height:220px; font-size:20px; border-radius:30px; }
@@ -250,7 +261,6 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
   #p-zeichnen > .card:first-child { grid-column:1; grid-row:1 / span 2; position:sticky; top:calc(84px + env(safe-area-inset-top)); }
   #p-zeichnen .tools { grid-template-columns:repeat(2,1fr); }
   #p-zeichnen .colors { gap:6px; }
-  #p-zeichnen .colors button { width:36px; height:36px; }
   #c-keys:not(.hide) { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:16px; align-items:stretch; }
   #c-keys > .card { margin:0; display:flex; flex-direction:column; }
   #c-keys .clicker { flex:1; }
@@ -302,6 +312,11 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
   <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-4M14 18v3"/></symbol>
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></symbol>
   <symbol id="i-mouse" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 7v4"/></symbol>
+  <symbol id="i-lasso" viewBox="0 0 24 24"><ellipse cx="12" cy="9" rx="8" ry="5" stroke-dasharray="3 2.5"/><path d="M7 13c-1 2 0 4 2 4s2 3 0 4"/></symbol>
+  <symbol id="i-shape" viewBox="0 0 24 24"><rect x="3" y="3" width="9" height="9" rx="1.5"/><circle cx="16" cy="16" r="5"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
   <symbol id="i-expand" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
 </svg>
 <header><div class="logo"><svg class="i"><use href="#i-logo"/></svg></div>
@@ -515,13 +530,41 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
       <button id="t-stift" class="on" onclick="pick('stift')"><svg class="i"><use href="#i-pen"/></svg>Stift</button>
       <button id="t-marker" onclick="pick('marker')"><svg class="i"><use href="#i-marker"/></svg>Marker</button>
       <button id="t-radierer" onclick="pick('radierer')"><svg class="i"><use href="#i-erase"/></svg>Radierer</button>
+      <button id="t-lasso" class="bonly" onclick="pick('lasso')"><svg class="i"><use href="#i-lasso"/></svg>Lasso</button>
+      <button id="t-form" class="bonly" onclick="pickShape()"><svg class="i"><use href="#i-shape"/></svg><span id="form-name">Linie</span></button>
+      <button id="t-text" class="bonly" onclick="pick('text')"><svg class="i"><use href="#i-text"/></svg>Text</button>
     </div>
     <div class="colors" id="colors"></div>
-    <div class="row" style="margin-top:12px">
-      <button onclick="cmd('zeichnung_zurueck')"><svg class="i"><use href="#i-undo"/></svg>Rückgängig</button>
-      <button onclick="cmd('zeichnungen_loeschen')"><svg class="i"><use href="#i-trash"/></svg>Alles löschen</button>
+    <div class="chips bonly" id="widths" style="margin:12px 0 0">
+      <button data-w="0.6" onclick="setWidth(0.6)">• fein</button><button data-w="1" onclick="setWidth(1)">● mittel</button>
+      <button data-w="2.2" onclick="setWidth(2.2)">⬤ dick</button>
     </div>
-    <div class="hint">Mit dem Finger auf das Bild zeichnen – erscheint sofort auf Monitor 2.</div>
+    <div class="row" id="draw-actions" style="margin-top:12px">
+      <button onclick="undoAny()" id="b-undo" aria-label="Rückgängig" title="Rückgängig"><svg class="i"><use href="#i-undo"/></svg><span class="lbl">Rückgängig</span></button>
+      <button onclick="redoAny()" id="b-redo" class="bonly" aria-label="Wiederholen" title="Wiederholen"><svg class="i"><use href="#i-redo"/></svg></button>
+      <button onclick="clearAny()"><svg class="i"><use href="#i-trash"/></svg><span id="clear-label">Alles löschen</span></button>
+    </div>
+    <button class="bonly hide" id="b-del" style="width:100%;margin-top:8px" onclick="boardOp('auswahl_loeschen')">
+      <svg class="i"><use href="#i-trash"/></svg>Auswahl löschen</button>
+    <div class="hint" id="draw-hint">Mit dem Finger auf das Bild zeichnen – erscheint sofort auf Monitor 2.</div>
+  </div>
+  <div class="card bonly-card" id="c-board">
+    <h2>Tafel <span id="b-name" style="text-transform:none;letter-spacing:0;font-weight:600"></span></h2>
+    <div class="row">
+      <button onclick="boardOp('zoom_out')" aria-label="Herauszoomen"><svg class="i"><use href="#i-minus"/></svg></button>
+      <button onclick="boardOp('fit')" id="b-zoom" aria-label="Ganze Seite">100 %</button>
+      <button onclick="boardOp('zoom_in')" aria-label="Hineinzoomen"><svg class="i"><use href="#i-plus"/></svg></button>
+    </div>
+    <div class="row">
+      <button onclick="boardOp('seite_zurueck')" aria-label="Vorige Seite"><svg class="i"><use href="#i-prev"/></svg></button>
+      <button id="b-page" disabled>1 / 1</button>
+      <button onclick="boardOp('seite_vor')" aria-label="Nächste Seite"><svg class="i"><use href="#i-next"/></svg></button>
+      <button onclick="boardOp('seite_neu')"><svg class="i"><use href="#i-plus"/></svg>Seite</button>
+    </div>
+    <label class="live-row"><input type="checkbox" id="pencil" onchange="setPencil(this.checked)">
+      <span>✏️ <b style="color:inherit">Nur Stift zeichnet</b> – Finger verschieben (Handballen-Schutz)</span></label>
+    <div class="hint">Zwei Finger: zoomen und verschieben. Apple Pencil: fester drücken = dicker. Lasso: einkreisen,
+      dann ziehen zum Verschieben. Form: nochmal tippen wechselt Linie → Pfeil → Rechteck → Kreis.</div>
   </div>
   <div class="card">
     <h2>Whiteboard</h2>
@@ -530,7 +573,7 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
       <button onclick="cmd('whiteboard:kariert')">Kariert</button>
       <button onclick="cmd('whiteboard:liniert')">Liniert</button>
       <button onclick="cmd('whiteboard:punkte')">Punkteraster</button>
-      <button onclick="cmd('whiteboard:millimeter')">Millimeterpapier</button>
+      <button onclick="cmd('whiteboard:millimeter')">Millimeter</button>
       <button onclick="cmd('whiteboard:koordinaten')">Koordinaten</button>
       <button onclick="cmd('whiteboard:noten')">Notenlinien</button>
       <button onclick="cmd('whiteboard:tafel')">Tafel (grün)</button>
@@ -837,6 +880,7 @@ async function refresh() {
           r.textContent = s.reply.text; waitReply = false; }
       }
     }
+    showBoard(s.board || null);
     $("c-rgb").classList.toggle("hide", !s.rgb);
     for (const m of ["farbe", "monitor2", "aus"]) $("r-" + m).classList.toggle("on", s.rgb === m);
     $("c-keys").classList.toggle("hide", s.keys === false);
@@ -886,23 +930,26 @@ async function loadPreview() {
 
 // ---- Senden mit „immer nur das Neueste“ (Laser, Zeichnen, Maus): nie einen Rückstau aufbauen
 function sender(path, merge) {
-  let pending = null, busy = false;
-  function flush() {
-    if (!pending) return;
+  // Alles läuft nacheinander über eine Kette: „Anfang“, „weiter“, „Ende“ kommen am PC garantiert in dieser
+  // Reihenfolge an (sonst könnte „Ende“ vor „Anfang“ eintreffen und ein Strich bliebe hängen).
+  let pending = null, busy = false, chain = Promise.resolve();
+  const post = body => fetch(path, { method: "POST", headers: { "X-AluPC-Code": code,
+    "Content-Type": "application/json" }, body }).catch(() => {});
+  function pump() {
+    if (busy || !pending) return;
     busy = true; const body = JSON.stringify(pending); pending = null;
-    fetch(path, { method: "POST", headers: { "X-AluPC-Code": code, "Content-Type": "application/json" }, body })
-      .catch(() => {}).finally(() => setTimeout(() => { busy = false; flush(); }, 20));
+    chain = chain.then(() => post(body)).then(() => new Promise(r => setTimeout(r, 15)))
+                 .then(() => { busy = false; pump(); });
   }
   return function (obj, force) {
     if (force) {  // Anfang/Ende eines Strichs, Klicks: nie verschmelzen oder verlieren
+      if (pending) { const p = JSON.stringify(pending); pending = null; chain = chain.then(() => post(p)); }
       const body = JSON.stringify(obj);
-      const go = () => fetch(path, { method: "POST", headers: { "X-AluPC-Code": code, "Content-Type": "application/json" }, body }).catch(() => {});
-      if (pending) { const p = pending; pending = null; fetch(path, { method: "POST", headers: { "X-AluPC-Code": code, "Content-Type": "application/json" }, body: JSON.stringify(p) }).catch(() => {}).finally(go); }
-      else go();
+      chain = chain.then(() => post(body));
       return;
     }
     pending = merge && pending ? merge(pending, obj) : obj;
-    if (!busy) flush();
+    pump();
   };
 }
 const sendLaser = sender("/api/laser");
@@ -934,19 +981,74 @@ laserOn($("preview"), $("laser"));
 // ---- Zeichnen: Strich sofort auf dem Handy sehen, gleichzeitig auf Monitor 2
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#ffffff", "#111827"];
 let tool = store.get("alucast-tool") || "stift", color = store.get("alucast-color") || COLORS[0];
-const NAMES = { laser: "Laser", stift: "Stift", marker: "Marker", radierer: "Radierer" };
-for (const c of COLORS) {
-  const b = document.createElement("button"); b.style.background = c; b.dataset.c = c;
-  b.onclick = () => { color = c; store.set("alucast-color", c); if (tool === "laser" || tool === "radierer") pick("stift"); showTools(); };
-  $("colors").appendChild(b);
+const NAMES = { laser: "Laser", stift: "Stift", marker: "Marker", radierer: "Radierer", lasso: "Lasso", form: "Form",
+                text: "Text" };
+const SHAPES = [["line", "Linie"], ["arrow", "Pfeil"], ["rect", "Rechteck"], ["ellipse", "Kreis"]];
+let shape = store.get("alucast-shape") || "line", widthF = +store.get("alucast-width") || 1;
+let board = null, paletteKey = "", pencilOnly = store.get("alucast-pencil") === "1";
+function buildColors(list) {
+  const key = list.join(","); if (key === paletteKey) return; paletteKey = key;
+  $("colors").innerHTML = "";
+  for (const c of list) {
+    const b = document.createElement("button"); b.style.background = c; b.dataset.c = c;
+    b.onclick = () => { color = c; store.set("alucast-color", c);
+      if (["laser", "radierer", "lasso"].includes(tool)) pick("stift"); showTools(); };
+    $("colors").appendChild(b);
+  }
+  showTools();
 }
-function pick(t) { tool = t; store.set("alucast-tool", t); showTools(); buzz(); }
+buildColors(COLORS);
+function pick(t) { if (!board && !["laser", "stift", "marker", "radierer"].includes(t)) t = "stift";
+  tool = t; store.set("alucast-tool", t); showTools(); buzz(); }
+function pickShape() {  // nochmal tippen: nächste Form
+  if (tool === "form") { const i = SHAPES.findIndex(s => s[0] === shape); shape = SHAPES[(i + 1) % SHAPES.length][0];
+    store.set("alucast-shape", shape); }
+  pick("form");
+}
+function setWidth(f) { widthF = f; store.set("alucast-width", String(f)); showTools(); buzz(); }
+function setPencil(on) { pencilOnly = on; store.set("alucast-pencil", on ? "1" : "0"); }
 function showTools() {
   for (const t of Object.keys(NAMES)) $("t-" + t).classList.toggle("on", t === tool);
-  for (const b of $("colors").children) b.classList.toggle("sel", b.dataset.c === color && tool !== "laser" && tool !== "radierer");
-  $("tool-name").textContent = NAMES[tool];
+  for (const b of $("colors").children) b.classList.toggle("sel", b.dataset.c === color && !["laser", "radierer", "lasso"].includes(tool));
+  const sname = (SHAPES.find(s => s[0] === shape) || SHAPES[0])[1];
+  $("form-name").textContent = sname;
+  $("tool-name").textContent = tool === "form" ? sname : NAMES[tool];
+  for (const b of $("widths").children) b.classList.toggle("on", +b.dataset.w === widthF);
 }
 showTools();
+function boardTool() {
+  return { stift: "pen", marker: "marker", radierer: "eraser", laser: "laser", lasso: "lasso", form: shape }[tool] || "pen";
+}
+function boardWidth() {
+  if (!board) return undefined;
+  return (tool === "marker" ? board.marker_width : board.width) * widthF;
+}
+const sendBoard = sender("/api/board", (a, b) => (a.op === "view" && b.op === "view")
+  ? { op: "view", zoom: (a.zoom || 1) * (b.zoom || 1), dx: (a.dx || 0) + (b.dx || 0), dy: (a.dy || 0) + (b.dy || 0),
+      ax: b.ax, ay: b.ay } : b);
+function boardOp(op, arg) { buzz(); sendBoard({ op, arg: arg || "" }, true); setTimeout(refresh, 250); }
+function undoAny() { if (board) boardOp("rueckgaengig"); else cmd("zeichnung_zurueck"); }
+function redoAny() { if (board) boardOp("wiederholen"); }
+function clearAny() {
+  if (board) { if (confirm("Diese Seite der Tafel leeren?")) boardOp("leeren"); }
+  else cmd("zeichnungen_loeschen");
+}
+function showBoard(b) {
+  const was = !!board; board = b;
+  document.body.classList.toggle("board", !!b);
+  $("clear-label").textContent = b ? "Seite leeren" : "Alles löschen";
+  $("draw-hint").textContent = b ? "Auf die Tafel zeichnen – Monitor 2 zeigt genau diese Ansicht."
+                                 : "Mit dem Finger auf das Bild zeichnen – erscheint sofort auf Monitor 2.";
+  if (!b) { if (!["laser", "stift", "marker", "radierer"].includes(tool)) pick("stift"); buildColors(COLORS); return; }
+  if (!was && store.get("alucast-pencil") === "") { pencilOnly = !!b.pencil_only; }
+  $("pencil").checked = pencilOnly;
+  buildColors(b.colors || COLORS);
+  $("b-name").textContent = "· " + b.name;
+  $("b-zoom").textContent = b.zoom + " %";
+  $("b-page").textContent = b.page + " / " + b.pages;
+  $("b-undo").disabled = !b.undo; $("b-redo").disabled = !b.redo;
+  $("b-del").classList.toggle("hide", !b.sel);
+}
 const ink = $("ink"), dpv = $("dpreview");
 function sizeInk() {
   const box = dpv.getBoundingClientRect();
@@ -960,25 +1062,72 @@ function inkLine(a, b) {
   g.lineWidth = (tool === "marker" ? 14 : 4) * devicePixelRatio;
   g.beginPath(); g.moveTo(a.x * ink.width, a.y * ink.height); g.lineTo(b.x * ink.width, b.y * ink.height); g.stroke();
 }
+// Tafel: zwei Finger = zoomen/verschieben; „Nur Stift“: ein Finger verschiebt, nur Apple Pencil/Maus zeichnet
+const bpts = new Map(); let bgest = null, touchStart = null;
+function pinchOf() {
+  const box = dpv.getBoundingClientRect(), p = [...bpts.values()];
+  return { d: Math.hypot((p[0].x - p[1].x) * box.width, (p[0].y - p[1].y) * box.height),
+           m: { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 } };
+}
+function pressureOf(e) { return e.pointerType === "pen" && e.pressure > 0 ? e.pressure : 0.5; }
+function drawMsg(phase, p, e) {
+  const m = { phase, x: p.x, y: p.y, tool: board ? boardTool() : tool, color };
+  if (board) { m.pressure = pressureOf(e); const w = boardWidth(); if (w) m.width = w; }
+  return m;
+}
 dpv.addEventListener("pointerdown", e => {
   if (e.target.closest("button") || pinching) return;
-  capture(dpv, e); const p = norm(dpv, e); last = p; clearTimeout(fadeTimer);
-  if (tool === "laser") { sendLaser(p); dotAt(p); return; }
-  sendDraw({ phase: "down", x: p.x, y: p.y, tool, color }, true);
+  capture(dpv, e); const p = norm(dpv, e);
+  if (board) {
+    bpts.set(e.pointerId, p);
+    if (bpts.size >= 2) {  // zweiter Finger: ab jetzt zoomen/verschieben (der erste hat noch nicht gezeichnet)
+      if (touchStart) touchStart = null;
+      else if (last) sendDraw({ phase: "up" }, true);
+      last = null;
+      bgest = { two: true, prev: pinchOf() }; return;
+    }
+    if (pencilOnly && e.pointerType === "touch") { bgest = { pan: true, prev: p }; return; }
+    if (tool === "text") {
+      const t = prompt("Text für die Tafel:"); bpts.delete(e.pointerId);
+      if (t && t.trim()) { buzz(); sendBoard({ op: "text", x: p.x, y: p.y, text: t.slice(0, 500), color }, true); }
+      return;
+    }
+  }
+  last = p; clearTimeout(fadeTimer);
+  if (tool === "laser" && !board) { sendLaser(p); dotAt(p); return; }
+  if (board && e.pointerType === "touch") { touchStart = drawMsg("down", p, e); return; }  // erst bei Bewegung
+  sendDraw(drawMsg("down", p, e), true);
 });
 dpv.addEventListener("pointermove", e => {
+  if (board && bpts.has(e.pointerId)) {
+    bpts.set(e.pointerId, norm(dpv, e));
+    if (bgest && bgest.two && bpts.size >= 2) {
+      const cur = pinchOf();
+      sendBoard({ op: "view", zoom: cur.d / Math.max(1, bgest.prev.d), ax: cur.m.x, ay: cur.m.y,
+                  dx: cur.m.x - bgest.prev.m.x, dy: cur.m.y - bgest.prev.m.y });
+      bgest.prev = cur; return;
+    }
+    if (bgest && bgest.pan) {
+      const p = norm(dpv, e); sendBoard({ op: "view", dx: p.x - bgest.prev.x, dy: p.y - bgest.prev.y });
+      bgest.prev = p; return;
+    }
+  }
   if (!last || pinching) return;
   const p = norm(dpv, e);
-  if (tool === "laser") { sendLaser(p); dotAt(p); return; }
-  if (tool !== "radierer") inkLine(last, p);
-  last = p; sendDraw({ phase: "move", x: p.x, y: p.y, tool, color });
+  if (tool === "laser" && !board) { sendLaser(p); dotAt(p); return; }
+  if (touchStart) { sendDraw(touchStart, true); touchStart = null; }
+  if (["stift", "marker"].includes(tool)) inkLine(last, p);
+  last = p; sendDraw(drawMsg("move", p, e));
 });
-function penUp() {
+function penUp(e) {
+  if (e && bpts.has(e.pointerId)) { bpts.delete(e.pointerId); if (!bpts.size) bgest = null; }
   if (!last) return; last = null;
-  if (tool === "laser") { $("dlaser").style.display = "none"; sendLaser({ up: true }, true); return; }
+  if (tool === "laser" && !board) { $("dlaser").style.display = "none"; sendLaser({ up: true }, true); return; }
+  if (touchStart) { sendDraw(touchStart, true); touchStart = null; }  // nur getippt: ein Punkt
   sendDraw({ phase: "up" }, true);
   // eigener Strich verschwindet, sobald das Live-Bild ihn zeigt
   fadeTimer = setTimeout(() => ink.getContext("2d").clearRect(0, 0, ink.width, ink.height), 1600);
+  if (board) setTimeout(refresh, 300);
 }
 dpv.addEventListener("pointerup", penUp);
 dpv.addEventListener("pointercancel", penUp);
@@ -1014,7 +1163,7 @@ function pinchInfo() {
   return { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), m: { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 } };
 }
 window.addEventListener("pointerdown", e => {
-  if (!fullEl || !fullEl.contains(e.target) || e.target.closest("button")) return;
+  if (board || !fullEl || !fullEl.contains(e.target) || e.target.closest("button")) return;
   zoom.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (zoom.pts.size === 2) {  // zweiter Finger: ab jetzt zoomen statt zeigen
     pinching = true; const i = pinchInfo();

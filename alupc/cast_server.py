@@ -493,6 +493,11 @@ class _ExclusiveServer(_QuietServer):
     allow_reuse_address = False
 
 
+DRAW_TOOLS = ("stift", "marker", "radierer", "pen", "eraser", "lasso", "line", "arrow", "rect", "ellipse", "laser")
+BOARD_OPS = ("zoom_in", "zoom_out", "fit", "seite_neu", "seite_vor", "seite_zurueck", "seite_loeschen",
+             "rueckgaengig", "wiederholen", "leeren", "auswahl_loeschen", "hintergrund")
+
+
 def portal_page(server) -> str:
     """WLAN-Anmeldeseite („Im WLAN anmelden“): öffnet sich auf dem Handy von selbst, sobald es im Hotspot ist –
     wie im Hotel-WLAN. Name eingeben, dann Mitspielen (direkt in der Spielsteuerung) oder AluPC steuern (am PC
@@ -952,7 +957,8 @@ def _make_handler(server: CastServer):
             if not self._auth():
                 return
             need = {"/api/upload": "senden", "/api/link": "senden", "/api/text": "senden",
-                    "/api/laser": "laser", "/api/draw": "laser", "/api/cmd": "steuern", "/api/ask": "steuern",
+                    "/api/laser": "laser", "/api/draw": "laser", "/api/board": "laser", "/api/cmd": "steuern",
+                    "/api/ask": "steuern",
                     "/api/mouse": "steuern"}.get(u.path)
             if need and not self._may(need):
                 self.close_connection = True
@@ -997,9 +1003,36 @@ def _make_handler(server: CastServer):
                             raise ValueError("außerhalb")
                         tool = str(data.get("tool", "stift"))
                         color = str(data.get("color", "#ef4444"))
-                        if tool not in ("stift", "marker", "radierer") or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+                        if tool not in DRAW_TOOLS or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
                             raise ValueError("Werkzeug")
-                        req.update(x=x, y=y, tool=tool, color=color)
+                        req.update(x=x, y=y, tool=tool, color=color,
+                                   pressure=max(0.0, min(1.0, float(data.get("pressure", 0.5)))))
+                        if data.get("width") is not None:
+                            req["width"] = max(0.5, min(200.0, float(data["width"])))
+                    server.request.emit(req)
+                elif u.path == "/api/board":  # Whiteboard: zoomen/verschieben oder Seiten, Rückgängig …
+                    op = str(data.get("op", ""))
+                    if op == "view":
+                        req = {"kind": "board", "op": "view",
+                               "zoom": max(0.2, min(5.0, float(data.get("zoom") or 1))) if data.get("zoom") else 0,
+                               "dx": max(-2.0, min(2.0, float(data.get("dx", 0)))),
+                               "dy": max(-2.0, min(2.0, float(data.get("dy", 0)))),
+                               "ax": max(0.0, min(1.0, float(data.get("ax", 0.5)))),
+                               "ay": max(0.0, min(1.0, float(data.get("ay", 0.5))))}
+                    elif op == "text":  # Text auf die Tafel (Stelle 0…1 im sichtbaren Ausschnitt)
+                        x, y = float(data.get("x")), float(data.get("y"))
+                        color = str(data.get("color", "#111827"))
+                        if not (0 <= x <= 1 and 0 <= y <= 1) or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+                            raise ValueError("Text")
+                        req = {"kind": "board", "op": "text", "x": x, "y": y, "color": color,
+                               "text": str(data.get("text", ""))[:500]}
+                    elif op in BOARD_OPS:
+                        arg = str(data.get("arg", ""))
+                        if op == "hintergrund" and not re.fullmatch(r"[a-z]{2,20}", arg):
+                            raise ValueError("Hintergrund")
+                        req = {"kind": "board", "op": op, "arg": arg}
+                    else:
+                        raise ValueError("op")
                     server.request.emit(req)
                 elif u.path == "/api/mouse":  # Handy als Touchpad
                     if "click" in data:

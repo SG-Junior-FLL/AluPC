@@ -8,7 +8,28 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.127.0)
+### Neu in dieser Version (0.128.0)
+- **Whiteboard wie ein Notizbuch (ähnlich GoodNotes):**
+  - **Richtig zoomen:** Strg+Mausrad oder zwei Finger (Touchscreen, Handy, iPad) zoomen genau an der Stelle unter
+    der Maus bzw. den Fingern (25 % bis 800 %), Mausrad/Leertaste+Ziehen/mittlere Maustaste verschieben, „0“ = ganze
+    Seite. Monitor 2 zeigt immer genau denselben Ausschnitt.
+  - **Seiten:** beliebig viele Seiten mit eigenem Papier (Kariert, Liniert, Punkte, Millimeter, Tafel …), Leiste mit
+    Vorschaubildern, Bild↑/Bild↓. Formate: 16:9, A4 hoch, A4 quer oder unendlich.
+  - **Werkzeuge:** Stift mit Druckstärke (Grafiktablett, Stift, Apple Pencil) und Glättung, Marker (durchscheinend),
+    Radierer (ganze Striche), Lasso (einkreisen → verschieben, löschen, umfärben), Formen (Linie, Pfeil, Rechteck,
+    Kreis), Text, Laser. 8 eigene Farben + Farbwähler, drei Stärken, Rückgängig/Wiederholen.
+  - **Tafeln speichern:** jede Änderung automatisch, mehrere Tafeln (neu, öffnen, umbenennen), Export als PNG
+    (Seite) und PDF (alle Seiten).
+  - **Neues Whiteboard-Fenster am PC:** Kachel „Whiteboard“ öffnet es; Werkzeugleiste oben, Seiten links,
+    Tastenkürzel (P Stift, M Marker, E Radierer, L Lasso, F Form, T Text, X Laser, Strg+Z/Strg+Y, Entf).
+  - **Handy/iPad:** gleiche Tafel; Lasso, Formen, Text, Stärken, Seiten, Zoom ±, Pinch-Zoom mit zwei Fingern,
+    Apple-Pencil-Druck, „Nur der Stift zeichnet“ (Finger verschieben, Handballen malt nicht).
+  - **Viele Einstellungen** (Setup → Whiteboard oder Zahnrad im Fenster): Format, Papier für neue Seiten, Stift- und
+    Marker-Stärke, Glätten, Druck an/aus, Handballen-Schutz, Radierer-Größe, Textgröße, eigene Farben,
+    automatisch speichern, Ordner mit den Tafeln.
+- **Handy-Seite:** Farbkreise passen jetzt auch auf kleine iPhones (vorher 13 px zu breit).
+
+### Davor: 0.127.0
 - **AluPC-Oberfläche = eigener Desktop:**
   - **Desktop-Ordner automatisch:** Dateien, Ordner und Verknüpfungen von deinem Desktop erscheinen als Symbole
     (Ordner zuerst, Bilder als Vorschau, Programme mit Logo). Neue Dateien tauchen von selbst auf.

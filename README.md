@@ -273,8 +273,13 @@ Außerdem:
     „Alu PC, Pause machen“ → Szene „Pause“.
   - **Minispiele per Sprache** (neu in 0.81): „Alu PC, Spiel Pong“, „… nächste Frage“, „… Ergebnis zeigen“,
     „… Lobby“, „… Teams mischen“, „… Töne aus“. „Weiter“ heißt im laufenden Spiel „nächste Frage/Runde“.
-- **Whiteboard vom Handy** (neu in 0.79): Handy-Steuerung → *Zeichnen* → Hintergrund antippen (Weiß, Kariert,
-  Tafel …) – Monitor 2 zeigt das Whiteboard, gezeichnet wird oben im Live-Bild.
+- **Whiteboard wie ein Notizbuch** (neu in 0.128): Kachel *Whiteboard* öffnet am PC ein eigenes Fenster – Seiten
+  mit Vorschau, Zoom an der Mausstelle (Strg+Mausrad, zwei Finger), Stift mit Druck, Marker, Radierer, Lasso,
+  Formen, Text, Laser, Rückgängig, Export als PNG/PDF, mehrere Tafeln mit automatischem Speichern. Monitor 2 zeigt
+  genau denselben Ausschnitt. Einstellungen: Setup → *Whiteboard* (Format 16:9/A4/unendlich, Stärken, Glätten,
+  Druck, Handballen-Schutz, eigene Farben …).
+- **Whiteboard vom Handy/iPad**: Handy-Steuerung → *Zeichnen* → Hintergrund antippen – dann auf der Tafel
+  zeichnen, mit zwei Fingern zoomen, Seiten blättern; Apple Pencil mit Druck, „Nur der Stift zeichnet“.
 - **Videos weiterschauen** (neu in 0.81): AluPC merkt sich bei Videos ab 2 Minuten, wo man aufgehört hat. Beim
   nächsten Öffnen fragt es am PC (und in der Handy-Steuerung): **Weiterschauen** oder **Von vorn** – ohne
   Antwort geht es nach 15 Sekunden an der gemerkten Stelle weiter.

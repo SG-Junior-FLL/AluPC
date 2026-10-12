@@ -141,18 +141,38 @@ def _grid(p: QPainter, rect: QRectF, step: float, color: QColor, width: float) -
 
 
 class WhiteboardSource(QWidget):
-    """Quelle „whiteboard“ – nur der Hintergrund; gezeichnet wird darüber (Zeichen-Ebene von Monitor 2)."""
+    """Quelle „whiteboard“: die Tafel (board.py) in der gemeinsamen Ansicht – Seiten, Zoom, Striche. Ohne Tafel
+    (z. B. in Vorschaubildern) nur der Hintergrund."""
 
     def __init__(self, cfg: dict, parent=None):
         super().__init__(parent)
         self.background = cfg.get("background", DEFAULT) if cfg.get("background") in BACKGROUNDS else DEFAULT
         self.setAttribute(Qt.WA_OpaquePaintEvent)
+        from . import board
+
+        self.board = board.SHARED if not cfg.get("preview") else None
+        if self.board is not None:
+            self.board.changed.connect(self.update)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if self.board is not None and self.height() > 0:
+            self.board.aspect = self.width() / self.height()
 
     def paintEvent(self, _e):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        paint_background(p, QRectF(self.rect()), self.background)
+        if self.board is not None:
+            from .board import paint_board
+
+            paint_board(p, QRectF(self.rect()), self.board)
+        else:
+            paint_background(p, QRectF(self.rect()), self.background)
         p.end()
 
     def stop(self):
-        pass
+        if self.board is not None:
+            try:
+                self.board.changed.disconnect(self.update)
+            except (RuntimeError, TypeError):
+                pass

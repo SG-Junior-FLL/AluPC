@@ -3315,8 +3315,9 @@ def test_screensaver_keeps_system_awake(env, monkeypatch):
 
 
 def test_whiteboard_backgrounds_and_pen(env, monkeypatch):
-    """Whiteboard: jeder Hintergrund zeichnet sich; Kachel/Befehl zeigt es auf Monitor 2 und öffnet „Zeichnen“;
-    auf Tafeln wird der Stift hell, auf Papier dunkel."""
+    """Whiteboard: jeder Hintergrund zeichnet sich; Kachel/Befehl zeigt die Tafel auf Monitor 2 und öffnet das
+    Whiteboard-Fenster; auf Tafeln wird der Stift hell, auf Papier dunkel; das Kachel-Menü hakt den Hintergrund
+    der aktuellen Seite ab."""
     from PySide6.QtCore import QRectF
     from PySide6.QtGui import QImage, QPainter
 
@@ -3331,13 +3332,14 @@ def test_whiteboard_backgrounds_and_pen(env, monkeypatch):
         mid = img.pixelColor(3, 3)
         assert (mid.lightness() < 128) == whiteboard.is_dark(key), key
     opened = []
-    controller.presenter_requested.connect(lambda: opened.append(1))
-    monkeypatch.setattr(window, "open_presenter", lambda *a: None)
+    controller.board_requested.connect(lambda: opened.append(1))
+    monkeypatch.setattr(window, "open_board", lambda *a: None)
     controller.config["draw"] = {**controller.config["draw"], "color": "#000000", "tool": "laser"}
     controller.run_command("whiteboard")
-    assert controller.content == {"type": "whiteboard", "background": "weiss"} and opened
+    page_bg = controller.board.page["bg"]  # Tafel bleibt, wie sie war (Seite mit ihrem Hintergrund)
+    assert controller.content == {"type": "whiteboard", "background": page_bg} and opened
     controller.show_whiteboard("tafel")
-    assert controller.content["background"] == "tafel"
+    assert controller.content["background"] == "tafel" == controller.board.page["bg"]
     assert controller.config["draw"]["color"] == "#ffffff" and controller.config["draw"]["tool"] == "pen"
     assert type(controller.output.content).__name__ == "WhiteboardSource"
     controller.show_whiteboard("kariert")
@@ -3347,7 +3349,9 @@ def test_whiteboard_backgrounds_and_pen(env, monkeypatch):
     menu = window.t_board.menu
     window._fill_board_menu(menu)
     labels = [a.text().removesuffix("  ✓") for a in menu.actions()]  # aktueller Hintergrund trägt einen Haken
-    assert "Kariert" in labels and "Tafel (grün)" in labels
+    assert "Kariert" in labels and "Tafel (grün)" in labels and "Neue Seite" in labels
+    checked = [a.text() for a in menu.actions() if a.text().endswith("✓") or a.isChecked()]
+    assert checked and checked[0].startswith("Kariert")
 
 
 def test_pip_stays_on_top_on_kde(env, monkeypatch):

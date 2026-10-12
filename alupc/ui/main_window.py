@@ -310,6 +310,7 @@ class MainWindow(QMainWindow):
         controller.video_resume.connect(self.ask_video_resume)  # Kachel „Minispiele“: LOBBY/LÄUFT/ERGEBNIS
         controller.message.connect(self.show_message)
         controller.presenter_requested.connect(self.open_presenter)
+        controller.board_requested.connect(self.open_board)
         controller.shell_requested.connect(self.toggle_shell)
         self.shell = None
         controller.settings_imported.connect(self._settings_imported)
@@ -603,7 +604,7 @@ class MainWindow(QMainWindow):
         draw_menu.addAction(icons.icon("trash", theme.current().text, 18), "Zeichnungen auf Monitor 2 löschen",
                             c.laser.clear_strokes)
         self.t_draw.set_menu(draw_menu, split=True)
-        # Whiteboard: Klick = zuletzt gewählter Hintergrund + Zeichnen, Pfeil = Hintergrund wählen
+        # Whiteboard: Klick = Tafel auf Monitor 2 + Whiteboard-Fenster, Pfeil = Hintergrund, Seiten
         self.t_board = self.tiles["whiteboard"]
         self.t_board.activated.connect(lambda: c.show_whiteboard())
         board_menu = QMenu(self)
@@ -988,8 +989,8 @@ class MainWindow(QMainWindow):
 
         menu.clear()
         c = self.controller
-        current = c.config["whiteboard"].get("background", whiteboard.DEFAULT)
-        showing = (c.content or {}).get("type") == "whiteboard"
+        current = c.board.page["bg"]  # Hintergrund der aktuellen Tafel-Seite
+        showing = c.whiteboard_active()
         menu_header(menu, "Hintergrund")
         for key, (label, _dark) in whiteboard.BACKGROUNDS.items():
             img = QImage(48, 30, QImage.Format_ARGB32_Premultiplied)
@@ -1010,8 +1011,9 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         menu_header(menu, "Tafel")
         col = theme.current().text
-        menu.addAction(icons.icon("edit", col, 18), "Zeichnen öffnen …", self.open_presenter)
-        menu.addAction(icons.icon("trash", col, 18), "Tafel wischen (Zeichnungen löschen)", c.laser.clear_strokes)
+        menu.addAction(icons.icon("edit", col, 18), "Whiteboard öffnen …", lambda: c.show_whiteboard())
+        menu.addAction(icons.icon("plus", col, 18), "Neue Seite", lambda: c.board_action("seite_neu"))
+        menu.addAction(icons.icon("trash", col, 18), "Seite leeren", lambda: c.board_action("leeren"))
 
     # ------------------------------------------------------------ Wetter, Abstimmung, Glücksrad
     def _fill_weather_menu(self, menu):
@@ -1255,6 +1257,22 @@ class MainWindow(QMainWindow):
             menu.addAction(icons.icon(icon_name, col, 18), text, slot)
         menu.addSeparator()
         menu.addAction(icons.icon(page[0], col, 18), page[1], page[2])
+
+    def open_board(self):
+        """Whiteboard-Fenster auf Monitor 1 öffnen (bzw. nach vorne holen) – zeichnet auf die Tafel von Monitor 2."""
+        from .board_window import BoardWindow
+
+        if getattr(self, "board_window", None) is None:
+            self.board_window = BoardWindow(self.controller, self)
+        win = self.board_window
+        screen = self.controller.main_screen()
+        if screen is not None and not win.isVisible():
+            g = screen.availableGeometry()
+            win.resize(min(1400, g.width() - 40), min(900, g.height() - 40))
+            win.move(g.x() + (g.width() - win.width()) // 2, g.y() + (g.height() - win.height()) // 2)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_presenter(self):
         """Fenster „Zeigen & Zeichnen“ auf Monitor 1 öffnen (bzw. nach vorne holen)."""

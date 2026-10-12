@@ -275,6 +275,8 @@ setup_texts = {
     "Darstellung": "Hell/Dunkel/wie das System, Akzentfarbe (auch die von Windows/KDE), Übergänge, Leistung.",
     "Bildschirmschoner": "Stil und Wartezeit des Bildschirmschoners auf Monitor 2.",
     "Timer": "Countdown/Stoppuhr: Dauer, Warnfarben, Text am Ende.",
+    "Whiteboard": "Tafel-Einstellungen: Format (16:9, A4, unendlich), Stift- und Marker-Stärke, Glätten, Druck, "
+                  "Handballen-Schutz, Radierer, Textgröße, eigene Farben, automatisch speichern.",
     "Töne": "Töne bei Aktionen, Lautstärke, Ausgabegerät.",
     "Tastenkürzel": "Jede Funktion auf eine Taste – auch global, wenn AluPC im Hintergrund ist.",
     "Sprache": "Sprachbefehle mit Startwort („Alu PC“, „Computer“), Stimme, eigene Befehle, Test.",
@@ -402,8 +404,43 @@ step(lambda: (controller.show_source({"type": "text", "text": "Gleich geht's los
               monitor2("text-m2", "Text", "Schnelltext groß auf Monitor 2.")), "Text M2")
 step(lambda: (controller.run_command("timer_zeigen"), controller.run_command("timer_start_pause"),
               monitor2("timer-m2", "Timer", "Countdown mit Warnfarben.")), "Timer M2")
-step(lambda: (controller.show_whiteboard(), monitor2("whiteboard", "Whiteboard",
-                                                     "Zeichnen auf Monitor 2 – am PC oder vom Handy.")), "Whiteboard")
+
+
+def whiteboard_tour():
+    """Tafel mit Beispiel-Inhalt: Monitor 2 und das Whiteboard-Fenster am PC (beide zeigen dieselbe Tafel)."""
+    import math
+
+    controller.show_whiteboard("kariert")
+    b = controller.board
+    b.clear()
+    b.fit()
+    pts = [(260 + i * 9, 520 - 160 * math.sin(i / 7)) for i in range(60)]  # Sinus-Welle mit Druck
+    b.input("down", *pts[0], 0.3, "pen", "#3b82f6", 4)
+    for i, (x, y) in enumerate(pts[1:]):
+        b.input("move", x, y, 0.3 + 0.6 * (i / 60), "pen", "#3b82f6", 4)
+    b.input("up", *pts[-1], 0.9, "pen", "#3b82f6", 4)
+    for tool, a, z, color in (("arrow", (200, 700), (1000, 700), "#111827"), ("arrow", (240, 760), (240, 220), "#111827"),
+                              ("rect", (1060, 240), (1420, 470), "#ef4444"), ("pen", (1100, 600), (1400, 600), "#f59e0b")):
+        b.input("down", *a, 0.5, "marker" if tool == "pen" else tool, color, 18 if tool == "pen" else 4)
+        b.input("move", *z, 0.5, "marker" if tool == "pen" else tool, color, 18 if tool == "pen" else 4)
+        b.input("up", *z, 0.5, "marker" if tool == "pen" else tool, color, 18 if tool == "pen" else 4)
+    b.add_text(300, 170, "y = sin(x)", "#3b82f6", 48)
+    b.add_text(1090, 300, "Merke:", "#ef4444", 40)
+    b.add_text(1090, 360, "Periode 2π", "#111827", 36)
+    monitor2("whiteboard", "Whiteboard", "Tafel mit Seiten, Zoom, Stift mit Druck, Formen und Text – Monitor 2 zeigt "
+                                         "genau die Ansicht vom PC bzw. Handy.")
+    win = getattr(window, "board_window", None)
+    if win is not None:
+        win.resize(1440, 900)
+        pump(0.5)
+        save(win, "whiteboard-fenster", "Whiteboard am PC", "Fenster",
+             "Wie ein Notizbuch: Werkzeuge, Farben, Stärken, Seiten links, Strg+Mausrad oder zwei Finger zoomen, "
+             "Leertaste/Mittelklick verschieben, Export als PNG/PDF, Zahnrad = Einstellungen.")
+        win.close()
+        pump(0.2)
+
+
+step(whiteboard_tour, "Whiteboard")
 step(lambda: (controller.start_poll("Pizza oder Pasta?", ["Pizza", "Pasta", "Beides"]),
               monitor2("abstimmung-m2", "Abstimmung", "Live-Ergebnis, Handys stimmen per QR-Code ab.")), "Umfrage")
 step(lambda: (controller.show_wheel(), monitor2("gluecksrad-m2", "Glücksrad", "Dreht auf Klick, zeigt den Gewinner.")),

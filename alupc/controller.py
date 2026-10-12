@@ -35,6 +35,7 @@ class Controller(QObject):
     guests_changed = Signal()  # Chat/Foto-Wand: neue Nachricht, neues Foto, an/aus (Seite „Gäste“)
     access_requested = Signal(str, str, str)  # Handy bittet um Freigabe zum Steuern: (Anfrage-ID, Name, IP)
     video_resume = Signal(str, int)  # Video schon mal geschaut: (Titel, Position ms) → „Weiterschauen?“
+    board_requested = Signal()  # Whiteboard-Fenster am PC öffnen (macht die Oberfläche)
     presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
 
     def __init__(self, config: Config):
@@ -115,6 +116,9 @@ class Controller(QObject):
         self.cursor_guard = CursorGuard(self)
         self.cursor_guard.display = self.display
         self.laser = LaserWindow(self)
+        from . import board as board_mod
+
+        self.board = board_mod.shared(config)  # die Tafel (Whiteboard): Seiten, Zoom, Striche – Monitor 2 zeigt sie
         self.output.after_raise.append(self.laser.raise_above)
         self.laser.changed_cb = self.save_drawings
         from .overlays import OverlayWindow
@@ -861,13 +865,55 @@ class Controller(QObject):
             "flags": {"schwarz": self.privacy, "standbild": self.frozen, "schoner": self.screensaver.active,
                       "spiegeln": bool(self.mode == "content" and content.get("mirror")),
                       "erweitern": self.mode == "desktop" and self.desktop_note.startswith("Erweitert")},
+            "board": self.board_state() if self.whiteboard_active() else None,
         }
+
+    def whiteboard_active(self) -> bool:
+        return self.mode == "content" and (self.content or {}).get("type") == "whiteboard"
+
+    def board_state(self) -> dict:
+        b = self.board
+        cfg = b.settings()
+        return {"page": b.doc["page"] + 1, "pages": len(b.doc["pages"]), "zoom": round(b.zoom * 100),
+                "bg": b.page["bg"], "undo": b.can_undo(), "redo": b.can_redo(), "sel": len(b.sel),
+                "name": b.doc["name"], "colors": cfg["colors"], "pencil_only": bool(cfg["pencil_only"]),
+                "width": cfg["width"], "marker_width": cfg["marker_width"]}
+
+    def board_action(self, op: str, arg: str = "") -> bool:
+        """Whiteboard bedienen (Handy, Sprache, Befehle): zoom_in/out, fit, seite_neu/vor/zurueck/loeschen,
+        rueckgaengig, wiederholen, leeren, auswahl_loeschen, hintergrund:<key>."""
+        b = self.board
+        acts = {"zoom_in": lambda: b.zoom_by(1.25), "zoom_out": lambda: b.zoom_by(0.8), "fit": b.fit,
+                "seite_neu": b.new_page, "seite_vor": lambda: b.goto(b.doc["page"] + 1),
+                "seite_zurueck": lambda: b.goto(b.doc["page"] - 1), "seite_loeschen": b.delete_page,
+                "rueckgaengig": b.undo, "wiederholen": b.redo, "leeren": b.clear,
+                "auswahl_loeschen": b.delete_selection,
+                "hintergrund": lambda: b.set_background(arg)}
+        fn = acts.get(op)
+        if fn is None:
+            return False
+        if not self.whiteboard_active():
+            self.show_whiteboard(draw=False)
+        fn()
+        return True
 
     def _phone_draw(self, req: dict) -> None:
         """Mit dem Finger auf Monitor 2 zeichnen (Live-Bild auf dem Handy = Monitor 2)."""
         from PySide6.QtCore import QPointF
 
         phase = req.get("phase")
+        if self.whiteboard_active():  # Tafel zu sehen: auf der Tafel zeichnen (mit Zoom, Seiten, Druck)
+            if phase == "up":
+                last = getattr(self, "_board_last", None) or QPointF(0, 0)
+                self.board.input("up", last.x(), last.y(), tool=getattr(self, "_board_tool", "pen"))
+                return
+            tool = {"stift": "pen", "radierer": "eraser"}.get(req.get("tool", "stift"), req.get("tool", "pen"))
+            w = self.board.to_world(float(req["x"]), float(req["y"]))
+            self._board_last, self._board_tool = w, tool
+            width = req.get("width")
+            self.board.input(phase, w.x(), w.y(), float(req.get("pressure", 0.5)), tool, req.get("color", "#111827"),
+                             float(width) if width is not None else None)
+            return
         if phase == "up":
             self.laser.end_stroke()
             return
@@ -993,6 +1039,20 @@ class Controller(QObject):
             return
         elif kind == "draw":
             self._phone_draw(req)
+            return
+        elif kind == "board":  # Whiteboard vom Handy: Ansicht (zoomen/verschieben) oder Aktion
+            if req.get("op") == "view":
+                b = self.board
+                if req.get("zoom"):
+                    anchor = b.to_world(float(req.get("ax", 0.5)), float(req.get("ay", 0.5)))
+                    b.zoom_by(float(req["zoom"]), anchor)
+                if req.get("dx") or req.get("dy"):
+                    b.pan_screen(float(req.get("dx", 0)), float(req.get("dy", 0)))
+            elif req.get("op") == "text":
+                w = self.board.to_world(float(req["x"]), float(req["y"]))
+                self.board.add_text(w.x(), w.y(), req.get("text", ""), req.get("color", "#111827"))
+            else:
+                self.board_action(str(req.get("op", "")), str(req.get("arg", "")))
             return
         elif kind == "mouse":
             self._phone_mouse(req)
@@ -1449,6 +1509,9 @@ class Controller(QObject):
             "overlays_an": lambda: self.set_overlays(True),
             "overlays_aus": lambda: self.set_overlays(False),
             "whiteboard": self.show_whiteboard,
+            **{f"tafel_{op}": (lambda o=op: self.board_action(o)) for op in (
+                "zoom_in", "zoom_out", "fit", "seite_neu", "seite_vor", "seite_zurueck", "rueckgaengig",
+                "wiederholen", "leeren")},
             "wetter": self.show_weather,
             "system": lambda: self.show_source({"type": "system"}),
             # gab es bisher nur für das Handy – per Sprache kam „Unbekannter Befehl“
@@ -1640,21 +1703,23 @@ class Controller(QObject):
         self.show_source({"type": "nowplaying"})
 
     def show_whiteboard(self, background: str | None = None, draw: bool = True) -> None:
-        """Whiteboard auf Monitor 2 (Hintergrund wählbar) und gleich „Zeigen & Zeichnen“ zum Draufzeichnen.
-        Die Stiftfarbe passt sich an (weiß auf Tafeln, dunkel auf Papier)."""
+        """Whiteboard auf Monitor 2 (Hintergrund gilt für die aktuelle Seite) und gleich das Whiteboard-Fenster
+        zum Draufzeichnen. Die Stiftfarbe passt sich an (weiß auf Tafeln, dunkel auf Papier)."""
         from . import whiteboard
 
-        bg = background or self.config["whiteboard"].get("background", whiteboard.DEFAULT)
-        if bg not in whiteboard.BACKGROUNDS:
-            bg = whiteboard.DEFAULT
-        self.config["whiteboard"] = {**self.config["whiteboard"], "background": bg}
+        if background in whiteboard.BACKGROUNDS:
+            self.board.set_background(background)  # gilt für die aktuelle Seite
+        bg = self.board.page["bg"]
         draw_cfg = self.config["draw"]
         color = whiteboard.pen_color_for(bg, draw_cfg.get("color", "#ef4444"))
         tool = draw_cfg.get("tool", "laser")
         self.config["draw"] = {**draw_cfg, "color": color, "tool": "pen" if tool == "laser" else tool}
-        self.show_source({"type": "whiteboard", "background": bg})
+        if not self.whiteboard_active():
+            self.show_source({"type": "whiteboard", "background": bg})
+        else:
+            self.content = {**self.content, "background": bg}  # läuft schon: nur den Stand nachziehen
         if draw:
-            self.presenter_requested.emit()
+            self.board_requested.emit()
 
     def media_control(self, action: str) -> None:
         """Abspielen/Pause, Weiter, Zurück beim Player des PCs (Spotify, Browser …) – im Hintergrund."""
