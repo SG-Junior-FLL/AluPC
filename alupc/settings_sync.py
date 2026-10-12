@@ -71,7 +71,10 @@ SECTIONS: dict[str, tuple[str, list[str]]] = {
     "extras": ("Begrüßung, Wetter, Glücksrad, Umfrage, Whiteboard", ["welcome", "weather", "wheel", "poll",
                                                                      "whiteboard"]),
     "start": ("Start der App", ["start_content", "restore_last_content", "start_minimized"]),
+    "oberflaeche": ("AluPC-Oberfläche (Desktop: Hintergrund, Symbole, Taskleiste, Widgets)", ["shell"]),
 }
+# AluPC-Oberfläche: was je System anders ist (Programmnamen, Pfade im eigenen Desktop-Ordner, Autostart)
+SHELL_LOCAL = ("autostart", "open", "pinned")
 # Nicht in der Einstellungsdatei, sondern eigene Dateien (siehe zw_fingerprint.sync_export/sync_import)
 EXTERNAL_KEYS = {"fingerprint_slots"}
 
@@ -102,6 +105,11 @@ def _portable(key: str, value):
         value = {}  # Kamera-IDs sind je System verschieden
     elif key == "rgb" and isinstance(value, dict):
         value.pop("openrgb_path", None)
+    elif key == "shell" and isinstance(value, dict):
+        for k in SHELL_LOCAL:
+            value.pop(k, None)
+        # Symbol-Positionen hängen am Dateipfad im Desktop-Ordner dieses Systems – nur Widgets mitnehmen
+        value["pos"] = {k: v for k, v in (value.get("pos") or {}).items() if str(k).startswith("widget:")}
     elif key == "whiteboard" and isinstance(value, dict):
         value.pop("board", None)  # offene Tafel: die Tafel-Dateien liegen je System im eigenen Ordner
     elif key == "voice" and isinstance(value, dict):
@@ -270,6 +278,10 @@ def apply_payload(config, data: dict, keys: list[str] | None = None) -> list[str
                 merged["recent"] = local.get("recent", [])
             if key == "camera":
                 merged = local
+            if key == "shell":  # eigene Symbol-Positionen, Programme und Autostart behalten
+                merged["pos"] = {**{k: v for k, v in (local.get("pos") or {}).items()
+                                    if not str(k).startswith("widget:")}, **(value.get("pos") or {})}
+                merged.update({k: local[k] for k in SHELL_LOCAL if k in local})
             value = merged
         elif isinstance(default, list) and not isinstance(value, list):
             continue

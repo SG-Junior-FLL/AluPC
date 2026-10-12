@@ -1939,3 +1939,32 @@ def test_sync_check_warns_about_windows_fast_startup(tmp_path, monkeypatch):
     assert any("Schnellstart" in t and not ok for ok, t in ss.check(cfg))
     monkeypatch.setattr(ss, "fast_startup_on", lambda: False)
     assert all(ok for ok, _t in ss.check(cfg))
+
+
+def test_sync_includes_desktop_shell_but_keeps_local_parts(tmp_path, monkeypatch):
+    """AluPC-Oberfläche (Desktop) wird abgeglichen: Hintergrund, Symbolgröße, Taskleiste, Widgets (+ deren Lage).
+    Je System bleiben: angeheftete Programme, Symbol-Positionen (Pfad im eigenen Desktop-Ordner), Autostart."""
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    shared = tmp_path / ss.FOLDER_NAME
+    shared.mkdir()
+    monkeypatch.setattr(ss, "drives", lambda: [])
+    win, lin = Config(tmp_path / "win.json"), Config(tmp_path / "lin.json")
+    for cfg in (win, lin):
+        cfg.data["sync"] = {**cfg.data["sync"], "enabled": True, "folder": str(shared)}
+    lin["shell"] = {**lin["shell"], "pinned": ["Dolphin"], "autostart": True,
+                    "pos": {"icon:/home/a/Schreibtisch/x.txt": [0.1, 0.1]}}
+    ss.sync_once(lin)
+    ss.sync_once(win)  # Windows verbindet sich (übernimmt beim ersten Mal den vorhandenen Stand) …
+    win["shell"] = {**win["shell"], "icon_size": 72, "taskbar_center": False, "pinned": ["Explorer"],
+                    "widgets": {"clock": False, "monitor": True, "quick": True},
+                    "pos": {"icon:C:\\Users\\a\\Desktop\\y.txt": [0.5, 0.5], "widget:clock": [0.7, 0.2]}}
+    ss.sync_once(win)
+    msg, changed = ss.sync_once(lin)
+    assert "shell" in changed
+    sh = lin["shell"]
+    assert sh["icon_size"] == 72 and not sh["taskbar_center"] and not sh["widgets"]["clock"]
+    assert sh["pinned"] == ["Dolphin"] and sh["autostart"] is True
+    assert sh["pos"] == {"icon:/home/a/Schreibtisch/x.txt": [0.1, 0.1], "widget:clock": [0.7, 0.2]}
+    assert ss.sync_once(lin)[0] == "Alles aktuell."  # übernommen, nicht zurückgeschrieben

@@ -178,7 +178,7 @@ def sync_group(page) -> QGroupBox:
              "tasten": "Tastenkürzel", "aussehen": "Darstellung", "schoner": "Schoner & Timer", "toene": "Töne",
              "monitor2": "Monitor 2", "handy": "Handy", "rgb": "RGB", "overlays": "Overlays",
              "fingerabdruck": "Fingerabdruck", "sprache": "Sprache", "spiele": "Spiele & WLAN", "extras": "Extras",
-             "start": "App-Start"}
+             "start": "App-Start", "oberflaeche": "Oberfläche (Desktop)"}
     section_boxes: dict[str, QCheckBox] = {}
     for name, (label, _keys) in ss.SECTIONS.items():
         cb = QCheckBox(short.get(name, label.split(" (")[0]).replace("&", "&&"))  # & sonst = Tastenkürzel

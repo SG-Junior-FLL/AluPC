@@ -1599,6 +1599,8 @@ class MainWindow(QMainWindow):
             self._apply_hotkeys()
         if "appearance" in keys:
             self.apply_theme()
+        if "shell" in keys and getattr(self, "shell", None) is not None:
+            self.shell.apply_settings()  # AluPC-Oberfläche vom anderen System: Hintergrund, Taskleiste, Widgets
         self.refresh()
 
     def _watch_system_theme(self):

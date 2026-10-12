@@ -117,7 +117,8 @@ Außerdem:
 - **Sichern & Sync** (Setup): Einstellungen **exportieren/importieren** – alles oder z. B. nur die
   **Startseite**. **Dual-Boot-Abgleich Windows ↔ Linux**: beide Systeme nutzen einen Ordner
   „AluPC-Sync“ auf dem Windows-Laufwerk; AluPC gleicht beim Start und nach jeder Änderung automatisch ab
-  (Startseite, Szenen, Favoriten, Tastenkürzel, Design, Bildschirmschoner, Töne, Handy, RGB). Jeder gespeicherte
+  (Startseite, Szenen, Favoriten, Tastenkürzel, Design, Bildschirmschoner, Töne, Handy, RGB, AluPC-Oberfläche –
+  ohne angeheftete Programme und Symbol-Positionen, die je System anders sind). Jeder gespeicherte
   Stand hat eine eigene Kennung und Prüfsumme: Windows speichert → Linux übernimmt nur (und umgekehrt),
   beschädigte Stände werden nie übernommen, nach dem Schreiben wird zurückgelesen und geprüft.
   **„Neu anfangen …“** löscht alle alten Stände (auch zweite, vergessene Sync-Ordner) und schreibt den Stand

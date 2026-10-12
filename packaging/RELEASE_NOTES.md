@@ -8,7 +8,14 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.129.0)
+### Neu in dieser Version (0.130.0)
+- **Dual-Boot-Abgleich jetzt auch für die AluPC-Oberfläche (Desktop):** Hintergrundbild, Symbolgröße, Raster,
+  Taskleiste mittig/links, Uhr mit Sekunden, Widgets an/aus samt Position und „Esc schließt“ gelten auf Windows
+  und Linux gleich. Bewusst je System getrennt: angeheftete Programme (heißen unter Windows und Linux anders),
+  Positionen der Desktop-Symbole (die Dateien liegen in verschiedenen Desktop-Ordnern) und „beim Start zeigen“.
+  Abwählbar unter Setup → Sichern & Sync → „Oberfläche (Desktop)“.
+
+### Davor: 0.129.0
 - **Dual-Boot-Abgleich zuverlässiger (Windows ↔ Linux):**
   - **Jeder Stand wird geprüft:** Jeder gespeicherte Stand hat eine eigene Kennung und eine Prüfsumme. Jedes
     System merkt sich, welchen Stand es zuletzt gesehen hat – ein anderer Stand im Ordner ist neu und wird
