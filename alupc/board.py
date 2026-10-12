@@ -408,8 +408,7 @@ class Board(QObject):
         self._redo.clear()
         self.sel, self.live = [], None
         self.fit(emit=False)
-        if self.config is not None:
-            self.config["whiteboard"] = {**self.settings(), "board": self.doc["name"]}
+        self._remember(self.doc["name"])
         self.changed.emit()
         return pages is not None
 
@@ -426,8 +425,7 @@ class Board(QObject):
         self._redo.clear()
         self.sel = []
         self.fit(emit=False)
-        if self.config is not None:
-            self.config["whiteboard"] = {**self.settings(), "board": new}
+        self._remember(new)
         self.save()
         self.changed.emit()
         return new
@@ -438,9 +436,17 @@ class Board(QObject):
         self.save()
         if old != self.path_for(self.doc["name"]):
             old.unlink(missing_ok=True)
-        if self.config is not None:
-            self.config["whiteboard"] = {**self.settings(), "board": self.doc["name"]}
+        self._remember(self.doc["name"])
         self.changed.emit()
+
+    def _remember(self, name: str) -> None:
+        """Nur den Namen der offenen Tafel merken – und nur, wenn er sich ändert (sonst gälte jeder Start als
+        Änderung, und der Dual-Boot-Abgleich schriebe sofort zurück)."""
+        if self.config is None:
+            return
+        raw = dict(self.config.data.get("whiteboard") or {})
+        if raw.get("board") != name:
+            self.config["whiteboard"] = {**raw, "board": name}
 
     @staticmethod
     def boards() -> list[str]:

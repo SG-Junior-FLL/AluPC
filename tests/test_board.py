@@ -229,3 +229,23 @@ def test_board_window_draw_zoom_pages_settings(env):  # noqa: F811
     assert win.width() <= 1024 and win.menu_btn.width() >= win.menu_btn.sizeHint().width()
     win.close()
     controller.extend()
+
+
+def test_board_start_does_not_count_as_change(qapp, tmp_path, monkeypatch):
+    """Tafel öffnen (bei jedem App-Start) darf die Einstellungen nicht verändern – sonst hielt sich AluPC nach dem
+    Übernehmen vom anderen System sofort für geändert und schrieb beim Dual-Boot-Abgleich gleich zurück. Die offene
+    Tafel (Dateien liegen je System lokal) wird nicht abgeglichen."""
+    import copy
+
+    from alupc import board as bm, settings_sync as ss
+    from alupc.config import Config
+
+    monkeypatch.setattr(bm, "boards_dir", lambda: tmp_path / "Tafeln")
+    cfg = Config(tmp_path / "c.json")
+    cfg["whiteboard"] = {**cfg["whiteboard"], "background": "kariert"}  # z. B. gerade vom anderen System übernommen
+    synced = copy.deepcopy(ss.payload(cfg, ss.all_keys()))
+    bm.Board(cfg)  # App-Start öffnet die Tafel
+    assert ss.payload(cfg, ss.all_keys()) == synced and "board" not in synced["whiteboard"]
+    before = copy.deepcopy(cfg.data)
+    bm.Board(cfg)  # nächster Start: gar nichts mehr ändern
+    assert cfg.data == before

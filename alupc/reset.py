@@ -92,19 +92,12 @@ def _retry_path() -> Path:
 def clear_sync_folder(folder: str | Path) -> list[str]:
     """Abgeglichene Einstellungen im Sync-Ordner löschen – sonst holt AluPC sie nach dem Neustart vom anderen
     System zurück (dann wirkt „Alle Daten löschen“, als hätte es nichts getan)."""
-    problems = []
+    from .settings_sync import _clear_folder
+
     folder = Path(folder)
     if not folder.is_dir():
-        return problems
-    for item in list(folder.glob("alupc-sync*.json")) + [folder / "Dateien"]:
-        try:
-            if item.is_dir():
-                shutil.rmtree(item)
-            elif item.exists():
-                item.unlink()
-        except OSError as exc:
-            problems.append(f"{item}: {exc}")
-    return problems
+        return []
+    return _clear_folder(folder)
 
 
 def pending() -> bool:

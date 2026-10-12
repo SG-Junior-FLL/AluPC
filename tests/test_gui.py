@@ -2148,15 +2148,80 @@ def test_sync_setup_and_autosave(env, tmp_path):
     controller.run_sync()
     data = json.loads(ss.sync_file(ss.folder_for(shared)).read_text())
     assert data["data"]["start_page"]["title"] == "Hallo Sync" and data["rev"] == 1
-    # Das „andere System“ schreibt eine neuere Fassung → wird übernommen und die Startseite neu gebaut
-    data["rev"] = 5
+    # Datei verändert, Prüfsumme passt nicht (halb geschrieben) → wird NIE übernommen, sondern neu geschrieben
+    data["data"]["start_page"]["title"] = "Kaputt"
+    ss.sync_file(ss.folder_for(shared)).write_text(json.dumps(data))
+    controller.run_sync()
+    assert controller.config["start_page"]["title"] == "Hallo Sync"
+    assert (ss.folder_for(shared) / "alupc-sync-defekt.json").is_file()
+    data = json.loads(ss.sync_file(ss.folder_for(shared)).read_text())
+    # Das „andere System“ schreibt einen neuen Stand (eigene Kennung, richtige Prüfsumme) → übernommen
+    data.update(rev=5, id="anderes-system-1")
     data["data"]["start_page"]["title"] = "Von Windows"
+    data["hash"] = ss.payload_hash(data["data"])
     ss.sync_file(ss.folder_for(shared)).write_text(json.dumps(data))
     rebuilt = []
     window.rebuild_start = lambda: rebuilt.append(True)
     controller.run_sync()
     assert controller.config["start_page"]["title"] == "Von Windows" and rebuilt
     assert not controller._sync_timer.isActive()  # Übernehmen löst keinen neuen Abgleich aus
+
+
+def test_sync_page_fresh_start_and_old_folder_warning(env, tmp_path, monkeypatch):
+    """Sync-Seite: zweiter (alter) Sync-Ordner → Warnung; „Neu anfangen …“ fragt nach, löscht alle alten Stände
+    und zeigt das Prüf-Ergebnis; danach zeigt die Karte „geprüft ✓, dieses System ist aktuell“."""
+    import json
+    import time
+
+    from PySide6.QtWidgets import QLabel, QMessageBox, QPushButton
+
+    from alupc import settings_sync as ss
+    from alupc.ui.sync_page import sync_group
+
+    controller, window, _ = env
+    c_drive, d_drive = tmp_path / "C", tmp_path / "D"
+    folder, old = c_drive / ss.FOLDER_NAME, d_drive / ss.FOLDER_NAME
+    folder.mkdir(parents=True)
+    old.mkdir(parents=True)
+    (old / ss.FILE_NAME).write_text(json.dumps({"app": "AluPC", "rev": 9, "data": {}}), encoding="utf-8")
+    monkeypatch.setattr(ss, "drives", lambda: [str(c_drive), str(d_drive)])
+    controller.config.data["sync"] = {**controller.config.data["sync"], "enabled": True, "folder": str(folder)}
+    controller._sync_timer.stop()
+    controller.run_sync()
+
+    from PySide6.QtWidgets import QWidget
+
+    page = QWidget()  # wie die Setup-Seite: echtes Widget mit config/controller
+    page.config, page.controller = controller.config, controller
+    box = sync_group(page)
+    box.show()
+    labels = lambda: [lab.text() for lab in box.findChildren(QLabel) if lab.isVisible()]  # noqa: E731
+    end = time.time() + 5
+    while time.time() < end and not any("Weitere alte Sync-Ordner" in t for t in labels()):
+        pump()
+    assert any("Weitere alte Sync-Ordner" in t and str(old) in t for t in labels())
+    shown = []
+    monkeypatch.setattr(QMessageBox, "information", lambda *a: shown.append(a[2]))
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a: shown.append("WARN " + a[2]))
+    asked = []
+
+    def answer(self):  # Nachfrage: „Neu anfangen“ anklicken
+        asked.append(self.text())
+        next(b for b in self.buttons() if self.buttonRole(b) == QMessageBox.DestructiveRole).click()
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", answer)
+    fresh = next(b for b in box.findChildren(QPushButton) if b.text().startswith("Neu anfangen"))
+    fresh.click()
+    assert asked and str(old) in asked[0] and "DIESEM System" in asked[0]
+    assert shown and shown[0].startswith("Aufgeräumt: 2 Ordner") and "✗" not in shown[0]
+    assert not old.exists() and ss.sync_file(folder).is_file()
+    end = time.time() + 5
+    while time.time() < end and any("Weitere alte Sync-Ordner" in t for t in labels()):
+        pump()
+    assert not any("Weitere alte Sync-Ordner" in t for t in labels())
+    assert any("dieses System ist aktuell" in t for t in labels())
+    box.close()
 
 
 # ---------------------------------------------------------------- 0.13: RGB & Lüfter

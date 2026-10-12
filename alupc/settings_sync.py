@@ -5,10 +5,16 @@ schreiben, Windows aber keine Linux-Laufwerke (ext4) – der Ordner liegt deshal
 (z. B. C:\\AluPC-Sync) oder einer gemeinsamen Daten-Partition (NTFS/exFAT). AluPC schreibt dort
 `alupc-sync.json`.
 
-Statt Uhrzeiten (bei Dual-Boot gehen Windows und Linux oft um Stunden verschieden!) zählt eine
-Revisionsnummer: Wer etwas ändert, schreibt die Datei mit der nächsten Nummer. Beim Start übernimmt
-AluPC eine höhere Nummer vom anderen System. Haben beide Seiten geändert (z. B. weil das Laufwerk nicht
+Statt Uhrzeiten (bei Dual-Boot gehen Windows und Linux oft um Stunden verschieden!) trägt jeder gespeicherte
+Stand eine eigene Kennung („id“) und eine Prüfsumme. Jedes System merkt sich die Kennung des Stands, den es zuletzt
+gesehen hat: Steht im Ordner ein anderer Stand, ist er neu – egal welche Nummer er hat (auch nach Ordnerwechsel
+oder gelöschter Datei). Ein Stand mit falscher Prüfsumme (halb geschrieben) wird nie übernommen. Nach dem
+Schreiben liest AluPC die Datei zurück und prüft sie. Haben beide Seiten geändert (z. B. weil das Laufwerk nicht
 eingehängt war), gewinnt die eigene Änderung – die andere Fassung wird als Sicherung daneben gelegt.
+
+„Neu anfangen“ löscht alle alten Stände (alle gefundenen Sync-Ordner, Sicherungen, kopierte Dateien) und schreibt
+den Stand dieses Systems mit einer neuen „Epoche“. Das andere System erkennt die neue Epoche und übernimmt diesen
+Stand komplett (seine eigenen Einstellungen sichert es vorher in eine Datei).
 
 Haben beide Seiten geändert, wird bis auf einzelne Einträge zusammengeführt (eine Szene hier, eine Kachel dort →
 beides bleibt). Nur wenn wirklich dieselbe Einstellung auf beiden Seiten anders geändert wurde, gewinnt die eigene.
@@ -34,6 +40,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from pathlib import Path, PurePosixPath
 
 from . import __version__
@@ -95,6 +102,8 @@ def _portable(key: str, value):
         value = {}  # Kamera-IDs sind je System verschieden
     elif key == "rgb" and isinstance(value, dict):
         value.pop("openrgb_path", None)
+    elif key == "whiteboard" and isinstance(value, dict):
+        value.pop("board", None)  # offene Tafel: die Tafel-Dateien liegen je System im eigenen Ordner
     elif key == "voice" and isinstance(value, dict):
         value.pop("device", None)  # Mikrofon und System-Stimme heißen je System anders
         value.pop("speak_voice", None)
@@ -306,23 +315,50 @@ def sync_file(folder: str | Path) -> Path:
 
 
 def _read(path: Path) -> dict | None:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    if not isinstance(data, dict) or data.get("app") != "AluPC" or not isinstance(data.get("data"), dict):
-        return None
+    data, _problem = _read_checked(path)
     return data
 
 
-def _write(path: Path, rev: int, data: dict) -> None:
+def _read_checked(path: Path) -> tuple[dict | None, str]:
+    """Sync-Datei lesen und prüfen. Rückgabe: (Inhalt, Problem). Problem: "" = gut, "fehlt", "kaputt" (kein
+    gültiges JSON / falsche Prüfsumme – z. B. halb geschrieben, weil der PC mitten im Speichern aus war)."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None, "fehlt"
+    except (OSError, ValueError):
+        return None, "kaputt"
+    if not isinstance(data, dict) or data.get("app") != "AluPC" or not isinstance(data.get("data"), dict):
+        return None, "kaputt"
+    if data.get("hash") and data["hash"] != payload_hash(data["data"]):
+        return None, "kaputt"
+    return data, ""
+
+
+def stand_id(doc: dict | None) -> str:
+    """Kennung eines gespeicherten Stands (ältere AluPC-Versionen schrieben noch keine → aus Nummer + Zeit)."""
+    if not doc:
+        return ""
+    return str(doc.get("id") or f"rev{doc.get('rev', 0)}-{doc.get('written', '')}")
+
+
+def _write(path: Path, rev: int, data: dict, epoch: str = "") -> str:
+    """Schreiben (erst in eine Hilfsdatei, dann austauschen) und zurücklesen. Rückgabe: Kennung des Stands."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    doc = {"app": "AluPC", "rev": rev, "system": "Windows" if IS_WINDOWS else "Linux",
-           "computer": platform.node(), "written": time.strftime("%Y-%m-%d %H:%M"), "version": __version__,
-           "data": data}
+    sid = uuid.uuid4().hex
+    doc = {"app": "AluPC", "rev": rev, "id": sid, "epoch": epoch, "hash": payload_hash(data),
+           "system": "Windows" if IS_WINDOWS else "Linux", "computer": platform.node(),
+           "written": time.strftime("%Y-%m-%d %H:%M"), "version": __version__, "data": data}
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(doc, indent=1, ensure_ascii=False), encoding="utf-8")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(json.dumps(doc, indent=1, ensure_ascii=False))
+        f.flush()
+        os.fsync(f.fileno())  # wirklich auf dem Laufwerk, bevor die alte Datei ersetzt wird
     os.replace(tmp, path)
+    back, problem = _read_checked(path)
+    if problem or stand_id(back) != sid:
+        raise OSError(f"Prüfung nach dem Speichern fehlgeschlagen ({problem or 'anderer Inhalt'})")
+    return sid
 
 
 def _set_state(config, **changes) -> None:
@@ -485,7 +521,24 @@ def resolve_folder(config, mount: bool = True) -> Path | None:
     for candidate in find_existing():  # anderes Laufwerk/anderer Buchstabe: vorhandenen Sync-Ordner nehmen
         config.data["sync"] = {**config.data["sync"], "folder": str(candidate)}
         return candidate
+    if s.get("folder") and folder.name == FOLDER_NAME and _on_shared_drive(folder.parent):
+        try:  # nur der Ordner wurde gelöscht (Laufwerk ist da) → neu anlegen statt „nicht erreichbar“
+            folder.mkdir()
+            return folder
+        except OSError:
+            pass
     return None
+
+
+def _on_shared_drive(path: Path) -> bool:
+    """Liegt `path` auf einem eingehängten Laufwerk, das beide Systeme erreichen? (Linux: sonst könnte ein leerer
+    Einhängepunkt auf der Linux-Partition landen.)"""
+    if not path.is_dir():
+        return False
+    if IS_WINDOWS:
+        return Path(path.anchor).is_dir()
+    mp = mount_point_of(path)
+    return bool(mp) and mp in drives()
 
 
 def auto_setup(config) -> Path | None:
@@ -499,9 +552,22 @@ def auto_setup(config) -> Path | None:
         return None
     folder = found[0]
     config.data["sync"] = {**s, "enabled": True, "folder": str(folder), "device": device_of(folder), "rel": "",
-                           "base_rev": 0, "base_hash": "", "status": "Automatisch eingerichtet."}
+                           "base_rev": 0, "base_hash": "", "seen_id": "", "epoch": "", "status": "Automatisch eingerichtet."}
     config.save()
     return folder
+
+
+def _local_backup(config, keys: list[str]) -> Path | None:
+    """Vor dem kompletten Übernehmen (anderes System hat neu angefangen): eigene Einstellungen als Datei sichern –
+    lässt sich über „Importieren …“ zurückholen."""
+    try:
+        p = Path(config.path).with_name(f"sync-sicherung-{time.strftime('%Y%m%d-%H%M%S')}.json")
+        exported = {"app": "AluPC", "version": __version__, "exported": time.strftime("%Y-%m-%d %H:%M"),
+                    "system": platform.system(), "sections": list(SECTIONS), "data": payload(config, keys)}
+        p.write_text(json.dumps(exported, indent=1, ensure_ascii=False), encoding="utf-8")
+        return p
+    except OSError:
+        return None
 
 
 def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
@@ -519,8 +585,23 @@ def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
             _set_state(config, status=msg)
         return msg, []
     path = sync_file(folder)
-    remote = _read(path) if path.exists() else None
+    remote, problem = _read_checked(path)
+    note = ""
+    if problem == "kaputt":  # halb geschrieben o. Ä.: nie übernehmen, beiseitelegen, neu schreiben
+        try:
+            shutil.copyfile(path, folder / "alupc-sync-defekt.json")
+        except OSError:
+            pass
+        note = " Die Sync-Datei war beschädigt und wurde neu geschrieben."
     remote_rev = int(remote.get("rev", 0)) if remote else 0
+    rid = stand_id(remote)
+    seen = s.get("seen_id", "")
+    # Neu ist, was dieses System noch nicht gesehen hat – an der Kennung erkannt, nicht an der Nummer
+    # (ältere Einstellungen ohne gemerkte Kennung: über die Nummer – „anders“, nicht „größer“: nach einem
+    # Ordnerwechsel kann die Nummer im Ordner kleiner sein als die gemerkte und ist trotzdem neu)
+    remote_new = bool(remote) and (rid != seen if seen else remote_rev != int(s.get("base_rev", 0)))
+    my_epoch, r_epoch = s.get("epoch", ""), (remote or {}).get("epoch", "")
+    restarted = bool(remote_new and r_epoch and my_epoch and r_epoch != my_epoch)  # anderes System: „Neu anfangen“
     paths = PathMap(folder)
     keys = synced_keys(config)
     local = payload(config, keys, paths=paths)
@@ -530,18 +611,26 @@ def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
     now = time.strftime("%d.%m. %H:%M")
     changed: list[str] = []
     try:
-        if remote and remote_rev > base_rev and (not dirty or first):
+        if remote_new and (not dirty or first or restarted):
+            backup = _local_backup(config, keys) if restarted and dirty else None
             changed = apply_payload(config, paths.local(remote["data"]), keys)
             _save_base(config, remote["data"])
-            _set_state(config, base_rev=remote_rev,
+            status = f"Übernommen von {remote.get('system', '?')} ({remote.get('written', '')})."
+            if restarted:
+                status = f"{remote.get('system', '?')} hat neu angefangen – dessen Stand übernommen."
+                if backup:
+                    status += f" Die bisherigen Einstellungen hier liegen in „{backup.name}“."
+            _set_state(config, base_rev=remote_rev, seen_id=rid, epoch=r_epoch or my_epoch,
                        base_hash=payload_hash(payload(config, keys, paths=PathMap(folder))),
-                       last=now, status=f"Übernommen von {remote.get('system', '?')} ({remote.get('written', '')}).")
-            if changed:
-                _log(config, f"von {remote.get('system', '?')} übernommen: {_labels(changed)}")
+                       last=now, status=status + note)
+            who = remote.get("system", "?")
+            if restarted:
+                _log(config, f"neuer Anfang von {who} übernommen" + (f": {_labels(changed)}" if changed else ""))
+            elif changed:
+                _log(config, f"von {who} übernommen: {_labels(changed)}")
             return config.data["sync"]["status"], changed
         if dirty or not remote:
-            note = ""
-            if remote and remote_rev > base_rev:  # beide Seiten haben geändert → bis in Einträge zusammenführen
+            if remote_new:  # beide Seiten haben geändert → bis in Einträge zusammenführen
                 remote_data = {k: v for k, v in remote["data"].items() if k in keys}
                 merged, conflicts = merge_payload(_load_base(config), local, remote_data)
                 take = [k for k in merged if merged[k] != local.get(k)]
@@ -553,20 +642,22 @@ def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
                 if conflicts:
                     backup = folder / f"alupc-sync-sicherung-{remote_rev}-{remote.get('system', 'x')}.json"
                     shutil.copyfile(path, backup)
-                    note = f" Die Änderungen von {remote.get('system', '?')} liegen als Sicherung daneben."
+                    note += f" Die Änderungen von {remote.get('system', '?')} liegen als Sicherung daneben."
                 if take:
                     note = f" Zusammengeführt: {len(take)} Bereich(e) mit {remote.get('system', '?')}." + note
                 # Stand des anderen Systems ist jetzt bekannt – fürs nächste Zusammenführen merken
                 _save_base(config, remote["data"])
-                _set_state(config, base_rev=remote_rev)
+                _set_state(config, base_rev=remote_rev, seen_id=rid)
             rev = max(remote_rev, base_rev) + 1
+            epoch = my_epoch or r_epoch or uuid.uuid4().hex[:12]
             _copy_in_background(paths)  # Bilder/Videos, die nur hier liegen, in den Sync-Ordner
             out = dict(local)
             if remote:  # abgewählte Bereiche des anderen Systems unverändert lassen
                 out.update({k: v for k, v in remote["data"].items() if k not in keys})
-            _write(path, rev, out)
+            sid = _write(path, rev, out, epoch)  # schreibt, liest zurück und prüft
             _save_base(config, local)
-            _set_state(config, base_rev=rev, base_hash=local_hash, last=now, status="Gespeichert." + note)
+            _set_state(config, base_rev=rev, base_hash=local_hash, seen_id=sid, epoch=epoch, last=now,
+                       status="Gespeichert und geprüft." + note)
             _log(config, ("zusammengeführt mit " + str(remote.get("system", "?")) + ": " + _labels(changed))
                  if changed else "gespeichert")
             return config.data["sync"]["status"], changed
@@ -579,20 +670,95 @@ def sync_once(config, mount: bool = True) -> tuple[str, list[str]]:
                 msg = "Änderungen von Windows übernommen. " + msg
         _set_state(config, status=msg)
         return msg, changed
+    if remote and not seen:  # ältere Einstellungen: Kennung des aktuellen Stands ab jetzt merken
+        _set_state(config, seen_id=rid, epoch=my_epoch or r_epoch)
     _copy_in_background(paths)  # z. B. Kopie war beim letzten Mal unterbrochen
     return "Alles aktuell.", []
 
 
 # --------------------------------------------------------------------------- Anzeige / Prüfen / Sicherungen
 def remote_info(config) -> dict | None:
-    """Was steht gerade im Sync-Ordner? (System, Zeit, Version, Computer) – für die Sync-Seite."""
+    """Was steht gerade im Sync-Ordner? (System, Zeit, Version, Computer, Nummer, geprüft?, schon gesehen?)"""
     folder = config.data["sync"].get("folder")
     if not folder:
         return None
-    data = _read(sync_file(folder)) if sync_file(folder).is_file() else None
+    data, problem = _read_checked(sync_file(folder))
+    if problem == "kaputt":
+        return {"system": "?", "written": "", "version": "", "computer": "", "rev": 0, "ok": False, "seen": False}
     if not data:
         return None
-    return {k: data.get(k, "") for k in ("system", "written", "version", "computer", "rev")}
+    info = {k: data.get(k, "") for k in ("system", "written", "version", "computer", "rev")}
+    info["ok"] = True
+    info["seen"] = stand_id(data) == config.data["sync"].get("seen_id")
+    return info
+
+
+def other_folders(config) -> list[Path]:
+    """Weitere (alte) AluPC-Sync-Ordner auf erreichbaren Laufwerken – häufigste Ursache, dass beide Systeme
+    aneinander vorbei abgleichen (jedes in seinen eigenen Ordner)."""
+    current = config.data["sync"].get("folder")
+    try:
+        cur = Path(current).resolve() if current else None
+    except OSError:
+        cur = None
+    out = []
+    for f in find_existing():
+        try:
+            if f.resolve() != cur:
+                out.append(f)
+        except OSError:
+            continue
+    return out
+
+
+SYNC_LEFTOVERS = ("alupc-sync.json", "alupc-sync.tmp", "alupc-sync-defekt.json", ".alupc-schreibtest")
+
+
+def _clear_folder(folder: Path) -> list[str]:
+    """Nur AluPC-Dateien aus einem Sync-Ordner löschen (fremde Dateien bleiben). Rückgabe: Probleme."""
+    problems = []
+    items = [folder / n for n in SYNC_LEFTOVERS] + list(folder.glob("alupc-sync-sicherung-*.json"))
+    items.append(folder / COPY_DIR)
+    for item in items:
+        try:
+            if item.is_dir():
+                shutil.rmtree(item)
+            elif item.exists():
+                item.unlink()
+        except OSError as exc:
+            problems.append(f"{item}: {exc.strerror or exc}")
+    return problems
+
+
+def start_fresh(config) -> tuple[list[Path], list[str]]:
+    """„Neu anfangen“: alle alten Stände löschen (alle gefundenen Sync-Ordner) und den Stand DIESES Systems neu
+    schreiben – mit neuer Epoche, damit das andere System ihn komplett übernimmt. Rückgabe: (aufgeräumte Ordner,
+    Probleme)."""
+    s = config.data["sync"]
+    folder = resolve_folder(config) if s.get("folder") else None
+    if folder is None:
+        raise ValueError("Der Sync-Ordner ist nicht erreichbar – erst „Ordner wählen …“.")
+    cleaned, problems = [], []
+    for f in [folder] + other_folders(config):
+        problems += _clear_folder(f)
+        cleaned.append(f)
+        if f != folder:
+            try:
+                f.rmdir()  # leer → ganz weg; sonst (fremde Dateien darin) bleibt der Ordner
+            except OSError:
+                pass
+    try:
+        _base_path(config).unlink(missing_ok=True)
+    except OSError:
+        pass
+    config.data["sync"] = {**config.data["sync"], "enabled": True, "folder": str(folder), "base_rev": 0,
+                           "base_hash": "", "seen_id": "", "epoch": uuid.uuid4().hex[:12], "declined": False}
+    config.save()
+    msg, _changed = sync_once(config)
+    if not msg.startswith("Gespeichert"):
+        problems.append(msg)
+    _log(config, "neu angefangen – alte Stände gelöscht")
+    return cleaned, problems
 
 
 def conflict_backups(config) -> list[Path]:
@@ -638,15 +804,45 @@ def check(config) -> list[tuple[bool, str]]:
     me = "Windows" if IS_WINDOWS else "Linux"
     if info is None:
         out.append((False, "Noch keine Sync-Datei – einmal „Jetzt abgleichen“"))
-    elif info.get("system") and info["system"] != me:
-        out.append((True, f"Letzter Stand von {info['system']} ({info.get('written', '?')}, AluPC "
-                          f"{info.get('version', '?')})"))
+    elif not info["ok"]:
+        out.append((False, "Sync-Datei ist beschädigt – „Jetzt abgleichen“ schreibt sie neu"))
     else:
-        out.append((True, f"Letzter Stand von diesem System ({info.get('written', '?')}) – das andere System "
-                          "hat noch nichts Neueres geschrieben"))
+        out.append((True, "Sync-Datei ist unversehrt (Prüfsumme stimmt)"))
+        if info.get("system") and info["system"] != me:
+            out.append((True, f"Letzter Stand von {info['system']} ({info.get('written', '?')}, AluPC "
+                              f"{info.get('version', '?')})"))
+        else:
+            out.append((True, f"Letzter Stand von diesem System ({info.get('written', '?')}) – das andere System "
+                              "hat noch nichts Neueres geschrieben"))
+        out.append((info["seen"], "Dieses System hat den neuesten Stand" if info["seen"] else
+                    "Im Ordner liegt ein neuerer Stand – „Jetzt abgleichen“ übernimmt ihn"))
     if info and info.get("version") and info["version"] != __version__:
         out.append((False, f"Anderes System hat AluPC {info['version']}, hier {__version__} – beide aktualisieren"))
+    if IS_WINDOWS and fast_startup_on():
+        out.append((False, "Windows-„Schnellstart“ ist an – dann kann Linux das Laufwerk nur lesen und nichts "
+                           "speichern. Ausschalten: Systemsteuerung → Energieoptionen → „Auswählen, was beim Drücken "
+                           "von Netzschaltern geschehen soll“ → „Schnellstart aktivieren“ abhaken"))
+    others = other_folders(config)
+    if others:
+        out.append((False, "Weitere alte Sync-Ordner gefunden: " + ", ".join(str(f) for f in others[:3]) +
+                    " – „Neu anfangen …“ räumt sie weg (sonst gleichen die Systeme evtl. aneinander vorbei)"))
     return out
+
+
+def fast_startup_on() -> bool:
+    """Windows: Ist „Schnellstart“ an? Dann bleibt das Windows-Laufwerk halb im Ruhezustand, und Linux hängt es nur
+    lesbar ein – Linux könnte dann zwar übernehmen, aber nichts für Windows speichern."""
+    if not IS_WINDOWS:
+        return False
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                            r"SYSTEM\CurrentControlSet\Control\Session Manager\Power") as key:
+            value, _kind = winreg.QueryValueEx(key, "HiberbootEnabled")
+        return int(value) == 1
+    except (ImportError, OSError, ValueError, TypeError):
+        return False
 
 
 # --------------------------------------------------------------------------- Ordner finden

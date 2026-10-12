@@ -1821,3 +1821,121 @@ def test_windows_powershell_scripts_parse(tmp_path):
                        timeout=120)
     text = r.stdout.decode("utf-8", "replace") + r.stdout.decode("cp850", "replace")
     assert "fertig" in text and "nie" not in text and "Gr" in text, r
+
+
+def test_sync_both_directions_check_every_stand_and_fresh_start(tmp_path, monkeypatch):
+    """Dual-Boot wie in echt (abwechselnd booten): Windows speichert → Linux übernimmt NUR (schreibt nicht zurück),
+    Linux speichert → Windows übernimmt nur. Jeder Stand hat Kennung + Prüfsumme: nach Ordnerwechsel mit
+    „kleinerer“ Nummer trotzdem erkannt, beschädigte Datei nie übernommen. „Neu anfangen“ löscht alle alten Stände
+    (auch zweite Sync-Ordner), das andere System übernimmt den neuen Anfang komplett (mit Sicherung)."""
+    import json
+
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    drive_c, drive_d = tmp_path / "C", tmp_path / "D"
+    shared = drive_c / ss.FOLDER_NAME
+    shared.mkdir(parents=True)
+    drive_d.mkdir()
+    monkeypatch.setattr(ss, "drives", lambda: [str(drive_c), str(drive_d)])
+    monkeypatch.setattr(ss, "mount_point_of", lambda p: str(drive_c) if str(p).startswith(str(drive_c)) else "")
+    win, lin = Config(tmp_path / "win.json"), Config(tmp_path / "lin.json")
+    for cfg in (win, lin):
+        cfg.data["sync"] = {**cfg.data["sync"], "enabled": True, "folder": str(shared)}
+
+    def boot(cfg, system):  # AluPC startet auf diesem System und gleicht ab
+        monkeypatch.setattr(ss, "IS_WINDOWS", system == "Windows")
+        return ss.sync_once(cfg, mount=False)
+
+    def stand():
+        return json.loads(ss.sync_file(shared).read_text(encoding="utf-8"))
+
+    win["timer"] = {**win["timer"], "minutes": 11}
+    assert boot(win, "Windows")[0].startswith("Gespeichert und geprüft")
+    for minutes in (12, 13, 14):  # mehrmals hin und her
+        win["timer"] = {**win["timer"], "minutes": minutes}
+        boot(win, "Windows")
+        before = stand()
+        msg, changed = boot(lin, "Linux")
+        assert "Übernommen von Windows" in msg and changed == ["timer"] and lin["timer"]["minutes"] == minutes
+        assert stand() == before  # Linux hat nur übernommen, nicht zurückgeschrieben
+        assert boot(lin, "Linux")[0] == "Alles aktuell." and boot(win, "Windows")[0] == "Alles aktuell."
+        assert all(ok for ok, _t in ss.check(lin))  # Prüfsumme stimmt, Linux hat den neuesten Stand
+    # Andersherum: Linux speichert, Windows übernimmt nur
+    lin["appearance"] = {**lin["appearance"], "accent": "gruen"}
+    assert boot(lin, "Linux")[0].startswith("Gespeichert") and stand()["system"] == "Linux"
+    before = stand()
+    assert boot(win, "Windows")[1] == ["appearance"] and win["appearance"]["accent"] == "gruen"
+    assert stand() == before
+    # Beschädigte Datei (halb geschrieben) → nicht übernommen, beiseitegelegt, neu geschrieben
+    bad = stand()
+    bad["data"]["timer"]["minutes"] = 99
+    ss.sync_file(shared).write_text(json.dumps(bad), encoding="utf-8")
+    assert not any(ok for ok, t in ss.check(win) if "unversehrt" in t)
+    assert "beschädigt" in boot(win, "Windows")[0] and win["timer"]["minutes"] == 14
+    assert (shared / "alupc-sync-defekt.json").is_file() and stand()["data"]["timer"]["minutes"] == 14
+    assert boot(lin, "Linux")[0] == "Übernommen von Windows (" + stand()["written"] + ")."
+    # Ältere Einstellungen ohne Kennung + Ordner mit KLEINERER Nummer (z. B. nach Ordnerwechsel) → trotzdem neu
+    lin.data["sync"] = {**lin.data["sync"], "seen_id": "", "base_rev": 50}
+    win["timer"] = {**win["timer"], "minutes": 15}
+    boot(win, "Windows")
+    assert stand()["rev"] < 50 and boot(lin, "Linux")[1] == ["timer"] and lin["timer"]["minutes"] == 15
+    # Ordner gelöscht (Laufwerk ist aber da) → neu angelegt statt „nicht erreichbar“
+    import shutil
+
+    shutil.rmtree(shared)
+    win["timer"] = {**win["timer"], "minutes": 16}
+    assert boot(win, "Windows")[0].startswith("Gespeichert") and ss.sync_file(shared).is_file()
+    assert boot(lin, "Linux")[1] == ["timer"]
+    # Alte Speicherstände überall: zweiter Sync-Ordner auf D:, Konflikt-Sicherung, kopierte Dateien, fremde Datei
+    old = drive_d / "AluPC" / ss.FOLDER_NAME
+    old.mkdir(parents=True)
+    (old / ss.FILE_NAME).write_text(json.dumps({"app": "AluPC", "rev": 80, "data": {}}), encoding="utf-8")
+    (shared / "alupc-sync-sicherung-3-Linux.json").write_text("{}", encoding="utf-8")
+    (shared / ss.COPY_DIR).mkdir()
+    (shared / ss.COPY_DIR / "x.png").write_bytes(b"x")
+    (shared / "meine-notiz.txt").write_text("bleibt", encoding="utf-8")
+    assert any("Weitere alte Sync-Ordner" in t for ok, t in ss.check(win) if not ok)
+    lin["scenes"] = [{"name": "Nur auf Linux"}]  # Linux hat eigene, noch nicht abgeglichene Änderungen
+    win["timer"] = {**win["timer"], "minutes": 21}
+    monkeypatch.setattr(ss, "IS_WINDOWS", True)
+    cleaned, problems = ss.start_fresh(win)
+    assert problems == [] and set(cleaned) == {shared, old} and not old.exists()
+    assert sorted(p.name for p in shared.iterdir()) == ["alupc-sync.json", "meine-notiz.txt"]
+    assert stand()["system"] == "Windows" and stand()["epoch"] == win["sync"]["epoch"]
+    assert ss.other_folders(win) == [] and all(ok for ok, _t in ss.check(win))
+    fresh = stand()
+    msg, changed = boot(lin, "Linux")  # Linux erkennt den neuen Anfang → übernimmt komplett, sichert vorher
+    assert "neu angefangen" in msg and lin["timer"]["minutes"] == 21 and "scenes" in changed
+    assert lin["scenes"] != [{"name": "Nur auf Linux"}] and stand() == fresh
+    backup = next(tmp_path.glob("sync-sicherung-*.json"))
+    assert json.loads(backup.read_text(encoding="utf-8"))["data"]["scenes"] == [{"name": "Nur auf Linux"}]
+    assert lin["sync"]["epoch"] == win["sync"]["epoch"] and boot(lin, "Linux")[0] == "Alles aktuell."
+    # Danach normal weiter in beide Richtungen
+    lin["timer"] = {**lin["timer"], "minutes": 22}
+    boot(lin, "Linux")
+    assert boot(win, "Windows")[1] == ["timer"] and win["timer"]["minutes"] == 22
+
+
+def test_sync_check_warns_about_windows_fast_startup(tmp_path, monkeypatch):
+    """Windows-„Schnellstart“ an → Linux kann nur lesen. „Prüfen“ sagt das unter Windows (und wie man es abschaltet);
+    die Abfrage selbst läuft auf jedem System ohne Fehler."""
+    import sys
+
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    assert ss.fast_startup_on() in (True, False)  # unter Windows echte Registry, sonst immer False
+    if not sys.platform.startswith("win"):
+        assert ss.fast_startup_on() is False
+    shared = tmp_path / ss.FOLDER_NAME
+    shared.mkdir()
+    cfg = Config(tmp_path / "c.json")
+    cfg.data["sync"] = {**cfg.data["sync"], "enabled": True, "folder": str(shared)}
+    monkeypatch.setattr(ss, "drives", lambda: [])
+    ss.sync_once(cfg)
+    monkeypatch.setattr(ss, "fast_startup_on", lambda: True)
+    monkeypatch.setattr(ss, "IS_WINDOWS", True)
+    assert any("Schnellstart" in t and not ok for ok, t in ss.check(cfg))
+    monkeypatch.setattr(ss, "fast_startup_on", lambda: False)
+    assert all(ok for ok, _t in ss.check(cfg))

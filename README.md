@@ -117,7 +117,12 @@ Außerdem:
 - **Sichern & Sync** (Setup): Einstellungen **exportieren/importieren** – alles oder z. B. nur die
   **Startseite**. **Dual-Boot-Abgleich Windows ↔ Linux**: beide Systeme nutzen einen Ordner
   „AluPC-Sync“ auf dem Windows-Laufwerk; AluPC gleicht beim Start und nach jeder Änderung automatisch ab
-  (Startseite, Szenen, Favoriten, Tastenkürzel, Design, Bildschirmschoner, Töne, Handy, RGB).
+  (Startseite, Szenen, Favoriten, Tastenkürzel, Design, Bildschirmschoner, Töne, Handy, RGB). Jeder gespeicherte
+  Stand hat eine eigene Kennung und Prüfsumme: Windows speichert → Linux übernimmt nur (und umgekehrt),
+  beschädigte Stände werden nie übernommen, nach dem Schreiben wird zurückgelesen und geprüft.
+  **„Neu anfangen …“** löscht alle alten Stände (auch zweite, vergessene Sync-Ordner) und schreibt den Stand
+  dieses Systems neu – das andere System übernimmt ihn dann komplett (seine bisherigen Einstellungen sichert es
+  vorher in eine Datei).
 - **Startseite anpassen** (Knopf oben rechts auf der Startseite): Kacheln ein-/ausblenden und
   sortieren, eigene Überschrift, Statuskarte an/aus und **eigene Kacheln** – z. B. „Begrüßung“
   (zeigt eine Szene), „Pausen-Uhr“ (zeigt eine Uhr) oder „Standbild“ (führt einen Befehl aus),
@@ -487,7 +492,9 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   ausschalten. Ist das Laufwerk unter Linux nicht eingehängt, versucht AluPC es selbst (klappt je nach
   System nur mit Passwort – dann „Windows-Laufwerk einhängen …“). Dateipfade (z. B. Bilder in Szenen)
   gelten nur, wenn die Datei auf beiden Systemen am gleichen Ort liegt. Mit echtem Dual-Boot nicht
-  getestet – getestet mit zwei simulierten Systemen und einem gemeinsamen Ordner.
+  getestet – getestet mit zwei simulierten Systemen und einem gemeinsamen Ordner (abwechselnd „gebootet“,
+  beide Richtungen, beschädigte Datei, gelöschter Ordner, zweiter alter Ordner, „Neu anfangen“); die Tests
+  laufen in der CI unter Linux und Windows.
 - **Kamera-Zoom**: Die meisten Webcams haben keinen optischen Zoom – dann ist es ein digitaler Ausschnitt
   (wird bei starkem Zoom unscharf). Helligkeit nur bei Kameras, die das über Qt anbieten.
 - **AirPlay braucht das freie Programm UxPlay** (wird nicht mitgeliefert, AluPC installiert es). Kubuntu

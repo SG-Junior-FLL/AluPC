@@ -8,7 +8,25 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.128.0)
+### Neu in dieser Version (0.129.0)
+- **Dual-Boot-Abgleich zuverlässiger (Windows ↔ Linux):**
+  - **Jeder Stand wird geprüft:** Jeder gespeicherte Stand hat eine eigene Kennung und eine Prüfsumme. Jedes
+    System merkt sich, welchen Stand es zuletzt gesehen hat – ein anderer Stand im Ordner ist neu und wird
+    übernommen (auch nach Ordnerwechsel, wenn die Nummer kleiner ist – das ging vorher schief).
+  - **Windows speichert → Linux übernimmt nur** (und umgekehrt): Das übernehmende System schreibt nicht mehr
+    zurück. Behoben: Seit 0.128 hielt sich AluPC nach jedem Start für „geändert“ (Whiteboard-Einstellungen) und
+    schrieb sofort zurück.
+  - **Nach dem Speichern zurückgelesen und geprüft**; eine beschädigte (halb geschriebene) Datei wird nie
+    übernommen, sondern beiseitegelegt und neu geschrieben. Gelöschter Sync-Ordner wird neu angelegt.
+  - **„Neu anfangen …“** (Setup → Sichern & Sync): löscht alle alten Stände – auch zweite, vergessene
+    AluPC-Sync-Ordner auf anderen Laufwerken, Konflikt-Sicherungen, kopierte Bilder (eigene Dateien bleiben) –
+    und schreibt den Stand dieses Systems neu. Das andere System erkennt den neuen Anfang und übernimmt ihn
+    komplett; seine bisherigen Einstellungen legt es vorher als Datei ab („Importieren …“ holt sie zurück).
+  - **Warnungen:** zweiter Sync-Ordner gefunden (Systeme gleichen sonst aneinander vorbei); unter Windows
+    „Schnellstart“ an (dann kann Linux nur lesen, nicht speichern). Die Karte zeigt „Stand Nr. … von …,
+    geprüft ✓, dieses System ist aktuell“.
+
+### Davor: 0.128.0
 - **Whiteboard wie ein Notizbuch (ähnlich GoodNotes):**
   - **Richtig zoomen:** Strg+Mausrad oder zwei Finger (Touchscreen, Handy, iPad) zoomen genau an der Stelle unter
     der Maus bzw. den Fingern (25 % bis 800 %), Mausrad/Leertaste+Ziehen/mittlere Maustaste verschieben, „0“ = ganze

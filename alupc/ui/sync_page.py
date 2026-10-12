@@ -163,7 +163,14 @@ def sync_group(page) -> QGroupBox:
     mount.setVisible(not ss.IS_WINDOWS)
     restore = button("Sicherungen …", "undo")
     restore.setToolTip("Bei einem Konflikt gesicherte Fassung des anderen Systems zurückholen")
-    lay.addWidget(flow_row(now, test, pick, search, mount, restore))
+    fresh = button("Neu anfangen …", "trash")
+    fresh.setToolTip("Alle alten Abgleich-Stände löschen und den Stand dieses Systems neu schreiben – das andere "
+                     "System übernimmt ihn dann komplett")
+    lay.addWidget(flow_row(now, test, pick, search, mount, restore, fresh))
+    warn = QLabel()
+    warn.setWordWrap(True)
+    warn.setVisible(False)
+    lay.addWidget(warn)
     # ---- Bereiche
     what = QLabel("<b>Was abgeglichen wird</b>")
     lay.addWidget(what)
@@ -226,11 +233,21 @@ def sync_group(page) -> QGroupBox:
             title.setText("Verbunden ✓")
             last = f"Zuletzt: {s['last']} · " if s.get("last") else ""
             info = ss.remote_info(config)
-            other = (f"\nIm Ordner: Stand von {info['system']} ({info.get('written', '')}, AluPC "
-                     f"{info.get('version', '')})") if info else ""
+            other = ""
+            if info and not info["ok"]:
+                other = "\nIm Ordner: Sync-Datei beschädigt – „Jetzt abgleichen“ schreibt sie neu"
+            elif info:
+                state = "geprüft ✓, dieses System ist aktuell" if info["seen"] else "geprüft ✓, neuer Stand wartet"
+                other = (f"\nIm Ordner: Stand Nr. {info.get('rev', '?')} von {info['system']} "
+                         f"({info.get('written', '')}, AluPC {info.get('version', '')}) – {state}")
             sub.setText(f"{last}{status_text}{other}\nOrdner: {s['folder']}")
             set_badge(t.success, "sync")
         restore.setVisible(bool(ss.conflict_backups(config)))
+        fresh.setEnabled(bool(s.get("folder")))
+        if s.get("folder"):  # Laufwerke durchsuchen kann dauern (Netzlaufwerke) → im Hintergrund
+            run_async(lambda: ss.other_folders(config), show_others, lambda _e: None, owner=box)
+        else:
+            show_others([])
         skip = set(s.get("skip") or [])
         for name, cb in section_boxes.items():
             cb.blockSignals(True)
@@ -239,6 +256,13 @@ def sync_group(page) -> QGroupBox:
         lines = list(reversed(s.get("history") or []))[:6]
         history.setText("\n".join(lines) if lines else "Noch nichts abgeglichen.")
         now.setEnabled(bool(s.get("folder")) and bool(s.get("enabled")))
+
+    def show_others(others):
+        warn.setVisible(bool(others))
+        if others:
+            warn.setText("⚠ Weitere alte Sync-Ordner gefunden: " + ", ".join(str(f) for f in others[:3]) +
+                         " – die Systeme gleichen evtl. aneinander vorbei. „Neu anfangen …“ räumt auf.")
+            warn.setStyleSheet(f"color: {theme.current().warning}; font-weight: 600;")
 
     def set_section(name: str, on: bool):
         skip = set(config.data["sync"].get("skip") or [])
@@ -261,6 +285,7 @@ def sync_group(page) -> QGroupBox:
         existing = ss.sync_file(folder).is_file()
         config.data["sync"] = {**config.data["sync"], "enabled": True, "folder": str(folder),
                                "device": ss.device_of(folder), "rel": "", "base_rev": 0, "base_hash": "",
+                               "seen_id": "", "epoch": "",
                                "status": "", "declined": False}
         config.save()
         msg = controller.run_sync()
@@ -355,6 +380,35 @@ def sync_group(page) -> QGroupBox:
             menu.addAction(label, go)
         menu.popup(restore.mapToGlobal(restore.rect().bottomLeft()))
 
+    def do_fresh():
+        others = ss.other_folders(config)
+        where = "\n".join(f"• {f}" for f in [config.data["sync"].get("folder", "")] + [str(o) for o in others])
+        me = "Windows" if ss.IS_WINDOWS else "Linux"
+        box_ = QMessageBox(QMessageBox.Warning, "Neu anfangen",
+                           "Alle alten Abgleich-Stände löschen und mit den Einstellungen von DIESEM System "
+                           f"({me}) neu anfangen?\n\nGelöscht wird (nur AluPC-Dateien, eigene Dateien bleiben):\n"
+                           f"{where}\n– alter Stand, Konflikt-Sicherungen, kopierte Bilder/Videos\n\n"
+                           "Das andere System übernimmt beim nächsten Start diesen neuen Stand komplett. Was dort "
+                           "seit dem letzten Abgleich geändert wurde, legt es vorher als Sicherungsdatei ab "
+                           "(„Importieren …“ holt es zurück).", parent=page)
+        go = box_.addButton("Neu anfangen", QMessageBox.DestructiveRole)
+        box_.addButton("Abbrechen", QMessageBox.RejectRole)
+        box_.exec()
+        if box_.clickedButton() is not go:
+            return
+        try:
+            cleaned, problems = ss.start_fresh(config)
+        except ValueError as exc:
+            error_box(page, str(exc))
+            return
+        refresh()
+        lines = [("✓ " if ok else "✗ ") + text for ok, text in ss.check(config)]
+        text = f"Aufgeräumt: {len(cleaned)} Ordner. Neuer Stand geschrieben und geprüft.\n\n" + "\n".join(lines)
+        if problems:
+            text = "Nicht alles ließ sich löschen:\n" + "\n".join(problems[:5]) + "\n\n" + text
+        (QMessageBox.warning if problems else QMessageBox.information)(page, "Neu anfangen", text)
+
+    fresh.clicked.connect(do_fresh)
     test.clicked.connect(do_check)
     restore.clicked.connect(do_restore)
     enabled.toggled.connect(toggle)
