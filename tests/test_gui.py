@@ -2646,7 +2646,8 @@ def test_many_templates_render_and_filter(env):
     for key in DESIGNS:
         assert CATEGORIES[key]
         img = render_preview(design_defaults(key), 320, 180)
-        assert len({img.pixelColor(x, y).name() for x in range(0, 320, 8) for y in range(0, 180, 8)}) > 3, key
+        # fein abtasten: auf Windows (andere Schrift, weniger Kantenglättung) trifft ein 8-px-Raster sonst nur Flächen
+        assert len({img.pixelColor(x, y).name() for x in range(0, 320, 2) for y in range(0, 180, 2)}) > 3, key
     for key in SCENE_TEMPLATES:
         assert TEMPLATE_CATEGORIES[key]
         scene = build_template(key, {})

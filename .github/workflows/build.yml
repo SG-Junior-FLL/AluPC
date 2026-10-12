@@ -82,7 +82,7 @@ jobs:
       - name: Sprache echt – Piper spricht (auch über ein virtuelles Mikrofon), Vosk/Whisper hören, AluPC versteht
         run: |
           sudo apt-get install -y pulseaudio pulseaudio-utils
-          pulseaudio -D --exit-idle-time=-1
+          pulseaudio --check 2>/dev/null || pulseaudio -D --exit-idle-time=-1  # läuft schon vom Mischpult-Schritt
           sleep 1
           pactl load-module module-null-sink sink_name=virt
           pactl load-module module-virtual-source source_name=virtmic master=virt.monitor
