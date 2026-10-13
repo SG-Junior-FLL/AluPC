@@ -1794,20 +1794,25 @@ def test_audio_core_audio_windows():
 
 
 def test_windows_powershell_scripts_parse(tmp_path):
-    """Alle PowerShell-Skripte der Anmeldeseite/des Hotspots ohne Syntaxfehler (z. B. „ “ gelten dort als Anführungszeichen)."""
+    """Alle PowerShell-Skripte des Hotspots ohne Syntaxfehler (z. B. „ “ gelten dort als Anführungszeichen)."""
     import shutil
     import subprocess
-    from pathlib import Path
 
     from alupc import hotspot
 
     exe = shutil.which("pwsh") or shutil.which("powershell")
     if not exe:
         pytest.skip("PowerShell fehlt")
-    scripts = {"waechter": hotspot.portal_script_windows("192.168.137.1", 8765, Path("C:/t/f"), 42,
-                                                         program="C:/Program Files/AluPC/AluPC.exe"),
-               "waechter_offen": hotspot.portal_script_windows("192.168.137.1", 8765, Path("C:/t/f"), 42, closed=False),
-               "start": hotspot._PS_START, "stop": hotspot._PS_STOP, "state": hotspot._PS_STATE}
+    seen = []  # Firewall-Skript (Start-Process … -Verb RunAs) wird mitgeprüft
+    import alupc.hotspot as hs_mod
+
+    orig = hs_mod.IS_WINDOWS
+    hs_mod.IS_WINDOWS = True
+    try:
+        hs_mod.ensure_firewall_rule(run=lambda cmd, timeout=15: (1, ""), ps=lambda script, timeout=0: seen.append(script))
+    finally:
+        hs_mod.IS_WINDOWS = orig
+    scripts = {"start": hotspot._PS_START, "stop": hotspot._PS_STOP, "state": hotspot._PS_STATE, "firewall": seen[0]}
     for name, text in scripts.items():
         (tmp_path / f"{name}.ps1").write_text(text, encoding="utf-8-sig")
     check = ("$bad = 0; Get-ChildItem -LiteralPath '" + str(tmp_path) + "' -Filter *.ps1 | ForEach-Object { $e = $null; "
@@ -1815,12 +1820,6 @@ def test_windows_powershell_scripts_parse(tmp_path):
              "foreach ($x in $e) { $bad++; \"$($_.Name):$($x.Extent.StartLineNumber): $($x.Message)\" } }; \"FEHLER=$bad\"")
     out = subprocess.run([exe, "-NoProfile", "-Command", check], capture_output=True, text=True, timeout=120).stdout
     assert "FEHLER=0" in out, out
-    # Komprimierte Übergabe (lange Skripte): kommt unverändert an, Umlaute, Funktionen, return + finally
-    probe = "function F { 'Grüße' }\ntry { F; return } finally { 'fertig' }\n'nie'\n"
-    r = subprocess.run([exe, "-NoProfile", "-EncodedCommand", hotspot.encoded_command(probe)], capture_output=True,
-                       timeout=120)
-    text = r.stdout.decode("utf-8", "replace") + r.stdout.decode("cp850", "replace")
-    assert "fertig" in text and "nie" not in text and "Gr" in text, r
 
 
 def test_sync_both_directions_check_every_stand_and_fresh_start(tmp_path, monkeypatch):

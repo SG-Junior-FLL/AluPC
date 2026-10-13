@@ -69,7 +69,7 @@ class DuelSource(QWidget):
             codes.append(("1 · WLAN", self._qr_img("wifi", wifi_payload(*wifi)), f"„{wifi[0]}“"))
         codes.append((("2 · " if wifi else "") + "Spielseite", self._qr_img("link", self.server.base() +
                                                                              f"schiffe?u={duel.token}"),
-                      "nur im AluPC-WLAN"))
+                      "Name eingeben, Schiffe setzen"))
         side = min(rect.width() / len(codes) * 0.78, h * 0.42)
         for i, (label, img, sub) in enumerate(codes):
             cx = rect.x() + rect.width() * (i + 0.5) / len(codes)
@@ -83,8 +83,8 @@ class DuelSource(QWidget):
             draw_qr(p, box, img)
             gd.text(p, QRectF(cx - side, box.bottom() + pad * 2, 2 * side, h * 0.05), sub, h * 0.03, "#93c5fd")
         gd.text(p, QRectF(rect.x(), rect.y() + h * 0.12 + side + h * 0.16, rect.width(), h * 0.2),
-                "Oder an der PC-Tastatur:\nPfeile = Feld · Enter = setzen/schießen\nR = drehen · Z = zufällig · "
-                "B = bereit", h * 0.03, gd.MUTED, wrap=True)
+                "Oder an der PC-Tastatur:\nPfeile = Feld · Enter = setzen/schießen (auf einem Schiff: aufnehmen)\n"
+                "R = drehen · Z = zufällig · B = bereit", h * 0.03, gd.MUTED, wrap=True)
 
     def _spectator(self, p, view, duel, rect: QRectF) -> None:
         """Beide Felder nur mit Schüssen (versenkte Schiffe aufgedeckt) – fair, auch wenn Spieler 1 hinschaut."""

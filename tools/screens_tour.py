@@ -285,8 +285,8 @@ dialog("mediathek", "Mediathek", "Fenster", "Bilder und Videos sammeln und mit e
 dialog("programm", "Programm zeigen", "Fenster", "Ein Programmfenster auf Monitor 2 zeigen.",
        window.open_program_dialog)
 dialog("hotspot", "Hotspot", "Fenster",
-       "Der PC macht ein eigenes WLAN – der einzige Weg fürs Handy. Handys bekommen die Anmeldeseite: Mitspielen "
-       "oder AluPC steuern.", lambda: window.open_hotspot_dialog("normal"))
+       "Der PC macht ein eigenes WLAN – der einzige Weg fürs Handy. Danach scannen Handys den Code der jeweiligen "
+       "Seite (Spiel, Chat, Abstimmung …); steuern nur mit dem privaten Steuer-Code am PC.", lambda: window.open_hotspot_dialog("normal"))
 def fake_wlan(on: bool):  # kein echtes WLAN im Rundgang: so tun, als liefe das AluPC-WLAN
     from alupc import hotspot as hs_mod
 
@@ -300,14 +300,14 @@ def connect_dialog():
     controller.cast.start()
     fake_wlan(True)
     ConnectDialog("Handy verbinden", controller.guest_wifi(),
-                  "WLAN-Code scannen → Anmeldeseite → „AluPC steuern“ → am PC erlauben",
+                  "WLAN-Code scannen → privaten Steuer-Code scannen (oder am PC erlauben)",
                   on_monitor=lambda: None, parent=window).exec()
     fake_wlan(False)
 
 
 dialog("handy-verbinden", "Handy verbinden", "Fenster",
-       "EIN QR-Code: das AluPC-WLAN. Scannen → die Anmeldeseite öffnet sich → „AluPC steuern“ (am PC erlauben) "
-       "oder mitspielen. Einen anderen Weg gibt es nicht.", connect_dialog)
+       "1. das AluPC-WLAN, 2. der private Steuer-Code (nur hier am PC). Ohne Code: auf der Steuerseite „Am PC "
+       "freigeben lassen“.", connect_dialog)
 dialog("handy-fenster", "Handy auf Monitor 2", "Fenster",
        "AirPlay (iPhone), Miracast/Spiegeln (Android), AluCast im Browser – Status und Einrichtung.",
        window.open_handy_window)
@@ -343,9 +343,9 @@ def wlan_qr():
     fake_wlan(True)
     controller.start_cast()  # Handy-Steuerung = WLAN-Code des AluPC-WLANs
     pump(1.2)
-    monitor2("wlan-qr", "Handy-Steuerung: WLAN-QR-Code",
-             "Der einzige Weg fürs Handy: WLAN-Code scannen → die Anmeldeseite öffnet sich → mitspielen oder "
-             "„AluPC steuern“ (am PC erlauben).")
+    monitor2("wlan-qr", "AluPC-WLAN: QR-Code",
+             "Der einzige Weg fürs Handy: erst dieser WLAN-Code, dann der Code der jeweiligen Seite (Spiel, Chat, "
+             "Abstimmung, Whiteboard, Schiffe versenken).")
     fake_wlan(False)
 
 

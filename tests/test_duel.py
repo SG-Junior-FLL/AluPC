@@ -232,3 +232,36 @@ def test_intent_and_command_palette():
     assert "schiffe" in startpage.COMMANDS
     assert intents.understand(["schiffe", "versenken"]) == ("schiffe", "Schiffe versenken")
     assert intents.understand(["minispiele"])[0] == "spiele"  # bleibt wie vorher
+
+
+def test_free_order_pick_up_and_move():
+    """Setzen am Handy/iPad: Länge frei wählbar, gesetztes Schiff aufnehmen und woanders hinsetzen."""
+    game = Battleship(random.Random(5))
+    assert game.place(2, 0, 0, True, 2)  # zuerst das U-Boot
+    assert game.fleets[2].remaining_lengths() == [5, 4, 3, 3] and game.view(2)["left_ships"] == [5, 4, 3, 3]
+    assert not game.place(2, 5, 5, True, 2)  # U-Boot gibt es nur einmal
+    assert game.place(2, 0, 3, False)  # ohne Länge: das größte fehlende (5) – senkrecht A4–A8
+    assert game.fleets[2].ships[-1] == [(0, 3), (0, 4), (0, 5), (0, 6), (0, 7)]
+    ship = game.remove(2, 0, 5)  # antippen = aufnehmen
+    assert len(ship) == 5 and game.picked[2] == 5 and game.horizontal[2] is False
+    ghost, ok = game.ghost(2, 4, 2)
+    assert len(ghost) == 5 and ok and ghost[-1] == (4, 6)  # Vorschau mit dem aufgenommenen Schiff
+    assert game.place(2, 4, 2) and game.picked[2] is None
+    assert game.remove(2, 9, 9) is None  # leeres Feld: nichts
+    r = game.phone_action({"action": "join", "name": "Mia"}, "10.42.0.7")
+    r = game.phone_action({"action": "remove", "x": 0, "y": 0}, "10.42.0.7")
+    assert r["ok"] and r["removed"] == [[0, 0], [1, 0]] and 2 in r["left_ships"]
+    r = game.phone_action({"action": "place", "x": 7, "y": 7, "h": False, "len": 3}, "10.42.0.7")
+    assert r["ok"] and [7, 9] in r["own"]["ships"][-1]
+    assert game.phone_action({"action": "clear"}, "10.42.0.7")["own"]["ships"] == []
+    assert game.set_ready(2) is False
+    game.fleets[2].randomize(random.Random(1))
+    assert game.set_ready(2) and game.remove(2, *game.fleets[2].ships[0][0]) is None  # bereit: nichts mehr ändern
+
+
+def test_phone_page_has_preview_and_name():
+    from alupc.duel import PHONE_PAGE
+
+    for needle in ('id="jname"', 'id="set"', 'id="dock"', 'action: "remove"', "canPlace", "gok", "gbad"):
+        assert needle in PHONE_PAGE, needle
+    assert "/anmelden" not in PHONE_PAGE

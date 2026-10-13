@@ -8,7 +8,34 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.136.0)
+### Neu in dieser Version (0.137.0)
+- **AluPC-Oberfläche (eigener Desktop) entfernt** – auch „AluPC als System-Desktop“. Wer das in einer älteren
+  Version eingeschaltet hatte: AluPC nimmt es beim ersten Start selbst zurück (Windows: Benutzer-Eintrag
+  `Winlogon\Shell`; KDE: Zusatzdatei für plasmashell, ausgeblendeter Plasma-Autostart), ab der nächsten Anmeldung
+  kommt der normale Desktop. Meldet man sich noch mit dem alten Eintrag an, startet sofort der normale Desktop und
+  AluPC im Hintergrund. Tastenkürzel `Strg+Alt+O` entfällt.
+- **Anmeldeseite (Captive Portal) entfernt.** Keine DNS-Umleitung, kein Port 80, kein „Internet je Gerät“ mehr, kein
+  Administrator-Skript beim WLAN-Start. Stattdessen zeigt jede Seite auf Monitor 2 zwei Codes: **1. WLAN, 2. direkt
+  die Seite** (Minispiel-Lobby, Abstimmung, Chat, Foto-Wand, Schiffe versenken; Whiteboard: Codes unten rechts auf
+  der Tafel, solange Gäste schreiben dürfen). Steuern weiter nur mit dem privaten Steuer-Code am PC oder „Am PC
+  freigeben lassen“. Hat der PC Internet, haben es die Handys im AluPC-WLAN auch (wie bei jedem Hotspot).
+  Windows: das Portal-Skript lief bisher direkt nach dem Hotspot-Start und war ein möglicher Grund für „Hotspot
+  startet nicht“ – ob das die Ursache war, ist **nicht bestätigt**. Neu: Firewall-Freigabe „AluPC WLAN“
+  (Installer; sonst einmal „Ja“ beim ersten WLAN-Start).
+- **Audio unter Windows: „Systemklänge“ (und Programme) erschienen mehrfach** – Windows meldet je Ausgabegerät eine
+  eigene Sitzung. Jetzt je Programm einmal; der Regler gilt für alle seine Sitzungen.
+- **iPad-Whiteboard (Heft-Ansicht):** „Vergrößern“ schob die Tafel hinter die Heft-Ebene (unsichtbar) – jetzt füllt
+  die Tafel den Bildschirm, nochmal tippen holt Leiste und Seiten zurück. Tafel-, Papier-, Form- und
+  Einstellungsmenü öffnen sich direkt unter ihrem Knopf; „Neue Tafel“/„Umbenennen“ mit Eingabefeld im Menü (statt
+  Browser-Dialog, der in der Home-Bildschirm-App des iPads nicht zuverlässig ist).
+- **Schiffe versenken – Setzen am iPad/Handy neu:** Schiff wählen (Leiste zeigt, was noch fehlt), aufs Feld tippen
+  oder ziehen → Vorschau grün (passt) oder rot (Rand/zu nah), „✓ Setzen“ oder nochmal in die Vorschau tippen;
+  Drehen dreht die Vorschau; gesetztes Schiff antippen = aufnehmen und verschieben; „Alle weg“. Name wird auf der
+  Seite eingegeben. Auch am PC: gesetztes Schiff anklicken (bzw. Enter auf einem Schiff) = aufnehmen.
+- Geprüft: alle Tests, echtes Netz mit virtuellem „Handy“ (Linux, 17/17), Browser-Touch-Tests in iPad-/iPhone-Größe.
+  **Nicht** auf echter Hardware getestet (WLAN-Karte, echtes iPad, echtes Windows-Audio).
+
+### Davor: 0.136.0
 - **Ton unter Linux: Geräte und Regler fehlten.** AluPC las die Geräteliste nur über `pactl -f json`. Das können
   ältere pactl-Versionen (Kubuntu 22.04) nicht, und manche Versionen geben ungültiges JSON aus. Außerdem machte eine
   Warnung von pactl die Ausgabe kaputt. Jetzt: Rückfall auf die normale Textausgabe (immer auf Englisch gelesen),

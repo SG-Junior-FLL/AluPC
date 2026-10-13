@@ -30,13 +30,12 @@ und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beide
 | 📱 **Handy = Fernbedienung** | Nur übers AluPC-WLAN: WLAN-Code scannen → privaten Steuer-Code am PC scannen (nie auf Monitor 2), ohne App: Monitor 2 steuern, Live-Bild mit Laserpointer, zeichnen, Folien klicken, Touchpad, Fotos/Links senden – freigeben per „Erlauben“ am PC statt Code. **Auf dem iPad** eigenes Layout: Leiste links, Live-Bild bleibt stehen, große Zeichen- und Touchpad-Fläche |
 | 🎛️ **PC steuern** | Lautstärke, Musik, Fenster, Bildschirmfoto, Programme öffnen, Ausführen wie Win+R, Sperren – in der App, vom Handy, per Sprache („Alu PC, lauter“) oder Strg+K |
 | 🚢 **Schiffe versenken zu zweit** | Spieler 1 im Fenster auf Monitor 1, Spieler 2 auf Monitor 2 – mit Handy/iPad (nur AluPC-WLAN) oder Tastatur; jeder sieht nur die eigenen Schiffe |
-| ✏️ **Whiteboard für Gäste** | Alle im AluPC-WLAN schreiben mit – oder nur nach „Erlauben“ am PC; Anmeldeseite → „Whiteboard“ |
-| 🎮 **Minispiele = eigenes WLAN** | Snake, Tic-Tac-Toe, Pong, **Tetris** (alle dieselben Teile), Tipp-Rennen, Simon sagt, Schere-Stein-Papier, Space Invaders, Flappy Bird, Vier gewinnt – WLAN-Code scannen, Anmeldeseite öffnet sich (oder zweiten Code scannen: Seite im Browser), Name eingeben, mitspielen |
-| 📶 **AluPC-WLAN** | Der PC macht ein (unsichtbares) WLAN – 2 QR-Codes auf Monitor 2 (1. WLAN, 2. Seite im Browser, bleibt offen), Anmeldeseite wie im Hotel: Mitspielen, Abstimmen, AluPC steuern. Der **einzige** Weg fürs Handy; der Steuer-Code steht nur am PC. Kein Internet – außer für Geräte, die man im Hotspot-Fenster freischaltet |
+| ✏️ **Whiteboard für Gäste** | Alle im AluPC-WLAN schreiben mit – oder nur nach „Erlauben“ am PC; Codes unten rechts auf der Tafel |
+| 🎮 **Minispiele = eigenes WLAN** | Snake, Tic-Tac-Toe, Pong, **Tetris** (alle dieselben Teile), Tipp-Rennen, Simon sagt, Schere-Stein-Papier, Space Invaders, Flappy Bird, Vier gewinnt – WLAN-Code scannen, dann den Spiel-Code, Name eingeben, mitspielen |
+| 📶 **AluPC-WLAN** | Der PC macht ein (unsichtbares) WLAN – jede Seite zeigt auf Monitor 2 zwei QR-Codes (1. WLAN, 2. direkt die Seite: Spiel, Abstimmung, Chat, Foto-Wand, Whiteboard, Schiffe versenken). Der **einzige** Weg fürs Handy; der Steuer-Code steht nur am PC. Hat der PC Internet, haben es die Handys auch |
 | 💬 **Chat & 📷 Foto-Wand** | Handys schreiben übers AluPC-WLAN, Nachrichten erscheinen **direkt als Overlay** auf Monitor 2 – als Liste oder als **Pop-up** (kurz, ohne QR) – oder als Chat-Wand – mit Wortfilter, Link-Sperre, Tempo-Grenze, Löschen und Handy sperren. Fotos vom Handy als Collage oder Diashow, neue Fotos erst groß. Verwalten auf der Seite **„Gäste“** |
 | 🎚️ **Mischpult für den ganzen PC** | Seite **„Audio & Kamera“**: Kanalzüge für jeden Ausgang, jedes Mikro und jedes Programm (Regler, Pegel, Stumm, ★ Standard), **virtuelle Geräte hinzufügen/entfernen** (Linux beliebig viele, Windows über VB-CABLE), Ton weiterleiten (Mikro → virtuelles Mikro, Mithören) |
 | 🎥 **Monitor 2 als Webcam** | Virtuelle Kamera mit allem, was Monitor 2 zeigt (inkl. Overlays/Zeichnungen) – für Zoom, Teams, Discord, OBS. Treiber richtet der Installer ein (Linux v4l2loopback, Windows OBS-Kamera) |
-| 🪟 **AluPC-Oberfläche** | Eigener Desktop im Vollbild (Strg+Alt+O): Symbole aus dem Desktop-Ordner (Dateien, Ordner, Verknüpfungen – frei verschiebbar, neue erscheinen von selbst), Widgets (Uhr, Monitor 2, AluPC-Aktionen), eigene Taskleiste mit Startmenü, echten App-Logos, offenen Fenstern, Lautstärke und Uhr – alles anpassbar (Hintergrund, Größe, Raster, Taskleiste, Widgets). **Auch als echter System-Desktop** statt Windows-Explorer bzw. KDE-Plasma – mit Knopf „Normaler Desktop“ und AluPC-Knopf bzw. `Strg+Alt+A` fürs Hauptfenster |
 | 🎨 **Design fürs ganze System** | AluPC-Akzentfarbe, Hell/Dunkel und ein passendes Hintergrundbild (Aurora in den Design-Farben) auf Windows, KDE oder GNOME übertragen – zieht bei Änderungen mit, „Zurück“ stellt alles wieder her |
 | 🔁 **Dual-Boot-Abgleich** | Windows ↔ Linux: Einstellungen, Szenen, Bilder/Videos zusammenführen, Bereiche wählbar, Prüfen, Sicherungen |
 | 🗣️ **Sprache, offline** | Startwort „Alu PC“ oder „Computer“, ganze Sätze, Antwort per Stimme |
@@ -93,7 +92,7 @@ Alle Screens mit Erklärung: **[Handbuch (PDF)](docs/AluPC-Handbuch.pdf)**. Frü
 | **Programm** | ein Programm zeigen: *Anzeigen (Aufnahme)* oder *Fenster wirklich verschieben* |
 | **Website** | Adresse eingeben oder gespeicherte Website wählen → Vollbild. Pfeil an der Kachel: gespeicherte Websites, **Browser steuern** (eigenes Fenster: Adresse, Zurück/Vor, Zoom, Scrollen, Live-Vorschau zum Klicken und Tippen, **Stift/Marker/Radierer zum Zeichnen auf der Website**; bei **Standbild** zeigt die Vorschau die echte Seite dahinter – schon weiterklicken, während das Publikum noch das Standbild sieht), aktuelle Seite **unter „Website“ speichern** |
 | **Bild / Video** | **Mediathek** mit Vorschaubildern: gespeicherte Bilder, Videos und Diashows, dazu automatisch „Zuletzt gezeigt“; Filter, Suche, Umbenennen. Pfeil an der Kachel: gespeicherte Einträge direkt starten. Läuft ein Video (auch in einer eigenen Szene), erscheint oben eine **Mediensteuerung**: Pause/Weiter, ±10 Sekunden, Zeitleiste zum Springen |
-| **Handy** | eigenes **Fenster „Handy“** mit zwei Wegen. **Jedes Handy** (nur übers AluPC-WLAN: WLAN-Code scannen → privaten Steuer-Code im Fenster am PC scannen – oder auf der Anmeldeseite „AluPC steuern“ → am PC erlauben, ohne App) – die Handy-Seite hat vier Reiter: **Start** (Live-Bild mit Laserpointer, Schwarz/Standbild/Spiegeln/Erweitern/Schoner, Kamera/iPhone/QR-Code/Timer zeigen, Szenen, Video, Lautstärke, **Timer mit Vorgaben** 1–15 min, RGB), **Zeichnen** (mit dem Finger **direkt auf Monitor 2**: Stift, Marker, Radierer, Laser, 7 Farben, Rückgängig, Vollbild), **Folien** (Präsentations-Klicker und **Touchpad für die PC-Maus** mit Klick, Rechtsklick und Scrollen) und **Senden** (Foto/Video, Link, Text). Lässt sich als **App auf den Home-Bildschirm** legen. Was Handys dürfen, stellt man in **Setup → Handy & Kamera** ein. **iPhone & iPad** per AirPlay (UxPlay; unter Windows „uxplay-windows“): Monitor 2 zeigt ohne iPhone schlicht **„AirPlay bereit“** (oder schwarz bzw. Anleitung, einstellbar), beim Verbinden legt AluPC das iPhone-Bild randlos darüber. **Richtet sich selbst ein** (Kubuntu: Pakete mit einem Passwort; Windows: uxplay-windows, Bonjour und Firewall-Freigabe) |
+| **Handy** | eigenes **Fenster „Handy“** mit zwei Wegen. **Jedes Handy** (nur übers AluPC-WLAN: WLAN-Code scannen → privaten Steuer-Code im Fenster am PC scannen – oder auf der Steuerseite „Am PC freigeben lassen“, ohne App) – die Handy-Seite hat vier Reiter: **Start** (Live-Bild mit Laserpointer, Schwarz/Standbild/Spiegeln/Erweitern/Schoner, Kamera/iPhone/QR-Code/Timer zeigen, Szenen, Video, Lautstärke, **Timer mit Vorgaben** 1–15 min, RGB), **Zeichnen** (mit dem Finger **direkt auf Monitor 2**: Stift, Marker, Radierer, Laser, 7 Farben, Rückgängig, Vollbild), **Folien** (Präsentations-Klicker und **Touchpad für die PC-Maus** mit Klick, Rechtsklick und Scrollen) und **Senden** (Foto/Video, Link, Text). Lässt sich als **App auf den Home-Bildschirm** legen. Was Handys dürfen, stellt man in **Setup → Handy & Kamera** ein. **iPhone & iPad** per AirPlay (UxPlay; unter Windows „uxplay-windows“): Monitor 2 zeigt ohne iPhone schlicht **„AirPlay bereit“** (oder schwarz bzw. Anleitung, einstellbar), beim Verbinden legt AluPC das iPhone-Bild randlos darüber. **Richtet sich selbst ein** (Kubuntu: Pakete mit einem Passwort; Windows: uxplay-windows, Bonjour und Firewall-Freigabe) |
 | **Vorlagen** | nur beim Anlegen einer Szene (Szenen → „Neue Szene“): „Leer“ oder eine von **32 Karten** (Neon, Glitch, Synthwave, Poster, Now Playing, LIVE, Versus, Link-QR, Willkommen, Agenda, Pause, Quiz …) bzw. **24 Szenen-Vorlagen** (Stream-Overlay, Partynacht, Gaming-Duell …) – Text eintragen, im Editor anpassen, speichern. Nach Kategorien geordnet, mit Filter und Suche |
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
@@ -119,8 +118,8 @@ Außerdem:
 - **Sichern & Sync** (Setup): Einstellungen **exportieren/importieren** – alles oder z. B. nur die
   **Startseite**. **Dual-Boot-Abgleich Windows ↔ Linux**: beide Systeme nutzen einen Ordner
   „AluPC-Sync“ auf dem Windows-Laufwerk; AluPC gleicht beim Start und nach jeder Änderung automatisch ab
-  (Startseite, Szenen, Favoriten, Tastenkürzel, Design, Bildschirmschoner, Töne, Handy, RGB, AluPC-Oberfläche –
-  ohne angeheftete Programme und Symbol-Positionen, die je System anders sind). Jeder gespeicherte
+  (Startseite, Szenen, Favoriten, Tastenkürzel, Design, Bildschirmschoner, Töne, Handy, RGB –
+  ohne was je System anders ist). Jeder gespeicherte
   Stand hat eine eigene Kennung und Prüfsumme: Windows speichert → Linux übernimmt nur (und umgekehrt),
   beschädigte Stände werden nie übernommen, nach dem Schreiben wird zurückgelesen und geprüft.
   **„Neu anfangen …“** löscht alle alten Stände (auch zweite, vergessene Sync-Ordner) und schreibt den Stand
@@ -207,9 +206,9 @@ Außerdem:
   |---|---|---|
   | ![Abstimmung](docs/abstimmung.png) | ![Glücksrad](docs/gluecksrad.png) | ![Wetter & Uhr](docs/wetter.png) |
 - **Minispiele – Handy = Controller** (neu in 0.76, stark erweitert in 0.77): Kachel *Minispiele* öffnet das
-  **Steuerfenster** am PC, Monitor 2 zeigt die Lobby mit **einem** QR-Code: dem WLAN-Code des Spiele-WLANs. Jeder
-  scannt, die Anmeldeseite öffnet sich, Name eingeben, mitspielen – ohne App. Einen anderen Weg (Link, anderes WLAN)
-  gibt es nicht. Bis 16 Spieler.
+  **Steuerfenster** am PC, Monitor 2 zeigt die Lobby mit **zwei** QR-Codes: 1. WLAN-Code des AluPC-WLANs,
+  2. die Spielseite. Name eingeben, mitspielen – ohne App. Einen anderen Weg (anderes WLAN) gibt es nicht.
+  Bis 16 Spieler.
   **Gestartet wird nur am PC** – Handys können nichts starten oder umstellen.
   - **Snake:** alle gleichzeitig, Punkte fressen – **der Rand ist tödlich** (Crash = halbe Punkte, kurz darauf
     geht's weiter).
@@ -220,11 +219,7 @@ Außerdem:
     mit der Zeit wird es schneller. Wer oben anstößt, ist raus – **wer am längsten durchhält, gewinnt**.
     Handy: ◀ ▶, drehen, schneller, fallen lassen.
   - **Tipp-Rennen**, **Simon sagt** (Farbfolge merken), **Schere, Stein, Papier** (alle gegen alle).
-  - **Spiele-WLAN** (0.102): startet mit den Minispielen. Die Lobby zeigt dann den WLAN-Code – scannen, die
-    WLAN-Anmeldeseite öffnet sich von selbst, Name eingeben, **Mitspielen** (direkt die Steuerung) oder
-    **AluPC steuern** (am PC freigeben). Abschaltbar im Fenster „Spiele-WLAN …“.
-    Linux und Windows gleich (0.105): AluPC beantwortet jede Namensfrage im Spiele-WLAN selbst, jede Webseite führt
-    zur Anmeldeseite, das WLAN leitet nichts ins Internet weiter – kein Weg an der Anmeldeseite vorbei.
+  - **AluPC-WLAN** startet mit den Minispielen (abschaltbar im Fenster „WLAN …“) und bleibt danach an.
   - Jedes Spiel mit 3-2-1, Animationen und Siegertreppchen (bei Teams: Team-Ergebnis).
   - **Schnelle Steuerung:** Die Handys sind per WebSocket verbunden – Eingaben gehen ohne Umweg raus. Klappt das
     nicht, fällt die Seite automatisch auf normale Abfragen zurück (grüner Punkt oben rechts = schnelle Verbindung).
@@ -308,8 +303,7 @@ Außerdem:
   | Zeigen & Zeichnen | `Strg+Alt+K` |
   | Spiegeln | `Strg+Alt+M` |
   | Erweitern | `Strg+Alt+E` |
-  | AluPC-Oberfläche an/aus | `Strg+Alt+O` |
-  | AluPC-Hauptfenster öffnen (auch als System-Desktop) | `Strg+Alt+A` |
+  | AluPC-Hauptfenster öffnen | `Strg+Alt+A` |
   | jede Szene | frei wählbar im Szenen-Editor |
   | jede eigene Kachel | frei wählbar unter „Startseite anpassen“ |
 
@@ -498,18 +492,10 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   keine allgemeine Schnittstelle** – dort Hersteller-Programm oder „FanControl“ nutzen. Keine
   Lüfterkurven (dafür bräuchte es einen ständig laufenden Administrator-Dienst); nach einem Neustart
   regelt wieder das Mainboard. Nicht auf echter Hardware getestet.
-- **AluPC-Oberfläche als System-Desktop** (Anpassen → „Als System-Desktop“): Windows über den Benutzer-Eintrag
-  `HKCU\…\Winlogon\Shell` (ohne Administrator), KDE Plasma über eine Zusatzdatei für `plasma-plasmashell.service`
-  (ohne systemd-Start: Plasma im Autostart ausgeblendet). Ein Wächter startet bei Absturz oder „Beenden“ sofort den
-  normalen Desktop. **Nicht auf echter Hardware getestet** – nur mit Tests, `systemd-analyze verify` und der
-  Windows-Registry in der CI. Ohne Explorer bzw. Plasma fehlen: Symbole anderer Programme im Infobereich,
-  Benachrichtigungen anderer Programme; Windows: Startmenü der Win-Taste, Info-Center (Notfall: Strg+Alt+Entf →
-  Task-Manager → „Neuen Task ausführen“ → `explorer`); KDE: Plasma-Widgets/-Leisten. Unter KDE/Wayland läuft AluPC
-  als Desktop über XWayland (nur so ist es für KWin ein echter Desktop mit Taskleisten-Platz – mit echtem KWin 5.27
-  geprüft); Folge: bei Bildschirm-Skalierung über 100 % kann AluPC dann etwas unscharf aussehen. Ohne XWayland
-  bleibt es wie vorher (Taskleisten-Platz nicht reserviert). `ALUPC_DESKTOP_WAYLAND=1` erzwingt Wayland.
-  Ob der Explorer per Knopf als vollständiger Desktop startet (statt nur als Dateifenster), ist unter Windows
-  nicht geprüft – AluPC prüft es und meldet es, wenn nicht. GNOME: nicht möglich.
+- **AluPC-WLAN, Firewall:** Unter Windows legt der Installer die Freigabe „AluPC WLAN“ (Port 8765–8774) an; fehlt
+  sie (ZIP-Version), fragt AluPC beim ersten WLAN-Start einmal nach Administrator-Rechten. Unter Linux mit aktiver
+  Firewall (ufw/firewalld) muss Port 8765–8774 für das Hotspot-Netz erlaubt sein – AluPC ändert dort nichts.
+  Nur in der CI geprüft (Windows: nachgebauter Hotspot mit Container-„Handy“), nicht mit echter WLAN-Karte.
 - **AluPC-WLAN (Hotspot) unter Linux** geht nur mit einer WLAN-Karte, die AP-Modus kann (AluPC prüft das vorher
   und sagt es). Manche Karten können keinen *unsichtbaren* Hotspot – dann startet AluPC ihn sichtbar. Solange der
   Hotspot läuft, ist der PC über diese Karte nicht mit einem anderen WLAN verbunden (Internet dann per Kabel).

@@ -32,7 +32,7 @@ AREAS = [
     ("Fenster", "Fenster und Dialoge", "Was sich aus Kacheln, Menüs und dem Setup öffnet."),
     ("Monitor 2", "Was die anderen sehen", "Anzeigen auf dem zweiten Monitor (Beamer, Fernseher, Kundenmonitor)."),
     ("Minispiele", "Minispiele", "Handys sind die Controller, Monitor 2 ist das Spielfeld – gestartet wird nur am PC."),
-    ("Handy", "Auf dem Handy", "Im Browser, ohne App: QR-Code scannen oder im AluPC-WLAN die Anmeldeseite."),
+    ("Handy", "Auf dem Handy", "Im Browser, ohne App: erst WLAN-Code, dann den Code der Seite scannen."),
 ]
 
 

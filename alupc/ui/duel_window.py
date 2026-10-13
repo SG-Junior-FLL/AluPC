@@ -1,6 +1,7 @@
 """Schiffe versenken – Fenster für Spieler 1 auf Monitor 1 (Maus) + Tastatur für Spieler 2.
 
-Spieler 1: im linken Feld Schiffe setzen (Klick, Rechtsklick/Mausrad = drehen), im rechten Feld schießen.
+Spieler 1: im linken Feld Schiffe setzen (Klick, Rechtsklick/Mausrad = drehen, gesetztes Schiff anklicken =
+aufnehmen und verschieben), im rechten Feld schießen.
 Spieler 2 (schaut auf Monitor 2): Pfeiltasten = Feld wählen, Enter/Leertaste = setzen bzw. schießen,
 R = drehen, Z = zufällig, B = bereit, Rücktaste = letztes Schiff zurück – oder mit dem Handy.
 """
@@ -96,7 +97,10 @@ class DuelBoards(QWidget):
             return
         where, (x, y) = hit
         if where == "own" and duel.phase == "setzen":
-            duel.place(P1, x, y)
+            if duel.fleets[P1].ship_at((x, y)) is not None:
+                duel.remove(P1, x, y)  # gesetztes Schiff anklicken = aufnehmen, dann woanders hinsetzen
+            else:
+                duel.place(P1, x, y)
         elif where == "target" and duel.phase == "spielen":
             duel.shoot(P1, x, y)
         self.win.refresh()
@@ -218,7 +222,10 @@ class DuelWindow(QWidget):
         elif k in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
             x, y = d.cursor
             if d.phase == "setzen":
-                d.place(P2, x, y)
+                if d.fleets[P2].ship_at((x, y)) is not None:
+                    d.remove(P2, x, y)  # auf einem Schiff: aufnehmen (dann woanders mit Enter setzen)
+                else:
+                    d.place(P2, x, y)
             elif d.phase == "spielen":
                 d.shoot(P2, x, y)
         elif k == Qt.Key_R:
