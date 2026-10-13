@@ -6,7 +6,7 @@ from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter
 from PySide6.QtWidgets import QWidget
 
-from .sources import draw_qr, fitted_font, qr_image
+from .sources import fitted_font
 
 BAR_COLORS = ["#6366f1", "#06b6d4", "#f59e0b", "#ec4899", "#22c55e", "#f43f5e"]
 
@@ -19,7 +19,9 @@ class PollSource(QWidget):
         self.server = cast_server()
         self.ok = self.server.start()
         self.shown: list[float] = []  # angezeigte Balkenlänge 0…1 (läuft dem Ergebnis weich hinterher)
-        self._qr_for, self._qr = "", None
+        from .guest_sources import JoinCodes
+
+        self.codes = JoinCodes("/abstimmung", "Abstimmen")
         self._version = -1
         self.timer = QTimer(self, interval=33)
         self.timer.timeout.connect(self._tick)
@@ -49,16 +51,6 @@ class PollSource(QWidget):
             self._version = version
             self.update()
 
-    def qr(self):
-        """WLAN-Code des AluPC-WLANs (einziger Weg): scannen → Anmeldeseite → „Abstimmen“. None = WLAN aus."""
-        from .hotspot import hotspot
-        from .screens import wifi_payload
-
-        payload = wifi_payload(hotspot.ssid, hotspot.password, hotspot.hidden) if hotspot.running else ""
-        if payload != self._qr_for:
-            self._qr_for, self._qr = payload, (qr_image(payload) if payload else None)
-        return self._qr
-
     def paintEvent(self, _e):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
@@ -77,8 +69,8 @@ class PollSource(QWidget):
             return
         m = max(12, int(min(w, h) * 0.05))
         show_qr = poll.open
-        qr_side = int(min(h * 0.46, w * 0.26)) if show_qr else 0
-        left = QRectF(m, m, w - 2 * m - (qr_side + m * 2 if show_qr else 0), h - 2 * m)
+        col = int(min(w * 0.24, h * 0.42)) if show_qr else 0
+        left = QRectF(m, m, w - 2 * m - (col + m if show_qr else 0), h - 2 * m)
         # Überschrift
         tag = "ABSTIMMUNG" if poll.open else "ERGEBNIS"
         f = QFont()
@@ -140,37 +132,8 @@ class PollSource(QWidget):
         p.setPen(QColor("#94a3b8"))
         p.drawText(QRectF(left.x(), left.bottom() - h * 0.05, left.width(), h * 0.05), Qt.AlignLeft | Qt.AlignVCenter,
                    f"{total} {'Stimme' if total == 1 else 'Stimmen'}")
-        # QR-Code zum Mitmachen
+        # Codes zum Mitmachen: 1. WLAN, 2. Abstimmungs-Seite
         if show_qr:
-            qx = w - m - qr_side
-            qy = (h - qr_side) / 2 - h * 0.04
-            pad = qr_side * 0.06
-            image = self.qr()
-            cf = QFont()
-            cf.setBold(True)
-            cf.setPixelSize(max(10, int(h * 0.034)))
-            if image is None:  # AluPC-WLAN läuft nicht: kein anderer Weg – sagen, was los ist
-                from .hotspot import hotspot
-
-                p.setPen(Qt.NoPen)
-                p.setBrush(QColor(255, 255, 255, 14))
-                p.drawRoundedRect(QRectF(qx - pad, qy - pad, qr_side + 2 * pad, qr_side + 2 * pad), pad, pad)
-                p.setFont(cf)
-                p.setPen(QColor("#e2e8f0"))
-                p.drawText(QRectF(qx, qy, qr_side, qr_side), Qt.AlignCenter | Qt.TextWordWrap,
-                           "📶\nAluPC-WLAN startet …" if not hotspot.message else f"📶\n{hotspot.message}")
-            else:
-                p.setPen(Qt.NoPen)
-                p.setBrush(QColor("#ffffff"))
-                p.drawRoundedRect(QRectF(qx - pad, qy - pad, qr_side + 2 * pad, qr_side + 2 * pad), pad, pad)
-                draw_qr(p, QRectF(qx, qy, qr_side, qr_side), image)
-                p.setFont(cf)
-                p.setPen(QColor("#e2e8f0"))
-                p.drawText(QRectF(qx - m, qy + qr_side + pad * 2, qr_side + 2 * m, h * 0.05), Qt.AlignCenter,
-                           "WLAN scannen & abstimmen")
-                uf = fitted_font(p, "Anmeldeseite → Abstimmen", int(qr_side + 2 * m), max(9, int(h * 0.022)))
-                p.setFont(uf)
-                p.setPen(QColor("#93c5fd"))
-                p.drawText(QRectF(qx - m, qy + qr_side + pad * 2 + h * 0.05, qr_side + 2 * m, h * 0.04),
-                           Qt.AlignCenter, "Anmeldeseite → Abstimmen")
+            self.codes.path = "/abstimmung?u=" + poll.token
+            self.codes.paint(p, QRectF(w - m - col, m, col, h - 2 * m), vertical=True)
         p.end()

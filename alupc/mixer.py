@@ -343,10 +343,22 @@ def streams(kind: str = "out") -> list[dict]:
     """Programme mit Ton: [{id, app, title, volume, muted, device}] (Windows: nur Abspielen)."""
     try:
         if IS_WINDOWS:
-            return _on_com(_win_sessions) if kind == "out" else []
+            return merge_sessions(_on_com(_win_sessions)) if kind == "out" else []
         return _pa_streams(kind)
     except Exception:  # noqa: BLE001
         return []
+
+
+def merge_sessions(items: list[dict]) -> list[dict]:
+    """Windows meldet je Ausgabegerät eine eigene Sitzung – „Systemklänge“ und Programme kamen dadurch mehrfach
+    (z. B. 6× bei 6 Geräten). Je Programm (Prozess) nur einmal; Lauter/Leiser gilt ohnehin für alle seine
+    Sitzungen (_win_set_session)."""
+    out: dict = {}
+    for it in items:
+        key = it.get("pid", it.get("id"))
+        if key not in out:
+            out[key] = {**it, "id": f"p:{key}"}
+    return list(out.values())
 
 
 def set_device(kind: str, dev_id: str, volume: int | None = None, muted: bool | None = None) -> tuple[bool, str]:

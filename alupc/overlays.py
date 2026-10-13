@@ -153,10 +153,9 @@ class OverlayData:
         return chat.latest(n, float(item.get("seconds", 0) or 0))
 
     def chat_link(self) -> str:
-        from .cast_server import portal_url
+        from .cast_server import wlan_url
 
-        link = portal_url()
-        return link.rsplit("/", 1)[0] + "/chat" if link else ""
+        return wlan_url("/chat")
 
     def chat_fresh(self, seconds: float = 0.6) -> bool:
         """Kam gerade eine Nachricht? (dann kurz animieren)"""

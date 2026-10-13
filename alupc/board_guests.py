@@ -1,7 +1,7 @@
 """Whiteboard für Gäste: alle im AluPC-WLAN (oder nur mit Erlaubnis am PC) schreiben auf die Tafel auf Monitor 2.
 
 Einstellung (Whiteboard → „Gäste im AluPC-WLAN“): „aus“ · „alle“ · „frage“ (erst am PC erlauben). Gäste öffnen auf
-der Anmeldeseite „Whiteboard“, sehen das Live-Bild der Tafel und zeichnen mit dem Finger/Stift. Jeder Strich kommt
+der Seite /tafel (QR-Code unten rechts auf der Tafel), sehen das Live-Bild der Tafel und zeichnen mit dem Finger/Stift. Jeder Strich kommt
 als Ganzes (bei langen Strichen in Stücken) – so stören sich mehrere Gäste gleichzeitig nicht. Radieren, Seiten,
 Rückgängig bleiben beim PC und bei freigegebenen Steuer-Handys.
 """
@@ -135,7 +135,8 @@ html,body{margin:0;height:100%;overscroll-behavior:none}
 body{font-family:system-ui,-apple-system,sans-serif;background:#0b1020;color:#f1f5f9;display:flex;flex-direction:column;
 gap:10px;padding:max(10px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));-webkit-user-select:none;user-select:none}
 header{display:flex;align-items:center;gap:10px}header b{font-size:18px;flex:1}
-a.back{color:#a5b4fc;text-decoration:none;font-weight:700}
+#gname{width:min(44vw,220px);font-size:16px;padding:9px 12px;border-radius:12px;border:2px solid #334155;
+background:#0f172a;color:#fff}#gname:focus{outline:none;border-color:#6366f1}
 .msg{background:#1e293b;border-radius:14px;padding:10px 14px;font-weight:700;text-align:center}
 .msg.ok{background:linear-gradient(135deg,#16a34a,#0d9488)}.msg.bad{background:#7f1d1d}
 #wrap{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
@@ -156,7 +157,7 @@ grid-template-rows:auto auto 1fr;column-gap:12px}.bar{min-width:0}.bar button{wi
 header,.msg,#ask{grid-column:1/-1}#wrap{grid-row:3}.bar{grid-row:3;flex-direction:column;align-items:stretch;align-content:start}
 .bar .colors{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}}
 </style></head><body>
-<header><b>✏️ Whiteboard</b><a class="back" href="/anmelden">Zurück</a></header>
+<header><b>✏️ Whiteboard</b><input id="gname" maxlength="20" placeholder="Dein Name" autocomplete="off"></header>
 <div class="msg" id="msg">Verbinde …</div>
 <button id="ask" style="display:none">✋ Am PC fragen, ob ich schreiben darf</button>
 <div id="wrap"><div id="board"><img id="img" alt=""><canvas id="ink"></canvas></div></div>
@@ -172,6 +173,9 @@ try { gid = localStorage.getItem("alupc-gid") || ""; name = localStorage.getItem
 if (!/^[A-Za-z0-9_-]{8,40}$/.test(gid)) { gid = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => (b % 36).toString(36)).join("");
   try { localStorage.setItem("alupc-gid", gid); } catch (e) {} }
 const $ = id => document.getElementById(id);
+$("gname").value = name;
+$("gname").addEventListener("input", () => { name = $("gname").value.trim();
+  try { localStorage.setItem("alupc-name", name); } catch (e) {} });
 function msg(t, cls) { $("msg").textContent = t; $("msg").className = "msg " + (cls || ""); }
 async function post(body) {
   try { const r = await fetch("/api/tafel", {method: "POST", body: JSON.stringify(Object.assign({g: gid, name}, body))});
@@ -189,7 +193,8 @@ function show() {
   else msg("Schreib los – erscheint sofort auf Monitor 2", "ok");
 }
 async function poll() { try { const r = await fetch("/api/tafel?g=" + gid); if (r.ok) { st = await r.json(); show(); } } catch (e) {} }
-$("ask").onclick = async () => { const d = await post({action: "frage"}); if (d) { st = d; show(); } };
+$("ask").onclick = async () => { if (!name) { $("gname").focus(); msg("Erst deinen Namen eingeben – dann fragen.", "bad"); return; }
+  const d = await post({action: "frage"}); if (d) { st = d; show(); } };
 for (const t of ["pen", "marker"]) $("t-" + t).onclick = () => { tool = t; for (const k of ["pen", "marker"]) $("t-" + k).classList.toggle("on", k === t); };
 for (const s of [1, 2, 3]) $("s-" + s).onclick = () => { size = s; for (const k of [1, 2, 3]) $("s-" + k).classList.toggle("on", k === s); };
 for (const c of COLORS) { const b = document.createElement("button"); b.className = "c" + (c === color ? " on" : ""); b.style.background = c;

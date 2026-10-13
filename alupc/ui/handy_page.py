@@ -254,7 +254,7 @@ class HandyPage(QWidget):
 
     # ================================================================ AluCast
     def _cast_card(self) -> MethodCard:
-        card = MethodCard("qr", "#8b5cf6", "Jedes Handy", "AluPC-WLAN + Anmeldeseite · ohne App")
+        card = MethodCard("qr", "#8b5cf6", "Jedes Handy", "AluPC-WLAN + Steuer-Code · ohne App")
         card.body.addWidget(steps_label("WLAN-Code scannen", "Steuer-Code (nur hier am PC) scannen", "Handy steuert AluPC"))
         row = QHBoxLayout()
         self.qr = QLabel()

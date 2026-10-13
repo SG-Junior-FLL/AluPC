@@ -973,16 +973,13 @@ def qr_pixmap(text: str, px: int, dpr: float = 1.0):
 
 
 class WifiQrSource(QWidget):
-    """Zwei QR-Codes groß auf Monitor 2: 1. das AluPC-WLAN, 2. die Handy-Seite (Name, Mitspielen, Abstimmen) als
-    Link – die öffnet im Browser und bleibt offen, auch wenn das Anmeldefenster des Handys von selbst zugeht.
-    Steuern ist hier NICHT dabei (der Steuer-Code steht nur am PC). Ohne Name in cfg: folgt dem laufenden AluPC-WLAN
-    (startet es gerade, steht das da)."""
+    """WLAN-Code groß auf Monitor 2 (Name, Passwort). Die einzelnen Seiten (Spiel, Chat, Abstimmung …) zeigen ihren
+    eigenen zweiten Code. Ohne Name in cfg: folgt dem laufenden AluPC-WLAN (startet es gerade, steht das da)."""
 
     def __init__(self, cfg, parent=None):
         super().__init__(parent)
         self.live = not cfg.get("ssid")
         self.ssid, self.password, self.hidden, self._qr = "", "", False, None
-        self.link, self._link_qr = "", None
         self.note = ""
         self._set(cfg.get("ssid", ""), cfg.get("password", ""), bool(cfg.get("hidden")))
         self.setAttribute(Qt.WA_OpaquePaintEvent)
@@ -1001,18 +998,13 @@ class WifiQrSource(QWidget):
         return True
 
     def _follow(self):
-        from .cast_server import portal_url
         from .hotspot import hotspot
 
         changed, note = False, ""
         if self.live:
             changed = self._set(hotspot.ssid, hotspot.password, hotspot.hidden) if hotspot.running else \
                 self._set("", "", False)
-            note = "" if hotspot.running else (hotspot.message or "AluPC-WLAN startet … (am PC bestätigen)")
-        link = portal_url()
-        if link != self.link:
-            self.link, self._link_qr = link, (qr_image(link) if link else None)
-            changed = True
+            note = "" if hotspot.running else (hotspot.message or "AluPC-WLAN startet …")
         if changed or note != self.note:
             self.note = note
             self.update()
@@ -1068,22 +1060,7 @@ class WifiQrSource(QWidget):
                       (f"Passwort: {self.password}" if self.password else "ohne Passwort", "#fbbf24", 0.085, True),
                       ("unsichtbar – nur per QR-Code" if self.hidden else "", "#94a3b8", 0.055, False)]
         m = min(w, h) * 0.05
-        if self._link_qr is None:  # Webserver (noch) nicht da: nur das WLAN
-            self._panel(p, QRectF(m, m, w - 2 * m, h - 2 * m), "", "WLAN verbinden", self._qr, wifi_lines)
-            p.end()
-            return
-        short = self.link.split("://", 1)[-1]
-        link_lines = [("Mitspielen · Abstimmen", "#e2e8f0", 0.075, True),
-                      ("öffnet im Browser und bleibt offen", "#94a3b8", 0.055, False),
-                      (short, "#93c5fd", 0.05, False)]
-        if w > h * 1.1:  # quer: nebeneinander
-            col = (w - 3 * m) / 2
-            panels = [QRectF(m, m * 1.4, col, h - 2.4 * m), QRectF(2 * m + col, m * 1.4, col, h - 2.4 * m)]
-        else:  # hochkant: untereinander
-            row = (h - 3 * m) / 2
-            panels = [QRectF(m, m, w - 2 * m, row), QRectF(m, 2 * m + row, w - 2 * m, row)]
-        self._panel(p, panels[0], "1", "WLAN verbinden", self._qr, wifi_lines)
-        self._panel(p, panels[1], "2", "Seite öffnen", self._link_qr, link_lines)
+        self._panel(p, QRectF(m, m, w - 2 * m, h - 2 * m), "", "WLAN verbinden", self._qr, wifi_lines)
         p.end()
 
     def stop(self):
@@ -1091,9 +1068,8 @@ class WifiQrSource(QWidget):
 
 
 class WifiHelpSource(WifiQrSource):
-    """„Handy fliegt aus dem WLAN?“ groß auf Monitor 2: WLAN-Code und Seiten-Code (quer links, hochkant oben) und die
-    Anleitung (Android, iPhone/iPad, was immer klappt) – derselbe Text wie im Hotspot-Fenster und auf der
-    Anmeldeseite."""
+    """„Handy fliegt aus dem WLAN?“ groß auf Monitor 2: WLAN-Code (quer links, hochkant oben) und die Anleitung
+    (Android, iPhone/iPad, was immer klappt) – derselbe Text wie im Hotspot-Fenster."""
 
     def __init__(self, cfg, parent=None):
         super().__init__({}, parent)  # folgt immer dem laufenden AluPC-WLAN
@@ -1113,11 +1089,9 @@ class WifiHelpSource(WifiQrSource):
         m = min(w, h) * 0.05
         portrait = h > w * 1.1
         x0, y0 = m, m
-        if self._qr is not None:  # 1. WLAN-Code, 2. Seite im Browser – quer links untereinander, hochkant oben nebeneinander
-            codes = [(self._qr, [(f"1 · {self.ssid}" if self._link_qr is not None else self.ssid, "#67e8f9"),
+        if self._qr is not None:  # WLAN-Code – quer links, hochkant oben
+            codes = [(self._qr, [(self.ssid, "#67e8f9"),
                                  (f"Passwort: {self.password}" if self.password else "", "#fbbf24")])]
-            if self._link_qr is not None:
-                codes.append((self._link_qr, [("2 · Seite öffnen", "#f472b6"), ("bleibt im Browser offen", "#cbd5e1")]))
             label_px = max(12, int(min(w, h) * (0.03 if len(codes) == 1 else 0.026)))
             labels_h = label_px * 1.55 * 2 + m * 0.3
             n = len(codes)
@@ -1157,7 +1131,7 @@ class WifiHelpSource(WifiQrSource):
         width = w - x0 - m
         # rechts: Anleitung – Schrift so groß, dass alles passt
         blocks = [("Handy fliegt aus dem WLAN?", "#ffffff", 1.6, True, 0), (STAY_WHY, "#cbd5e1", 0.9, False, 0)]
-        colors = {"Anmeldefenster geht zu?": "#f472b6", "Android": "#4ade80", "iPhone / iPad": "#93c5fd",
+        colors = {"Android": "#4ade80", "iPhone / iPad": "#93c5fd",
                   "Klappt immer": "#fbbf24"}
         for title, lines in STAY_STEPS:
             blocks.append((title, colors.get(title, "#ffffff"), 1.15, True, 0))

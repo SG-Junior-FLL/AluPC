@@ -313,9 +313,7 @@ class MainWindow(QMainWindow):
         controller.board_requested.connect(self.open_board)
         controller.duel_requested.connect(self.open_duel_window)
         controller.board_guest_requested.connect(self.ask_board_guest)
-        controller.shell_requested.connect(self.toggle_shell)
         controller.window_requested.connect(self.open_front)
-        self.shell = None
         controller.settings_imported.connect(self._settings_imported)
         controller.cast.state_changed.connect(self.refresh)  # Kachel „Handy-Steuerung“: LÄUFT an/aus
         self._watch_system_theme()
@@ -422,13 +420,6 @@ class MainWindow(QMainWindow):
         mic.clicked.connect(lambda: self.controller.toggle_listening())
         self.mic_button = mic
         lay.addWidget(mic)
-        shell = NavButton("apps", "Oberfläche")
-        shell.setCheckable(False)
-        shell.setToolTip("AluPC-Oberfläche im Vollbild statt des Desktops: Programme, Fenster, Lautstärke, Monitor 2 "
-                         "(Strg+Alt+O)")
-        shell.clicked.connect(lambda: self.toggle_shell(True))
-        self.shell_button = shell
-        lay.addWidget(shell)
         lock = NavButton("lock", "Computer sperren")
         lock.setToolTip("Wie Win+L – Monitor 2 zeigt weiter, was gerade läuft")
         lock.setCheckable(False)
@@ -553,11 +544,6 @@ class MainWindow(QMainWindow):
         self._preview_timer = QTimer(self, interval=1000)
         self._preview_timer.timeout.connect(self._update_preview)
         self._preview_timer.start()
-        if sys.platform.startswith("win"):  # Windows-Firewall weist Handys an der Anmeldeseite ab → einmal melden
-            self._fw_warned = False
-            self._fw_timer = QTimer(self, interval=3000)
-            self._fw_timer.timeout.connect(self._check_firewall_block)
-            self._fw_timer.start()
         self.volume_box = VolumeBox(self.controller)
         self.status_card.actions.addStretch(1)
         self.status_card.actions.addWidget(self.volume_box)
@@ -648,8 +634,8 @@ class MainWindow(QMainWindow):
         hotspot_menu.addAction(icons.icon("qr", theme.current().text, 18), "Name, Passwort, Geräte, QR-Code …",
                                lambda: self.open_hotspot_dialog("normal"))
         hotspot_menu.addAction(icons.icon("phone", theme.current().text, 18),
-                               "Handy-Steuerung: WLAN-Code → Anmeldeseite → „AluPC steuern“",
-                               self.controller.show_wifi_qr)
+                               "Handy-Steuerung: privater Steuer-Code (nur hier am PC)",
+                               lambda: self.open_hotspot_dialog("normal"))
         hotspot_menu.addAction(icons.icon("info", theme.current().text, 18),
                                "Handy fliegt aus dem WLAN? – Anleitung auf Monitor 2", self.controller.show_wifi_help)
         self.t_hotspot.set_menu(hotspot_menu, split=True)
@@ -1176,23 +1162,6 @@ class MainWindow(QMainWindow):
         self.controller.message.emit("Hotspot startet …" if on else "Hotspot wird beendet …")
         run_async(lambda: self.controller.set_hotspot(on, "normal"))
 
-    def _check_firewall_block(self) -> None:
-        """Sperrt eine Firewall, die AluPC nicht selbst freimachen kann (fremdes Sicherheitsprogramm)? Einmal melden."""
-        from ..hotspot import drop_info, hotspot
-
-        if not (hotspot.running and hotspot.portal):
-            self._fw_warned = False
-            return
-        other = [d for d in drop_info() if d["kind"] != "regel"]
-        if self._fw_warned or not other:
-            return
-        self._fw_warned = True
-        text = (f"Eine Firewall („{other[-1]['name'] or 'unbekannt'}“) sperrt Handys an der Anmeldeseite – "
-                "dort AluPC bzw. Port 80 erlauben.")
-        self.show_message(text, "warn")
-        if self.tray.isVisible():
-            self.tray.showMessage(APP_NAME, text, QSystemTrayIcon.Warning, 8000)
-
     def open_hotspot_dialog(self, kind: str = "normal") -> None:
         from .connect_dialog import HotspotDialog
 
@@ -1648,8 +1617,6 @@ class MainWindow(QMainWindow):
             self._apply_hotkeys()
         if "appearance" in keys:
             self.apply_theme()
-        if "shell" in keys and getattr(self, "shell", None) is not None:
-            self.shell.apply_settings()  # AluPC-Oberfläche vom anderen System: Hintergrund, Taskleiste, Widgets
         self.refresh()
 
     def _watch_system_theme(self):
@@ -1710,11 +1677,6 @@ class MainWindow(QMainWindow):
         self.a_status = menu.addAction("")
         self.a_status.setEnabled(False)
         menu.addAction(ic("grid"), "Schnellfenster …", self.open_tray_panel)
-        menu.addAction(ic("apps"), "AluPC-Oberfläche (Vollbild)", self.toggle_shell)
-        from ..platform import desktop_shell as _ds
-
-        if _ds.IS_WINDOWS or (sys.platform.startswith("linux") and _ds.is_kde()):  # Oberfläche als echter Desktop
-            menu.addAction(ic("home"), "AluPC als Desktop (statt Explorer/Plasma)", lambda: self.system_desktop(True))
         menu.addSection("Monitor 2")
         self.a_freeze = QAction(ic("snowflake"), "Standbild", menu, checkable=True)
         self.a_freeze.triggered.connect(lambda _=False: c.toggle_freeze())
@@ -1850,9 +1812,7 @@ class MainWindow(QMainWindow):
         self.activateWindow()
 
     def open_front(self) -> None:
-        """Tastenkürzel „AluPC öffnen“: Hauptfenster vorn – auch über der Oberfläche/dem System-Desktop."""
-        if self.shell is not None and self.shell.isVisible():
-            self.shell.step_aside()
+        """Tastenkürzel „AluPC öffnen“: Hauptfenster vorn."""
         self.show_normal_front()
 
     # ================================================================ Status
@@ -2083,60 +2043,6 @@ class MainWindow(QMainWindow):
             self.setup.set_compact(compact)
 
     # ================================================================ Sperre
-    def toggle_shell(self, on: bool | None = None) -> None:
-        """AluPC-Oberfläche (Vollbild auf Monitor 1) zeigen/verlassen."""
-        from .shell import ShellWindow
-
-        if self.shell is None:
-            self.shell = ShellWindow(self, self.controller)
-            self.destroyed.connect(self.shell.deleteLater)  # eigenes Fenster: mit dem Hauptfenster aufräumen
-        if self.shell.system:  # ist gerade der System-Desktop: nicht wegschalten, nur zeigen
-            self.shell.show_shell()
-            return
-        on = (not self.shell.isVisible()) if on is None else on
-        if on:
-            self.shell.show_shell()
-        else:
-            self.shell.leave()
-
-    def system_desktop(self, on: bool, startup: bool = False) -> None:
-        """AluPC-Oberfläche als echter Desktop in dieser Sitzung (an: normaler Desktop wird beendet) bzw. zurück zum
-        normalen Desktop (Explorer/Plasma). Die AluPC-Oberfläche verschwindet erst, wenn der normale Desktop läuft –
-        so bleibt der Bildschirm nie leer."""
-        from ..platform import desktop_shell as ds
-        from .shell import ShellWindow
-        from .util import run_async
-
-        if self.shell is None:
-            self.shell = ShellWindow(self, self.controller)
-            self.destroyed.connect(self.shell.deleteLater)
-        if on and not startup and ds.desktop_env().get("QT_QPA_PLATFORM") == "xcb" and \
-                QApplication.platformName() == "wayland":
-            # KDE/Wayland: nur als X11-Programm ein echter Desktop → so neu starten (Plasma bleibt bis dahin)
-            if ds.relaunch_as_desktop():
-                self.controller.message.emit("AluPC startet als Desktop neu …")
-                QTimer.singleShot(400, QApplication.instance().quit)
-                return
-        if on:
-            self.shell.set_system(True)
-            self.shell.show_shell()
-            if startup:
-                if ds.IS_WINDOWS and not ds.normal_running():  # ohne Explorer startet sonst kein Autostart-Programm
-                    run_async(ds.run_startup_programs, owner=self)
-                return
-            run_async(ds.stop_normal, lambda r: (not r[0]) and self.controller.message.emit(r[1]), owner=self)
-            return
-
-        def done(result):
-            ok, msg = result
-            if ok:
-                self.shell.set_system(False)
-                self.shell.leave()
-            self.controller.message.emit(msg)
-
-        run_async(ds.start_normal, done, lambda e: self.controller.message.emit(f"Normaler Desktop: {e}"),
-                  owner=self)
-
     def lock(self):
         """Computer sperren – wie Win+L (Linux: Bildschirmsperre)."""
         self.controller.lock_computer()

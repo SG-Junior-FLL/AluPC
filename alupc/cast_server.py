@@ -381,12 +381,10 @@ BLOCKED_PAGE = """<!doctype html><html lang="de"><head><meta charset="utf-8">
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0c1a;
 color:#eef0ff;font:16px system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
 b{font-size:22px;display:block;margin-bottom:10px}</style></head><body><div>
-<b>📶 Nur über das AluPC-WLAN</b>Scanne den WLAN-Code auf Monitor 2 – dann öffnet sich die Anmeldeseite
-(Mitspielen oder AluPC steuern).</div></body></html>"""
+<b>📶 Nur über das AluPC-WLAN</b>Scanne zuerst den WLAN-Code auf Monitor 2, dann den Code der Seite.</div></body></html>"""
 
 
-_ACTIVE = None  # laufender CastServer (für die Anmeldeseite auf Port 80)
-_EXTRA: list = []  # zusätzliche Server (Windows: Hotspot-Adresse Port 80 direkt – dann sieht AluPC das Handy)
+_ACTIVE = None  # laufender CastServer
 
 
 def active_port() -> int:
@@ -394,86 +392,15 @@ def active_port() -> int:
     return _ACTIVE.port if _ACTIVE is not None and _ACTIVE.httpd is not None else 0
 
 
-def portal_url() -> str:
-    """Öffentliche Handy-Seite (Name, Symbol, Mitspielen, Abstimmen) als Link – für den zweiten QR-Code auf Monitor 2.
-    Mit der Kamera gescannt öffnet sie im normalen Browser und bleibt offen (das Anmeldefenster des Handys schließt
-    sich von selbst). Ohne Steuer-Code: steuern geht damit nicht. "" = AluPC-WLAN oder Webserver aus."""
+def wlan_url(path: str = "/") -> str:
+    """Adresse einer Handy-Seite im AluPC-WLAN (für die QR-Codes auf Monitor 2), z. B. wlan_url("/chat").
+    "" = AluPC-WLAN oder Webserver aus (Handys kommen nur über das AluPC-WLAN herein)."""
     from .hotspot import hotspot
 
     port = active_port()
-    if not (port and hotspot.running and hotspot.portal and hotspot.ip):
+    if not (port and hotspot.running and hotspot.ip):
         return ""
-    return f"http://{hotspot.ip}:{port}/anmelden"
-
-
-def serve_extra(host: str, port: int) -> bool:
-    """Dieselben Seiten zusätzlich auf host:port (exklusiv) – z. B. 192.168.137.1:80 für die Anmeldeseite."""
-    if _ACTIVE is None or _ACTIVE.httpd is None:
-        return False
-    stop_extra()
-    try:
-        srv = _ExclusiveServer((host, port), _make_handler(_ACTIVE))
-    except OSError:
-        return False
-    threading.Thread(target=srv.serve_forever, name="AluCast-80", daemon=True).start()
-    _EXTRA.append(srv)
-    return True
-
-
-def refuse_https(host: str) -> bool:
-    """Port 443 annehmen und sofort hart schließen: Browser (HTTPS zuerst) und die HTTPS-Prüfung der Handys
-    merken sofort „geht nicht“ und nehmen HTTP – statt lange auf eine Antwort zu warten."""
-    import struct
-
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        sock.bind((host, 443))
-        sock.listen(64)
-        sock.settimeout(1.0)
-    except OSError:
-        return False
-
-    class _Refuser:
-        def __init__(self):
-            self.alive = True
-
-        def shutdown(self):
-            self.alive = False
-
-        def server_close(self):
-            sock.close()
-
-    ref = _Refuser()
-
-    def loop():
-        while ref.alive:
-            try:
-                conn, _ = sock.accept()
-            except socket.timeout:
-                continue
-            except OSError:
-                return
-            try:
-                conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))  # RST statt FIN
-            except OSError:
-                pass
-            conn.close()
-
-    threading.Thread(target=loop, name="AluCast-443", daemon=True).start()
-    _EXTRA.append(ref)
-    return True
-
-
-def stop_extra() -> None:
-    while _EXTRA:
-        srv = _EXTRA.pop()
-        try:
-            srv.shutdown()
-            srv.server_close()
-        except OSError:
-            pass
+    return f"http://{hotspot.ip}:{port}{path if path.startswith('/') else '/' + path}"
 
 
 class _QuietServer(ThreadingHTTPServer):
@@ -540,98 +467,6 @@ def board_setting(key: str, value):
     raise ValueError(key)
 
 
-def portal_page(server) -> str:
-    """WLAN-Anmeldeseite („Im WLAN anmelden“): öffnet sich auf dem Handy von selbst, sobald es im Hotspot ist –
-    wie im Hotel-WLAN. Name eingeben, dann Mitspielen (direkt in der Spielsteuerung) oder AluPC steuern (am PC
-    freigeben lassen). Wer nur im WLAN ist, kann ohne Freigabe nichts am PC verändern."""
-    import html
-
-    games = server.games
-    game_url = html.escape("/spiel?u=" + games.token) if games is not None else ""  # relativ: gleiche Adresse
-    poll = server.poll
-    poll_url = html.escape("/abstimmung?u=" + poll.token) if poll is not None else ""
-    game_title = html.escape(games.spec.title) if games is not None else ""
-    try:
-        board_mode = server.board_info()[0] if server.board_info else "aus"
-    except Exception:  # noqa: BLE001
-        board_mode = "aus"
-    duel = server.duel
-    duel_url = html.escape("/schiffe?u=" + duel.token) if duel is not None and not duel.p2_client else ""
-    from .games import AVATARS
-
-    avatars = "".join(f'<button type="button" class="av" data-a="{a}">{a}</button>' for a in AVATARS)
-    from .hotspot import stay_help_html
-
-    stay_help = stay_help_html()
-    return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>AluPC – WLAN-Anmeldung</title>
-<style>*{{box-sizing:border-box}}body{{margin:0;font-family:system-ui,sans-serif;background:radial-gradient(circle at 50% 0%,#1e293b,#0b1020 70%);
-color:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px}}
-.card{{width:100%;max-width:400px;display:flex;flex-direction:column;gap:14px}}
-.logo{{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#6366f1,#06b6d4);display:flex;
-align-items:center;justify-content:center;font-size:34px;margin:0 auto}}
-h1{{margin:0;text-align:center;font-size:26px}}p{{margin:0;color:#94a3b8;text-align:center;font-size:15px}}
-input{{width:100%;font-size:20px;padding:16px;border-radius:16px;border:2px solid #334155;background:#0f172a;color:#fff}}
-input:focus{{outline:none;border-color:#6366f1}}
-button{{width:100%;padding:20px;border-radius:18px;border:0;font-size:21px;font-weight:800;color:#fff;cursor:pointer}}
-button small{{display:block;font-size:13px;font-weight:600;opacity:.85;margin-top:3px}}
-.g{{background:linear-gradient(135deg,#6366f1,#ec4899)}}.p{{background:linear-gradient(135deg,#0891b2,#22c55e)}}.c{{background:#1e293b;border:2px solid #334155}}
-.h{{background:linear-gradient(135deg,#2563eb,#06b6d4)}}.s{{background:linear-gradient(135deg,#0e7490,#1d4ed8)}}.w{{background:linear-gradient(135deg,#7c3aed,#0ea5e9)}}.f{{background:linear-gradient(135deg,#ec4899,#f59e0b)}}
-button:disabled{{opacity:.45}}
-.avs{{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}}
-.av{{padding:6px 0;font-size:26px;border-radius:12px;background:#1e293b;border:2px solid transparent}}
-.av.sel{{border-color:#6366f1;background:#334155}}
-details ul{{padding-left:18px}}details{{color:#94a3b8;font-size:14px;line-height:1.45;background:#0f172a;border-radius:14px;padding:10px 14px}}
-summary{{cursor:pointer;font-weight:700;color:#cbd5e1}}details b{{color:#f1f5f9}}
-.who,.acts{{display:flex;flex-direction:column;gap:14px}}
-@media(min-width:700px){{.card{{max-width:620px;padding:36px;border-radius:30px;background:rgba(15,23,42,.6);
-border:1px solid #1e293b;box-shadow:0 20px 60px rgba(0,0,0,.4)}}
-.acts{{display:grid;grid-template-columns:1fr 1fr;gap:12px}}.acts button{{padding:18px 12px}}
-.av{{font-size:30px}}}}
-/* iPad quer: links Name + Symbol, rechts alle Knöpfe – alles ohne Scrollen sichtbar */
-@media(min-width:900px) and (orientation:landscape){{body{{padding:18px 28px}}
-.card{{max-width:1080px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);column-gap:34px;row-gap:16px;
-align-items:center}}.card details{{grid-column:1/-1}}.acts button{{padding:20px 12px;font-size:20px}}}}</style></head>
-<body><div class="card"><div class="who"><div class="logo">📶</div><h1>AluPC-WLAN</h1>
-<p>Du bist verbunden. Wie heißt du?</p>
-<input id="n" maxlength="16" placeholder="Dein Name" autocomplete="off" enterkeyhint="go">
-<div class="avs" id="avs">{avatars}</div></div>
-<div class="acts"><button class="g" id="play" {"" if games is not None else "disabled"}>🎮 Mitspielen<small>{game_title or "Gerade keine Minispiele – am PC starten"}</small></button>
-{f'<button class="p" id="vote">📊 Abstimmen<small>{html.escape(poll.question)[:60]}</small></button>' if poll is not None else ""}
-{'<button class="s" id="duel">🚢 Schiffe versenken<small>Du gegen den PC-Spieler</small></button>' if duel_url else ""}
-{'<button class="w" id="board">✏️ Whiteboard<small>Mitschreiben auf Monitor 2' + (' – am PC fragen' if board_mode == 'frage' else '') + '</small></button>' if board_mode in ('alle', 'frage') else ""}
-{'<button class="h" id="chat">💬 Chat<small>Nachrichten erscheinen auf Monitor 2</small></button>' if server.chat is not None else ""}
-{'<button class="f" id="wall">📷 Foto-Wand<small>Fotos groß auf Monitor 2</small></button>' if server.wall is not None else ""}
-<button class="c" id="ctl">🔒 AluPC steuern<small>Am PC freigeben lassen · Fotos senden</small></button></div>
-<details><summary>WLAN fliegt nach ein paar Sekunden raus?</summary>{stay_help}</details>
-</div><script>
-const n = document.getElementById("n");
-try {{ n.value = localStorage.getItem("alupc-name") || ""; }} catch (e) {{}}
-function name() {{ const v = n.value.trim(); try {{ localStorage.setItem("alupc-name", v); }} catch (e) {{}}
-  try {{ navigator.sendBeacon ? navigator.sendBeacon("/api/hallo", JSON.stringify({{name: v}})) :
-    fetch("/api/hallo", {{method: "POST", body: JSON.stringify({{name: v}})}}); }} catch (e) {{}}
-  return v; }}
-let ava = "";
-try {{ ava = localStorage.getItem("alupc-avatar") || ""; }} catch (e) {{}}
-const avs = [...document.querySelectorAll(".av")];
-if (!avs.some(b => b.dataset.a === ava)) ava = avs[Math.floor(Math.random() * avs.length)].dataset.a;
-function pick(a) {{ ava = a; try {{ localStorage.setItem("alupc-avatar", a); }} catch (e) {{}}
-  for (const b of avs) b.classList.toggle("sel", b.dataset.a === a); }}
-for (const b of avs) b.onclick = () => pick(b.dataset.a);
-pick(ava);
-document.getElementById("play").onclick = () => {{ location.href = "{game_url}" + "&name=" + encodeURIComponent(name() || "Spieler") +
-  "&avatar=" + encodeURIComponent(ava); }};
-const vote = document.getElementById("vote");
-if (vote) vote.onclick = () => {{ name(); location.href = "{poll_url}"; }};
-for (const [id, url] of [["chat", "/chat"], ["wall", "/fotos"], ["duel", "{duel_url}"], ["board", "/tafel"]]) {{
-  const b = document.getElementById(id);
-  if (b) b.onclick = () => {{ name(); location.href = url; }};
-}}
-document.getElementById("ctl").onclick = () => {{ location.href = "/?frei=" + encodeURIComponent(name() || "Handy"); }};
-n.addEventListener("keydown", e => {{ if (e.key === "Enter") document.getElementById({"'play'" if games is not None else "'ctl'"}).click(); }});
-</script></body></html>"""
-
-
 def _make_handler(server: CastServer):
     class Handler(BaseHTTPRequestHandler):
         server_version = "AluCast"
@@ -669,7 +504,7 @@ def _make_handler(server: CastServer):
             return False
 
         def _via_wlan(self) -> bool:
-            """Handys kommen NUR über das AluPC-WLAN (und damit seine Anmeldeseite) an AluPC – Steuern und Mitspielen.
+            """Handys kommen NUR über das AluPC-WLAN an AluPC – Steuern, Mitspielen, Chat ….
             Aus einem anderen Netz (Router-WLAN, LAN, Link) geht nichts. Der PC selbst (127.0.0.1) darf."""
             import ipaddress
 
@@ -681,7 +516,7 @@ def _make_handler(server: CastServer):
                     ip = ip.ipv4_mapped
                 if ip.is_loopback:
                     return True
-                if not (hotspot.running and hotspot.portal and hotspot.ip):
+                if not (hotspot.running and hotspot.ip):
                     return False
                 return ip in ipaddress.ip_network(f"{hotspot.ip}/24", strict=False)
             except ValueError:
@@ -707,54 +542,16 @@ def _make_handler(server: CastServer):
                 raise ValueError("ungültig")
             return data
 
-        def _portal_redirect(self) -> bool:
-            """AluPC-WLAN mit Anmeldeseite: Handys prüfen beim Verbinden fremde Adressen (Android:
-            connectivitycheck…/generate_204, iPhone: captive.apple.com, Windows: msftconnecttest.com) – die
-            leitet der PC hierher um. Antwort: Weiterleitung zur Spielsteuerung → das Handy zeigt „Im WLAN
-            anmelden“ und öffnet sie selbst."""
-            from .hotspot import hotspot
-
-            if not hotspot.portal or not self._via_wlan():
-                return False  # nur Handys im AluPC-WLAN – alle anderen bekommen unten „nur über das AluPC-WLAN“
-            host = (self.headers.get("Host") or "").split(":")[0]
-            if not host or host == hotspot.ip:
-                return False
-            target = server.base() + "anmelden"  # Anmeldeseite: Mitspielen (frei) · AluPC steuern (mit Code)
-            from .hotspot import note_probe
-
-            note_probe(self.client_address[0])
-            self.send_response(302)
-            self.send_header("Location", target)
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return True
-
-        def _note(self) -> None:
-            from .hotspot import note_http
-
-            note_http(self.client_address[0], self.command, self.headers.get("Host") or "", self.path)
-
-        def do_HEAD(self):  # manche Handys prüfen „bin ich im Internet?“ nur mit HEAD
-            self._note()
-            if self._portal_redirect():
-                return
+        def do_HEAD(self):
             self.send_response(200)
             self.send_header("Content-Length", "0")
             self.end_headers()
 
         def do_GET(self):
-            self._note()
-            if self._portal_redirect():
-                return
             path = urlparse(self.path).path
             if self._blocked(path):
                 return
-            if path == "/" and ":" not in (self.headers.get("Host") or ":") and self._via_wlan() \
-                    and not urlparse(self.path).query:
-                # http://<Hotspot-Adresse> im Browser → immer die Anmeldeseite (falls sie nicht von selbst aufging)
-                self._send(200, portal_page(server).encode(), "text/html; charset=utf-8")
-            elif path in ("/", "/index.html"):
+            if path in ("/", "/index.html"):
                 self._send(200, PAGE.encode(), "text/html; charset=utf-8")
             elif path == "/abstimmung":
                 from .polls import POLL_PAGE
@@ -767,8 +564,11 @@ def _make_handler(server: CastServer):
                     self._json(200, poll.public(q.get("v", [""])[0]))
             elif path == "/api/freigabe":  # Handy fragt nach: schon am PC erlaubt?
                 self._json(200, server.access_state(parse_qs(urlparse(self.path).query).get("id", [""])[0]))
-            elif path == "/anmelden":  # WLAN-Anmeldeseite (AluPC-WLAN): Mitspielen oder – mit Code – steuern
-                self._send(200, portal_page(server).encode(), "text/html; charset=utf-8")
+            elif path == "/anmelden":  # alte Lesezeichen: die Anmeldeseite gibt es nicht mehr → Steuerung
+                self.send_response(302)
+                self.send_header("Location", "/")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
             elif path == "/chat":
                 from .chat import CHAT_PAGE
 
@@ -1063,7 +863,6 @@ def _make_handler(server: CastServer):
             self._json(200, {"id": photo["id"]})
 
         def do_POST(self):
-            self._note()
             u = urlparse(self.path)
             if self._blocked(u.path):
                 return
@@ -1094,15 +893,6 @@ def _make_handler(server: CastServer):
                     self._json(423, {"error": "Spieler 2 spielt schon mit einem anderen Handy"})
                 else:
                     self._json(200, result)
-                return
-            if u.path == "/api/hallo":  # Anmeldeseite: Name merken (fürs Hotspot-Fenster: welches Gerät ist wer?)
-                from .hotspot import note_name
-
-                try:
-                    note_name(self.client_address[0], str(self._body_json().get("name", "")))
-                except (ValueError, TypeError, json.JSONDecodeError):
-                    pass
-                self._json(200, {})
                 return
             if u.path == "/api/freigabe":  # ohne Code: am PC um Freigabe bitten
                 try:

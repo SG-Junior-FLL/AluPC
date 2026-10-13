@@ -79,7 +79,7 @@ class GamesWindow(QWidget):
         self.help.setWordWrap(True)
         left.addWidget(self.help)
         left.addStretch(1)
-        # AluPC-WLAN: läuft es? (einziger Weg ins Spiel: WLAN mit Anmeldeseite)
+        # AluPC-WLAN: läuft es? (einziger Weg ins Spiel)
         self.wlan = QLabel()
         self.wlan.setWordWrap(True)
         left.addWidget(self.wlan)
@@ -148,7 +148,7 @@ class GamesWindow(QWidget):
         copy.setFocusPolicy(Qt.NoFocus)
         copy.clicked.connect(self.show_connect)
         wifi = button("WLAN …", "wifi")
-        wifi.setToolTip("Das AluPC-WLAN: Handys verbinden sich, die Anmeldeseite öffnet sich, Name eingeben – "
+        wifi.setToolTip("Das AluPC-WLAN: Handys scannen den WLAN-Code, dann den Spiel-Code, Name eingeben – "
                         "mitspielen. Bleibt an, wenn die Minispiele enden.")
         wifi.setFocusPolicy(Qt.NoFocus)
         wifi.clicked.connect(self.open_wifi)
@@ -195,16 +195,17 @@ class GamesWindow(QWidget):
         c = self.controller
         if c.cast.games is None:
             c.start_games()
-        wifi = c.games_wifi()  # einziger Weg: WLAN-Code → Anmeldeseite öffnet sich → Name → mitspielen
+        wifi = c.games_wifi()  # einziger Weg: WLAN-Code → Spiel-Code → Name → mitspielen
         if wifi is None:
             from PySide6.QtWidgets import QMessageBox
 
             QMessageBox.information(self, "AluPC-WLAN", c.games_wifi_status()[1] or "AluPC-WLAN ist aus.")
             return
-        from ..cast_server import portal_url
+        from ..cast_server import wlan_url
 
-        link = portal_url()
-        codes = [("Mitspielen", link, ["Name + Symbol wählen", "Öffnet im Browser und bleibt offen"])] if link else []
+        hub = c.cast.games
+        link = wlan_url("/spiel?u=" + hub.token) if hub is not None else ""
+        codes = [("Mitspielen", link, ["Name + Symbol wählen", "Öffnet im Browser"])] if link else []
         ConnectDialog("Mitspielen", wifi, "1. WLAN-Code scannen · 2. Seite öffnen – Name eingeben, mitspielen",
                       parent=self, codes=codes).exec()
 
@@ -305,8 +306,8 @@ class GamesWindow(QWidget):
             t = theme.current()
             on = hotspot.running
             color = t.success if on else t.muted
-            text = (f"📶  AluPC-WLAN „{hotspot.ssid}“ läuft – Handys scannen den WLAN-Code, die Anmeldeseite "
-                    "öffnet sich, Name eingeben, fertig." if on else
+            text = (f"📶  AluPC-WLAN „{hotspot.ssid}“ läuft – Handys scannen den WLAN-Code, dann den Spiel-Code, "
+                    "Name eingeben, fertig." if on else
                     "📶  AluPC-WLAN aus – „WLAN …“ startet es (Handys kommen nur darüber ins Spiel).")
             self.wlan.setText(text)
             self.wlan.setStyleSheet(f"color: {t.text}; background: {t.soft(color, 0.14)}; border: 1px solid "
@@ -395,7 +396,7 @@ class GamesWindow(QWidget):
                 self.players.setCurrentItem(item)
         self.players_label.setText(f"SPIELER ({len(hub.players)})")
         wifi = self.controller.games_wifi()
-        self.url.setText(f"Mitspielen: WLAN „{wifi[0]}“ → Anmeldeseite" if wifi else
+        self.url.setText(f"Mitspielen: WLAN „{wifi[0]}“ → Spiel-Code" if wifi else
                          (self.controller.games_wifi_status()[1] or "AluPC-WLAN ist aus"))
         self._update_info(hub)
 

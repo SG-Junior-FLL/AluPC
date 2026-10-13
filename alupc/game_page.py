@@ -167,14 +167,14 @@ async function join(auto) {
   finally { $("joinbtn").disabled = false; }
 }
 $("joinbtn").onclick = () => join(false);
-// Von der WLAN-Anmeldeseite: Name ist schon eingegeben → gleich mitspielen
+// Name im Link (?name=…): gleich mitspielen
 const preName = new URLSearchParams(location.search).get("name");
 if (preName && !pid) { $("name").value = preName.slice(0, 16); setTimeout(() => join(false), 0); }
 // Avatar wählen (zufällig vorausgewählt)
 const AVATARS = ["🦊","🐼","🐸","🐯","🦁","🐨","🐷","🐵","🐙","🦄","🐲","🐧","🦉","🐝","🐢","🐬","🦖","🐱","🐶","🐰","🦀","🦋","🐻","🐮","🤖","👾","🚀","⚽"];
 let avatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
 try { avatar = localStorage.getItem("alupc-avatar") || avatar; } catch (e) {}
-// Von der Anmeldeseite: dort gewähltes Symbol übernehmen
+// Symbol im Link (?avatar=…) übernehmen
 const preAva = new URLSearchParams(location.search).get("avatar");
 if (preAva && AVATARS.includes(preAva)) { avatar = preAva; try { localStorage.setItem("alupc-avatar", preAva); } catch (e) {} }
 for (const a of AVATARS) {

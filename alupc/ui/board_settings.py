@@ -123,7 +123,7 @@ def board_settings_widget(board) -> QWidget:
     mode.setCurrentIndex(max(0, mode.findData(cfg["guests"])))
     mode.currentIndexChanged.connect(lambda _i: board.set_settings(guests=mode.currentData()))
     g.addRow("Mitschreiben:", mode)
-    note = QLabel("Auf der Anmeldeseite erscheint dann „Whiteboard“. Gäste schreiben nur, solange die Tafel auf "
+    note = QLabel("Auf Monitor 2 erscheinen dann unten rechts die Codes zum Mitschreiben. Gäste schreiben nur, solange die Tafel auf "
                   "Monitor 2 zu sehen ist – radieren und Seiten wechseln bleibt beim PC.")
     note.setWordWrap(True)
     note.setObjectName("Muted")

@@ -60,7 +60,7 @@ class ConnectDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 18, 22, 18)
         lay.setSpacing(14)
-        lay.addWidget(page_header(title, hint or "WLAN-Code scannen – die Anmeldeseite öffnet sich", "qr"))
+        lay.addWidget(page_header(title, hint or "Erst den WLAN-Code scannen, dann den Code der Seite", "qr"))
         self.wifi_card = None
         self.cards = []
         if wifi and wifi[0]:
@@ -69,8 +69,7 @@ class ConnectDialog(QDialog):
             row = QHBoxLayout()
             row.setSpacing(14)
             self.wifi_card = _qr_card("1" if codes else "", "AluPC-WLAN", wifi_payload(ssid, password, hidden),
-                                      [f"WLAN: <b>{ssid}</b>", f"Passwort: <b>{password}</b>",
-                                       "Danach öffnet sich die Anmeldeseite"])
+                                      [f"WLAN: <b>{ssid}</b>", f"Passwort: <b>{password}</b>"])
             row.addWidget(self.wifi_card)
             for i, (code_title, payload, lines) in enumerate(codes):
                 card = _qr_card(str(i + 2), code_title, payload, lines)
@@ -111,7 +110,7 @@ class HotspotDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 18, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header(title, "Ein WLAN für alles: Anmeldeseite, Minispiele, Abstimmen, Steuern", "wifi"))
+        lay.addWidget(page_header(title, "Ein WLAN für alles: Minispiele, Abstimmen, Chat, Whiteboard, Steuern", "wifi"))
         hs = settings(controller.config)
         ok, why = supported()
         box = QFrame()
@@ -157,39 +156,28 @@ class HotspotDialog(QDialog):
         self.state.setObjectName("Muted")
         self.state.setWordWrap(True)
         bl.addWidget(self.state)
-        hint = QLabel("Handy: WLAN-Code scannen → Anmeldeseite. Geht sie zu: zweiten Code auf Monitor 2 scannen "
-                      "(öffnet im Browser). Steuern: der Steuer-Code unten – privat, nur hier am PC. "
-                      "Beim Start einmal als Administrator bestätigen. Das normale WLAN des PCs "
-                      "kann dabei getrennt werden.")
+        hint = QLabel("Handy: WLAN-Code scannen, dann den zweiten Code der jeweiligen Seite auf Monitor 2 (Spiel, "
+                      "Chat, Abstimmung …). Steuern: der Steuer-Code unten – privat, nur hier am PC. Hat der PC "
+                      "Internet, haben es die Handys im WLAN auch. Das normale WLAN des PCs kann dabei getrennt "
+                      "werden (viele WLAN-Karten können nicht beides).")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         bl.addWidget(hint)
         stay = button("Handy fliegt aus dem WLAN? – Anleitung", "info")
-        stay.setToolTip("Android und iPhone/iPad verlassen WLANs ohne Internet manchmal von selbst – so bleibt es verbunden")
+        stay.setToolTip("Ohne Internet am PC verlassen Android und iPhone/iPad das WLAN manchmal – so bleibt es verbunden")
         stay.clicked.connect(self.show_stay_help)
         bl.addWidget(stay, 0, Qt.AlignLeft)
         lay.addWidget(box)
-        # Geräte im WLAN: standardmäßig KEIN Internet (nur AluPC) – hier einzeln freischalten
+        # Geräte im WLAN (Name, falls beim Mitmachen eingegeben)
         from PySide6.QtWidgets import QListWidget
 
         dev_box = QFrame()
         dev_box.setObjectName("Card")
         dl = QVBoxLayout(dev_box)
-        dl.addWidget(QLabel("<b>Geräte im WLAN</b> – Haken = darf ins Internet"))
+        dl.addWidget(QLabel("<b>Geräte im WLAN</b>"))
         self.devices = QListWidget()
-        self.devices.setMinimumHeight(110)
-        self.devices.itemChanged.connect(self._device_toggled)
+        self.devices.setMinimumHeight(90)
         dl.addWidget(self.devices)
-        self.devices_hint = QLabel("Ohne Haken: nur AluPC (Anmeldeseite, Spiele, Abstimmen, Steuern) – kein Internet. "
-                                   "Die Freigabe gilt für das Gerät, auch beim nächsten Mal.")
-        self.devices_hint.setObjectName("Muted")
-        self.devices_hint.setWordWrap(True)
-        dl.addWidget(self.devices_hint)
-        self.portal_line = QLabel("")  # wo es hakt: Port 80, letzte Prüfung, Internet-Sperre
-        self.portal_line.setObjectName("Muted")
-        self.portal_line.setWordWrap(True)
-        self.portal_line.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        dl.addWidget(self.portal_line)
         lay.addWidget(dev_box)
         self._dev_timer = QTimer(self)
         self._dev_timer.timeout.connect(self._fill_devices)
@@ -231,27 +219,17 @@ class HotspotDialog(QDialog):
         from PySide6.QtWidgets import QListWidgetItem
 
         try:
-            from ..hotspot import portal_status
-
-            self.portal_line.setText(portal_status() if self._mine() else "")
             devices = self.controller.wlan_devices() if self._mine() else []
-            key = [(d["ip"], d["mac"], d["name"], d["internet"], bool(d.get("dns")), d.get("probe"), d.get("hint"))
-                   for d in devices]
+            key = [(d["ip"], d["mac"], d["name"]) for d in devices]
             if key == getattr(self, "_dev_key", None):
                 return
             self._dev_key = key
             self.devices.blockSignals(True)
             self.devices.clear()
             for d in devices:
-                # Zeigt, wo es hängt: kommen die Namensfragen des Handys bei AluPC an? Hat es die Anmeldung geprüft?
-                check = ("Anmeldeseite ✓" if d.get("probe") else "DNS ✓ · Anmeldeseite noch nicht" if d.get("dns")
-                         else "DNS ✗ (fragt Windows statt AluPC)")
-                hint = f"\n      → {d['hint']}" if d.get("hint") else ""
-                item = QListWidgetItem(f"{d['name']}   ·   {d['ip']}   ·   {check}{hint}")
-                item.setToolTip(d["mac"] + ("\nGefragt: " + ", ".join(d["asked"]) if d.get("asked") else ""))
-                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                item.setCheckState(Qt.Checked if d["internet"] else Qt.Unchecked)
-                item.setData(Qt.UserRole, (d["mac"], d["name"]))
+                item = QListWidgetItem(f"{d['name']}   ·   {d['ip']}")
+                item.setToolTip(d["mac"])
+                item.setFlags(Qt.ItemIsEnabled)
                 self.devices.addItem(item)
             if not devices:
                 item = QListWidgetItem("Noch kein Gerät verbunden" if self._mine() else "WLAN ist aus")
@@ -275,12 +253,6 @@ class HotspotDialog(QDialog):
         box.exec()
         if box.clickedButton() is show:
             self.controller.show_wifi_help()
-
-    def _device_toggled(self, item) -> None:
-        data = item.data(Qt.UserRole)
-        if data:
-            self.controller.set_device_internet(data[0], data[1], item.checkState() == Qt.Checked)
-            self._dev_key = None
 
     def _refresh(self) -> None:
         from ..hotspot import hotspot

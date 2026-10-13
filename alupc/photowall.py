@@ -1,4 +1,4 @@
-"""Foto-Wand: Handys schicken Fotos übers AluPC-WLAN (Anmeldeseite → „Foto-Wand“ oder Seiten-Code), Monitor 2
+"""Foto-Wand: Handys schicken Fotos übers AluPC-WLAN (Seiten-Code auf Monitor 2), Monitor 2
 zeigt sie als Collage oder Diashow – neue Fotos kommen erst groß, dann in die Collage.
 
 Fotos werden geprüft (echtes Bild, höchstens 25 MB, nur ein paar pro Minute je Handy), gedreht wie aufgenommen,
@@ -203,7 +203,7 @@ h2 { font-size: 15px; color: #cbd5e1; margin: 8px 0 0; }
 }
 </style></head><body><main>
 <header><div class="logo">📷</div><div><b>Foto-Wand</b><small>Deine Fotos erscheinen groß auf Monitor 2</small></div>
-<a href="/anmelden">Zurück</a></header>
+</header>
 <input type="text" id="name" maxlength="20" placeholder="Dein Name" autocomplete="off">
 <label class="pick" for="file">📷 Foto senden<small>aufnehmen oder aus der Galerie – auch mehrere</small></label>
 <input type="file" id="file" accept="image/*" multiple>

@@ -51,12 +51,12 @@ jobs:
           python -m pytest -q -rs tests/test_audio_mixer.py -k real 2>&1 | tee mixer.log
           grep -q "1 passed" mixer.log || { tail -20 mixer.log | sed 's/^/::error title=Mischpult (Linux)::/'; exit 1; }
           echo "::notice title=Mischpult (Linux)::virtuelles Mikro, Weiterleitung, Lautstärke, Pegel – echt mit PulseAudio"
-      - name: WLAN-Anmeldeseite echt – virtuelles Handy im eigenen Netz (DNS, Weiterleitung, Mitspielen)
+      - name: AluPC-WLAN echt – virtuelles Handy im eigenen Netz (QR-Codes, Mitspielen, Abstimmen, Steuern)
         run: |
-          sudo apt-get install -y dnsutils iproute2 iptables > /dev/null
-          sudo -E "$(which python)" tests/portal_linux_check.py 2>&1 | tee portal.log
-          test "${PIPESTATUS[0]}" -eq 0 || { grep "✗" portal.log | sed 's/^/::error title=Anmeldeseite::/'; exit 1; }
-          echo "::notice title=Anmeldeseite (Linux)::$(tail -1 portal.log)"
+          sudo apt-get install -y iproute2 > /dev/null
+          sudo -E "$(which python)" tests/wlan_linux_check.py 2>&1 | tee wlan.log
+          test "${PIPESTATUS[0]}" -eq 0 || { grep "✗" wlan.log | sed 's/^/::error title=AluPC-WLAN::/'; exit 1; }
+          echo "::notice title=AluPC-WLAN (Linux)::$(tail -1 wlan.log)"
       - name: Systemweite Tastenkürzel echt – KDE-Dienst kglobalaccel, Tasten per xdotool (AluPC im Hintergrund)
         run: |
           sudo apt-get install -y libkf5globalaccel-bin xdotool xvfb x11-xkb-utils > /dev/null
@@ -277,7 +277,7 @@ jobs:
             dist/AluPC-linux-x86_64-*.tar.gz
             dist/AluPC-installieren.sh
 
-  portal-windows:
+  wlan-windows:
     # Eigener Job auf Windows Server 2022: dort liegt das Container-Abbild fürs „Handy“ schon bereit
     runs-on: windows-2022
     timeout-minutes: 40
@@ -297,14 +297,14 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File tests/windows/hotspot_sim.ps1 *>&1 | Tee-Object -FilePath sim.log
           if ($LASTEXITCODE -ne 0 -or -not (Get-NetIPAddress -IPAddress 192.168.137.1 -ErrorAction SilentlyContinue)) {
             Get-Content sim.log -Tail 15 | ForEach-Object { Write-Output "::error title=Hotspot nachbauen::$_" }; exit 1 }
-      - name: WLAN-Anmeldeseite echt – Handy im Hotspot-Netz (DNS, Weiterleitung, Mitspielen, keine Umgehung)
+      - name: AluPC-WLAN echt – Handy im Hotspot-Netz (Firewall-Freigabe, QR-Codes, Mitspielen, Abstimmen)
         shell: bash
         run: |
           set +e +o pipefail  # sonst endet der Schritt vor der Fehlerausgabe
-          python -X faulthandler -u tests/portal_windows_check.py mcr.microsoft.com/windows/servercore:ltsc2022 2>&1 | tee portal.log
-          test "${PIPESTATUS[0]}" -eq 0 || { grep "FEHL" portal.log | sed 's/^/::error title=Anmeldeseite (Windows)::/'
-            tail -n 25 portal.log | tr -d '\r' | sed 's/^/::error title=Anmeldeseite (Windows, Ende)::/'; exit 1; }
-          echo "::notice title=Anmeldeseite (Windows)::$(grep -E '^  (OK|FEHL)|bestanden' portal.log | tr -d '\r' | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
+          python -X faulthandler -u tests/wlan_windows_check.py mcr.microsoft.com/windows/servercore:ltsc2022 2>&1 | tee wlan.log
+          test "${PIPESTATUS[0]}" -eq 0 || { grep "FEHL" wlan.log | sed 's/^/::error title=AluPC-WLAN (Windows)::/'
+            tail -n 25 wlan.log | tr -d '\r' | sed 's/^/::error title=AluPC-WLAN (Windows, Ende)::/'; exit 1; }
+          echo "::notice title=AluPC-WLAN (Windows)::$(grep -E '^  (OK|FEHL)|bestanden' wlan.log | tr -d '\r' | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
 
   build-windows:
     runs-on: windows-latest
@@ -529,7 +529,7 @@ jobs:
     if: >-
       startsWith(github.ref, 'refs/tags/v') ||
       (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release]'))
-    needs: [test-linux, build-linux, build-windows, portal-windows]
+    needs: [test-linux, build-linux, build-windows, wlan-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

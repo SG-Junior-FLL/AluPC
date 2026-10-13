@@ -336,7 +336,7 @@ def lobby(c) -> None:
                 ("1", "WLAN", c.wifi_qr(), [(f"„{wifi[0]}“", "#67e8f9", True),
                                             (f"Passwort: {wifi[1]}" if wifi[1] else "", "#fbbf24", True)]),
                 ("2", "Mitspielen", link, [("Name + Symbol wählen", TEXT, True),
-                                           ("bleibt im Browser offen", MUTED, False)]))):
+                                           ("öffnet im Browser", MUTED, False)]))):
             qx = w - m - qr_side - (1 - i) * (qr_side + m)
             text(p, QRectF(qx - m / 2, qy - h * 0.1, qr_side + m, h * 0.06), f"{step} · {title}", h * 0.038, TEXT,
                  True)
@@ -346,19 +346,14 @@ def lobby(c) -> None:
                     text(p, QRectF(qx - m / 2, qy + qr_side + h * (0.03 + 0.045 * k), qr_side + m, h * 0.04), line,
                          h * 0.024, color, bold)
         return
-    if wifi:  # AluPC-WLAN: EIN Code – Handy ist im WLAN, die Anmeldeseite (Name → mitspielen) öffnet sich selbst
+    if wifi:  # AluPC-WLAN läuft, Webserver (noch) nicht: erst einmal nur der WLAN-Code
         qx, qy = w - m - qr_side, (h - qr_side) / 2 - h * 0.02
         text(p, QRectF(qx - m, qy - h * 0.11, qr_side + 2 * m, h * 0.06), "WLAN scannen", h * 0.04, TEXT, True)
         qr_card(c, qx, qy, qr_side, caption=False, image=c.wifi_qr())
         text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.03, qr_side + 4 * m, h * 0.045),
-             f"„{wifi[0]}“ · Anmeldung öffnet sich", h * 0.026, "#67e8f9", True)
+             f"„{wifi[0]}“", h * 0.026, "#67e8f9", True)
         text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.075, qr_side + 4 * m, h * 0.04),
-             "Name eingeben → mitspielen", h * 0.024, MUTED)
-        from .hotspot import hotspot
-
-        if hotspot.running and hotspot.portal and hotspot.ip:  # falls die Anmeldung nicht von selbst aufgeht
-            text(p, QRectF(qx - m * 2, qy + qr_side + h * 0.115, qr_side + 4 * m, h * 0.04),
-                 f"Nicht offen? Browser: {hotspot.ip}", h * 0.022, MUTED)
+             "Spiel-Code kommt gleich …", h * 0.024, MUTED)
         return
     # sonst kein Link (einziger Weg ist das AluPC-WLAN) – stattdessen sagen, was los ist
     box = QRectF(w - m - qr_side * 1.15, (h - qr_side) / 2, qr_side * 1.15, qr_side)

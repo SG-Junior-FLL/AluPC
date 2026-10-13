@@ -100,7 +100,7 @@ def test_chat_and_wall_over_http_and_monitor2(env, tmp_path, monkeypatch):  # no
     pil = pytest.importorskip("PIL.Image")
     controller, window, _ = env
     hs = hotspot.hotspot
-    for k, v in (("running", True), ("portal", True), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
+    for k, v in (("running", True), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
                  ("hidden", False), ("ip", "10.42.0.1")):
         monkeypatch.setattr(hs, k, v)
     monkeypatch.setattr(controller, "ensure_wlan", lambda: None)
@@ -110,12 +110,11 @@ def test_chat_and_wall_over_http_and_monitor2(env, tmp_path, monkeypatch):  # no
     assert controller.cast.start()
     port = controller.cast.port
     assert _req(port, "/api/chat")[0] == 404 and _req(port, "/api/fotowand")[0] == 404
-    status, page = _req(port, "/anmelden")
-    assert status == 200 and b'id="chat"' not in page and b'id="wall"' not in page
     controller.start_chat()
     controller.start_wall(show=False)
-    status, page = _req(port, "/anmelden")
-    assert b'id="chat"' in page and b'id="wall"' in page  # Anmeldeseite: Knöpfe Chat und Foto-Wand
+    from alupc.cast_server import wlan_url
+
+    assert wlan_url("/chat") == f"http://10.42.0.1:{port}/chat"  # Code auf Monitor 2: direkt die Seite
     assert _req(port, "/chat")[0] == 200 and _req(port, "/fotos")[0] == 200
     assert "chat" in controller.live_overlays  # Chat startet direkt mit Overlay
     status, body = _req(port, "/api/chat", json.dumps({"name": "Lena", "text": "Hallo Arschloch", "avatar": "🦊"}).encode())

@@ -414,8 +414,8 @@ class GuestsPage(QWidget):
         on = hotspot.running
         _pill(self.wlan_pill, on)
         self.wlan_btn.setVisible(not on)
-        self.wlan_text.setText(f"„{hotspot.ssid}“ · Handys: WLAN-Code scannen, dann Seiten-Code – oder die "
-                               "Anmeldeseite öffnet sich von selbst." if on else
+        self.wlan_text.setText(f"„{hotspot.ssid}“ · Handys: WLAN-Code scannen, dann den Seiten-Code auf "
+                               "Monitor 2." if on else
                                (hotspot.message or "Aus – Chat und Foto-Wand starten das WLAN automatisch."))
         chat = c.cast.chat
         _pill(self.chat_pill, chat is not None)
@@ -443,7 +443,7 @@ class GuestsPage(QWidget):
                     self.chat_list.setCurrentItem(item)
             if not self.chat_list.count():
                 self.chat_list.addItem("Noch keine Nachrichten." if chat is not None else
-                                       "Chat ist aus – „Chat starten“: Handys schreiben über die Anmeldeseite.")
+                                       "Chat ist aus – „Chat starten“: Handys schreiben über den Chat-Code auf Monitor 2.")
             if at_end:
                 self.chat_list.scrollToBottom()
         wall = c.cast.wall

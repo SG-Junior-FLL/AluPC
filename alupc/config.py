@@ -29,7 +29,6 @@ DEFAULT_HOTKEYS = {
     "rgb_monitor2": "",
     "rgb_aus": "",
     "zuhoeren": "Ctrl+Alt+H",
-    "oberflaeche": "Ctrl+Alt+O",
     "alupc_oeffnen": "Ctrl+Alt+A",
 }
 
@@ -56,7 +55,6 @@ HOTKEY_LABELS = {
     "rgb_monitor2": "RGB: Farbe folgt Monitor 2",
     "rgb_aus": "RGB aus",
     "zuhoeren": "Mikrofon-Schalter (zuhören ohne Startwort)",
-    "oberflaeche": "AluPC-Oberfläche (Vollbild statt Desktop) an/aus",
     "alupc_oeffnen": "AluPC-Hauptfenster öffnen",
 }
 
@@ -136,10 +134,6 @@ DEFAULTS: dict = {
              "style": "glas", "color": "#6366f1", "words": [], "builtin": True, "hide_links": True},
     # Seite „Audio“: virtuelle Geräte an, welche Mikrofone ins virtuelle Mikro, virtueller Ausgang ins Mikro, Mithören
     "audio_mixer": {"virtual": False, "mic_inputs": [], "out_to_mic": True, "listen": False},
-    # AluPC-Oberfläche (Vollbild statt Desktop): beim Start zeigen, angeheftete Programme
-    "shell": {"autostart": False, "pinned": [], "open": False, "wallpaper": "", "desktop_icons": True, "icon_size": 56,
-              "snap": True, "pos": {}, "taskbar_center": True, "clock_seconds": False,
-              "widgets": {"clock": True, "monitor": True, "quick": True}, "esc_closes": False},
     # Monitor 2 als virtuelle Kamera (vcam.py): an (beim Start wieder an), Größe, Bilder pro Sekunde, gespiegelt
     "vcam": {"on": False, "size": "720p", "fps": 20, "mirror": False},
     # Foto-Wand (photowall.py): Ordner (leer = Bilder/AluPC Foto-Wand), Collage oder Diashow, Codes zeigen
@@ -243,6 +237,9 @@ class Config:
                     v["wake_v2"] = True
                     if isinstance(v.get("wake"), list) and "computer" not in v["wake"]:
                         v["wake"] = [*v["wake"], "computer"]
+                self.data.pop("shell", None)  # 0.137: AluPC-Oberfläche (eigener Desktop) gibt es nicht mehr
+                if isinstance(self.data.get("hotkeys"), dict):
+                    self.data["hotkeys"].pop("oberflaeche", None)
                 ap = self.data.get("appearance")
                 if isinstance(ap, dict) and not (raw.get("appearance") or {}).get("accent_v2"):  # 0.99: Systemfarbe
                     ap["accent_v2"] = True

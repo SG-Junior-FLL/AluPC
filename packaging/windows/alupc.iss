@@ -49,8 +49,10 @@ Filename: "{cmd}"; Parameters: "/C winget install --id OpenRGB.OpenRGB -e --sile
 Filename: "{cmd}"; Parameters: "/C winget install --id Rem0o.FanControl -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "FanControl (Lüfter) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: luefter
 Filename: "{app}\AluPC.exe"; Parameters: "--treiber vbcable"; StatusMsg: "Virtuelles Mikro (VB-CABLE) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: vbcable
 Filename: "{app}\AluPC.exe"; Parameters: "--treiber kamera"; StatusMsg: "Virtuelle Kamera wird eingerichtet …"; Flags: runhidden waituntilterminated; Tasks: vkamera
-; Firewall: Handy-Steuerung (8765…8774) und AirPlay – nur private Netzwerke (braucht Adminrechte, sonst übersprungen)
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AluPC Handy"" dir=in action=allow protocol=TCP localport=8765-8774 profile=private,domain"; StatusMsg: "Firewall wird eingerichtet …"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
+; Firewall: Handy-Seiten (8765…8774) und AirPlay (braucht Adminrechte, sonst übersprungen)
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""AluPC Handy"""; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
+; AluPC-WLAN (Mobiler Hotspot): Windows stuft dieses Netz oft als „öffentlich“ ein – AluPC lässt ohnehin nur Geräte aus dem AluPC-WLAN herein
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AluPC WLAN"" dir=in action=allow protocol=TCP localport=8765-8774 profile=any"; StatusMsg: "Firewall wird eingerichtet …"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AluPC AirPlay"" dir=in action=allow protocol=TCP localport=7000,7001,7100 profile=any"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AluPC AirPlay"" dir=in action=allow protocol=UDP localport=5353,6000,6001,7011 profile=any"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
 Filename: "{app}\AluPC.exe"; Description: "AluPC jetzt starten"; Flags: nowait postinstall skipifsilent
@@ -59,6 +61,9 @@ Filename: "{app}\AluPC.exe"; Description: "AluPC jetzt starten"; Flags: nowait p
 ; Rechtsklick „Auf Monitor 2 zeigen“ und alupc://-Links entfernen
 Filename: "{app}\AluPC.exe"; Parameters: "--einbindung-entfernen"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveIntegration"
 Filename: "{cmd}"; Parameters: "/C reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v AluPC /f"; Flags: runhidden; RunOnceId: "RemoveAutostart"
+; Firewall-Freigaben von AluPC wieder entfernen
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""AluPC WLAN"""; Flags: runhidden; RunOnceId: "RemoveFirewallWlan"; Check: IsAdminInstallMode
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""AluPC AirPlay"""; Flags: runhidden; RunOnceId: "RemoveFirewallAirPlay"; Check: IsAdminInstallMode
 ; Anmeldung mit Fingerabdruckmodul: Anmeldebaustein bei Windows abmelden, gespeichertes (verschlüsseltes) Passwort löschen
 Filename: "{cmd}"; Parameters: "/C reg delete ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" /f & reg delete ""HKLM\SOFTWARE\Classes\CLSID\{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" /f & del /f /q ""%ProgramData%\AluPC\fingerprint-windows.cfg"" ""%ProgramData%\AluPC\fingerprint-*.slots"" & reg delete HKLM\SOFTWARE\AluPC /f"; Flags: runhidden; RunOnceId: "RemoveFingerprintLogin"; Check: IsAdminInstallMode
 ; Vorauswahl „Fingerabdruck“ auf dem Sperrbildschirm zurücknehmen (nur wenn sie von AluPC stammt)

@@ -42,7 +42,7 @@ def test_parse_stroke():
 def test_guests_draw_over_http(env, monkeypatch):  # noqa: F811
     controller, window, _ = env
     hs = hotspot.hotspot
-    for k, v in (("running", True), ("portal", True), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
+    for k, v in (("running", True), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
                  ("hidden", False), ("ip", "10.42.0.1")):
         monkeypatch.setattr(hs, k, v)
     assert controller.cast.start()
@@ -51,14 +51,17 @@ def test_guests_draw_over_http(env, monkeypatch):  # noqa: F811
               "pts": [[0.25, 0.5], [0.5, 0.5], [0.75, 0.5]]}
     post = lambda body: _req(port, "/api/tafel", json.dumps(body).encode())  # noqa: E731
     # aus: kein Knopf, nichts geht
-    assert b'id="board"' not in _req(port, "/anmelden")[1]
+    from alupc.whiteboard import WhiteboardSource
+
+    wb = WhiteboardSource({})
+    assert wb._guest_link() == ""  # aus: keine Codes auf der Tafel
     assert json.loads(_req(port, f"/api/tafel?g={GID}")[1])["state"] == "aus"
     assert post(stroke)[0] == 404
     assert _req(port, "/tafel")[0] == 200
-    # alle: Knopf auf der Anmeldeseite; Tafel noch nicht auf Monitor 2 → 423
+    # alle: Codes unten rechts auf der Tafel (WLAN + /tafel); Tafel noch nicht auf Monitor 2 → 423
     controller.run_command("tafel_gaeste_alle")
     assert controller.board.settings()["guests"] == "alle"
-    assert b'id="board"' in _req(port, "/anmelden")[1]
+    assert wb._guest_link() == f"http://10.42.0.1:{port}/tafel"
     assert post(stroke)[0] == 423
     controller.show_whiteboard(draw=False)
     pump()
@@ -90,7 +93,8 @@ def test_guests_draw_over_http(env, monkeypatch):  # noqa: F811
     assert len(controller.board.strokes) == before + 2
     assert controller.board_state()["guests"] == "frage"
     controller.set_board_guests("aus")
-    assert post(stroke)[0] == 404 and b'id="board"' not in _req(port, "/anmelden")[1]
+    assert post(stroke)[0] == 404 and wb._guest_link() == ""
+    wb.stop()
     controller.cast.stop()
 
 

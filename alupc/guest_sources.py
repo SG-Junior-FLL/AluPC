@@ -28,16 +28,16 @@ def _ease(t: float) -> float:
 class JoinCodes:
     """Die zwei Codes zum Mitmachen: WLAN + Seite (z. B. /chat, /fotos). Bilder werden nur bei Änderung neu gebaut."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, title: str = "Seite öffnen"):
         self.path = path
+        self.title = title
         self._wifi = ("", None)
         self._link = ("", None)
 
     def link(self) -> str:
-        from .cast_server import portal_url
+        from .cast_server import wlan_url
 
-        base = portal_url()
-        return base.rsplit("/", 1)[0] + self.path if base else ""
+        return wlan_url(self.path)
 
     def codes(self) -> list[tuple[str, QImage, str]]:
         from .hotspot import hotspot
@@ -53,7 +53,7 @@ class JoinCodes:
         if self._wifi[1] is not None:
             out.append(("1 · WLAN", self._wifi[1], hotspot.ssid))
         if self._link[1] is not None:
-            out.append(("2 · Seite öffnen", self._link[1], "bleibt im Browser offen"))
+            out.append((f"2 · {self.title}", self._link[1], "öffnet im Browser"))
         return out
 
     def paint(self, p: QPainter, rect: QRectF, vertical: bool = True) -> None:

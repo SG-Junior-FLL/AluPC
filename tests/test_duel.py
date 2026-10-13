@@ -89,7 +89,7 @@ def test_view_hides_enemy_ships_while_playing():
 def test_phone_player_two(env, monkeypatch, tmp_path):  # noqa: F811
     controller, window, _ = env
     hs = hotspot.hotspot
-    for k, v in (("running", True), ("portal", True), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
+    for k, v in (("running", True), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
                  ("hidden", False), ("ip", "10.42.0.1")):
         monkeypatch.setattr(hs, k, v)
     monkeypatch.setattr(controller, "ensure_wlan", lambda: None, raising=False)
@@ -98,21 +98,17 @@ def test_phone_player_two(env, monkeypatch, tmp_path):  # noqa: F811
     assert controller.cast.start()
     port = controller.cast.port
     assert _req(port, "/api/schiffe?u=x")[0] == 404  # noch kein Spiel
-    assert b'id="duel"' not in _req(port, "/anmelden")[1]
     controller.run_command("schiffe")
     pump()
     duel = controller.cast.duel
     assert duel is not None and controller.content["type"] == "schiffe"
     win = window.duel_window
     assert win.isVisible()
-    status, page = _req(port, "/anmelden")
-    assert b'id="duel"' in page and duel.token.encode() in page  # Anmeldeseite: Knopf „Schiffe versenken“
     assert _req(port, "/schiffe")[0] == 200
     assert _req(port, "/api/schiffe?u=falsch")[0] == 404
     u = f"/api/schiffe?u={duel.token}"
     status, body = _req(port, u, json.dumps({"action": "join", "name": "Mia"}).encode())
     assert status == 200 and json.loads(body)["name"] == "Mia" and duel.p2_phone
-    assert b'id="duel"' not in _req(port, "/anmelden")[1]  # Platz vergeben
     assert duel.phone_action({"action": "random"}, "10.42.0.9") is None  # zweites Handy darf nicht
     status, body = _req(port, u, json.dumps({"action": "place", "x": 0, "y": 0}).encode())
     assert status == 200 and json.loads(body)["ok"] and json.loads(body)["next"] == 4
@@ -168,7 +164,7 @@ def test_phone_player_two(env, monkeypatch, tmp_path):  # noqa: F811
     src.stop()
     # Handy abmelden → Platz wieder frei
     duel.release_phone()
-    assert not duel.p2_phone and b'id="duel"' in _req(port, "/anmelden")[1]
+    assert not duel.p2_phone
     win.close()
     pump()
     assert controller.cast.duel is None and _req(port, u)[0] == 404
@@ -181,7 +177,7 @@ def test_keyboard_player_two_and_monitor2(env, tmp_path, monkeypatch):  # noqa: 
     pil = pytest.importorskip("PIL.Image")
     controller, window, _ = env
     hs = hotspot.hotspot
-    for k, v in (("running", True), ("portal", True), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
+    for k, v in (("running", True), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
                  ("hidden", False), ("ip", "10.42.0.1")):
         monkeypatch.setattr(hs, k, v)
     monkeypatch.setenv("ALUPC_NO_AUTO_WIFI", "1")

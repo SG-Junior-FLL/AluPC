@@ -313,10 +313,14 @@ body.heftmode nav, body.heftmode header { display:none; }
 .hstatus { font-size:12.5px; color:var(--muted); padding:6px 12px; white-space:nowrap; overflow:hidden;
            text-overflow:ellipsis; flex:none; }
 @media (orientation:portrait) { .hpages { display:none; } }
-.hsheet { position:fixed; inset:0; z-index:30; background:rgba(2,6,23,.45); display:flex; justify-content:flex-end;
-          align-items:flex-start; padding:calc(64px + env(safe-area-inset-top)) 14px 14px; }
-.hcard { width:min(440px, 100%); max-height:100%; overflow-y:auto; background:var(--bg); border:1px solid var(--line);
-         border-radius:22px; padding:14px 16px; box-shadow:0 20px 60px rgba(0,0,0,.45); }
+.hsheet { position:fixed; inset:0; z-index:30; background:rgba(2,6,23,.25); }
+.hcard { position:absolute; width:min(420px, calc(100vw - 16px)); overflow-y:auto; -webkit-overflow-scrolling:touch;
+         background:var(--bg); border:1px solid var(--line); border-radius:20px; padding:12px 14px;
+         box-shadow:0 20px 60px rgba(0,0,0,.45); }
+.hname { display:flex; gap:8px; margin:4px 0 8px; } .hname input { flex:1; min-width:0; font-size:16px; padding:10px 12px;
+         border-radius:12px; border:2px solid var(--line); background:var(--card); color:var(--text); }
+#heft.max .hbar, #heft.max .hpages, #heft.max .hstatus { display:none; }
+#heft.max .hbody { padding:6px; }
 .hhead { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
 .hhead b { font-size:17px; }
 .hhead button { min-width:40px; padding:8px; }
@@ -586,7 +590,7 @@ body.heftmode nav, body.heftmode header { display:none; }
   <div class="card" style="padding:10px">
     <div class="preview" id="dpreview"><img id="dprev" alt=""><canvas id="ink"></canvas><div class="laser" id="dlaser"></div>
       <span class="badge"><i></i><span id="tool-name">Stift</span></span>
-      <button class="corner small" onclick="toggleFull('dpreview')" aria-label="Vergrößern"><svg class="i"><use href="#i-expand"/></svg></button></div>
+      <button class="corner small" onclick="heftOn ? heftMax() : toggleFull('dpreview')" aria-label="Vergrößern"><svg class="i"><use href="#i-expand"/></svg></button></div>
   </div>
   <div class="card">
     <div class="tools">
@@ -627,7 +631,7 @@ body.heftmode nav, body.heftmode header { display:none; }
       <button onclick="boardOp('seite_vor')" aria-label="Nächste Seite"><svg class="i"><use href="#i-next"/></svg></button>
       <button onclick="boardOp('seite_neu')"><svg class="i"><use href="#i-plus"/></svg>Seite</button>
     </div>
-    <div class="hint" style="margin:10px 0 6px">Gäste im AluPC-WLAN (Anmeldeseite → „Whiteboard“):</div>
+    <div class="hint" style="margin:10px 0 6px">Gäste im AluPC-WLAN (Codes unten rechts auf der Tafel):</div>
     <div class="chips" id="guests">
       <button data-g="aus" onclick="cmd('tafel_gaeste_aus')">Aus</button>
       <button data-g="alle" onclick="cmd('tafel_gaeste_alle')">Alle schreiben</button>
@@ -659,7 +663,7 @@ body.heftmode nav, body.heftmode header { display:none; }
 <!-- ============================================================ Heft-Ansicht (iPad): wie das Whiteboard-Fenster am PC -->
 <div id="heft" class="hide" aria-label="Whiteboard wie am PC">
   <div class="hbar" id="hbar">
-    <div class="hg"><button onclick="hMenu('tafel')"><svg class="i"><use href="#i-slides"/></svg>Tafel ▾</button></div>
+    <div class="hg"><button id="h-board" onclick="hMenu('tafel', this)"><svg class="i"><use href="#i-slides"/></svg>Tafel ▾</button></div>
     <div class="hg" id="h-tools">
       <button data-t="stift" title="Stift"><svg class="i"><use href="#i-pen"/></svg></button>
       <button data-t="marker" title="Marker"><svg class="i"><use href="#i-marker"/></svg></button>
@@ -682,8 +686,8 @@ body.heftmode nav, body.heftmode header { display:none; }
       <span id="h-page" class="hlab">1 / 1</span>
       <button onclick="boardOp('seite_vor')" title="Nächste Seite"><svg class="i"><use href="#i-next"/></svg></button>
       <button onclick="boardOp('seite_neu')" title="Neue Seite"><svg class="i"><use href="#i-plus"/></svg></button>
-      <button id="h-paper" onclick="hMenu('papier')" title="Papier dieser Seite">Papier ▾</button></div>
-    <div class="hg"><button onclick="hMenu('einst')" title="Einstellungen">⚙</button>
+      <button id="h-paper" onclick="hMenu('papier', this)" title="Papier dieser Seite">Papier ▾</button></div>
+    <div class="hg"><button onclick="hMenu('einst', this)" title="Einstellungen">⚙</button>
       <button onclick="heft(false, true)" title="Schließen">✕</button></div>
   </div>
   <div class="hbody"><div class="hpages" id="hpages"></div><div class="hcanvas" id="hcanvas"></div></div>
@@ -838,13 +842,6 @@ async function askAccess() {  // ohne Code: am PC erscheint „Erlauben / Ablehn
   } catch (e) { msg.textContent = "Keine Verbindung zu AluPC"; }
 }
 if ($("devname")) $("devname").value = store.get("alucast-name");
-// Von der WLAN-Anmeldeseite („AluPC steuern“): Name mitgebracht → gleich am PC anfragen
-// Von der Anmeldeseite immer neu am PC bestätigen lassen (auch wenn das Handy früher schon erlaubt war)
-if (params.get("frei") && $("devname")) {
-  code = ""; store.set("alucast-code", "");
-  $("devname").value = params.get("frei").slice(0, 30); setTimeout(askAccess, 0);
-  history.replaceState(null, "", "/?app=1");  // Neu laden fragt nicht nochmal (und bleibt in der Steuerung)
-}
 function saveCode() { code = $("code").value.replace(/\D/g, ""); store.set("alucast-code", code); refresh(); }
 function buzz() { if (navigator.vibrate) navigator.vibrate(12); }
 
@@ -1139,7 +1136,7 @@ function boardWidth() {
 const sendBoard = sender("/api/board", (a, b) => (a.op === "view" && b.op === "view")
   ? { op: "view", zoom: (a.zoom || 1) * (b.zoom || 1), dx: (a.dx || 0) + (b.dx || 0), dy: (a.dy || 0) + (b.dy || 0),
       ax: b.ax, ay: b.ay } : b);
-function boardOp(op, arg) { buzz(); sendBoard({ op, arg: arg || "" }, true); setTimeout(refresh, 250); }
+function boardOp(op, arg) { buzz(); sendBoard({ op, arg: arg || "" }, true); setTimeout(refresh, 250); setTimeout(refresh, 1200); }
 function undoAny() { if (board) boardOp("rueckgaengig"); else cmd("zeichnung_zurueck"); }
 function redoAny() { if (board) boardOp("wiederholen"); }
 function clearAny() {
@@ -1182,8 +1179,14 @@ function heft(on, byUser) {
   } else {
     if (heftHome) heftHome.parent.insertBefore(pv, heftHome.next);
     pv.style.width = pv.style.height = "";
-    $("heft").classList.add("hide"); document.body.classList.remove("heftmode"); hMenu(); setTimeout(sizeInk, 30);
+    $("heft").classList.add("hide"); $("heft").classList.remove("max");
+    document.body.classList.remove("heftmode"); hMenu(); setTimeout(sizeInk, 30);
   }
+}
+// Vergrößern in der Heft-Ansicht: nur noch die Tafel (Leiste, Seiten, Status weg) – nochmal tippen holt sie zurück
+function heftMax(on) {
+  const h = $("heft"); h.classList.toggle("max", on === undefined ? !h.classList.contains("max") : on);
+  hMenu(); setTimeout(sizeHeft, 30);
 }
 function sizeHeft() {
   if (!heftOn) return;
@@ -1194,7 +1197,7 @@ function sizeHeft() {
 }
 window.addEventListener("resize", () => setTimeout(sizeHeft, 60));
 for (const b of document.querySelectorAll("#h-tools button")) b.onclick = () => {
-  if (b.dataset.t === "form" && tool === "form") return hMenu("form");
+  if (b.dataset.t === "form" && tool === "form") return hMenu("form", b);
   pick(b.dataset.t);
 };
 for (const b of document.querySelectorAll("#h-widths button")) b.onclick = () => setWidth(+b.dataset.w);
@@ -1260,17 +1263,37 @@ function hCheck(key, cur, also) {
   const c = document.createElement("input"); c.type = "checkbox"; c.checked = !!cur;
   c.onchange = () => { setBoard(key, c.checked); if (also) also(c.checked); }; return c;
 }
-function hMenu(which) {
-  const sheet = $("hsheet"), body = $("hsheet-body");
+function hMenu(which, anchor) {
+  const sheet = $("hsheet"), body = $("hsheet-body"), card = sheet.querySelector(".hcard");
   if (!which || !board) { sheet.classList.add("hide"); return; }
   body.innerHTML = ""; sheet.classList.remove("hide");
+  // Als Popover direkt unter dem Knopf (bleibt im Bild; zu lang → scrollt)
+  const r = (anchor || $("h-board")).getBoundingClientRect(), w = Math.min(420, innerWidth - 16);
+  card.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + "px";
+  card.style.top = Math.round(r.bottom + 6) + "px";
+  card.style.maxHeight = Math.max(160, innerHeight - r.bottom - 18) + "px";
   const btn = (text, fn, on) => { const b = document.createElement("button"); b.textContent = text;
     if (on) b.classList.add("on"); b.onclick = () => { fn(); hMenu(); }; return b; };
+  const nameRow = (label, value, go) => {  // statt prompt(): geht auch in der Home-Bildschirm-App des iPads
+    const row = document.createElement("div"); row.className = "hname";
+    const inp = document.createElement("input"); inp.maxLength = 60; inp.placeholder = label; inp.value = value;
+    inp.enterKeyHint = "done";
+    const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK";
+    const send = () => { const n = inp.value.trim(); if (n) { go(n.slice(0, 60)); hMenu(); } else inp.focus(); };
+    ok.onclick = send; inp.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+    row.append(inp, ok); return [row, inp];
+  };
   if (which === "tafel") {
     $("hsheet-title").textContent = "Tafel";
     const l = document.createElement("div"); l.className = "hlist";
-    l.append(btn("＋ Neue Tafel …", () => { const n = prompt("Name der neuen Tafel:", ""); if (n !== null) boardOp("tafel_neu", n.trim().slice(0, 60)); }));
-    l.append(btn("✎ Umbenennen …", () => { const n = prompt("Neuer Name:", board.name); if (n && n.trim()) boardOp("tafel_umbenennen", n.trim().slice(0, 60)); }));
+    const [newRow, newInp] = nameRow("Name der neuen Tafel", "", n => boardOp("tafel_neu", n));
+    const [renRow, renInp] = nameRow("Neuer Name", board.name, n => boardOp("tafel_umbenennen", n));
+    newRow.classList.add("hide"); renRow.classList.add("hide");
+    const show = (row, inp) => { newRow.classList.add("hide"); renRow.classList.add("hide"); row.classList.remove("hide");
+      inp.focus(); inp.select(); };
+    const nb = document.createElement("button"); nb.textContent = "＋ Neue Tafel …"; nb.onclick = () => show(newRow, newInp);
+    const rb = document.createElement("button"); rb.textContent = "✎ Umbenennen …"; rb.onclick = () => show(renRow, renInp);
+    l.append(nb, newRow, rb, renRow);
     const h = document.createElement("div"); h.className = "hint"; h.textContent = "Öffnen:"; l.append(h);
     for (const n of board.boards || []) l.append(btn(n, () => boardOp("tafel_oeffnen", n), n === board.name));
     body.append(l);

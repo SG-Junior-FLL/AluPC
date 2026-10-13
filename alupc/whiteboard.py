@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QRadialGradient
 from PySide6.QtWidgets import QWidget
 
@@ -151,8 +151,30 @@ class WhiteboardSource(QWidget):
         from . import board
 
         self.board = board.SHARED if not cfg.get("preview") else None
+        self._codes = None  # Codes für Gäste (WLAN + /tafel), nur wenn sie mitschreiben dürfen
+        self._codes_key = None
         if self.board is not None:
             self.board.changed.connect(self.update)
+            self._codes_timer = QTimer(self, interval=2000)  # WLAN/Gäste-Modus geändert → Codes neu zeichnen
+            self._codes_timer.timeout.connect(self._check_codes)
+            self._codes_timer.start()
+
+    def _guest_link(self) -> str:
+        try:
+            mode = self.board.settings().get("guests", "aus")
+        except Exception:  # noqa: BLE001
+            return ""
+        if mode not in ("alle", "frage"):
+            return ""
+        from .cast_server import wlan_url
+
+        return wlan_url("/tafel")
+
+    def _check_codes(self) -> None:
+        key = self._guest_link()
+        if key != self._codes_key:
+            self._codes_key = key
+            self.update()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
@@ -166,11 +188,33 @@ class WhiteboardSource(QWidget):
             from .board import paint_board
 
             paint_board(p, QRectF(self.rect()), self.board)
+            self._paint_guest_codes(p)
         else:
             paint_background(p, QRectF(self.rect()), self.background)
         p.end()
 
+    def _paint_guest_codes(self, p) -> None:
+        """Gäste dürfen mitschreiben: unten rechts klein die zwei Codes (1. WLAN, 2. Whiteboard-Seite)."""
+        self._codes_key = self._guest_link()
+        if not self._codes_key:
+            return
+        from .guest_sources import JoinCodes
+
+        if self._codes is None:
+            self._codes = JoinCodes("/tafel", "Mitschreiben")
+        w, h = self.width(), self.height()
+        ch = h * 0.26
+        cw = ch * 1.75
+        m = h * 0.02
+        card = QRectF(w - cw - m, h - ch - m, cw, ch)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(11, 16, 32, 225))
+        p.drawRoundedRect(card, m, m)
+        self._codes.paint(p, card.adjusted(m * 0.6, m * 0.6, -m * 0.6, -m * 0.6), vertical=False)
+
     def stop(self):
+        if getattr(self, "_codes_timer", None) is not None:
+            self._codes_timer.stop()
         if self.board is not None:
             try:
                 self.board.changed.disconnect(self.update)

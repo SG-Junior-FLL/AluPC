@@ -447,3 +447,17 @@ def test_pa_run_reads_stdout_only_in_english(monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake)
     assert audio.pa_run(["pactl", "info"]) == (0, "[]")
     assert seen.get("LC_ALL") == "C"
+
+
+def test_windows_sessions_once_per_program():
+    """Windows meldet „Systemklänge“ je Ausgabegerät – in der Liste nur einmal (vorher z. B. 6×)."""
+    from alupc import mixer
+
+    raw = [{"id": f"{i}:0", "pid": 0, "app": "Systemklänge", "volume": 100, "muted": False, "device": f"G{i}"}
+           for i in range(6)]
+    raw += [{"id": "0:42", "pid": 42, "app": "Spotify", "volume": 60, "muted": False, "device": "G0"},
+            {"id": "3:42", "pid": 42, "app": "Spotify", "volume": 60, "muted": False, "device": "G3"}]
+    merged = mixer.merge_sessions(raw)
+    assert [m["app"] for m in merged] == ["Systemklänge", "Spotify"]
+    assert [m["id"] for m in merged] == ["p:0", "p:42"]
+    assert int(merged[1]["id"].split(":")[-1]) == 42  # set_stream/Pegel lesen die Prozess-Nummer so

@@ -35,7 +35,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
 }
 # Schwarz, Standbild, Bild-in-Bild sind jetzt Schalter oben beim Live-Bild – als Kachel nur noch auf Wunsch
 HIDDEN_BY_DEFAULT = {"freeze", "black", "pip", "draw"}
-# Nicht mehr als eigene Kachel: Handy-Steuerung steckt im Hotspot (WLAN-Code → Anmeldeseite → „AluPC steuern“)
+# Nicht mehr als eigene Kachel: Handy-Steuerung steckt im Hotspot (WLAN-Code + privater Steuer-Code am PC)
 RETIRED = {"handy_remote"}
 DEFAULT_ORDER = [k for k in BUILTIN_TILES if k not in HIDDEN_BY_DEFAULT | RETIRED]
 # Kacheln, die es schon vor dem Merken von „seen“ gab (für ältere Einstellungen)
@@ -137,7 +137,6 @@ COMMANDS = {
     "fotowand": "Foto-Wand zeigen",
     "fotowand_aus": "Foto-Wand beenden",
     "vcam": "Virtuelle Kamera (Monitor 2) an/aus",
-    "oberflaeche": "AluPC-Oberfläche (Vollbild statt Desktop)",
     "alupc_oeffnen": "AluPC-Hauptfenster öffnen",
 }
 

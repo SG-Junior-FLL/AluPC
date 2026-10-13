@@ -161,11 +161,10 @@ def finish_and_restart(attempts: int = 6, pause: float = 0.5) -> None:
         close_crash_log()
     except Exception:  # noqa: BLE001
         pass
-    try:  # „AluPC als Desktop“ austragen – sonst startet bei der Anmeldung ein Desktop ohne Einstellungen
+    try:  # „AluPC als Desktop“ älterer Versionen austragen – sonst startet bei der Anmeldung AluPC statt Desktop
         from .platform import desktop_shell
 
-        if desktop_shell.kind() and desktop_shell.enabled():
-            desktop_shell.disable()
+        desktop_shell.cleanup()
     except Exception:  # noqa: BLE001
         pass
     problems = wipe()

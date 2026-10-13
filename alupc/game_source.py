@@ -57,10 +57,11 @@ class GameSource(QWidget):
         return self._wifi_img
 
     def link_qr(self):
-        """Zweiter Code: die Handy-Seite (Name, Symbol, Mitspielen) im Browser – bleibt offen."""
-        from .cast_server import portal_url
+        """Zweiter Code: die Spiel-Seite (Name, Symbol, Mitspielen) im Browser."""
+        from .cast_server import wlan_url
 
-        link = portal_url()
+        hub = self.server.games
+        link = wlan_url("/spiel?u=" + hub.token) if hub is not None else ""
         if link != getattr(self, "_link_for", None):
             self._link_for, self._link_img = link, (qr_image(link) if link else None)
         return self._link_img

@@ -117,32 +117,22 @@ def report(controller, probe: bool = True) -> str:
                      f"{saver.idle_seconds():.0f} s · {saver.keep_awake.describe()}")
 
     lines.append("")
-    lines.append("== WLAN / Anmeldeseite ==")
+    lines.append("== AluPC-WLAN ==")
     from . import hotspot as hs
 
     h = hs.hotspot
-    lines.append(f"  Hotspot: {'an' if h.running else 'aus'} ({h.kind or '–'}) · {h.ssid or '–'} · {h.ip or '–'}"
-                 f" · Anmeldeseite: {'an' if h.portal else 'aus'}")
+    lines.append(f"  Hotspot: {'an' if h.running else 'aus'} · {h.ssid or '–'} · {h.ip or '–'}")
     if h.message:
         lines.append(f"  Meldung: {h.message}")
-    if hs.DNS_INFO:
-        lines.append(f"  {hs.DNS_INFO}")
-    if hs._dns is not None:
-        lines.append(f"  AluPC-DNS: {hs._dns.host}:{hs._dns.port} · Fragen bisher: {hs._dns.queries}"
-                     f" · Internet frei für: {', '.join(sorted(hs._dns.allowed)) or 'niemand'}")
+    try:
+        last = hs._last_try_file()
+        if last.is_file():  # Windows: rohe Antwort des letzten Startversuchs
+            lines.append("  Letzter Start (Windows): " + " | ".join(last.read_text(encoding="utf-8").splitlines()[:6]))
+    except OSError:
+        pass
     if h.running:
         nb = hs.neighbors()
-        lines.append("  Geräte im WLAN: " + (", ".join(
-            f"{k} ({v}, DNS {hs.client_status(k)[0]}, Prüfung {'ja' if hs.client_status(k)[1] else 'nein'})"
-            for k, v in nb.items()) or "keine gefunden"))
-        if hs.portal_status():
-            lines.append(f"  Status: {hs.portal_status()}")
-        for t, ip, method, host, path in hs.HTTP_LOG[-10:]:
-            lines.append(f"  HTTP {ip} {method} {host}{path}")
-        if hs._dns is not None and hs._dns.clients:
-            lines.append(f"  Namensfragen je Gerät: {hs._dns.clients}")
-            for ip in hs._dns.names:
-                lines.append(f"  {ip} fragte: {', '.join(hs.asked_names(ip))}")
+        lines.append("  Geräte im WLAN: " + (", ".join(f"{k} ({v})" for k, v in nb.items()) or "keine gefunden"))
 
     lines.append("")
     lines.append("== AirPlay (iPhone) ==")

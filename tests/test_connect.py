@@ -132,7 +132,7 @@ def test_server_url_uses_hotspot_ip(env):  # noqa: F811
         hotspot.hotspot.running, hotspot.hotspot.ip, hotspot.hotspot.kind = False, "", ""
     assert controller.guest_wifi() is None
     controller.config["games"] = {**controller.config["games"], "wifi": {"ssid": "Zuhause", "password": "x"}}
-    assert controller.guest_wifi() is None  # anderes WLAN zählt nicht: nur das AluPC-WLAN hat die Anmeldeseite
+    assert controller.guest_wifi() is None  # anderes WLAN zählt nicht: nur das AluPC-WLAN
 
 
 def test_lobby_without_games_wifi_shows_no_link(env, tmp_path):  # noqa: F811
@@ -175,18 +175,15 @@ def test_wifi_qr_on_monitor2(env, tmp_path, monkeypatch):  # noqa: F811
     path = tmp_path / "wlan.png"
     src.grab().save(str(path))
     texts = [r.text for r in zx.read_barcodes(pil.open(path))]
-    assert texts == [wifi_payload("AluPC", "k7pm2qa9xr", hidden=True)]  # Webserver aus → nur das WLAN
-    # Webserver an + Anmeldeseite → zweiter Code: die Handy-Seite im Browser (ohne Steuer-Code)
-    monkeypatch.setattr(hs, "portal", True)
+    assert texts == [wifi_payload("AluPC", "k7pm2qa9xr", hidden=True)]
+    # auch mit laufendem Webserver nur der WLAN-Code (jede Seite zeigt ihren eigenen zweiten Code)
     assert controller.cast.start()
     src._follow()
     for size in ((1280, 720), (1080, 1920)):
         src.resize(*size)
         src.grab().save(str(path))
         texts = sorted(r.text for r in zx.read_barcodes(pil.open(path)))
-        link = f"http://10.42.0.1:{controller.cast.port}/anmelden"
-        assert texts == sorted([wifi_payload("AluPC", "k7pm2qa9xr", hidden=True), link]), size
-        assert not any("k=" in t or controller.cast.code() in t for t in texts)  # Steuer-Code bleibt privat
+        assert texts == [wifi_payload("AluPC", "k7pm2qa9xr", hidden=True)], size
     controller.cast.stop()
 
 
@@ -198,7 +195,7 @@ def test_hotspot_unsupported_without_nmcli(monkeypatch):
     assert not ok and "nmcli" in why
 
 
-def test_open_games_network_and_portal_script():
+def test_open_games_network_linux_commands():
     calls = []
 
     def run(cmd, timeout=25):
@@ -219,202 +216,34 @@ def test_open_games_network_and_portal_script():
     assert "802-11-wireless.mode" in add and "ap" in add and "shared" in add and "wifi-sec.psk" not in add
     assert add[add.index("802-11-wireless.hidden") + 1] == "yes"  # unsichtbar (Standard)
     assert ["nmcli", "connection", "up", "AluPC-Spiele"] in calls
-    script = hotspot.portal_script("wlp4s0", 8765, hotspot.Path("/run/user/1000/alupc-portal-1000"), 4242)
-    # Geschlossen (wie im Hotel): jede Webseite → Anmeldeseite, jede DNS-Frage → AluPC, kein Internet (auch IPv6)
-    # – außer den Geräten in <Flagge>.internet (eigene Ketten, alle 2 s neu gebaut)
-    assert "-t nat -I PREROUTING -i wlp4s0 -m comment --comment alupc-portal -j alupc-nat" in script
-    assert "iptables -t nat -A alupc-nat -p tcp --dport 80 -j REDIRECT --to-ports 8765" in script
-    assert "iptables -t nat -A alupc-nat -p udp --dport 53 -j REDIRECT --to-ports 8753" in script
-    assert "-I FORWARD -i wlp4s0 -m comment --comment alupc-portal -j alupc-fwd" in script
-    assert "iptables -A alupc-fwd -j REJECT" in script and "ip6tables -I FORWARD -i wlp4s0" in script
-    assert 'iptables -A alupc-fwd -s "$ip" -j ACCEPT' in script and '-s "$ip" -j RETURN' in script
-    assert 'case "$ip" in ""|*[!0-9.]*) continue' in script  # nur IP-Adressen aus der Datei
-    assert "kill -0 4242" in script and "-D PREROUTING" in script  # Regeln werden wieder entfernt
-    normal = hotspot.portal_script("wlp4s0", 8765, hotspot.Path("/tmp/f"), 1, closed=False)
-    assert "--dst-type LOCAL" in normal and "alupc-fwd -j REJECT" not in normal  # offen: Surfen bleibt
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="sh-Skript")
-def test_portal_watchdog_really_runs(tmp_path, monkeypatch):
-    """Das Root-Skript echt ausführen (iptables als Attrappe): dnsmasq-Eintrag + Regel → „bereit“ → nach dem
-    Ausschalten ist alles wieder weg."""
-    import os
-    import subprocess
-
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    log = tmp_path / "ipt.log"
-    fake = bin_dir / "iptables"
-    fake.write_text(f"#!/bin/sh\necho \"$@\" >> {log}\n")
-    fake.chmod(0o755)
-    flag = tmp_path / "alupc-portal-test"
-    flag.write_text("an")
-    proc = subprocess.Popen(["sh", "-c", hotspot.portal_script("wlan0", 8765, flag, os.getpid())],
-                            env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"})
-    assert hotspot._wait_ready(flag, proc, 10)
-    lines = log.read_text().splitlines()
-    assert len([ln for ln in lines if " -I " in f" {ln} "]) == 5  # Sprünge in die eigenen Ketten + Firewall
-    assert len([ln for ln in lines if " -A " in f" {ln} "]) == 4  # DNS ×2, Port 80, sonst REJECT
-    # Gerät 10.42.0.7 bekommt Internet → Regeln werden neu gebaut (RETURN + ACCEPT für genau diese Adresse)
-    hotspot.Path(f"{flag}.internet").write_text("10.42.0.7\n$(touch /tmp/boese)\n")
-    import time
-
-    end = time.time() + 8
-    while time.time() < end and "10.42.0.7" not in log.read_text():
-        time.sleep(0.2)
-    text = log.read_text()
-    assert "-t nat -A alupc-nat -s 10.42.0.7 -j RETURN" in text and "-A alupc-fwd -s 10.42.0.7 -j ACCEPT" in text
-    assert "boese" not in text and not hotspot.Path("/tmp/boese").exists()  # nur IP-Adressen
-    flag.unlink()
-    proc.wait(10)
-    removed = [ln for ln in log.read_text().splitlines() if " -D " in f" {ln} "]
-    assert len(removed) >= 10  # vorher aufgeräumt (falls Reste) + nach dem Ausschalten
-    assert "-X alupc-fwd" in log.read_text()
-
-
-def test_portal_dns_answers_everything_with_the_pc():
-    """Eigener DNS der Anmeldeseite: geschlossen → jede Adresse = PC; offen → nur die Prüf-Adressen."""
-    import socket
-    import struct
-
-    from alupc.portal_dns import PortalDNS, answer
-
-    def query(name, qtype=1):
-        q = struct.pack(">HHHHHH", 0x1234, 0x0100, 1, 0, 0, 0)
-        q += b"".join(bytes([len(p)]) + p.encode() for p in name.split(".")) + b"\0" + struct.pack(">HH", qtype, 1)
-        return q
-
-    dns = PortalDNS(lambda: "10.42.0.1", closed=True, hosts=["captive.apple.com"], port=0)
-    out = answer(query("irgendwas.example.org"), dns.ip_for)
-    assert out[:2] == b"\x12\x34" and out[6:8] == b"\x00\x01" and out.endswith(socket.inet_aton("10.42.0.1"))
-    assert answer(query("x.org", 28), dns.ip_for)[6:8] == b"\x00\x00"  # IPv6: keine Antwort, aber kein Fehler
-    open_dns = PortalDNS(lambda: "10.42.0.1", closed=False, hosts=["captive.apple.com"], port=0)
-    assert answer(query("captive.apple.com"), open_dns.ip_for).endswith(socket.inet_aton("10.42.0.1"))
-    # echter Server über UDP
-    srv = PortalDNS(lambda: "10.42.0.7", closed=True, port=18753)
-    assert srv.start()
-    try:
-        c = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        c.settimeout(3)
-        c.sendto(query("connectivitycheck.gstatic.com"), ("127.0.0.1", 18753))
-        assert c.recv(512).endswith(socket.inet_aton("10.42.0.7"))
-    finally:
-        srv.stop()
-
-
-def test_portal_start_order_and_cancel(monkeypatch, tmp_path):
-    """Linux: Anmeldeseite VOR dem Hotspot (dnsmasq liest beim Start). Passwort abgebrochen → Hotspot läuft trotzdem."""
-    order = []
-    monkeypatch.setattr(hotspot, "supported", lambda: (True, ""))
-    monkeypatch.setattr(hotspot, "wifi_device", lambda run=None: "wlan0")
-    monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
-    monkeypatch.setattr(hotspot.sys, "platform", "linux")
-    monkeypatch.setattr(hotspot, "_linux_start",
-                        lambda *a, **k: (order.append("hotspot"), (True, "Hotspot läuft.", "10.42.0.1"))[1])
-    monkeypatch.setattr(hotspot, "start_portal",
-                        lambda dev, closed=True: (order.append("portal"), (True, "Anmeldeseite an."))[1])
-    hs = hotspot.Hotspot()
-    ok, msg = hs.start("AluPC-Spiele", "", portal=True)
-    assert ok and hs.portal and order == ["portal", "hotspot"] and "Anmeldeseite an" in msg
-    monkeypatch.setattr(hotspot, "start_portal",
-                        lambda dev, closed=True: (False, "Anmeldeseite aus (Passwort nicht eingegeben)."))
-    ok, msg = hotspot.Hotspot().start("AluPC-Spiele", "", portal=True)
-    assert ok and "Passwort nicht eingegeben" in msg
-
-
-def test_windows_portal_script_and_launcher(monkeypatch, tmp_path):
-    """Windows wie Linux: AluPC-DNS auf der Hotspot-Adresse (exklusiv), Firewall inkl. Sperr-Regeln für AluPC weg,
-    Port 80 direkt oder per portproxy, geschlossen = kein Weiterleiten. Den Windows-Dienst NIE anhalten
-    (das beendet den Mobilen Hotspot – WLAN verschwindet)."""
-    script = hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, program=r"C:\Pro'gramme\AluPC.exe")
-    for part in ("portproxy add v4tov4 listenport=80 listenaddress=$ip connectport=8765", "portproxy delete",
-                 "firewall add rule name=AluPC-Portal dir=in action=allow protocol=UDP localport=53",
-                 'localport="80,443,53,8765"', "-Forwarding Disabled", "-Forwarding Enabled", "$closed = $true",
-                 "Get-Process -Id 77", '"$flag.frei"', '"$flag.dns"', '"$flag.bereit"',
-                 "$_.Action -eq 'Block'", "Remove-NetFirewallRule", "$prog = 'C:\\Pro''gramme\\AluPC.exe'",
-                 'program="$prog"', "Owner53", "if ($n % 10 -eq 0) { Unblock }", "Start-Service iphlpsvc",
-                 "$_.OwningProcess -eq 77", "$mine.Count -eq 0"):
-        assert part in script, part
-    for bad in ("Stop-Service SharedAccess", "Stop-Service -Name SharedAccess", "Restart-Service", "SharedAccess -Force",
-                "uebernehmen", "captive.apple.com"):
-        assert bad not in script, bad
-    # Port 80 freimachen hält nur fremde Dienste an – nie den Hotspot-Dienst (sonst ist das WLAN weg)
-    assert script.count("Stop-Service") == 1 and "$_.Name -notin $keep" in script and "'SharedAccess', 'iphlpsvc'" in script
-    assert "$closed = $false" in hotspot.portal_script_windows("192.168.137.1", 8765, tmp_path / "f", 77, closed=False)
-    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
-    monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
-    started, order = [], []
-    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: (started.append(k), order.append("bind"), True)[2])
-    monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: True)
-
-    def files(path, timeout):  # das Administrator-Skript
-        name = path.name.split(".")[-1]
-        order.append(name)
-        if name == "frei":
-            path.write_text("belegt:0.0.0.0 svchost SharedAccess")
-        if name == "bereit":
-            order.append((tmp_path / "flag.dns").read_text())
-        return True
-
-    seen = []
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (seen.append(cmd), (0, ""))[1], wait=lambda f, p, t: True,
-                                   wait_file=files)
-    assert ok and "-Verb RunAs" in seen[0] and "-EncodedCommand" in seen[0], msg
-    assert order == ["frei", "bind", "bereit", "ok"], order
-    assert started[-1] == {**started[-1], "host": "192.168.137.1", "port": 53, "restrict": True, "exclusive": True}
-    assert hotspot.DNS_INFO == ("Port 53 vorher: belegt:0.0.0.0 svchost SharedAccess · AluPC: 192.168.137.1 exklusiv"
-                                " · Port 80: Weiterleitung")  # kein laufender Webserver im Test
-    import base64
-    import gzip
-
-    arg = seen[0].split("'-EncodedCommand','")[1].split("'")[0]
-    assert len(seen[0]) < 30000  # Windows-Befehlszeile: höchstens 32767 Zeichen
-    boot = base64.b64decode(arg).decode("utf-16-le")
-    sent = gzip.decompress(base64.b64decode(boot.split("FromBase64String('")[1].split("'")[0])).decode("utf-8")
-    assert "$closed = $true" in sent and "Stop-Service SharedAccess" not in sent and "$_.Name -notin $keep" in sent
-    # Hotspot-Adresse nicht zu bekommen → klare Meldung, WLAN bleibt (kein Dienst-Anhalten)
-    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: False)
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
-    assert not ok and "Port 53 auf der Hotspot-Adresse ist belegt (0.0.0.0 svchost SharedAccess)" in msg
-    assert "WLAN läuft trotzdem" in msg and (tmp_path / "flag.dns").read_text() == "fehler"
-    assert not (tmp_path / "flag").exists()
-    # Abbruch, Port 80 belegt, Skript antwortet nicht, Selbsttest scheitert
-    monkeypatch.setattr(hotspot, "start_dns", lambda *a, **k: True)
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (1, "abgebrochen"), wait=lambda f, p, t: True, wait_file=files)
-    assert not ok and "nicht bestätigt" in msg and not (tmp_path / "flag").exists()
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: "belegt:System", wait_file=files)
-    assert not ok and "Port 80" in msg and "System" in msg and not (tmp_path / "flag").exists()
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True,
-                                   wait_file=lambda p, t: False)
-    assert not ok and "nicht geantwortet" in msg
-    monkeypatch.setattr(hotspot, "dns_selftest", lambda ip, port=53: False)
-    ok, msg = hotspot.start_portal(spawn=lambda cmd: (0, ""), wait=lambda f, p, t: True, wait_file=files)
-    assert not ok and "kommen nicht bei AluPC an" in msg
-
-
-def test_windows_hotspot_then_portal(monkeypatch, tmp_path):
-    """Hotspot.start unter Windows: erst Hotspot (Adresse 192.168.137.1 entsteht), dann Anmeldeseite."""
+def test_windows_hotspot_start_and_firewall(monkeypatch):
+    """Hotspot.start unter Windows: Mobiler Hotspot, danach Firewall-Freigabe (fehlt sie: einmal Administrator)."""
     monkeypatch.setattr(hotspot, "supported", lambda: (True, ""))
     monkeypatch.setattr(hotspot.sys, "platform", "win32")
     monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
-    calls = []
-    state = {"now": "STATE:On"}
+    monkeypatch.setattr(hotspot, "note_windows_try", lambda out: None)
+    calls, rule = [], {"there": False}
     monkeypatch.setattr(hotspot, "_ps", lambda script, extra=None, timeout=40: (
-        calls.append(extra or "state"), (0, "STATUS:Success:" if extra else state["now"]))[1])
-    monkeypatch.setattr(hotspot, "start_portal", lambda ip, closed: (calls.append("portal"), (True, "Anmeldeseite an."))[1])
+        calls.append(extra or ("runas" if "RunAs" in script else "state")),
+        rule.update(there=rule["there"] or "RunAs" in script), (0, "STATUS:Success:"))[2])
+    monkeypatch.setattr(hotspot, "_run", lambda cmd, timeout=25: (
+        (0, "Regelname: AluPC WLAN") if rule["there"] else (1, "Keine Regeln")))
     hs = hotspot.Hotspot()
-    ok, msg = hs.start("AluPC-Spiele", "k7m2p9qa", portal=True, hidden=False)
-    assert ok and hs.portal and calls[0]["ALUPC_SSID"] == "AluPC-Spiele" and calls[1:] == ["portal", "state"]
-    assert "Anmeldeseite an" in msg and hs.ip == "192.168.137.1"
-    # Hotspot nach der Anmeldeseite aus (z. B. Windows hat ihn beendet) → wieder an: WLAN muss sichtbar sein
+    ok, msg = hs.start("AluPC", "k7m2p9qa", hidden=False)
+    assert ok and calls[0]["ALUPC_SSID"] == "AluPC" and calls[1:] == ["runas"] and hs.ip == "192.168.137.1"
+    assert "Firewall" not in msg
     calls.clear()
-    state["now"] = "STATE:Off"
-    ok, msg = hotspot.Hotspot().start("AluPC-Spiele", "k7m2p9qa", portal=True, hidden=False)
-    assert ok and calls[1:3] == ["portal", "state"] and calls[3]["ALUPC_SSID"] == "AluPC-Spiele"
+    assert hotspot.Hotspot().start("AluPC", "k7m2p9qa", hidden=False)[0] and calls[1:] == []  # Regel schon da
+    rule["there"] = False
+    monkeypatch.setattr(hotspot, "_ps", lambda script, extra=None, timeout=40: (0, "STATUS:Success:"))  # „Nein“
+    ok, msg = hotspot.Hotspot().start("AluPC", "k7m2p9qa", hidden=False)
+    assert ok and "Firewall-Freigabe fehlt" in msg  # WLAN läuft trotzdem, ehrlicher Hinweis
 
 
 def test_windows_arp_any_language(monkeypatch):
-    """Geräteliste (Internet pro Gerät): deutsches Windows schreibt „dynamisch“ statt „dynamic“."""
+    """Geräteliste im Hotspot-Fenster: deutsches Windows schreibt „dynamisch“ statt „dynamic“."""
     text = """
 Schnittstelle: 192.168.137.1 --- 0x12
   Internetadresse       Physische Adresse     Typ
@@ -433,48 +262,8 @@ Schnittstelle: 192.168.0.20 --- 0x7
                                                        "192.168.137.80": "3c:22:fb:01:02:03"}
 
 
-def test_dns_selftest_sees_own_server():
-    """Selbsttest: Frage an die Adresse kommt bei AluPCs DNS an (wie unter Windows auf 192.168.137.1:53)."""
-    assert hotspot.start_dns(lambda: "127.0.0.1", True, host="127.0.0.1", port=18754)
-    try:
-        assert hotspot.dns_selftest("127.0.0.1", 18754)
-    finally:
-        hotspot.stop_dns()
-    assert not hotspot.dns_selftest("127.0.0.1", 18754, timeout=0.3)
-
-
-def test_portal_redirects_phone_checks_to_game(env, monkeypatch):  # noqa: F811
-    """Anmeldeseite: Android/iPhone fragen fremde Adressen ab → Weiterleitung auf die Spielsteuerung."""
-    import http.client
-
-    controller, _window, _ = env
-    controller.cast.start()
-    controller.start_games("ssp")
-    hs = hotspot.hotspot
-    try:
-        hs.running, hs.kind, hs.portal, hs.ip = True, "spiele", True, "127.0.0.1"
-        conn = http.client.HTTPConnection("127.0.0.1", controller.cast.port, timeout=5)
-        conn.request("GET", "/generate_204", headers={"Host": "connectivitycheck.gstatic.com"})
-        r = conn.getresponse()
-        assert r.status == 302 and r.getheader("Location").endswith("/anmelden")
-        r.read()
-        conn.request("GET", "/anmelden", headers={"Host": "127.0.0.1"})
-        r = conn.getresponse()
-        page = r.read().decode()
-        assert r.status == 200 and "/spiel?u=" in page and "Mitspielen" in page
-        assert "AluPC steuern" in page and "?k=" not in page  # Steuern nur mit Code – der steht NICHT drin
-        conn.request("GET", "/spiel", headers={"Host": "127.0.0.1"})  # eigene Adresse: normal
-        r = conn.getresponse()
-        assert r.status == 200
-        r.read()
-        conn.close()
-    finally:
-        hs.running, hs.kind, hs.portal, hs.ip = False, "", False, ""
-
-
 def test_wlan_stays_on_when_games_end(env, monkeypatch):  # noqa: F811
-    """EIN AluPC-WLAN: Minispiele beenden schaltet es NICHT aus (sonst flögen die Handys raus und das
-    Anmeldefenster ginge zu)."""
+    """EIN AluPC-WLAN: Minispiele beenden schaltet es NICHT aus (sonst flögen die Handys raus)."""
     controller, _window, _ = env
     stopped = []
     monkeypatch.setattr(hotspot.hotspot, "stop", lambda: stopped.append(1) or (True, "aus"))
@@ -546,39 +335,6 @@ def test_phone_access_by_approval_on_pc(env, monkeypatch):  # noqa: F811
     assert call("GET", f"/api/freigabe?id={d2['id']}")[1] == {"state": "no"}
 
 
-def test_normal_hotspot_also_gets_login_page(env, monkeypatch):  # noqa: F811
-    """WLAN-QR scannen → Anmeldeseite (Mitspielen / AluPC steuern) – auch beim normalen Hotspot."""
-    controller, _window, _ = env
-    seen = {}
-    monkeypatch.setattr(hotspot.hotspot, "start", lambda *a, **k: (seen.update(k), (True, "läuft"))[1])
-    controller.set_hotspot(True, "spiele")  # egal, wer startet: immer dasselbe AluPC-WLAN mit Anmeldeseite
-    assert seen["portal"] is True and "kind" not in seen
-    hs = hotspot.settings(controller.config)
-    assert controller.config["hotspot"]["ssid"] == hs["ssid"] == "AluPC"
-
-
-def test_login_page_has_name_and_both_ways(env):  # noqa: F811
-    """WLAN-Anmeldeseite wie im Hotel-WLAN: Name eingeben → Mitspielen (direkt in der Steuerung) oder AluPC steuern."""
-    from alupc.cast_server import portal_page
-
-    controller, _window, _ = env
-    page = portal_page(controller.cast)
-    assert 'id="n"' in page and "Gerade keine Minispiele" in page and "disabled" in page
-    controller.start_games("tictactoe")
-    page = portal_page(controller.cast)
-    assert "Tic-Tac-Toe" in page and f'"/spiel?u={controller.cast.games.token}" + "&name=' in page and "/?frei=" in page
-    assert "Abstimmen" not in page
-    controller.cast.start()
-    controller.start_poll("Pizza?", ["Ja", "Nein"])
-    page = portal_page(controller.cast)
-    assert "📊 Abstimmen" in page and f"/abstimmung?u={controller.cast.poll.token}" in page and "Pizza?" in page
-    from alupc.game_page import GAME_PAGE
-    from alupc.cast_page import PAGE
-
-    assert 'get("name")' in GAME_PAGE and 'params.get("frei")' in PAGE  # Name kommt mit → gleich dabei
-    controller.game_action("aus")
-
-
 def test_games_start_games_wifi_and_lobby_shows_one_wlan_code(env, tmp_path, monkeypatch):  # noqa: F811
     zx = pytest.importorskip("zxingcpp")
     pil = pytest.importorskip("PIL.Image")
@@ -609,325 +365,39 @@ def test_games_start_games_wifi_and_lobby_shows_one_wlan_code(env, tmp_path, mon
     path = tmp_path / "lobby-wlan.png"
     src.grab().save(str(path))
     texts = [r.text for r in zx.read_barcodes(pil.open(path))]
-    assert texts == [wifi_payload("AluPC", "", hidden=True)]  # ohne Anmeldeseite nur EIN Code: das WLAN
-    monkeypatch.setattr(hs, "portal", True)
+    assert texts == [wifi_payload("AluPC", "", hidden=True)]  # ohne Adresse im WLAN nur EIN Code: das WLAN
     monkeypatch.setattr(hs, "ip", "10.42.0.1")
     for size in ((1280, 720), (1920, 1080)):
         src.resize(*size)
         src.grab().save(str(path))
         texts = sorted(r.text for r in zx.read_barcodes(pil.open(path)))
         assert texts == sorted([wifi_payload("AluPC", "", hidden=True),
-                                f"http://10.42.0.1:{controller.cast.port}/anmelden"]), size  # 1. WLAN, 2. Seite
+                                f"http://10.42.0.1:{controller.cast.port}/spiel?u={controller.cast.games.token}"]), size
     src.stop()
     controller.game_action("aus")
 
 
 def test_only_alupc_wlan_reaches_alupc(monkeypatch):
-    """Einziger Weg für Handys: das AluPC-WLAN (Anmeldeseite). Aus anderen Netzen: 403. Der PC selbst darf."""
+    """Einziger Weg für Handys: das AluPC-WLAN. Aus anderen Netzen: 403. Der PC selbst darf."""
     from alupc.cast_server import PUBLIC_PATHS, cast_server, _make_handler
 
     H = _make_handler(cast_server())
     h = H.__new__(H)
     hs = hotspot.hotspot
     monkeypatch.setattr(hs, "running", True)
-    monkeypatch.setattr(hs, "portal", True)
     monkeypatch.setattr(hs, "ip", "10.42.0.1")
     for ip, want in (("127.0.0.1", True), ("::1", True), ("10.42.0.57", True), ("192.168.178.20", False),
                      ("10.43.0.5", False), ("::ffff:10.42.0.9", True), ("fe80::1", False)):
         h.client_address = (ip, 5000)
         assert h._via_wlan() is want, ip
-    monkeypatch.setattr(hs, "portal", False)  # ohne Anmeldeseite auch aus dem WLAN nicht
+    monkeypatch.setattr(hs, "running", False)  # WLAN aus → auch die alte WLAN-Adresse nicht mehr
     h.client_address = ("10.42.0.57", 5000)
     assert not h._via_wlan()
     assert "/" not in PUBLIC_PATHS and "/spiel" not in PUBLIC_PATHS and "/api/spiel" not in PUBLIC_PATHS
 
 
-def test_internet_per_device(env, monkeypatch, tmp_path):  # noqa: F811
-    """Hotspot-Fenster: Gerät „Internet“ geben (nach MAC) → seine aktuelle Adresse landet bei DNS und Firewall."""
-    controller, _window, _ = env
-    monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
-    hs = hotspot.hotspot
-    monkeypatch.setattr(hs, "running", True)
-    monkeypatch.setattr(hs, "portal", True)
-    monkeypatch.setattr(hs, "ip", "10.42.0.1")
-    monkeypatch.setattr(hotspot, "neighbors", lambda dev="", ip="": {"10.42.0.7": "aa:bb:cc:00:00:07",
-                                                                   "10.42.0.9": "aa:bb:cc:00:00:09"})
-    hotspot.note_name("10.42.0.7", "Lenas iPad")
-    devices = controller.wlan_devices()
-    assert [d["name"] for d in devices] == ["Lenas iPad", "Gerät"] and not any(d["internet"] for d in devices)
-    controller.set_device_internet("AA:BB:CC:00:00:07", "Lenas iPad", True)
-    assert (tmp_path / "flag.internet").read_text() == "10.42.0.7\n"
-    assert controller.wlan_devices()[0]["internet"] and controller.config["hotspot"]["internet"]
-    # neue Adresse (DHCP) → gleiche Freigabe, neue IP
-    monkeypatch.setattr(hotspot, "neighbors", lambda dev="", ip="": {"10.42.0.33": "aa:bb:cc:00:00:07"})
-    controller.sync_internet()
-    assert (tmp_path / "flag.internet").read_text() == "10.42.0.33\n"
-    controller.set_device_internet("aa:bb:cc:00:00:07", "Lenas iPad", False)
-    assert (tmp_path / "flag.internet").read_text() == ""
-
-
-def test_portal_dns_real_answers_only_for_allowed_devices():
-    from alupc.portal_dns import PortalDNS
-
-    dns = PortalDNS(lambda: "10.42.0.1", closed=True, port=0)
-    dns.allowed = {"10.42.0.7"}
-    assert dns.ip_for("www.example.com", 1, "10.42.0.9") == ["10.42.0.1"]  # nicht freigeschaltet: Anmeldeseite
-    real = dns.ip_for("localhost", 1, "10.42.0.7")  # freigeschaltet: echte Auflösung
-    assert real != ["10.42.0.1"] and (real is None or "127.0.0.1" in real)
-
-
-def test_portal_dns_restricted_to_hotspot_net():
-    """Windows lauscht auf allen Adressen – Fragen aus anderen Netzen (LAN) bekommen keine Antwort."""
-    from alupc.portal_dns import PortalDNS
-
-    dns = PortalDNS(lambda: "192.168.137.1", closed=True, restrict=True)
-    q = bytes.fromhex("41550100000100000000000005616c75706303636f6d0000010001")
-    assert dns._reply(q, "192.168.137.50") is not None
-    assert dns._reply(q, "127.0.0.1") is not None
-    assert dns._reply(q, "192.168.0.20") is None
-    assert PortalDNS(lambda: "192.168.137.1", restrict=False)._reply(q, "192.168.0.20") is not None
-
-
 def test_windows_hotspot_ip_default():
     assert hotspot.windows_hotspot_ip() == "192.168.137.1"  # ohne Windows-Registry: Standard
-
-
-def test_serve_extra_port_sees_real_client():
-    """Windows: Anmeldeseite direkt auf Hotspot-Adresse:80 (hier 127.0.0.1:Testport) – dieselben Seiten."""
-    import urllib.request
-
-    from alupc import cast_server
-
-    assert not cast_server.serve_extra("127.0.0.1", 18780)  # ohne laufenden Webserver: nichts
-    import socket as _s
-
-    probe = _s.socket()
-    probe.bind(("127.0.0.1", 0))
-    free = probe.getsockname()[1]
-    probe.close()
-    cast_server._ACTIVE = type("S", (), {"httpd": object()})()
-    try:
-        orig = cast_server._make_handler
-        from http.server import BaseHTTPRequestHandler
-
-        class H(BaseHTTPRequestHandler):
-            def do_GET(self):
-                body = self.client_address[0].encode()
-                self.send_response(200)
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-            def log_message(self, *a):
-                pass
-
-        cast_server._make_handler = lambda server: H
-        assert cast_server.serve_extra("127.0.0.1", free)
-        assert urllib.request.urlopen(f"http://127.0.0.1:{free}/", timeout=5).read() == b"127.0.0.1"
-    finally:
-        cast_server.stop_extra()
-        cast_server._make_handler = orig
-        cast_server._ACTIVE = None
-
-
-def test_portal_status_line_and_http_log(monkeypatch):
-    """Hotspot-Fenster: zeigt Port-80-Weg, Internet-Sperre und die letzte Prüfung eines Handys."""
-    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
-    monkeypatch.setattr(hotspot.hotspot, "running", True)
-    monkeypatch.setattr(hotspot.hotspot, "portal", True)
-    monkeypatch.setattr(hotspot.hotspot, "ip", "192.168.137.1")
-    monkeypatch.setattr(hotspot, "DNS_INFO", "Port 53 vorher: frei · AluPC: 192.168.137.1 exklusiv · Port 80: AluPC")
-    monkeypatch.setattr(hotspot, "forwarding_state", lambda: "Disabled")
-    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip, **k: 12)
-    monkeypatch.setattr(hotspot, "firewall_info", lambda: {})
-    monkeypatch.setattr(hotspot, "fix_result", lambda: "")
-    monkeypatch.setattr(hotspot, "drop_info", lambda ip="": [])
-    from alupc import cast_server
-
-    monkeypatch.setattr(cast_server, "active_port", lambda: 8765)
-    hotspot.HTTP_LOG.clear()
-    assert hotspot.portal_status() == ("Port 80 → AluPC-Seite (Port 8765) · Internet-Sperre: aktiv · "
-                                       "Anmeldeseite am PC: 12 ms · noch keine Prüfung auf Port 80 angekommen")
-    hotspot.note_http("192.168.137.45", "HEAD", "connectivitycheck.gstatic.com:80", "/generate_204")
-    monkeypatch.setattr(hotspot, "forwarding_state", lambda: "Enabled")
-    line = hotspot.portal_status()
-    assert "Internet-Sperre: aus" in line and "192.168.137.45 HEAD connectivitycheck.gstatic.com/generate_204" in line
-    hotspot.HTTP_LOG.clear()
-
-
-def test_dns_remembers_names_and_hint(monkeypatch):
-    """Hotspot-Fenster: welche Namen das Handy fragt → Hinweis (eigenes DNS / Prüfung kam nicht an)."""
-    import struct
-
-    from alupc.portal_dns import PortalDNS
-
-    def q(name):
-        body = b"".join(bytes([len(p)]) + p.encode() for p in name.split(".")) + b"\0"
-        return struct.pack(">HHHHHH", 1, 0x0100, 1, 0, 0, 0) + body + b"\0\1\0\1"
-
-    dns = PortalDNS(lambda: "192.168.137.1", restrict=True)
-    monkeypatch.setattr(hotspot, "_dns", dns)
-    dns._reply(q("dns.adguard-dns.com"), "192.168.137.45")
-    assert hotspot.asked_names("192.168.137.45") == ["dns.adguard-dns.com"]
-    assert "eigenes DNS (dns.adguard-dns.com)" in hotspot.check_hint("192.168.137.45")
-    dns._reply(q("connectivitycheck.gstatic.com"), "192.168.137.45")
-    assert "nichts kam auf Port 80 an" in hotspot.check_hint("192.168.137.45")
-    dns._reply(q("x.example"), "192.168.137.1")  # PC selbst: nicht merken
-    assert hotspot.asked_names("192.168.137.1") == []
-
-
-def test_https_refused_fast_and_status_shows_firewall(monkeypatch, tmp_path):
-    """Port 443 wird sofort abgelehnt (Browser nehmen gleich HTTP); Hotspot-Fenster nennt Firewall-Bremsen."""
-    import socket
-    import time
-
-    from alupc import cast_server
-
-    probe = socket.socket()
-    probe.bind(("127.0.0.2", 0))
-    probe.close()
-    monkeypatch.setattr(cast_server.socket, "socket", socket.socket)
-    # 443 braucht Rechte unter Linux → Port im Test umbiegen
-    orig_bind = socket.socket.bind
-
-    def bind(self, addr):
-        return orig_bind(self, (addr[0], 18443) if addr[1] == 443 else addr)
-
-    monkeypatch.setattr(socket.socket, "bind", bind)
-    assert cast_server.refuse_https("127.0.0.1")
-    try:
-        start = time.monotonic()
-        with socket.create_connection(("127.0.0.1", 18443), timeout=3) as s:
-            try:  # der Abbruch (RST) darf schon beim Senden ankommen
-                s.sendall(b"\x16\x03\x01")  # TLS-Anfang
-                data = s.recv(10)
-            except (ConnectionResetError, BrokenPipeError):
-                data = b""
-        assert data == b"" and time.monotonic() - start < 1.5
-    finally:
-        cast_server.stop_extra()
-    monkeypatch.setattr(socket.socket, "bind", orig_bind)
-    # Firewall-Infos aus dem Wächter
-    monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
-    (tmp_path / "flag.fw").write_text("profil=Public;an=True;erlaubte=False;fremd=Avast Antivirus, Windows Defender")
-    assert hotspot.firewall_info() == {"profil": "Public", "an": "True", "erlaubte": "False",
-                                       "fremd": "Avast Antivirus, Windows Defender"}
-    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
-    monkeypatch.setattr(hotspot.hotspot, "running", True)
-    monkeypatch.setattr(hotspot.hotspot, "portal", True)
-    monkeypatch.setattr(hotspot.hotspot, "ip", "127.0.0.1")
-    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip, **k: None)
-    line = hotspot.portal_status()
-    assert "Anmeldeseite am PC: antwortet nicht" in line and "weitere Firewall: Avast Antivirus" in line
-    assert "Defender" not in line
-
-
-def test_port80_selftest_measures(monkeypatch):
-    """Selbsttest ruft die Prüf-Adresse am PC ab und misst die Zeit."""
-    import threading
-    import time
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-
-    class H(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(302)
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-
-        def log_message(self, *a):
-            pass
-
-    srv = HTTPServer(("127.0.0.1", 0), H)
-    port = srv.server_address[1]
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    import socket as _socket
-
-    real = _socket.create_connection
-    monkeypatch.setattr(_socket, "create_connection", lambda addr, timeout=None: real((addr[0], port), timeout))
-    hotspot._SELFTEST.update(t=0.0, ms=None, running=False)
-    hotspot.port80_selftest("127.0.0.1")
-    end = time.time() + 5
-    while hotspot._SELFTEST["running"] and time.time() < end:
-        time.sleep(0.05)
-    srv.shutdown()
-    assert isinstance(hotspot._SELFTEST["ms"], int) and hotspot._SELFTEST["ms"] < 2000
-
-
-def test_firewall_drops_shown_and_auto_fixed(monkeypatch, tmp_path):
-    """Wächter meldet verworfene Handy-Anfragen an Port 80 und was er automatisch freigemacht hat → Hinweis je Gerät,
-    Statuszeile (gleich auf Windows und Linux)."""
-    import time
-
-    from alupc import cast_server
-
-    flag = tmp_path / "flag"
-    monkeypatch.setattr(hotspot, "portal_flag", lambda: flag)
-    monkeypatch.setattr(hotspot.hotspot, "running", True)
-    monkeypatch.setattr(hotspot.hotspot, "portal", True)
-    monkeypatch.setattr(hotspot.hotspot, "ip", "192.168.137.1")
-    monkeypatch.setattr(hotspot, "port80_selftest", lambda ip, **k: 12)
-    monkeypatch.setattr(cast_server, "active_port", lambda: 8766)
-    assert hotspot.drop_info() == [] and hotspot.fix_result() == ""
-    now = int(time.time())
-    # so schreibt PowerShell (UTF-8 mit BOM); alte Zeilen und Müll werden übergangen
-    (tmp_path / "flag.drop").write_text(
-        "\ufeff" + f"{now - 5000}|192.168.137.9|80|5157|regel|Alt\nkaputt\n"
-        f"{now - 3}|192.168.137.50|80|5157|regel|Testsperre Port 80\n", encoding="utf-8")
-    drops = hotspot.drop_info()
-    assert [d["name"] for d in drops] == ["Testsperre Port 80"] and drops[0]["ip"] == "192.168.137.50"
-    assert hotspot.drop_info("192.168.137.77") == []
-    assert "Testsperre Port 80" in hotspot.check_hint("192.168.137.50")  # noch nicht freigemacht
-    (tmp_path / "flag.fixed").write_text("\ufeffSperr-Regel 'Testsperre Port 80' aus", encoding="utf-8")
-    assert "automatisch aufgehoben" in hotspot.check_hint("192.168.137.50")
-    line = hotspot.portal_status()
-    assert line.startswith("Port 80 → AluPC-Seite (Port 8766)")
-    assert "automatisch freigemacht: Sperr-Regel 'Testsperre Port 80' aus" in line and "⛔" not in line
-    # fremde Firewall: kann AluPC nicht selbst freimachen → Name im Hinweis und in der Statuszeile
-    (tmp_path / "flag.drop").write_text(f"{now}|192.168.137.50|80|5152|fremd|Avast Firewall\n", encoding="utf-8")
-    assert "Firewall „Avast Firewall“ sperrt" in hotspot.check_hint("192.168.137.50")
-    assert "⛔ gesperrt: 192.168.137.50 → Port 80 (von „Avast Firewall“" in hotspot.portal_status()
-
-
-def test_check_hint_nothing_arrived_with_audit(monkeypatch, tmp_path):
-    """Handy prüft, Firewall sperrt nichts (Überwachung an) → Hinweis auf andere Software/mobile Daten."""
-    class D:
-        names = {"192.168.137.50": ["connectivitycheck.gstatic.com"]}
-
-    monkeypatch.setattr(hotspot, "portal_flag", lambda: tmp_path / "flag")
-    monkeypatch.setattr(hotspot, "IS_WINDOWS", True)
-    monkeypatch.setattr(hotspot, "_dns", D())
-    assert "mobile Daten aus" in hotspot.check_hint("192.168.137.50")
-    (tmp_path / "flag.audit").write_text("an")
-    assert "Firewall hat nichts gesperrt" in hotspot.check_hint("192.168.137.50")
-
-
-def test_watchdog_script_has_firewall_audit_and_restore():
-    """Administrator-Skript: Überwachung per GUID (sprachunabhängig), Sperren nur vorübergehend, alles zurück."""
-    from pathlib import Path
-
-    s = hotspot.portal_script_windows("192.168.137.1", 8765, Path("C:/t/f"), 42, program="C:/A B/AluPC.exe")
-    assert "/subcategory:'{0CCE9225-69AE-11D9-BED3-505054503030}' /failure:enable" in s
-    assert "auditpol /restore" in s and "Restore" in s.split("} finally {")[1]
-    assert s.index("Restore  # Reste") < s.index("Clean\n  netsh advfirewall firewall add")
-    assert "Disable-NetFirewallRule" in s and "Add-Content -LiteralPath $undoFile" in s
-    assert "if ((Drops) -gt 0) { FixNow }" in s  # Sperre gefunden → sofort automatisch aus, kein Knopf
-    assert s.index("Free80 }") < s.index('Set-Content -LiteralPath "$flag.frei"')  # Port 80 frei, bevor AluPC ihn nimmt
-    assert "Start-Service -Name $v" in s  # angehaltener Dienst läuft am Ende wieder
-    assert 'localport="80,443,53,8765"' in s
-    assert s.count("{") == s.count("}")
-
-
-def test_linux_script_same_behaviour(tmp_path):
-    """Linux wie Windows: Port 80 → AluPCs tatsächlicher Port, DNS-Port folgt, Firewall (firewalld/ufw) wird nur bis zum
-    Ende geöffnet und gemeldet, Internet-Sperre gemeldet; Skript ist gültiges sh."""
-    import subprocess
-
-    s = hotspot.portal_script("wlan0", 8767, tmp_path / "f", 42, dns_port=8755)
-    assert "-p tcp --dport 80 -j REDIRECT --to-ports 8767" in s and "--dport 53 -j REDIRECT --to-ports 8755" in s
-    assert "firewall-cmd --zone=trusted --change-interface=wlan0" in s and "ufw insert 1 allow in on wlan0" in s
-    assert s.index("fw_open\necho ok") > 0 and s.index("fw_close\ncleanup") > s.index("while [ -e")
-    assert 'echo Disabled > "$F.fwd"' in s
-    assert subprocess.run(["sh", "-n", "-c", s]).returncode == 0
 
 
 def test_hotspot_start_always_starts_webserver(monkeypatch, env):  # noqa: F811 – Fixture
@@ -972,46 +442,9 @@ def test_wlan_never_started_twice(env, monkeypatch):  # noqa: F811
     gate.set()
     first.join(5)
     monkeypatch.setattr(hotspot.hotspot, "running", True)
-    monkeypatch.setattr(hotspot.hotspot, "portal", True)
     ok, msg = controller.set_hotspot(True)
     assert ok and "läuft schon" in msg and calls == [1]  # kein Neustart
     controller.cast.stop()
-
-
-def test_portal_avatar_and_stay_help(env):  # noqa: F811
-    """Anmeldeseite: Symbol wählbar (geht mit ins Spiel) und Hilfe „WLAN fliegt raus?“; Hotspot-Fenster: Anleitung."""
-    from alupc.cast_server import portal_page
-    from alupc.games import AVATARS
-    from alupc.hotspot import stay_help_html
-    from alupc.ui.connect_dialog import HotspotDialog
-
-    STAY_HELP = stay_help_html()
-
-    controller = env[0]
-    controller.start_games("tictactoe")
-    page = portal_page(controller.cast)
-    assert page.count('class="av"') == len(AVATARS) and '"&avatar=" + encodeURIComponent(ava)' in page
-    assert "Ohne Internet verwenden" in page and "unverändert verwenden" in page
-    from alupc.game_page import GAME_PAGE
-
-    assert 'get("avatar")' in GAME_PAGE and "AVATARS.includes(preAva)" in GAME_PAGE
-    for part in ("Android", "iPhone / iPad", "Ohne Internet verwenden", "Mobile Daten ausschalten",
-                 "WLAN-Unterstützung", "Haken „Internet“", "Nothing Phone"):
-        assert part in STAY_HELP and part in page, part
-    dlg = HotspotDialog(controller, "normal")
-    assert any("Anleitung" in b.text() for b in dlg.findChildren(type(dlg.toggle)))
-    dlg.close()
-    controller.game_action("aus")
-    # Monitor 2: Anleitung groß (mit WLAN-Code), aus dem Hotspot-Menü und dem Hotspot-Fenster
-    from alupc.sources import WifiHelpSource
-
-    assert controller.show_wifi_help()
-    src = controller.output.content
-    assert isinstance(src, WifiHelpSource)
-    src.resize(1280, 720)
-    assert not src.grab().isNull()
-    menu = env[1].t_hotspot.menu
-    assert any("Anleitung auf Monitor 2" in a.text() for a in menu.actions())
 
 
 def test_control_qr_only_on_pc(env, tmp_path, monkeypatch):  # noqa: F811
@@ -1021,7 +454,7 @@ def test_control_qr_only_on_pc(env, tmp_path, monkeypatch):  # noqa: F811
     pil = pytest.importorskip("PIL.Image")
     controller, window, _ = env
     hs = hotspot.hotspot
-    for k, v in (("running", True), ("portal", True), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
+    for k, v in (("running", True), ("ssid", "AluPC"), ("password", "k7pm2qa9xr"),
                  ("hidden", False), ("ip", "10.42.0.1")):
         monkeypatch.setattr(hs, k, v)
     assert controller.cast.start()
@@ -1036,14 +469,14 @@ def test_control_qr_only_on_pc(env, tmp_path, monkeypatch):  # noqa: F811
     dlg.ctl_qr.pixmap().save(str(path))
     assert [r.text for r in zx.read_barcodes(pil.open(path))] == [ctl]
     dlg.close()
-    controller.run_command("qr")  # Monitor 2: WLAN + Seite, NICHT der Steuer-Code
+    controller.run_command("qr")  # Monitor 2: nur WLAN, NICHT der Steuer-Code
     from alupc.sources import WifiQrSource
 
     src = WifiQrSource(controller.content)
     src.resize(1280, 720)
     src.grab().save(str(path))
     texts = sorted(r.text for r in zx.read_barcodes(pil.open(path)))
-    assert texts == sorted([wifi_payload("AluPC", "k7pm2qa9xr"), f"http://10.42.0.1:{controller.cast.port}/anmelden"])
+    assert texts == [wifi_payload("AluPC", "k7pm2qa9xr")]
     assert ctl not in texts
     controller.cast.stop()
 

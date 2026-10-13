@@ -31,7 +31,6 @@ class Controller(QObject):
     sync_status = Signal(str)
     games_changed = Signal()  # Minispiele: Spieler/Phase geändert (Steuerfenster)
     hotspot_changed = Signal()  # Hotspot an/aus (Kachel, Spiele-Fenster)
-    shell_requested = Signal()  # AluPC-Oberfläche (Vollbild) an/aus – macht das Hauptfenster
     window_requested = Signal()  # AluPC-Hauptfenster nach vorn (Tastenkürzel, auch als System-Desktop)
     guests_changed = Signal()  # Chat/Foto-Wand: neue Nachricht, neues Foto, an/aus (Seite „Gäste“)
     access_requested = Signal(str, str, str)  # Handy bittet um Freigabe zum Steuern: (Anfrage-ID, Name, IP)
@@ -44,13 +43,6 @@ class Controller(QObject):
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
-        # AluPC-WLAN: welche Geräte dürfen ins Internet? (alle 3 s auf die aktuellen Adressen abgleichen)
-        from PySide6.QtCore import QTimer as _Timer  # (QTimer wird weiter unten in __init__ lokal importiert)
-
-        self._internet_timer = _Timer(self)
-        self._internet_timer.setInterval(3000)
-        self._internet_timer.timeout.connect(self.sync_internet)
-        self._internet_timer.start()
         self.display = create_display_backend()
         self.windows = create_window_backend()
         self.fingerprint = create_fingerprint_backend()
@@ -1606,7 +1598,6 @@ class Controller(QObject):
                                   self.show_source({"type": "chatwand"}, remember=False)),
             "fotowand": lambda: self.start_wall(show=True),
             "fotowand_aus": self.stop_wall,
-            "oberflaeche": self.shell_requested.emit,
             "alupc_oeffnen": self.window_requested.emit,
             "vcam": self._toggle_vcam,
             "vcam_an": lambda: self._toggle_vcam(True),
@@ -1901,56 +1892,15 @@ class Controller(QObject):
                 self.wheel_left = None
                 self.message.emit("Glücksrad: alle Einträge waren dran – beim nächsten Drehen sind wieder alle dabei.")
 
-    # ------------------------------------------------------------ AluPC-WLAN: Internet pro Gerät
-    def internet_allowed(self) -> dict[str, str]:
-        """Geräte (MAC → Name), die im AluPC-WLAN ins Internet dürfen – am PC im Hotspot-Fenster freigeschaltet."""
-        return dict((self.config.get("hotspot") or {}).get("internet") or {})
-
+    # ------------------------------------------------------------ AluPC-WLAN: Geräte
     def wlan_devices(self) -> list[dict]:
-        """Geräte im AluPC-WLAN: IP, MAC, Name (von der Anmeldeseite), Internet ja/nein."""
-        from .hotspot import NAMES, asked_names, check_hint, client_status, hotspot, neighbors
+        """Geräte im AluPC-WLAN: IP, MAC, Name (falls es beim Mitmachen einen eingegeben hat)."""
+        from .hotspot import NAMES, hotspot, neighbors
 
         if not hotspot.running:
             return []
-        allowed = self.internet_allowed()
-        out = []
-        for ip, mac in sorted(neighbors().items(), key=lambda kv: tuple(int(x) for x in kv[0].split("."))):
-            dns, probe = client_status(ip)
-            out.append({"ip": ip, "mac": mac, "name": NAMES.get(ip) or allowed.get(mac) or "Gerät",
-                        "internet": mac in allowed, "dns": dns, "probe": probe,
-                        "asked": asked_names(ip)[-4:], "hint": "" if probe else check_hint(ip)})
-        return out
-
-    def set_device_internet(self, mac: str, name: str, on: bool) -> None:
-        hs = dict(self.config.get("hotspot") or {})
-        allowed = dict(hs.get("internet") or {})
-        if on:
-            allowed[mac.lower()] = name or "Gerät"
-        else:
-            allowed.pop(mac.lower(), None)
-        hs["internet"] = allowed
-        self.config["hotspot"] = hs
-        self.sync_internet()
-
-    def sync_internet(self) -> None:
-        """Freigeschaltete Geräte (nach MAC) → ihre aktuellen Adressen an DNS und Firewall geben."""
-        from .hotspot import hotspot, neighbors, set_internet
-
-        if not (hotspot.running and hotspot.portal):
-            return
-        allowed = self.internet_allowed()
-        try:
-            # letzte bekannte Adresse je Gerät merken: schläft ein Handy kurz (fehlt in der ARP-Tabelle), behält es
-            # seine Freigabe; bekommt es eine neue Adresse, zieht die Freigabe mit
-            seen = getattr(self, "_mac_ip", {})
-            for ip, mac in neighbors().items():
-                for old in [m for m, i in seen.items() if i == ip and m != mac]:
-                    del seen[old]  # Adresse gehört jetzt einem anderen Gerät
-                seen[mac] = ip
-            self._mac_ip = seen
-            set_internet([seen[mac] for mac in allowed if mac in seen])
-        except Exception:  # noqa: BLE001 - nächster Versuch in 3 s
-            pass
+        return [{"ip": ip, "mac": mac, "name": NAMES.get(ip) or "Gerät"}
+                for ip, mac in sorted(neighbors().items(), key=lambda kv: tuple(int(x) for x in kv[0].split(".")))]
 
     def ensure_wlan(self) -> None:
         """Handys kommen nur übers AluPC-WLAN herein – läuft noch keins von AluPC, im Hintergrund starten."""
@@ -1971,7 +1921,7 @@ class Controller(QObject):
 
     # ------------------------------------------------------------ Gäste: Chat und Foto-Wand (übers AluPC-WLAN)
     def start_chat(self, overlay: bool | None = None) -> None:
-        """Chat öffnen: Handys schreiben übers AluPC-WLAN (Anmeldeseite → „Chat“), Nachrichten direkt als Overlay."""
+        """Chat öffnen: Handys schreiben übers AluPC-WLAN (QR-Code „Chat“ auf Monitor 2), Nachrichten direkt als Overlay."""
         from .chat import Chat
 
         cfg = self.config["chat"]
@@ -2038,7 +1988,7 @@ class Controller(QObject):
         return msg is not None
 
     def start_wall(self, show: bool = True) -> None:
-        """Foto-Wand öffnen: Handys schicken Fotos übers AluPC-WLAN (Anmeldeseite → „Foto-Wand“)."""
+        """Foto-Wand öffnen: Handys schicken Fotos übers AluPC-WLAN (QR-Code der Foto-Wand auf Monitor 2)."""
         from pathlib import Path
 
         from .photowall import PhotoWall, default_folder
@@ -2083,7 +2033,7 @@ class Controller(QObject):
         poll = Poll(question, options)
         self.cast.poll = poll
         self.config["poll"] = {"question": poll.question, "options": poll.options}
-        self.ensure_wlan()  # abstimmen nur übers AluPC-WLAN (Anmeldeseite → „Abstimmen“)
+        self.ensure_wlan()  # abstimmen nur übers AluPC-WLAN (QR-Code der Abstimmung)
         self.show_source({"type": "umfrage"}, remember=False)
         self.changed.emit()
 
@@ -2203,7 +2153,7 @@ class Controller(QObject):
         self.changed.emit()
 
     def games_wifi(self) -> tuple[str, str, bool] | None:
-        """Das AluPC-WLAN (für die Lobby): scannen → im WLAN → Anmeldeseite mit Name und Steuerung."""
+        """Das AluPC-WLAN (für die Lobby): WLAN-Code scannen, dann Spiel-Code → Name → mitspielen."""
         from .hotspot import hotspot
 
         if hotspot.running:
@@ -2217,18 +2167,18 @@ class Controller(QObject):
 
         if hotspot.running:
             return hotspot.ssid, hotspot.password, hotspot.hidden
-        return None  # nur das AluPC-WLAN – kein anderes Netz (sonst gäbe es keine Anmeldeseite)
+        return None  # nur das AluPC-WLAN – kein anderes Netz
 
     def set_hotspot(self, on: bool, kind: str = "normal") -> tuple[bool, str]:
         """AluPC-WLAN an/aus (blockiert einige Sekunden – aus einem Hintergrund-Thread aufrufen). Es gibt nur EIN
         WLAN (Hotspot-Kachel, Minispiele, Abstimmen …) – kind ist nur noch aus Kompatibilität da."""
         from .hotspot import hotspot, settings
 
-        if on and hotspot.running and hotspot.portal:  # läuft schon → NICHT neu starten (Handys flögen raus)
+        if on and hotspot.running:  # läuft schon → NICHT neu starten (Handys flögen raus)
             self.cast.start()
             return True, "AluPC-WLAN läuft schon."
         lock = self._wlan_lock
-        if not lock.acquire(blocking=False):  # ein zweiter Start/Stopp mittendrin bräche WLAN und Anmeldeseite ab
+        if not lock.acquire(blocking=False):  # ein zweiter Start/Stopp mittendrin bräche das WLAN ab
             return False, "AluPC-WLAN wird gerade schon gestartet bzw. beendet …"
         try:
             return self._set_hotspot(on, hotspot, settings)
@@ -2237,14 +2187,13 @@ class Controller(QObject):
 
     def _set_hotspot(self, on: bool, hotspot, settings) -> tuple[bool, str]:
         if on:
-            # Die Anmeldeseite kommt von AluPCs Webserver – ohne ihn liefe Port 80 ins Leere (Handy: „DNS ✓, Anmeldeseite
-            # nicht“). Ist sein Port belegt, nimmt er den nächsten freien; die Weiterleitung von Port 80 folgt ihm.
+            # Die Handy-Seiten kommen von AluPCs Webserver (Port belegt → nimmt er den nächsten freien)
             if not self.cast.start():
                 msg = "WLAN nicht gestartet: AluPCs Webserver findet keinen freien Port (8765–8774)."
                 self.message.emit(msg)
                 return False, msg
             hs = settings(self.config)
-            ok, msg = hotspot.start(hs["ssid"], hs["password"], portal=True,
+            ok, msg = hotspot.start(hs["ssid"], hs["password"],
                                     hidden=bool(hs.get("hidden", True)))  # Linux: unsichtbar (Windows kann es nicht)
         else:
             ok, msg = hotspot.stop()
@@ -2254,7 +2203,7 @@ class Controller(QObject):
 
     def _auto_games_wifi(self) -> bool:
         """Minispiele brauchen das AluPC-WLAN: läuft es noch nicht, startet es mit den Spielen (und bleibt danach an).
-        Handys scannen den WLAN-Code in der Lobby → die Anmeldeseite öffnet sich → Name → mitspielen."""
+        Handys scannen in der Lobby den WLAN-Code, dann den Spiel-Code → Name → mitspielen."""
         import os
         import threading
 
@@ -2281,7 +2230,7 @@ class Controller(QObject):
         return True
 
     def games_wifi_only(self) -> bool:
-        """Mitspielen nur über das AluPC-WLAN und seine Anmeldeseite – immer, es gibt keinen anderen Weg."""
+        """Mitspielen nur über das AluPC-WLAN – immer, es gibt keinen anderen Weg."""
         return True
 
     def games_wifi_status(self) -> tuple[bool, str]:
@@ -2292,7 +2241,7 @@ class Controller(QObject):
         if not only or hotspot.running:
             return only, ""
         if self._games_wifi_starting:
-            return only, "AluPC-WLAN startet … (am PC einmal bestätigen)"
+            return only, "AluPC-WLAN startet …"
         why = hotspot.message if hotspot.message and not hotspot.running else ""
         return only, ("AluPC-WLAN ist aus" + (f" – {why}" if why else "") +
                       " · am PC: Kachel „Hotspot“ oder Minispiele-Fenster → „WLAN …“")
@@ -2489,12 +2438,10 @@ class Controller(QObject):
         window.play()
 
     def shutdown(self) -> None:
-        from .hotspot import hotspot, stop_portal
+        from .hotspot import hotspot
 
-        # Ohne AluPC gibt es im WLAN weder Namensauflösung noch Anmeldeseite → Hotspot mit beenden
-        if hotspot.running and hotspot.portal:
+        if hotspot.running:  # das AluPC-WLAN gehört zu AluPC – ohne AluPC gäbe es darin nichts zu tun
             hotspot.stop()
-        stop_portal()
         self._timer_watch.stop()
         if self._games_timer is not None:
             self._games_timer.stop()

@@ -1,4 +1,4 @@
-"""Chat übers AluPC-WLAN: Handys schreiben (Anmeldeseite → „Chat“ oder Seiten-Code), die Nachrichten erscheinen
+"""Chat übers AluPC-WLAN: Handys schreiben (Seiten-Code auf Monitor 2), die Nachrichten erscheinen
 sofort auf Monitor 2 – als Overlay über allem oder als Chat-Wand.
 
 Weil alles direkt groß zu sehen ist, filtert AluPC: Schimpfwörter (eingebaute Liste + eigene Wörter) werden zu
@@ -225,7 +225,7 @@ button:disabled { opacity: .45; }
 }
 </style></head><body>
 <header><div class="logo">💬</div><div><b>Chat</b><small>Erscheint groß auf Monitor 2 · bitte freundlich</small></div>
-<a href="/anmelden">Zurück</a></header>
+</header>
 <div id="who"><input id="name" maxlength="20" placeholder="Dein Name" autocomplete="off"></div>
 <div id="list"><div class="empty" id="empty">Noch keine Nachrichten – schreib die erste!</div></div>
 <div id="info"></div>
