@@ -168,6 +168,19 @@ def vbcable_installed() -> bool:
 
 
 # --------------------------------------------------------------------------- Installieren
+def encoded_command(script: str) -> str:
+    """PowerShell -EncodedCommand für ein langes Skript: gzip-komprimiert und im Zielprozess entpackt – sonst wird die
+    Befehlszeile zu lang (Windows: höchstens 32767 Zeichen)."""
+    import base64
+    import gzip
+
+    packed = base64.b64encode(gzip.compress(script.encode("utf-8"), 9)).decode()
+    boot = ("$z = New-Object IO.Compression.GZipStream((New-Object IO.MemoryStream(,[Convert]::FromBase64String("
+            f"'{packed}'))), [IO.Compression.CompressionMode]::Decompress)\n"
+            "Invoke-Expression (New-Object IO.StreamReader($z, [Text.Encoding]::UTF8)).ReadToEnd()\n")
+    return base64.b64encode(boot.encode("utf-16-le")).decode()
+
+
 def install(what: list[str], elevated: bool = False, run=subprocess.run) -> tuple[bool, str]:
     """Blockiert (im Hintergrund aufrufen). elevated=True: läuft schon als Administrator (Installer)."""
     what = [w for w in what if w in WHAT and not (IS_WINDOWS and w in LINUX_ONLY)]
@@ -175,8 +188,6 @@ def install(what: list[str], elevated: bool = False, run=subprocess.run) -> tupl
         return True, ""
     try:
         if IS_WINDOWS:
-            from .hotspot import encoded_command
-
             script = "\n".join(([vbcable_ps()] if "vbcable" in what else []) +
                                ([obs_vcam_ps()] if "kamera" in what else []))
             enc = encoded_command(script)

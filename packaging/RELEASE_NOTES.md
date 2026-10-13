@@ -32,6 +32,9 @@
   oder ziehen → Vorschau grün (passt) oder rot (Rand/zu nah), „✓ Setzen“ oder nochmal in die Vorschau tippen;
   Drehen dreht die Vorschau; gesetztes Schiff antippen = aufnehmen und verschieben; „Alle weg“. Name wird auf der
   Seite eingegeben. Auch am PC: gesetztes Schiff anklicken (bzw. Enter auf einem Schiff) = aufnehmen.
+- Behoben vor dem Release: Beim Entfernen der Anmeldeseite war eine Hilfsfunktion mit weggefallen, die der
+  Windows-Installer fürs virtuelle Mikro (VB-CABLE) braucht – der Installer blieb hängen. Neuer Test prüft jetzt alle
+  späten Importe im Programm.
 - Geprüft: alle Tests, echtes Netz mit virtuellem „Handy“ (Linux, 17/17), Browser-Touch-Tests in iPad-/iPhone-Größe.
   **Nicht** auf echter Hardware getestet (WLAN-Karte, echtes iPad, echtes Windows-Audio).
 
