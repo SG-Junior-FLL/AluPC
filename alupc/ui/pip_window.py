@@ -238,15 +238,13 @@ class PipWindow(QWidget):
             self.view.set_image(None)
             self.view.set_message("Kein zweiter Monitor")
             return
-        # Normaler Desktop auf Monitor 2 → Monitor 2 live aufnehmen
-        if self.live_capture is None:
-            fps = int(self.controller.config["pip"].get("fps", 20))
-            self.live_capture = ScreenSource({"screen_name": screen.name(), "fps": fps})
-        image = self.live_capture.image()  # nur so oft umwandeln, wie Bild-in-Bild aktualisiert
+        # Normaler Desktop auf Monitor 2 → Monitor 2 live aufnehmen (gemeinsam mit Handy-Live-Bild und Kamera)
+        feed = self.controller.monitor_feed
+        image = feed.image()
         if image is not None:
             self.view.set_image(image)
         else:
-            self.view.update()
+            self.view.set_message(feed.problem() or "Monitor 2 wird aufgenommen …")
 
     # ------------------------------------------------------------ Maus
     def mousePressEvent(self, event):

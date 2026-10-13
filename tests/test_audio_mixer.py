@@ -349,3 +349,101 @@ def test_pactl_missing_offers_install(env, monkeypatch):  # noqa: F811
     page._fill()
     assert page.note.isVisibleTo(page) and page.fix_btn.isVisibleTo(page) and "pulseaudio-utils" in page.note.text()
     page.close()
+
+
+PA_TEXT_SINKS = """Sink #47
+\tState: SUSPENDED
+\tName: alsa_output.pci-0000_00_1f.3.analog-stereo
+\tDescription: Built-in Audio Analog Stereo
+\tDriver: PipeWire
+\tSample Specification: s32le 2ch 48000Hz
+\tChannel Map: front-left,front-right
+\tOwner Module: 4294967295
+\tMute: no
+\tVolume: front-left: 26214 /  40% / -23.88 dB,   front-right: 26214 /  40% / -23.88 dB
+\t        balance 0.00
+\tBase Volume: 65536 / 100% / 0.00 dB
+\tMonitor Source: alsa_output.pci-0000_00_1f.3.analog-stereo.monitor
+\tFlags: HARDWARE HW_MUTE_CTRL DECIBEL_VOLUME LATENCY
+\tProperties:
+\t\talsa.card = "0"
+\t\tdevice.api = "alsa"
+\t\tdevice.description = "Built-in Audio Analog Stereo"
+\tPorts:
+\t\tanalog-output-speaker: Speakers (type: Speaker, priority: 10000, availability unknown)
+\tActive Port: analog-output-speaker
+
+Sink #52
+\tState: RUNNING
+\tName: alupc_out
+\tDescription: AluPC Virtueller Ausgang
+\tDriver: PipeWire
+\tMute: yes
+\tVolume: mono: 65536 / 100% / 0.00 dB
+\tProperties:
+\t\tdevice.class = "filter"
+"""
+
+PA_TEXT_INPUTS = """Sink Input #85
+\tDriver: PipeWire
+\tOwner Module: n/a
+\tClient: 84
+\tSink: 47
+\tMute: no
+\tVolume: front-left: 52429 /  80% / -5.81 dB,   front-right: 52429 /  80% / -5.81 dB
+\tProperties:
+\t\tapplication.name = "Firefox"
+\t\tmedia.name = "YouTube"
+\t\tapplication.process.id = "4242"
+"""
+
+
+def test_pactl_text_fallback_when_json_missing_or_broken():
+    """pactl 15 kennt -f json nicht, pactl 16.1 gibt bei manchen Geräten kaputtes JSON aus → Textausgabe lesen."""
+    from alupc import audio, mixer
+
+    calls = []
+
+    def run(cmd, *_a):
+        calls.append(cmd)
+        if "-f" in cmd:
+            return 0, '[{"name": "kaputt", "description": "x\\y"'  # ungültiges JSON
+        if cmd[-2:] == ["list", "sinks"]:
+            return 0, PA_TEXT_SINKS
+        if cmd[-2:] == ["list", "sink-inputs"]:
+            return 0, PA_TEXT_INPUTS
+        if cmd[1:] == ["get-default-sink"]:
+            return 0, "alsa_output.pci-0000_00_1f.3.analog-stereo\n"
+        return 1, ""
+
+    devs = mixer._pa_devices("out", run)
+    assert [d["name"] for d in devs] == ["Built-in Audio Analog Stereo", "AluPC Virtueller Ausgang"]
+    built_in, virt = devs
+    assert built_in["volume"] == 40 and not built_in["muted"] and built_in["default"] and not built_in["virtual"]
+    assert virt["muted"] and virt["volume"] == 100 and virt["virtual"] and virt["alupc"]
+    st = mixer._pa_streams("out", run)
+    assert st == [{"id": 85, "app": "Firefox", "title": "YouTube", "volume": 80, "muted": False,
+                   "device": "alsa_output.pci-0000_00_1f.3.analog-stereo"}]
+    assert [d["id"] for d in audio._pa_devices("out", run)] == ["alsa_output.pci-0000_00_1f.3.analog-stereo",
+                                                                 "alupc_out"]
+    # pactl 15: -f unbekannt → Fehlercode → gleich Text
+    assert audio.pa_list("sinks", lambda cmd, *_: (1, "") if "-f" in cmd else (0, PA_TEXT_SINKS))[0]["index"] == 47
+
+
+def test_pa_run_reads_stdout_only_in_english(monkeypatch):
+    import subprocess
+
+    from alupc import audio
+
+    seen = {}
+
+    class R:
+        returncode, stdout, stderr = 0, "[]", "Warning: something"
+
+    def fake(cmd, **kw):
+        seen.update(kw.get("env") or {})
+        return R()
+
+    monkeypatch.setattr(subprocess, "run", fake)
+    assert audio.pa_run(["pactl", "info"]) == (0, "[]")
+    assert seen.get("LC_ALL") == "C"

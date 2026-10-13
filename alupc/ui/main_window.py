@@ -2110,6 +2110,13 @@ class MainWindow(QMainWindow):
         if self.shell is None:
             self.shell = ShellWindow(self, self.controller)
             self.destroyed.connect(self.shell.deleteLater)
+        if on and not startup and ds.desktop_env().get("QT_QPA_PLATFORM") == "xcb" and \
+                QApplication.platformName() == "wayland":
+            # KDE/Wayland: nur als X11-Programm ein echter Desktop → so neu starten (Plasma bleibt bis dahin)
+            if ds.relaunch_as_desktop():
+                self.controller.message.emit("AluPC startet als Desktop neu …")
+                QTimer.singleShot(400, QApplication.instance().quit)
+                return
         if on:
             self.shell.set_system(True)
             self.shell.show_shell()

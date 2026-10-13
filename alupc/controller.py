@@ -133,6 +133,9 @@ class Controller(QObject):
         self.audio_routing = AudioRouting(config, self)  # virtuelles Mikro / Mithören (Seite „Audio“)
         from .vcam import VirtualCam
 
+        from .monitor_feed import MonitorFeed
+
+        self.monitor_feed = MonitorFeed(self, self)  # echtes Bild von Monitor 2 bei „Erweitern“ (Handy, Kamera, Live)
         self.vcam = VirtualCam(self, self)  # Monitor 2 als virtuelle Kamera
         self.overlay_window = OverlayWindow(self)
         # Reihenfolge: Ausgabe → Overlays → Zeichnungen/Laser ganz oben
@@ -877,12 +880,20 @@ class Controller(QObject):
         return self.mode == "content" and (self.content or {}).get("type") == "whiteboard"
 
     def board_state(self) -> dict:
+        from .board import FORMATS
+        from .whiteboard import BACKGROUNDS
+
         b = self.board
         cfg = b.settings()
         return {"page": b.doc["page"] + 1, "pages": len(b.doc["pages"]), "zoom": round(b.zoom * 100),
                 "bg": b.page["bg"], "undo": b.can_undo(), "redo": b.can_redo(), "sel": len(b.sel),
                 "name": b.doc["name"], "colors": cfg["colors"], "pencil_only": bool(cfg["pencil_only"]),
-                "width": cfg["width"], "marker_width": cfg["marker_width"], "guests": cfg["guests"]}
+                "width": cfg["width"], "marker_width": cfg["marker_width"], "guests": cfg["guests"],
+                "settings": {k: cfg[k] for k in ("format", "background", "width", "marker_width", "smooth", "pressure",
+                                                 "pencil_only", "eraser", "text_size", "autosave", "guests")},
+                "boards": b.boards()[:30], "thumbs": getattr(self, "_thumbs_version", 0),
+                "papers": [[k, v[0]] for k, v in BACKGROUNDS.items()],
+                "formats": [[k, v[0]] for k, v in FORMATS.items()]}
 
     def board_action(self, op: str, arg: str = "") -> bool:
         """Whiteboard bedienen (Handy, Sprache, Befehle): zoom_in/out, fit, seite_neu/vor/zurueck/loeschen,
@@ -890,6 +901,10 @@ class Controller(QObject):
         b = self.board
         acts = {"zoom_in": lambda: b.zoom_by(1.25), "zoom_out": lambda: b.zoom_by(0.8), "fit": b.fit,
                 "seite_neu": b.new_page, "seite_vor": lambda: b.goto(b.doc["page"] + 1),
+                "seite": lambda: b.goto(max(0, int(arg or 1) - 1)),
+                "tafel_neu": lambda: b.new_board(arg.strip()),
+                "tafel_oeffnen": lambda: b.load(arg) if arg in b.boards() else None,
+                "tafel_umbenennen": lambda: b.rename(arg) if arg.strip() else None,
                 "seite_zurueck": lambda: b.goto(b.doc["page"] - 1), "seite_loeschen": b.delete_page,
                 "rueckgaengig": b.undo, "wiederholen": b.redo, "leeren": b.clear,
                 "auswahl_loeschen": b.delete_selection,
@@ -972,18 +987,43 @@ class Controller(QObject):
         """Ist „Zeigen & Zeichnen“ offen? (dann bleibt der Laser dort an)"""
         return bool(getattr(self, "presenter_open", False))
 
+    def _board_thumbs(self) -> None:
+        """Seiten der Tafel als kleine Bilder für die Heft-Ansicht am iPad (nur wenn sie gerade jemand anschaut)."""
+        import time
+
+        from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+
+        if not self.cast.running() or time.monotonic() - self.cast.thumbs_wanted > 20:
+            return
+        b = self.board
+        key = (b.doc["name"], b.doc["page"], tuple((len(p["strokes"]), p["bg"]) for p in b.doc["pages"]),
+               len(b._undo), len(b._redo), id(b._undo[-1]) if b._undo else 0)  # jeder Strich/Schritt ändert es
+        if key == getattr(self, "_thumbs_key", None):
+            return
+        self._thumbs_key = key
+        out = []
+        for i in range(min(40, len(b.doc["pages"]))):
+            img = b.render_page(i, 240)
+            data = QByteArray()
+            buf = QBuffer(data)
+            buf.open(QIODevice.WriteOnly)
+            img.save(buf, "JPEG", 75)
+            out.append(bytes(data))
+        self.cast.board_thumbs = out
+        self._thumbs_version = getattr(self, "_thumbs_version", 0) + 1
+
     def _cast_tick(self) -> None:
         """Solange ein Handy zuschaut: Status und Live-Bild von Monitor 2 auffrischen."""
         import time
 
+        self._board_thumbs()
         if not self.cast.running() or time.monotonic() - self.cast.preview_wanted > 5:
             return
         self._cast_snapshot()
         self.cast.preview = self._preview_jpeg()
 
     def _preview_jpeg(self) -> bytes:
-        from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QSize, Qt
-        from PySide6.QtGui import QColor, QFont, QImage, QPainter
+        from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QSize
 
         from .output_window import grab_scaled
 
@@ -993,16 +1033,11 @@ class Controller(QObject):
             from .laser import draw_overlay
 
             draw_overlay(self, img)
-        else:  # Erweitern: Monitor 2 ist ein normaler Bildschirm – nur ein Hinweis
-            img = QImage(640, 360, QImage.Format_RGB32)
-            img.fill(QColor("#0f172a"))
-            p = QPainter(img)
-            p.setPen(QColor("#cbd5e1"))
-            f = QFont()
-            f.setPixelSize(26)
-            p.setFont(f)
-            p.drawText(img.rect(), Qt.AlignCenter, "Monitor 2: normaler Bildschirm\n(" + self.describe()[:40] + ")")
-            p.end()
+        else:  # Erweitern: Monitor 2 ist ein normaler Bildschirm → den echten Bildschirm aufnehmen
+            from .monitor_feed import fit_into, waiting_image
+
+            live = self.monitor_feed.image()
+            img = fit_into(live, 640, 360) if live is not None else waiting_image(640, 360, self.monitor_feed.problem())
         data = QByteArray()
         buf = QBuffer(data)
         buf.open(QIODevice.WriteOnly)
@@ -1067,6 +1102,10 @@ class Controller(QObject):
                     b.zoom_by(float(req["zoom"]), anchor)
                 if req.get("dx") or req.get("dy"):
                     b.pan_screen(float(req.get("dx", 0)), float(req.get("dy", 0)))
+            elif req.get("op") == "einstellung":  # Einstellungen vom iPad (wie das Fenster „Einstellungen“)
+                self.board.set_settings(**{req["key"]: req["value"]})
+                if req["key"] == "format":
+                    self.board.fit()
             elif req.get("op") == "text":
                 w = self.board.to_world(float(req["x"]), float(req["y"]))
                 self.board.add_text(w.x(), w.y(), req.get("text", ""), req.get("color", "#111827"))

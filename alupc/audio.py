@@ -9,6 +9,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -29,28 +31,109 @@ def _run(cmd: list[str], timeout: float = 6) -> tuple[int, str]:
 
 
 # --------------------------------------------------------------------------- Linux (pactl)
+def pa_run(cmd: list[str], timeout: float = 6) -> tuple[int, str]:
+    """pactl zum Auslesen: nur die normale Ausgabe (Warnungen auf stderr würden JSON kaputt machen) und auf Englisch
+    (die Textausgabe ist sonst übersetzt: „Ziel #3“, „Stumm: nein“ …)."""
+    env = {**os.environ, "LC_ALL": "C", "LANG": "C", "LANGUAGE": "C"}
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return r.returncode, r.stdout or ""
+    except (OSError, subprocess.SubprocessError) as exc:
+        return 1, str(exc)
+
+
+_PA_HEAD = re.compile(r"^(Sink Input|Source Output|Sink|Source|Module|Client|Card) #(\d+)\s*$")
+
+
+def _pa_text_volume(value: str) -> dict:
+    """„front-left: 26214 /  40% / -23.88 dB,   front-right: …“ → wie im JSON {kanal: {value_percent: "40%"}}."""
+    vol = {}
+    for i, m in enumerate(re.finditer(r"(?:([\w-]+):\s*)?\d+\s*/\s*(\d+)%", value)):
+        vol[m.group(1) or f"ch{i}"] = {"value_percent": m.group(2) + "%"}
+    return vol
+
+
+def parse_pa_text(out: str) -> list[dict]:
+    """Ausgabe von „pactl list sinks|sources|sink-inputs|source-outputs“ (Text, englisch) → Liste wie bei -f json."""
+    items: list[dict] = []
+    cur: dict | None = None
+    section = ""
+    for raw in out.splitlines():
+        head = _PA_HEAD.match(raw.strip()) if not raw.startswith("\t") else None
+        if head:
+            cur = {"index": int(head.group(2)), "properties": {}}
+            items.append(cur)
+            section = ""
+            continue
+        if cur is None or not raw.strip():
+            continue
+        if raw.startswith("\t\t") or raw.startswith("        "):
+            if section == "Properties":
+                key, sep, value = raw.strip().partition(" = ")
+                if sep:
+                    cur["properties"][key.strip()] = value.strip().strip('"')
+            continue
+        key, sep, value = raw.strip().partition(":")
+        if not sep:
+            continue
+        key, value = key.strip(), value.strip()
+        section = key
+        low = key.lower()
+        if low == "name":
+            cur["name"] = value
+        elif low == "description":
+            cur["description"] = value
+        elif low == "mute":
+            cur["mute"] = value.lower() in ("yes", "true", "1")
+        elif low == "volume":
+            cur["volume"] = _pa_text_volume(value)
+        elif low in ("sink", "source"):
+            try:
+                cur[low] = int(value)
+            except ValueError:
+                cur[low] = value
+        elif low == "monitor of sink":
+            cur["monitor_of_sink"] = value
+        elif low == "driver":
+            cur["driver"] = value
+    return items
+
+
+def pa_list(what: str, run=None) -> list[dict]:
+    """„pactl list <what>“ als Liste – JSON (pactl ≥ 16), sonst die Textausgabe (pactl 15 kennt -f json nicht; manche
+    pactl-16-Versionen geben bei einzelnen Geräten ungültiges JSON aus)."""
+    run = run or pa_run
+    code, out = run(["pactl", "-f", "json", "list", what])
+    if code == 0:
+        try:
+            data = json.loads(out)
+            if isinstance(data, list):
+                return data
+        except ValueError:
+            pass
+    code, out = run(["pactl", "list", what])
+    return parse_pa_text(out) if code == 0 else []
+
+
 def _pa_kind(kind: str) -> str:
     return "sink" if kind == "out" else "source"
 
 
 def _pa_devices(kind: str, run=_run) -> list[dict]:
     what = _pa_kind(kind)
+    run = pa_run if run is _run else run
     code, out = run(["pactl", "get-default-" + what])
     default = out.strip() if code == 0 else ""
     devices = []
-    code, out = run(["pactl", "-f", "json", "list", what + "s"])
-    try:
-        items = json.loads(out) if code == 0 else None
-    except ValueError:
-        items = None
-    if isinstance(items, list):
-        for d in items:
-            name = str(d.get("name", ""))
-            if not name or name.endswith(".monitor") or d.get("monitor_of_sink") not in (None, "", "n/a"):
-                continue  # „Monitor“ = Mitschnitt eines Lautsprechers, kein echtes Mikrofon
-            devices.append({"id": name, "name": str(d.get("description") or name), "default": name == default})
+    for d in pa_list(what + "s", run):
+        name = str(d.get("name", ""))
+        if not name or name.endswith(".monitor") or d.get("monitor_of_sink") not in (None, "", "n/a"):
+            continue  # „Monitor“ = Mitschnitt eines Lautsprechers, kein echtes Mikrofon
+        devices.append({"id": name, "name": str(d.get("description") or name), "default": name == default})
+    if devices:
         return devices
-    code, out = run(["pactl", "list", "short", what + "s"])  # älteres pactl ohne JSON
+    code, out = run(["pactl", "list", "short", what + "s"])  # Notfall: nur die Namen
     for line in out.splitlines() if code == 0 else []:
         parts = line.split("\t")
         if len(parts) >= 2 and not parts[1].endswith(".monitor"):

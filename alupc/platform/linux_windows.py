@@ -336,8 +336,11 @@ except (ImportError, AttributeError):  # pragma: no cover
 
 def set_x11_strut(win_id: int, bottom: int, start_x: int, end_x: int) -> bool:
     """X11: am unteren Rand Platz für ein Fenster (Taskleiste) reservieren – maximierte Fenster bleiben darüber.
-    `bottom` zählt vom unteren Rand des ganzen (Mehr-Monitor-)Bildschirms."""
-    if is_wayland():
+    `bottom` zählt vom unteren Rand des ganzen (Mehr-Monitor-)Bildschirms. Geht auch unter KDE/Wayland, wenn AluPC
+    über XWayland läuft (KWin hält dann für maximierte Programme Platz frei)."""
+    from PySide6.QtGui import QGuiApplication
+
+    if QGuiApplication.platformName() != "xcb":
         return False
     import ctypes
     import ctypes.util

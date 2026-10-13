@@ -175,6 +175,10 @@ def main(argv=None) -> int:
     if args.mikrofontest:
         return mic_test(args.mikrofontest)
 
+    if args.desktop:  # KDE/Wayland: als X11-Programm, sonst ist die Oberfläche für KWin kein echter Desktop
+        from .platform.desktop_shell import desktop_env
+
+        os.environ.update(desktop_env())
     if needs_chromium_sandbox_off():
         os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
     _media_env()
@@ -273,7 +277,8 @@ def main(argv=None) -> int:
     _QT.singleShot(1500, controller.audio_routing.restore)  # virtuelles Mikro/Mithören wie zuletzt
     _QT.singleShot(2500, controller.vcam.restore)  # virtuelle Kamera wieder an, wenn sie an war
     if args.desktop:  # als System-Desktop gestartet (Wächter): Oberfläche sofort, Hauptfenster bleibt zu
-        window.system_desktop(True, startup=True)
+        # in dieser Sitzung neu gestartet (Plasma läuft noch) → erst sichtbar werden, dann Plasma beenden
+        window.system_desktop(True, startup=not os.environ.pop("ALUPC_NORMAL_BEENDEN", ""))
     elif (config.get("shell") or {}).get("autostart"):  # AluPC-Oberfläche statt Desktop
         _QT.singleShot(900, lambda: window.toggle_shell(True))
     try:  # Rechtsklick „Auf Monitor 2 zeigen“ + alupc://-Links (Pfad nach Update/Umzug aktuell halten)

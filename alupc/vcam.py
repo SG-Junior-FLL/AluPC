@@ -2,8 +2,8 @@
 Monitor 2 – mit Overlays (Chat, Uhr …) und Zeichnungen.
 
 * Bild: AluPCs Ausgabe von Monitor 2 in Kamera-Größe gezeichnet (wie Bild-in-Bild/Live-Vorschau). Bei „Erweitern“
-  (Monitor 2 ist ein normaler Bildschirm) wird der Bildschirm aufgenommen – unter Wayland geht das nicht, dann
-  kommt ein Hinweisbild.
+  (Monitor 2 ist ein normaler Bildschirm) wird der echte Bildschirm aufgenommen (monitor_feed.py – unter KDE/Wayland
+  über KWin ohne Nachfrage).
 * Ausgabe: pyvirtualcam – Linux v4l2loopback (/dev/video42), Windows die virtuelle Kamera von OBS Studio.
   Die Treiber richtet drivers.py ein (Installer oder „Einrichten“).
 * Das Bild wird im Qt-Hauptthread geholt, das Senden läuft in einem eigenen Thread (immer nur das neueste Bild).
@@ -15,7 +15,7 @@ import threading
 import time
 
 from PySide6.QtCore import QObject, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QPainter
+from PySide6.QtGui import QColor, QImage, QPainter
 
 from .drivers import IS_WINDOWS, v4l2_device, vcam_installed
 
@@ -130,14 +130,21 @@ class VirtualCam(QObject):
 
             img = grab_scaled(out, QSize(w, h))
             draw_overlay(c, img)
-        else:
-            screen = c.output_screen() if hasattr(c, "output_screen") else None
-            if screen is not None:
-                pm = screen.grabWindow(0)
-                if not pm.isNull():
-                    img = pm.toImage().scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            if img.isNull() or _mostly_black(img):
-                img = _hint_image(w, h, "Monitor 2: normaler Bildschirm")
+        else:  # „Erweitern“: den echten Bildschirm (gemeinsame Aufnahme, unter KDE/Wayland über KWin)
+            feed = getattr(c, "monitor_feed", None)
+            live = feed.image() if feed is not None else None
+            if live is not None:
+                img = live.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            else:
+                screen = c.output_screen() if hasattr(c, "output_screen") else None
+                if screen is not None:
+                    pm = screen.grabWindow(0)
+                    if not pm.isNull():
+                        img = pm.toImage().scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                if img.isNull() or _mostly_black(img):
+                    from .monitor_feed import waiting_image
+
+                    img = waiting_image(w, h, feed.problem() if feed is not None else "")
         if img.width() != w or img.height() != h:  # mit schwarzem Rand auf genau w×h
             canvas = QImage(w, h, QImage.Format_RGB32)
             canvas.fill(QColor("#000000"))
@@ -186,16 +193,3 @@ class VirtualCam(QObject):
 def _mostly_black(img: QImage) -> bool:
     small = img.scaled(16, 9)
     return all(QColor(small.pixel(x, y)).lightness() < 6 for x in range(16) for y in range(9))
-
-
-def _hint_image(w: int, h: int, text: str) -> QImage:
-    img = QImage(w, h, QImage.Format_RGB32)
-    img.fill(QColor("#0f172a"))
-    p = QPainter(img)
-    p.setPen(QColor("#cbd5e1"))
-    f = QFont()
-    f.setPixelSize(max(12, h // 18))
-    p.setFont(f)
-    p.drawText(img.rect(), Qt.AlignCenter, text)
-    p.end()
-    return img

@@ -16,12 +16,11 @@ Virtuelle Geräte:
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import shutil
 
-from .audio import IS_WINDOWS, _on_com, _run
+from .audio import IS_WINDOWS, _on_com, _run, pa_list, pa_run
 
 OUT_NAME = "alupc_out"
 MIX_NAME = "alupc_mic_mix"
@@ -50,13 +49,9 @@ def is_virtual_name(name: str) -> bool:
 
 
 # =========================================================================== Linux (pactl)
-def _pa_json(what: str, run=_run) -> list[dict]:
-    code, out = run(["pactl", "-f", "json", "list", what])
-    try:
-        data = json.loads(out) if code == 0 else []
-    except ValueError:
-        return []
-    return data if isinstance(data, list) else []
+def _pa_json(what: str, run=None) -> list[dict]:
+    """Liste von pactl (JSON oder – ältere/fehlerhafte Versionen – Textausgabe, siehe audio.pa_list)."""
+    return pa_list(what, run)
 
 
 def _pa_percent(volume) -> int:
@@ -69,12 +64,12 @@ def _pa_percent(volume) -> int:
     return round(sum(vals) / len(vals)) if vals else 0
 
 
-def _pa_default(kind: str, run=_run) -> str:
-    code, out = run(["pactl", "get-default-" + ("sink" if kind == "out" else "source")])
+def _pa_default(kind: str, run=None) -> str:
+    code, out = (run or pa_run)(["pactl", "get-default-" + ("sink" if kind == "out" else "source")])
     return out.strip() if code == 0 else ""
 
 
-def _pa_devices(kind: str, run=_run) -> list[dict]:
+def _pa_devices(kind: str, run=None) -> list[dict]:
     what = "sinks" if kind == "out" else "sources"
     default = _pa_default(kind, run)
     out = []
@@ -95,7 +90,7 @@ def _pa_devices(kind: str, run=_run) -> list[dict]:
     return out
 
 
-def _pa_streams(kind: str, run=_run) -> list[dict]:
+def _pa_streams(kind: str, run=None) -> list[dict]:
     """Programme, die gerade abspielen (out) oder aufnehmen (in)."""
     what, dev_key, devs = ("sink-inputs", "sink", "sinks") if kind == "out" else ("source-outputs", "source", "sources")
     names = {d.get("index"): str(d.get("name", "")) for d in _pa_json(devs, run)}
@@ -119,8 +114,8 @@ def _pa_streams(kind: str, run=_run) -> list[dict]:
     return out
 
 
-def _pa_modules(run=_run) -> list[dict]:
-    code, out = run(["pactl", "list", "short", "modules"])
+def _pa_modules(run=None) -> list[dict]:
+    code, out = (run or pa_run)(["pactl", "list", "short", "modules"])
     mods = []
     for line in out.splitlines() if code == 0 else []:
         parts = line.split("\t")
@@ -542,7 +537,30 @@ def set_route(source: str, sink: str, on: bool, run=_run) -> tuple[bool, str]:
     return True, ""
 
 
+def no_devices_hint() -> str:
+    """Kein einziges Gerät gefunden: was der Audio-Dienst sagt (damit man den Grund sieht statt nur „Keine Geräte“)."""
+    if IS_WINDOWS:
+        return ("Windows meldet keine Ton-Geräte (Core Audio). Ist ein Lautsprecher/Kopfhörer angeschlossen und in "
+                "den Sound-Einstellungen aktiviert?")
+    _code, version = pa_run(["pactl", "--version"])
+    code, info = pa_run(["pactl", "info"])
+    server = next((line.split(":", 1)[1].strip() for line in info.splitlines() if line.startswith("Server Name")), "")
+    _code, short = pa_run(["pactl", "list", "short", "sinks"])
+    first = (version.splitlines() or ["pactl ?"])[0]
+    if code != 0:
+        return f"Audio-Dienst antwortet nicht ({first})."
+    return (f"Audio-Dienst „{server or '?'}“ meldet keine Geräte ({first}). "
+            + ("Rohliste: " + short.strip().replace("\t", " ")[:200] if short.strip()
+               else "Auch „pactl list short sinks“ ist leer – kein Ton-Gerät erkannt (Treiber/Kabel?)."))
+
+
 def snapshot() -> dict:
     """Alles für die Seite „Audio“ auf einmal (im Hintergrund lesen)."""
-    return {"out": devices("out"), "in": devices("in"), "apps": streams("out"), "rec": streams("in"),
+    snap = {"out": devices("out"), "in": devices("in"), "apps": streams("out"), "rec": streams("in"),
             "virtual": virtual_status(), "routes": routes(), "ok": available()}
+    if snap["ok"][0] and not snap["out"] and not snap["in"]:
+        try:
+            snap["ok"] = (False, no_devices_hint())
+        except Exception:  # noqa: BLE001
+            snap["ok"] = (False, "Keine Ton-Geräte gefunden.")
+    return snap

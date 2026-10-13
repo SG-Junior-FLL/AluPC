@@ -179,6 +179,8 @@ class CastServer(QObject):
         self.snapshot = {"now": "", "scenes": [], "volume": 100, "video": False}
         self.preview = b""  # JPEG von Monitor 2 (vom Qt-Hauptthread erneuert, solange ein Handy zuschaut)
         self.preview_wanted = 0.0
+        self.board_thumbs: list[bytes] = []  # Whiteboard-Seiten als kleine JPEGs (Controller füllt sie)
+        self.thumbs_wanted = 0.0
         self._fails: dict[str, list[float]] = {}
         self._lock = threading.Lock()
         self.poll = None  # laufende Abstimmung (polls.Poll) – Handys stimmen ohne Steuer-Code ab
@@ -501,7 +503,41 @@ class _ExclusiveServer(_QuietServer):
 
 DRAW_TOOLS = ("stift", "marker", "radierer", "pen", "eraser", "lasso", "line", "arrow", "rect", "ellipse", "laser")
 BOARD_OPS = ("zoom_in", "zoom_out", "fit", "seite_neu", "seite_vor", "seite_zurueck", "seite_loeschen",
-             "rueckgaengig", "wiederholen", "leeren", "auswahl_loeschen", "hintergrund")
+             "rueckgaengig", "wiederholen", "leeren", "auswahl_loeschen", "hintergrund", "seite", "tafel_neu",
+             "tafel_oeffnen", "tafel_umbenennen")
+
+
+def board_setting(key: str, value):
+    """Whiteboard-Einstellung vom iPad/Handy prüfen (dieselben wie im Fenster „Einstellungen“) → sauberer Wert.
+    Unbekannt/ungültig → ValueError."""
+    from .board import FORMATS
+    from .board_guests import MODES
+    from .whiteboard import BACKGROUNDS
+
+    ranges = {"width": (1, 20), "marker_width": (6, 60), "eraser": (6, 80), "text_size": (14, 120)}
+    if key in ranges:
+        lo, hi = ranges[key]
+        return float(max(lo, min(hi, float(value))))
+    if key in ("pressure", "pencil_only", "autosave", "follow"):
+        if not isinstance(value, bool):
+            raise ValueError(key)
+        return value
+    if key == "smooth":
+        v = int(value)
+        if v not in (0, 1, 2):
+            raise ValueError(key)
+        return v
+    choices = {"format": FORMATS, "background": BACKGROUNDS, "guests": MODES}
+    if key in choices:
+        if str(value) not in choices[key]:
+            raise ValueError(key)
+        return str(value)
+    if key == "colors":
+        if not isinstance(value, list) or len(value) != 8 or \
+                not all(re.fullmatch(r"#[0-9a-fA-F]{6}", str(c)) for c in value):
+            raise ValueError(key)
+        return [str(c) for c in value]
+    raise ValueError(key)
 
 
 def portal_page(server) -> str:
@@ -812,7 +848,21 @@ def _make_handler(server: CastServer):
                     self._json(200, hub.state_for(pid))
             elif path == "/api/status":
                 if self._auth():
+                    if "heft" in parse_qs(urlparse(self.path).query):  # Heft-Ansicht offen → Seitenbilder bereithalten
+                        server.thumbs_wanted = time.monotonic()
                     self._json(200, server.snapshot)
+            elif path == "/api/board/seite":  # Vorschaubild einer Whiteboard-Seite (Heft-Ansicht am iPad)
+                if self._auth() and self._may("laser"):
+                    server.thumbs_wanted = time.monotonic()
+                    try:
+                        n = int(parse_qs(urlparse(self.path).query).get("n", ["0"])[0])
+                    except ValueError:
+                        n = -1
+                    thumbs = server.board_thumbs
+                    if 0 <= n < len(thumbs):
+                        self._send(200, thumbs[n], "image/jpeg")
+                    else:
+                        self._send(204, b"", "image/jpeg")
             elif path == "/api/apps":  # installierte Programme (zum Öffnen vom Handy – nur aus dieser Liste)
                 if self._auth() and self._may("steuern"):
                     from .pc_control import app_names
@@ -1157,10 +1207,18 @@ def _make_handler(server: CastServer):
                             raise ValueError("Text")
                         req = {"kind": "board", "op": "text", "x": x, "y": y, "color": color,
                                "text": str(data.get("text", ""))[:500]}
+                    elif op == "einstellung":  # wie „Einstellungen“ im Whiteboard-Fenster am PC
+                        key = str(data.get("key", ""))
+                        req = {"kind": "board", "op": "einstellung", "key": key,
+                               "value": board_setting(key, data.get("value"))}
                     elif op in BOARD_OPS:
                         arg = str(data.get("arg", ""))
                         if op == "hintergrund" and not re.fullmatch(r"[a-z]{2,20}", arg):
                             raise ValueError("Hintergrund")
+                        if op == "seite" and not re.fullmatch(r"\d{1,3}", arg):
+                            raise ValueError("Seite")
+                        if op.startswith("tafel_") and (len(arg) > 60 or "/" in arg or "\\" in arg):
+                            raise ValueError("Name")
                         req = {"kind": "board", "op": op, "arg": arg}
                     else:
                         raise ValueError("op")

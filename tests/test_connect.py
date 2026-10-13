@@ -112,7 +112,12 @@ def test_windows_messages():
                                       "0x8007007F)")
     assert not ok and "procedure could not be found" in msg and "HRESULT" not in msg and "WLAN" in msg
     ok, msg = hotspot.windows_message("STATUS:WiFiDeviceOff:")
-    assert not ok and "WiFiDeviceOff" in msg
+    assert not ok and "WiFiDeviceOff" in msg and "WLAN ist ausgeschaltet" in msg
+    ok, msg = hotspot.windows_message("KANN:DisabledByGroupPolicy")
+    assert not ok and "Gruppenrichtlinie" in msg
+    ok, msg = hotspot.windows_message("KANN:Neu123")
+    assert not ok and "Neu123" in msg
+    assert "GetConnectionProfiles" in hotspot._PS_HEAD  # ohne Internet: andere Verbindung versuchen
 
 
 def test_server_url_uses_hotspot_ip(env):  # noqa: F811

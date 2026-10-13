@@ -8,7 +8,33 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.135.0)
+### Neu in dieser Version (0.136.0)
+- **Ton unter Linux: Geräte und Regler fehlten.** AluPC las die Geräteliste nur über `pactl -f json`. Das können
+  ältere pactl-Versionen (Kubuntu 22.04) nicht, und manche Versionen geben ungültiges JSON aus. Außerdem machte eine
+  Warnung von pactl die Ausgabe kaputt. Jetzt: Rückfall auf die normale Textausgabe (immer auf Englisch gelesen),
+  Warnungen werden getrennt. Mit echtem PulseAudio geprüft – beide Wege liefern dieselben Geräte. Findet AluPC
+  trotzdem nichts, steht auf der Seite „Audio“ jetzt der Grund (Version, Rohliste) statt nur „Keine Geräte“.
+- **Kamera, Handy-Live-Bild und Live-Ansicht zeigen bei „Erweitern“ den echten Bildschirm** von Monitor 2 statt des
+  Hinweises „Monitor 2: normaler Bildschirm“ (eine gemeinsame Aufnahme; unter KDE/Wayland über KWin ohne Nachfrage).
+  Geht die Aufnahme nicht, kommt ein dunkles Bild mit kleinem Grund unten.
+- **Linux: AluPC ersetzt den Desktop jetzt wirklich** (wie unter Windows). Unter KDE/Wayland läuft AluPC als Desktop
+  über XWayland – nur so ist die Oberfläche für KWin ein echter Desktop (nicht minimierbar/schließbar, ganz unten) und
+  die Taskleiste eine echte Leiste: maximierte Programme lassen ihren Platz frei. Mit echtem KWin 5.27 (wie Kubuntu
+  24.04) geprüft. Einschalten während der Sitzung startet AluPC dafür kurz neu.
+- **Whiteboard am iPad wie am PC („Heft-Ansicht“):** Leiste wie im Whiteboard-Fenster (Tafel-Menü: neu/öffnen/
+  umbenennen, Stift/Marker/Radierer/Lasso/Form/Text/Laser, 8 Farben, 3 Stärken, Rückgängig/Wiederholen, Zoom,
+  Seiten, Papier), Seiten als Vorschaubilder links, **Einstellungen** wie am PC (Format, Papier, Stärken, Glätten,
+  Druck, „Nur Stift zeichnet“, Radierer, Textgröße, Speichern, Gäste). **Druckempfindlich** mit Apple Pencil. Öffnet
+  sich auf dem Tablet von selbst unter „Zeichnen“, sobald die Tafel läuft.
+- **Meldungen in der AluPC-Oberfläche:** Als System-Desktop gibt es keinen Infobereich von Windows/KDE – Meldungen
+  wie „Hotspot ging nicht: …“ gingen verloren. Jetzt erscheinen sie unten über der Taskleiste.
+- **Windows-Hotspot:** Ursache für „startet gar nicht“ nicht sicher gefunden (am Windows-Teil hat sich nichts
+  geändert). Neu: ohne Internet versucht AluPC eine andere Verbindung (z. B. LAN ohne Internet); verständliche Gründe
+  statt Fachwörter (WLAN aus, Gruppenrichtlinie, Karte kann es nicht …); die rohe Antwort von Windows steht in
+  `hotspot-letzter-versuch.txt` im AluPC-Einstellungsordner.
+- Auf echter Hardware nicht getestet.
+
+### Davor: 0.135.0
 - **Schiffe versenken – zu zweit auf zwei Bildschirmen:** Spieler 1 spielt im Fenster auf Monitor 1 (Maus: links
   Schiffe setzen, Rechtsklick/Mausrad dreht, rechts schießen), Spieler 2 auf Monitor 2 – **mit dem Handy/iPad**
   (Anmeldeseite → „Schiffe versenken“ oder Code auf Monitor 2, nur übers AluPC-WLAN) **oder an der Tastatur**

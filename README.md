@@ -504,8 +504,10 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   normalen Desktop. **Nicht auf echter Hardware getestet** – nur mit Tests, `systemd-analyze verify` und der
   Windows-Registry in der CI. Ohne Explorer bzw. Plasma fehlen: Symbole anderer Programme im Infobereich,
   Benachrichtigungen anderer Programme; Windows: Startmenü der Win-Taste, Info-Center (Notfall: Strg+Alt+Entf →
-  Task-Manager → „Neuen Task ausführen“ → `explorer`); KDE: Plasma-Widgets/-Leisten. Unter KDE/Wayland reserviert
-  niemand Platz für die Taskleiste – maximierte Fenster liegen dort unter ihr (X11 und Windows: Platz reserviert).
+  Task-Manager → „Neuen Task ausführen“ → `explorer`); KDE: Plasma-Widgets/-Leisten. Unter KDE/Wayland läuft AluPC
+  als Desktop über XWayland (nur so ist es für KWin ein echter Desktop mit Taskleisten-Platz – mit echtem KWin 5.27
+  geprüft); Folge: bei Bildschirm-Skalierung über 100 % kann AluPC dann etwas unscharf aussehen. Ohne XWayland
+  bleibt es wie vorher (Taskleisten-Platz nicht reserviert). `ALUPC_DESKTOP_WAYLAND=1` erzwingt Wayland.
   Ob der Explorer per Knopf als vollständiger Desktop startet (statt nur als Dateifenster), ist unter Windows
   nicht geprüft – AluPC prüft es und meldet es, wenn nicht. GNOME: nicht möglich.
 - **AluPC-WLAN (Hotspot) unter Linux** geht nur mit einer WLAN-Karte, die AP-Modus kann (AluPC prüft das vorher
@@ -513,7 +515,11 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   Hotspot läuft, ist der PC über diese Karte nicht mit einem anderen WLAN verbunden (Internet dann per Kabel).
   Nicht mit echter WLAN-Hardware getestet.
 - **Ton unter Linux** braucht `pactl` (Paket „pulseaudio-utils“, das .deb installiert es mit; PipeWire bringt es
-  nicht mit).
+  nicht mit). Liest die Geräte per JSON und – bei älterem/fehlerhaftem pactl – aus der Textausgabe.
+- **Kamera/Handy-Live-Bild bei „Erweitern“**: Unter KDE/Wayland nur über KWins Aufnahme ohne Nachfrage (braucht den
+  Menüeintrag, den das .deb bzw. der erste Start anlegt); geht sie nicht, kommt ein dunkles Bild mit Grund.
+- **Whiteboard am iPad (Heft-Ansicht)**: Seiten-Vorschaubilder aktualisieren sich etwa jede Sekunde; als PNG/PDF
+  speichern geht nur am PC. Apple-Pencil-Druck kommt über den Browser (Safari) – auf einem echten iPad nicht geprüft.
 - **Dual-Boot-Abgleich**: Windows kann keine Linux-Laufwerke lesen – der Ordner muss auf dem
   Windows-Laufwerk (oder einer gemeinsamen NTFS/exFAT-Partition) liegen. Ist in Windows der
   **„Schnellstart“** an, darf Linux das Windows-Laufwerk nur lesen – dann in Windows Schnellstart

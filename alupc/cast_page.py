@@ -285,6 +285,51 @@ body.board #draw-actions > #b-undo, body.board #draw-actions > #b-redo { flex:0 
 }
 @media (min-width: 1500px) and (min-aspect-ratio: 1/1) {
   #control:not(.hide) { display:grid; } #p-start.sel { grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); } }
+/* ---- Heft-Ansicht (iPad): Whiteboard wie das Fenster am PC – Leiste oben, Seiten links, Tafel groß */
+#heft { position:fixed; inset:0; z-index:25; background:var(--bg); display:flex; flex-direction:column;
+        padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+body.heftmode .toast { z-index:31; bottom:calc(40px + env(safe-area-inset-bottom)); left:50%; }
+body.heftmode nav, body.heftmode header { display:none; }
+.hbar { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; padding:8px 10px; flex:none; }
+.hbar::-webkit-scrollbar { display:none; }
+.hg { display:flex; gap:2px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:14px;
+      padding:3px; flex:none; }
+.hg button { padding:5px 8px; min-width:40px; min-height:40px; border-radius:11px; background:transparent; font-size:14px;
+             gap:5px; }
+.hg button.on { background:var(--on); color:#fff; }
+.hg button:disabled { opacity:.35; }
+.hg .sw { min-width:28px; width:28px; height:28px; min-height:28px; padding:0; border-radius:50%; margin:0 2px;
+          border:3px solid transparent; box-shadow:inset 0 0 0 1px rgba(127,127,127,.45); }
+.hg .sw.sel { border-color:var(--text); transform:scale(1.1); }
+.hlab { min-width:56px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums; font-size:14px; }
+.hsp { flex:1 0 4px; }
+.hbody { flex:1; min-height:0; display:flex; gap:10px; padding:0 10px; }
+.hpages { width:150px; flex:none; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-bottom:10px; }
+.hpages button { flex-direction:column; gap:4px; padding:5px; border-radius:12px; font-size:12px; border:2px solid transparent; }
+.hpages button.on { border-color:#8b5cf6; }
+.hpages img { width:100%; border-radius:7px; background:#fff; aspect-ratio:16/9; object-fit:contain; }
+.hcanvas { flex:1; min-width:0; min-height:0; display:flex; align-items:center; justify-content:center; }
+.hcanvas .preview { aspect-ratio:auto; }
+.hstatus { font-size:12.5px; color:var(--muted); padding:6px 12px; white-space:nowrap; overflow:hidden;
+           text-overflow:ellipsis; flex:none; }
+@media (orientation:portrait) { .hpages { display:none; } }
+.hsheet { position:fixed; inset:0; z-index:30; background:rgba(2,6,23,.45); display:flex; justify-content:flex-end;
+          align-items:flex-start; padding:calc(64px + env(safe-area-inset-top)) 14px 14px; }
+.hcard { width:min(440px, 100%); max-height:100%; overflow-y:auto; background:var(--bg); border:1px solid var(--line);
+         border-radius:22px; padding:14px 16px; box-shadow:0 20px 60px rgba(0,0,0,.45); }
+.hhead { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.hhead b { font-size:17px; }
+.hhead button { min-width:40px; padding:8px; }
+.hrow { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; padding:8px 0;
+        border-bottom:1px solid var(--line); font-size:14.5px; }
+.hrow:last-child { border-bottom:0; }
+.hrow input[type=range] { width:170px; }
+.hrow select { min-width:170px; }
+.hrow input[type=checkbox] { width:24px; height:24px; accent-color:#8b5cf6; }
+.hlist { display:grid; gap:6px; }
+.hlist button { justify-content:flex-start; }
+.hlist button.on { background:var(--on); color:#fff; }
+.hpapers { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
 @media (prefers-reduced-motion: reduce) { *, *::before { animation:none !important; transition:none !important; } }
 </style>
 </head>
@@ -565,6 +610,8 @@ body.board #draw-actions > #b-undo, body.board #draw-actions > #b-redo { flex:0 
     </div>
     <button class="bonly hide" id="b-del" style="width:100%;margin-top:8px" onclick="boardOp('auswahl_loeschen')">
       <svg class="i"><use href="#i-trash"/></svg>Auswahl löschen</button>
+    <button class="bonly primary" id="b-heft" style="width:100%;margin-top:10px" onclick="heft(true, true)">
+      <svg class="i"><use href="#i-expand"/></svg>Heft-Ansicht – wie am PC</button>
     <div class="hint" id="draw-hint">Mit dem Finger auf das Bild zeichnen – erscheint sofort auf Monitor 2.</div>
   </div>
   <div class="card bonly-card" id="c-board">
@@ -607,6 +654,43 @@ body.board #draw-actions > #b-undo, body.board #draw-actions > #b-redo { flex:0 
     </div>
     <div class="hint">Tippen zeigt das Whiteboard mit diesem Hintergrund – dann oben draufzeichnen.</div>
   </div>
+</div>
+
+<!-- ============================================================ Heft-Ansicht (iPad): wie das Whiteboard-Fenster am PC -->
+<div id="heft" class="hide" aria-label="Whiteboard wie am PC">
+  <div class="hbar" id="hbar">
+    <div class="hg"><button onclick="hMenu('tafel')"><svg class="i"><use href="#i-slides"/></svg>Tafel ▾</button></div>
+    <div class="hg" id="h-tools">
+      <button data-t="stift" title="Stift"><svg class="i"><use href="#i-pen"/></svg></button>
+      <button data-t="marker" title="Marker"><svg class="i"><use href="#i-marker"/></svg></button>
+      <button data-t="radierer" title="Radierer"><svg class="i"><use href="#i-erase"/></svg></button>
+      <button data-t="lasso" title="Lasso"><svg class="i"><use href="#i-lasso"/></svg></button>
+      <button data-t="form" title="Form"><svg class="i"><use href="#i-shape"/></svg><span id="h-shape">Linie</span></button>
+      <button data-t="text" title="Text"><svg class="i"><use href="#i-text"/></svg></button>
+      <button data-t="laser" title="Laser"><svg class="i"><use href="#i-dot"/></svg></button>
+    </div>
+    <div class="hg" id="h-colors"></div>
+    <div class="hg" id="h-widths"><button data-w="0.6" title="fein">•</button><button data-w="1" title="mittel">●</button>
+      <button data-w="2.2" title="dick">⬤</button></div>
+    <div class="hg"><button id="h-undo" onclick="undoAny()" title="Rückgängig"><svg class="i"><use href="#i-undo"/></svg></button>
+      <button id="h-redo" onclick="redoAny()" title="Wiederholen"><svg class="i"><use href="#i-redo"/></svg></button></div>
+    <span class="hsp"></span>
+    <div class="hg"><button onclick="boardOp('zoom_out')" title="Herauszoomen"><svg class="i"><use href="#i-minus"/></svg></button>
+      <button id="h-zoom" onclick="boardOp('fit')" title="Ganze Seite">100 %</button>
+      <button onclick="boardOp('zoom_in')" title="Hineinzoomen"><svg class="i"><use href="#i-plus"/></svg></button></div>
+    <div class="hg"><button onclick="boardOp('seite_zurueck')" title="Vorige Seite"><svg class="i"><use href="#i-prev"/></svg></button>
+      <span id="h-page" class="hlab">1 / 1</span>
+      <button onclick="boardOp('seite_vor')" title="Nächste Seite"><svg class="i"><use href="#i-next"/></svg></button>
+      <button onclick="boardOp('seite_neu')" title="Neue Seite"><svg class="i"><use href="#i-plus"/></svg></button>
+      <button id="h-paper" onclick="hMenu('papier')" title="Papier dieser Seite">Papier ▾</button></div>
+    <div class="hg"><button onclick="hMenu('einst')" title="Einstellungen">⚙</button>
+      <button onclick="heft(false, true)" title="Schließen">✕</button></div>
+  </div>
+  <div class="hbody"><div class="hpages" id="hpages"></div><div class="hcanvas" id="hcanvas"></div></div>
+  <div class="hstatus" id="hstatus"></div>
+  <div class="hsheet hide" id="hsheet" onclick="if (event.target === this) hMenu()">
+    <div class="hcard"><div class="hhead"><b id="hsheet-title"></b><button onclick="hMenu()">✕</button></div>
+      <div id="hsheet-body"></div></div></div>
 </div>
 
 <!-- ============================================================ Folien -->
@@ -721,6 +805,7 @@ function tab(name) {
   for (const p of document.querySelectorAll(".page")) p.classList.toggle("sel", p.id === "p-" + name);
   if (fullEl) toggleFull();
   window.scrollTo(0, 0); loadPreview(); sizeInk();
+  if (typeof heft === "function") { if (heftOn && name !== "zeichnen") heft(false); else if (heftWanted()) heft(true); }
 }
 function toast(text, bad) {
   const t = $("toast"); t.textContent = text; t.className = "toast show" + (bad ? " bad" : "");
@@ -834,7 +919,7 @@ async function refresh() {
   requestAnimationFrame(movePill);
   if (!code) { showLogin(true); return; }
   try {
-    const s = await api("/api/status");
+    const s = await api("/api/status" + (heftOn ? "?heft=1" : ""));
     failures = 0; $("offline").classList.remove("show");
     showLogin(false);
     $("dot").classList.add("on");
@@ -945,7 +1030,7 @@ async function loadPreview() {
         if (ar > 0.2 && ar < 5 && Math.abs(ar - (window._ar || 0)) > 0.01) {
           window._ar = ar; document.documentElement.style.setProperty("--ar", ar);
           for (const pv of [$("preview"), $("dpreview")]) pv.style.aspectRatio = String(ar);
-          sizeInk();
+          sizeInk(); sizeHeft();
         }
       };
       if (prevUrl) URL.revokeObjectURL(prevUrl);
@@ -1041,6 +1126,7 @@ function showTools() {
   $("form-name").textContent = sname;
   $("tool-name").textContent = tool === "form" ? sname : NAMES[tool];
   for (const b of $("widths").children) b.classList.toggle("on", +b.dataset.w === widthF);
+  if (typeof hRender === "function" && heftOn) hRender();
 }
 showTools();
 function boardTool() {
@@ -1066,7 +1152,8 @@ function showBoard(b) {
   $("clear-label").textContent = b ? "Seite leeren" : "Alles löschen";
   $("draw-hint").textContent = b ? "Auf die Tafel zeichnen – Monitor 2 zeigt genau diese Ansicht."
                                  : "Mit dem Finger auf das Bild zeichnen – erscheint sofort auf Monitor 2.";
-  if (!b) { if (!["laser", "stift", "marker", "radierer"].includes(tool)) pick("stift"); buildColors(COLORS); return; }
+  if (!b) { if (heftOn) heft(false); if (!["laser", "stift", "marker", "radierer"].includes(tool)) pick("stift");
+            buildColors(COLORS); return; }
   if (!was && store.get("alucast-pencil") === "") { pencilOnly = !!b.pencil_only; }
   $("pencil").checked = pencilOnly;
   buildColors(b.colors || COLORS);
@@ -1076,6 +1163,143 @@ function showBoard(b) {
   $("b-undo").disabled = !b.undo; $("b-redo").disabled = !b.redo;
   $("b-del").classList.toggle("hide", !b.sel);
   for (const g of $("guests").children) g.classList.toggle("on", g.dataset.g === (b.guests || "aus"));
+  if (heftWanted() && !heftOn) heft(true); else hRender();
+}
+// ---- Heft-Ansicht: wie das Whiteboard-Fenster am PC (iPad). Auf dem Tablet öffnet sie sich von selbst, sobald die
+// Tafel läuft und „Zeichnen“ offen ist („✕“ merkt sich: nicht mehr von selbst)
+var heftOn = false, heftHome = null, thumbsVer = -1;
+function heftWanted() { return !!board && current === "zeichnen" && innerWidth >= 740 && store.get("alucast-heft") !== "0"; }
+function heft(on, byUser) {
+  if (byUser) store.set("alucast-heft", on ? "1" : "0");
+  if (on === heftOn || (on && !board)) return;
+  if (fullEl) toggleFull();
+  heftOn = on;
+  const pv = $("dpreview");
+  if (on) {
+    heftHome = { parent: pv.parentNode, next: pv.nextSibling };
+    $("hcanvas").appendChild(pv); $("heft").classList.remove("hide"); document.body.classList.add("heftmode");
+    thumbsVer = -1; hRender(); setTimeout(sizeHeft, 30); refresh();
+  } else {
+    if (heftHome) heftHome.parent.insertBefore(pv, heftHome.next);
+    pv.style.width = pv.style.height = "";
+    $("heft").classList.add("hide"); document.body.classList.remove("heftmode"); hMenu(); setTimeout(sizeInk, 30);
+  }
+}
+function sizeHeft() {
+  if (!heftOn) return;
+  const box = $("hcanvas").getBoundingClientRect(), ar = window._ar || 16 / 9, pv = $("dpreview");
+  const w = Math.min(box.width, box.height * ar);
+  pv.style.width = Math.floor(w) + "px"; pv.style.height = Math.floor(w / ar) + "px";
+  sizeInk();
+}
+window.addEventListener("resize", () => setTimeout(sizeHeft, 60));
+for (const b of document.querySelectorAll("#h-tools button")) b.onclick = () => {
+  if (b.dataset.t === "form" && tool === "form") return hMenu("form");
+  pick(b.dataset.t);
+};
+for (const b of document.querySelectorAll("#h-widths button")) b.onclick = () => setWidth(+b.dataset.w);
+function hRender() {
+  if (!heftOn || !board) return;
+  for (const b of document.querySelectorAll("#h-tools button")) b.classList.toggle("on", b.dataset.t === tool);
+  $("h-shape").textContent = (SHAPES.find(x => x[0] === shape) || SHAPES[0])[1];
+  const cols = board.colors || COLORS, hc = $("h-colors");
+  if (hc.dataset.k !== cols.join(",")) {
+    hc.dataset.k = cols.join(","); hc.innerHTML = "";
+    for (const c of cols) { const b = document.createElement("button"); b.className = "sw"; b.style.background = c;
+      b.dataset.c = c; b.title = c;
+      b.onclick = () => { color = c; store.set("alucast-color", c);
+        if (["laser", "radierer", "lasso"].includes(tool)) pick("stift"); showTools(); }; hc.appendChild(b); }
+  }
+  for (const b of hc.children) b.classList.toggle("sel", b.dataset.c === color && !["laser", "radierer", "lasso"].includes(tool));
+  for (const b of document.querySelectorAll("#h-widths button")) b.classList.toggle("on", +b.dataset.w === widthF);
+  $("h-undo").disabled = !board.undo; $("h-redo").disabled = !board.redo;
+  $("h-zoom").textContent = board.zoom + " %"; $("h-page").textContent = board.page + " / " + board.pages;
+  const paper = (board.papers || []).find(p => p[0] === board.bg);
+  $("h-paper").textContent = (paper ? paper[1] : "Papier") + " ▾";
+  $("hstatus").textContent = "„" + board.name + "“ · Seite " + board.page + " von " + board.pages + " · Zoom " + board.zoom +
+    " %" + (board.sel ? " · " + board.sel + " ausgewählt" : "") + " · zwei Finger: zoomen und verschieben · Monitor 2 zeigt genau diese Ansicht";
+  loadThumbs();
+}
+async function loadThumbs() {
+  const box = $("hpages");
+  if (box.children.length !== board.pages) {
+    box.innerHTML = "";
+    for (let i = 0; i < board.pages; i++) {
+      const b = document.createElement("button"); const img = document.createElement("img"); img.alt = "";
+      b.append(img, "Seite " + (i + 1)); b.onclick = () => boardOp("seite", String(i + 1)); box.appendChild(b);
+    }
+    thumbsVer = -1;
+  }
+  [...box.children].forEach((b, i) => b.classList.toggle("on", i === board.page - 1));
+  if (board.thumbs === thumbsVer || !board.thumbs) return;
+  thumbsVer = board.thumbs;
+  for (let i = 0; i < box.children.length; i++) {
+    try {
+      const r = await fetch("/api/board/seite?n=" + i + "&v=" + thumbsVer, { headers: { "X-AluPC-Code": code } });
+      if (r.status !== 200) continue;
+      const img = box.children[i] && box.children[i].querySelector("img"); if (!img) return;
+      const old = img.src; img.src = URL.createObjectURL(await r.blob()); if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+    } catch (e) { return; }
+  }
+}
+function setBoard(key, value) { buzz(); post("/api/board", { op: "einstellung", key, value }); }
+function hRow(label, control) {
+  const row = document.createElement("label"); row.className = "hrow";
+  const t = document.createElement("span"); t.textContent = label; row.append(t, control); return row;
+}
+function hSelect(key, opts, cur) {
+  const s = document.createElement("select");
+  for (const [v, l] of opts) { const o = document.createElement("option"); o.value = v; o.textContent = l; s.appendChild(o); }
+  s.value = String(cur); s.onchange = () => setBoard(key, key === "smooth" ? +s.value : s.value); return s;
+}
+function hRange(key, lo, hi, cur) {
+  const r = document.createElement("input"); r.type = "range"; r.min = lo; r.max = hi; r.value = cur;
+  r.onchange = () => setBoard(key, +r.value); return r;
+}
+function hCheck(key, cur, also) {
+  const c = document.createElement("input"); c.type = "checkbox"; c.checked = !!cur;
+  c.onchange = () => { setBoard(key, c.checked); if (also) also(c.checked); }; return c;
+}
+function hMenu(which) {
+  const sheet = $("hsheet"), body = $("hsheet-body");
+  if (!which || !board) { sheet.classList.add("hide"); return; }
+  body.innerHTML = ""; sheet.classList.remove("hide");
+  const btn = (text, fn, on) => { const b = document.createElement("button"); b.textContent = text;
+    if (on) b.classList.add("on"); b.onclick = () => { fn(); hMenu(); }; return b; };
+  if (which === "tafel") {
+    $("hsheet-title").textContent = "Tafel";
+    const l = document.createElement("div"); l.className = "hlist";
+    l.append(btn("＋ Neue Tafel …", () => { const n = prompt("Name der neuen Tafel:", ""); if (n !== null) boardOp("tafel_neu", n.trim().slice(0, 60)); }));
+    l.append(btn("✎ Umbenennen …", () => { const n = prompt("Neuer Name:", board.name); if (n && n.trim()) boardOp("tafel_umbenennen", n.trim().slice(0, 60)); }));
+    const h = document.createElement("div"); h.className = "hint"; h.textContent = "Öffnen:"; l.append(h);
+    for (const n of board.boards || []) l.append(btn(n, () => boardOp("tafel_oeffnen", n), n === board.name));
+    body.append(l);
+  } else if (which === "papier") {
+    $("hsheet-title").textContent = "Papier dieser Seite";
+    const g = document.createElement("div"); g.className = "hpapers";
+    for (const [k, l] of board.papers || []) g.append(btn(l, () => boardOp("hintergrund", k), k === board.bg));
+    body.append(g);
+  } else if (which === "form") {
+    $("hsheet-title").textContent = "Form";
+    const l = document.createElement("div"); l.className = "hlist";
+    for (const [k, name] of SHAPES) l.append(btn(name, () => { shape = k; store.set("alucast-shape", k); pick("form"); }, k === shape));
+    body.append(l);
+  } else if (which === "einst") {
+    $("hsheet-title").textContent = "Einstellungen";
+    const st = board.settings || {};
+    body.append(
+      hRow("Format", hSelect("format", board.formats || [], st.format)),
+      hRow("Papier für neue Seiten", hSelect("background", board.papers || [], st.background)),
+      hRow("Stift-Stärke", hRange("width", 1, 20, st.width)),
+      hRow("Marker-Stärke", hRange("marker_width", 6, 60, st.marker_width)),
+      hRow("Glätten", hSelect("smooth", [[0, "Aus"], [1, "Leicht"], [2, "Stark"]], st.smooth)),
+      hRow("Druckempfindlich (Apple Pencil)", hCheck("pressure", st.pressure)),
+      hRow("Nur der Stift zeichnet – Finger verschieben", hCheck("pencil_only", st.pencil_only, on => setPencil(on))),
+      hRow("Radierer-Größe", hRange("eraser", 6, 80, st.eraser)),
+      hRow("Textgröße", hRange("text_size", 14, 120, st.text_size)),
+      hRow("Automatisch speichern", hCheck("autosave", st.autosave)),
+      hRow("Gäste im AluPC-WLAN", hSelect("guests", [["aus", "Aus"], ["alle", "Alle schreiben"], ["frage", "Nur mit Erlaubnis"]], st.guests)));
+  }
 }
 const ink = $("ink"), dpv = $("dpreview");
 function sizeInk() {
@@ -1084,10 +1308,11 @@ function sizeInk() {
 }
 window.addEventListener("resize", sizeInk);
 let last = null, fadeTimer = null;
-function inkLine(a, b) {
+function inkLine(a, b, pr) {
   const g = ink.getContext("2d"); g.lineCap = "round"; g.lineJoin = "round";
   g.strokeStyle = color; g.globalAlpha = tool === "marker" ? .4 : 1;
-  g.lineWidth = (tool === "marker" ? 14 : 4) * devicePixelRatio;
+  const press = board && board.settings && board.settings.pressure && pr !== undefined && pr !== 0.5 ? 0.35 + pr * 1.3 : 1;
+  g.lineWidth = (tool === "marker" ? 14 : 4) * (board ? widthF : 1) * press * devicePixelRatio;
   g.beginPath(); g.moveTo(a.x * ink.width, a.y * ink.height); g.lineTo(b.x * ink.width, b.y * ink.height); g.stroke();
 }
 // Tafel: zwei Finger = zoomen/verschieben; „Nur Stift“: ein Finger verschiebt, nur Apple Pencil/Maus zeichnet
@@ -1144,7 +1369,7 @@ dpv.addEventListener("pointermove", e => {
   const p = norm(dpv, e);
   if (tool === "laser" && !board) { sendLaser(p); dotAt(p); return; }
   if (touchStart) { sendDraw(touchStart, true); touchStart = null; }
-  if (["stift", "marker"].includes(tool)) inkLine(last, p);
+  if (["stift", "marker"].includes(tool)) inkLine(last, p, pressureOf(e));
   last = p; sendDraw(drawMsg("move", p, e));
 });
 function penUp(e) {

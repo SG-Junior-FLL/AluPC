@@ -24,6 +24,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 CON_NAMES = {"normal": "AluPC-Hotspot", "spiele": "AluPC-Spiele"}
@@ -992,9 +993,18 @@ function AwaitOp($op, $type) { $t = $opT.MakeGenericMethod($type).Invoke($null, 
 function AwaitAct($a) { $t = $actT.Invoke($null, @($a)); $t.Wait(-1) | Out-Null }
 $null = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType=WindowsRuntime]
 $null = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType=WindowsRuntime]
+$TM = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]
 $p = [Windows.Networking.Connectivity.NetworkInformation]::GetInternetConnectionProfile()
+if ($p -eq $null) {
+  # kein Internet: eine andere Verbindung nehmen, über die Windows einen Hotspot aufmachen kann (z. B. LAN ohne Internet)
+  foreach ($q in [Windows.Networking.Connectivity.NetworkInformation]::GetConnectionProfiles()) {
+    try { if ([string]($TM::GetTetheringCapabilityFromConnectionProfile($q)) -eq 'Enabled') { $p = $q; break } } catch {}
+  }
+}
 if ($p -eq $null) { Write-Output 'FEHLER:keine Internetverbindung'; exit 2 }
-$tm = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]::CreateFromConnectionProfile($p)
+$cap = [string]($TM::GetTetheringCapabilityFromConnectionProfile($p))
+if ($cap -ne 'Enabled') { Write-Output ('KANN:' + $cap); exit 4 }
+$tm = $TM::CreateFromConnectionProfile($p)
 """
 
 _PS_START = _PS_HEAD + r"""
@@ -1030,12 +1040,50 @@ def _ps(script: str, env_extra: dict | None = None, timeout: float = 40) -> tupl
         return 1, str(exc)
 
 
+# Windows: Gründe, warum der Mobile Hotspot nicht geht (TetheringCapability / Ergebnis von StartTetheringAsync)
+WINDOWS_REASONS = {
+    "DisabledByGroupPolicy": "per Gruppenrichtlinie gesperrt (Schul-/Firmen-PC?)",
+    "DisabledByHardwareLimitation": "die WLAN-Karte kann keinen Hotspot",
+    "DisabledByOperator": "vom Mobilfunkanbieter gesperrt",
+    "DisabledBySku": "diese Windows-Version kann keinen Mobilen Hotspot",
+    "DisabledByRequiredAppNotInstalled": "eine nötige App fehlt",
+    "DisabledDueToUnknownCause": "Windows nennt keinen Grund",
+    "DisabledBySystemCapability": "vom System gesperrt",
+    "WiFiDeviceOff": "WLAN ist ausgeschaltet – erst WLAN einschalten (Taskleiste oder Flugmodus aus)",
+    "OperationInProgress": "Windows startet ihn gerade schon – kurz warten und nochmal",
+    "NetworkLimitedConnectivity": "die geteilte Verbindung hat nur eingeschränkten Zugang",
+    "EntitlementCheckFailure": "vom Anbieter nicht freigegeben",
+    "EntitlementCheckTimeout": "Freigabe-Prüfung dauerte zu lange",
+    "MobileBroadbandDeviceOff": "Mobilfunk ist aus",
+    "BluetoothDeviceOff": "Bluetooth ist aus",
+}
+
+
+def _last_try_file() -> Path:
+    from .config import config_dir
+
+    return config_dir() / "hotspot-letzter-versuch.txt"
+
+
+def note_windows_try(out: str) -> None:
+    """Rohe Antwort von Windows aufheben (für den Fehlerbericht) – ohne Passwort, das steht nie in der Ausgabe."""
+    try:
+        path = _last_try_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(time.strftime("%d.%m.%Y %H:%M:%S") + "\n" + (out or "(keine Ausgabe)")[-4000:], "utf-8")
+    except OSError:
+        pass
+
+
 def windows_message(out: str) -> tuple[bool, str]:
     """PowerShell-Ausgabe → (ok, verständliche Meldung)."""
     if "FEHLER:keine Internetverbindung" in out:
         return False, ("Windows startet den Mobilen Hotspot nur, wenn der PC selbst Netz hat (LAN-Kabel oder "
                        "WLAN). Alternativ: Router-WLAN eintragen.")
     for line in out.splitlines():
+        if line.startswith("KANN:"):
+            code = line[5:].strip()
+            return False, f"Mobiler Hotspot geht nicht: {WINDOWS_REASONS.get(code, code)} ({code})."
         if line.startswith("FEHLER:"):  # z. B. kein WLAN-Adapter, Funktion fehlt (Windows Server)
             why = line[7:].strip().split("(Exception from HRESULT")[0].strip().rstrip(".") or "unbekannter Fehler"
             return False, (f"Mobiler Hotspot geht auf diesem PC nicht ({why}). Hat er einen WLAN-Adapter? "
@@ -1044,7 +1092,10 @@ def windows_message(out: str) -> tuple[bool, str]:
             status = line.split(":")[1]
             if status == "Success":
                 return True, "Mobiler Hotspot läuft."
-            return False, f"Windows meldet: {status}. Einstellungen → Netzwerk → Mobiler Hotspot prüfen."
+            extra = line.split(":", 2)[2].strip() if line.count(":") >= 2 else ""
+            why = WINDOWS_REASONS.get(status, "")
+            return False, (f"Windows meldet: {status}" + (f" – {why}" if why else "") + (f" ({extra})" if extra else "")
+                           + ". Einstellungen → Netzwerk und Internet → Mobiler Hotspot prüfen.")
     return False, "Mobiler Hotspot ging nicht: " + (out.splitlines()[-1] if out else "keine Antwort")
 
 
@@ -1099,7 +1150,9 @@ class Hotspot:
                 self.portal, portal_msg = False, ""
         else:
             password = password if len(password or "") >= 8 else new_password()
-            ok, msg = windows_message(_ps(_PS_START, {"ALUPC_SSID": ssid, "ALUPC_PW": password})[1])
+            out = _ps(_PS_START, {"ALUPC_SSID": ssid, "ALUPC_PW": password})[1]
+            note_windows_try(out)
+            ok, msg = windows_message(out)
             if ok and portal:  # nach dem Start (die Hotspot-Adresse gibt es erst dann)
                 self.portal, portal_msg = start_portal(ip=windows_hotspot_ip(), closed=True)
                 if "STATE:Off" in _ps(_PS_STATE)[1]:  # Hotspot inzwischen aus? Dann wieder an (WLAN muss sichtbar sein)

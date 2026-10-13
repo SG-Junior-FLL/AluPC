@@ -2076,7 +2076,7 @@ def test_system_desktop_watchdog_and_startup_entries(monkeypatch):
     monkeypatch.setenv("TEMP", "C:\\Temp")
     for code, expect in ((1, 1), (-11, 1), (0, 1), (ds.HANDED_OVER, 0)):
         started = []
-        monkeypatch.setattr(ds.subprocess, "call", lambda cmd, c=code: c)
+        monkeypatch.setattr(ds.subprocess, "call", lambda cmd, c=code, **_kw: c)
         assert ds.watchdog(["alupc", "--desktop"], start=lambda: started.append(1)) == 0
         assert len(started) == expect, code
     entries = ds.startup_entries([("Discord", r"%TEMP%\Discord.exe --min"), ("AluPC", "x.exe --minimiert"),
@@ -2084,6 +2084,49 @@ def test_system_desktop_watchdog_and_startup_entries(monkeypatch):
                                  [r"C:\S\OneNote.lnk", r"C:\S\desktop.ini", r"C:\S\alupc.lnk"], {"Steam"})
     assert entries[0].endswith(r"\Discord.exe --min") and "%TEMP%" not in entries[0]
     assert entries[1:] == [r"C:\S\OneNote.lnk"]
+
+
+def test_system_desktop_kde_wayland_runs_as_x11(monkeypatch):
+    """KDE/Wayland: als Desktop läuft AluPC über XWayland – nur dann ist die Oberfläche für KWin ein echter Desktop
+    und die Taskleiste eine echte Leiste mit freigehaltenem Platz (mit echtem KWin 5.27 geprüft)."""
+    import sys
+
+    from alupc.platform import desktop_shell as ds
+    from alupc.platform import linux_display
+
+    if not sys.platform.startswith("linux"):
+        import pytest
+
+        pytest.skip("nur Linux")
+    monkeypatch.delenv("ALUPC_DESKTOP_WAYLAND", raising=False)
+    monkeypatch.setenv("QT_QPA_PLATFORM", "wayland")
+    monkeypatch.setattr(linux_display, "is_wayland", lambda: True)
+    monkeypatch.setattr(ds, "is_kde", lambda: True)
+    monkeypatch.setattr(ds, "x11_reachable", lambda: True)
+    assert ds.desktop_env() == {"QT_QPA_PLATFORM": "xcb"}
+    monkeypatch.setattr(ds, "x11_reachable", lambda: False)  # kein XWayland → wie bisher (sonst startete Qt nicht)
+    assert ds.desktop_env() == {}
+    monkeypatch.setattr(ds, "x11_reachable", lambda: True)
+    monkeypatch.setenv("ALUPC_DESKTOP_WAYLAND", "1")
+    assert ds.desktop_env() == {}
+    monkeypatch.delenv("ALUPC_DESKTOP_WAYLAND")
+    monkeypatch.setattr(linux_display, "is_wayland", lambda: False)  # X11-Sitzung: ist schon X11
+    assert ds.desktop_env() == {}
+    monkeypatch.setattr(linux_display, "is_wayland", lambda: True)
+    seen = {}
+    monkeypatch.setattr(ds.subprocess, "call", lambda cmd, env=None: seen.update(env or {}) or ds.HANDED_OVER)
+    assert ds.watchdog(["alupc", "--desktop"]) == 0 and seen.get("QT_QPA_PLATFORM") == "xcb"
+    spawned = {}
+
+    class P:
+        def __init__(self, cmd, env=None, **_kw):
+            spawned.update(cmd=cmd, env=env)
+
+    monkeypatch.setattr(ds, "command", lambda arg: ["alupc", arg])
+    monkeypatch.setattr(ds.subprocess, "Popen", P)
+    assert ds.relaunch_as_desktop()
+    assert spawned["env"]["QT_QPA_PLATFORM"] == "xcb" and spawned["env"]["ALUPC_NORMAL_BEENDEN"] == "1"
+    assert spawned["cmd"][-1].startswith("sleep 2; exec ") and spawned["cmd"][-1].endswith("--desktop")
 
 
 def test_system_desktop_real_windows_registry():

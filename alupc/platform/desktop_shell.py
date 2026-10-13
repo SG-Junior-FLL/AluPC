@@ -374,12 +374,66 @@ def stop_normal() -> tuple[bool, str]:
     return (False, "Der normale Desktop läuft noch.") if normal_running() else (True, "AluPC-Desktop ist zurück.")
 
 
+# --------------------------------------------------------------------------- KDE/Wayland: als X11-Programm
+def x11_reachable() -> bool:
+    """Ist ein X-Server da (unter KDE/Wayland: XWayland)? Ohne ihn würde Qt mit „xcb“ gar nicht starten."""
+    if not os.environ.get("DISPLAY"):
+        return False
+    try:
+        import ctypes
+        import ctypes.util
+
+        name = ctypes.util.find_library("X11")
+        if not name:
+            return False
+        x11 = ctypes.CDLL(name)
+        x11.XOpenDisplay.restype = ctypes.c_void_p
+        x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+        dpy = x11.XOpenDisplay(None)
+        if not dpy:
+            return False
+        x11.XCloseDisplay(dpy)
+        return True
+    except OSError:
+        return False
+
+
+def desktop_env() -> dict:
+    """Umgebung für AluPC als Desktop. KDE/Wayland: als X11-Programm (über XWayland) – nur so ist die Oberfläche für
+    KWin ein echter Desktop (nicht minimierbar, nicht schließbar, ganz unten) und die Taskleiste eine echte Leiste,
+    deren Platz maximierte Programme freilassen. Wayland-Programme dürfen das nicht (geprüft mit KWin 5.27: Regeln für
+    den Fenstertyp gelten dort nur für X11-Fenster). ALUPC_DESKTOP_WAYLAND=1 schaltet das ab."""
+    if IS_WINDOWS or not sys.platform.startswith("linux") or os.environ.get("ALUPC_DESKTOP_WAYLAND"):
+        return {}
+    from .linux_display import is_wayland
+
+    if not (is_wayland() and is_kde()) or os.environ.get("QT_QPA_PLATFORM", "") in ("offscreen", "minimal", "xcb"):
+        return {}
+    return {"QT_QPA_PLATFORM": "xcb"} if x11_reachable() else {}
+
+
+def relaunch_as_desktop() -> bool:
+    """Diese Sitzung: AluPC als X11-Desktop neu starten (das laufende AluPC beendet sich danach selbst). Der neue
+    Start beendet erst dann den normalen Desktop, wenn er selbst zu sehen ist – der Bildschirm bleibt nie leer."""
+    env = {**os.environ, **desktop_env(), "ALUPC_NORMAL_BEENDEN": "1"}
+    import shlex
+
+    line = "sleep 2; exec " + shlex.join(command(CHILD_ARG))
+    try:
+        subprocess.Popen(["/bin/sh", "-c", line], env=env, start_new_session=True, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+        return True
+    except OSError:
+        return False
+
+
 # --------------------------------------------------------------------------- Wächter
 def watchdog(child: list[str] | None = None, start=None) -> int:
     """Läuft statt des normalen Desktops: AluPC starten; endet es (Absturz, „Beenden“), den normalen Desktop
     starten, damit der Bildschirm nie leer bleibt."""
     try:
-        code = subprocess.call(child or command(CHILD_ARG))
+        code = subprocess.call(child or command(CHILD_ARG), env={**os.environ, **desktop_env()})
     except OSError:
         code = -1
     if code == HANDED_OVER:  # AluPC lief schon (z. B. selbst gestartet) und zeigt den Desktop

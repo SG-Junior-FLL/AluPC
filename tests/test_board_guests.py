@@ -92,3 +92,41 @@ def test_guests_draw_over_http(env, monkeypatch):  # noqa: F811
     controller.set_board_guests("aus")
     assert post(stroke)[0] == 404 and b'id="board"' not in _req(port, "/anmelden")[1]
     controller.cast.stop()
+
+
+def test_ipad_heft_settings_and_board_menu(env):  # noqa: F811
+    """Heft-Ansicht am iPad: Einstellungen wie im Fenster am PC, Tafel neu/öffnen/umbenennen, Seite wählen."""
+    import pytest
+
+    from alupc.cast_server import board_setting
+
+    assert board_setting("width", "50") == 20.0 and board_setting("smooth", 2) == 2
+    assert board_setting("pressure", False) is False and board_setting("format", "a4") == "a4"
+    for key, bad in (("pressure", "ja"), ("format", "riesig"), ("smooth", 7), ("colors", ["#fff"]), ("geheim", 1)):
+        with pytest.raises((ValueError, TypeError)):
+            board_setting(key, bad)
+    controller, window, _ = env
+    controller.show_whiteboard(draw=False)
+    pump()
+    req = lambda **kw: controller._cast_request({"kind": "board", **kw})  # noqa: E731
+    req(op="einstellung", key="width", value=12.0)
+    req(op="einstellung", key="pencil_only", value=True)
+    assert controller.board.settings()["width"] == 12.0 and controller.board.settings()["pencil_only"] is True
+    pages = len(controller.board.doc["pages"])
+    req(op="seite_neu", arg="")
+    req(op="seite", arg="1")
+    assert controller.board.doc["page"] == 0 and len(controller.board.doc["pages"]) == pages + 1
+    req(op="tafel_neu", arg="Mathe")
+    assert controller.board.doc["name"] == "Mathe"
+    req(op="tafel_umbenennen", arg="Mathe 7b")
+    req(op="tafel_oeffnen", arg="gibt es nicht")
+    assert controller.board.doc["name"] == "Mathe 7b"
+    state = controller.board_state()
+    assert state["settings"]["width"] == 12.0 and "Mathe 7b" in state["boards"]
+    assert ["kariert", "Kariert"] in state["papers"] and state["formats"][0][0] == "16:9"
+    controller.cast.thumbs_wanted = __import__("time").monotonic()
+    assert controller.cast.start()
+    controller._board_thumbs()
+    assert len(controller.cast.board_thumbs) == len(controller.board.doc["pages"])
+    assert controller.cast.board_thumbs[0][:2] == b"\xff\xd8"
+    controller.cast.stop()

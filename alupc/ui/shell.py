@@ -672,6 +672,13 @@ class ShellWindow(QWidget):
         self.bar.normal.clicked.connect(lambda: self.main_window.system_desktop(False))
         self.bar.alupc.clicked.connect(self._open_alupc)
         QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self._escape)
+        # Meldungen (z. B. „Hotspot ging nicht: …“): als System-Desktop gibt es keinen Infobereich von Windows/KDE –
+        # ohne das gingen sie verloren, solange das AluPC-Fenster zu ist
+        from .widgets import Toast
+
+        self.toast = Toast(self)
+        self.toast.reposition = self._place_toast
+        controller.message.connect(self._message)
         self._clock = QTimer(self, interval=1000)
         self._clock.timeout.connect(self._tick)
         self._slow = QTimer(self, interval=3000)
@@ -680,6 +687,17 @@ class ShellWindow(QWidget):
         self._fade.setDuration(260)
         self._fade.setEasingCurve(QEasingCurve.OutCubic)
         self.apply_settings()
+
+    def _message(self, text: str) -> None:
+        if not self.isVisible() or (self.main_window.isVisible() and not self.main_window.isMinimized()):
+            return  # das Hauptfenster zeigt sie schon
+        low = text.lower()
+        kind = "warn" if any(w in low for w in ("nicht", "fehl", "kein", "gesperrt", "unbekannt")) else "info"
+        self.toast.show_text(text, kind, 7000 if kind == "warn" else 4200)
+
+    def _place_toast(self) -> None:
+        bar = self.bar.height() if self.bar.isVisible() else 0
+        self.toast.move((self.width() - self.toast.width()) // 2, self.height() - bar - self.toast.height() - 18)
 
     # ---------------------------------------------------------------- Einstellungen
     def cfg(self) -> dict:
@@ -847,7 +865,17 @@ class ShellWindow(QWidget):
         from ..platform import linux_windows
         from ..platform.linux_display import is_wayland
 
-        if is_wayland():  # Wayland: KWin legt die Fenster hin (Programme dürfen das dort nicht selbst)
+        if QGuiApplication.platformName() == "xcb":  # X11 (auch über XWayland): echter Desktop + echte Leiste
+            virt = screen.virtualGeometry()
+            linux_windows.set_x11_strut(int(self.bar_win.winId()), virt.bottom() - geo.bottom() + h, geo.left(),
+                                        geo.right())
+            if is_wayland():  # KWin-Skript zusätzlich: Lage auf dem richtigen Monitor
+                desk = (geo.x(), geo.y(), geo.width(), geo.height())
+                QTimer.singleShot(300, self, lambda: linux_windows.kwin_window_props(self.BAR_TITLE, above=True,
+                                                                                     geo=bar))
+                QTimer.singleShot(300, self, lambda: linux_windows.kwin_window_props(self.TITLE, below=True,
+                                                                                     geo=desk))
+        elif is_wayland():  # Wayland: KWin legt die Fenster hin (Programme dürfen das dort nicht selbst)
             desk = (geo.x(), geo.y(), geo.width(), geo.height())
 
             def pin():
@@ -860,10 +888,6 @@ class ShellWindow(QWidget):
             # sonst bleibt es ein normales Fenster (in der Taskleiste, verschiebbar, falsche Größe)
             for ms in (250, 1000, 3000):
                 QTimer.singleShot(ms, self, pin)
-        elif QGuiApplication.platformName() == "xcb":  # nur echtes X11 (nicht offscreen/Tests)
-            virt = screen.virtualGeometry()
-            linux_windows.set_x11_strut(int(self.bar_win.winId()), virt.bottom() - geo.bottom() + h, geo.left(),
-                                        geo.right())
 
     # ---------------------------------------------------------------- Startmenü / Popups
     def toggle_menu(self) -> None:
