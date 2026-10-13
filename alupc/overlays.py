@@ -604,11 +604,15 @@ def animated(item: dict) -> bool:
 
 # --------------------------------------------------------------------------- Fenster über Monitor 2
 class OverlayWindow(QWidget):
+    """Overlays über Monitor 2. Zeigt Monitor 2 ein AluPC-Bild, sind sie eine Ebene IN diesem Fenster (gleiche
+    Skalierung, sicher obendrauf – unter Wayland liegt ein eigenes Fenster sonst oft dahinter oder auf dem falschen
+    Monitor). Nur bei „Erweitern“ (kein AluPC-Fenster auf Monitor 2) sind sie ein eigenes, durchsichtiges Fenster."""
     TITLE = "AluPC – Overlays"
+    FLOAT_FLAGS = (Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+                   | Qt.WindowTransparentForInput | Qt.WindowDoesNotAcceptFocus)
 
     def __init__(self, controller):
-        super().__init__(None, Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
-                         | Qt.WindowTransparentForInput | Qt.WindowDoesNotAcceptFocus)
+        super().__init__(None, self.FLOAT_FLAGS)
         self.controller = controller
         self.setWindowTitle(self.TITLE)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -677,7 +681,15 @@ class OverlayWindow(QWidget):
         self._relayout()
         self.update()
 
-    # ---- Platz auf Monitor 2 (wie das Fenster für Zeichnungen)
+    # ---- Platz auf Monitor 2
+    def _host(self):
+        """Das AluPC-Fenster auf Monitor 2, wenn es gerade etwas zeigt – sonst None."""
+        out = getattr(self.controller, "output", None)
+        return out if out is not None and out.isVisible() and out.needed() else None
+
+    def embedded(self) -> bool:
+        return self.parentWidget() is not None
+
     def place(self) -> None:
         screen = self.controller.output_screen()
         if screen is None or not self.needed():
@@ -685,29 +697,72 @@ class OverlayWindow(QWidget):
                 self.hide()
             self._kde_done = False
             return
+        host = self._host()
+        if host is not None:
+            self._embed(host)
+            return
+        self._float(screen)
+
+    def _embed(self, host) -> None:
+        if self.parentWidget() is not host:
+            self.hide()
+            self.setParent(host, Qt.Widget)  # Ebene im Monitor-2-Fenster
+            host.overlay_layer = self
+            self._kde_done = False
+        if self.geometry() != host.rect():
+            self.setGeometry(host.rect())
+        if not self.isVisible():
+            self.show()
+        self.raise_()
+        host.raise_layers()
+
+    def _float(self, screen) -> None:
+        old = self.parentWidget()
+        if old is not None:
+            if getattr(old, "overlay_layer", None) is self:
+                old.overlay_layer = None
+            self.hide()
+            self.setParent(None, self.FLOAT_FLAGS)
+            self.setWindowTitle(self.TITLE)
+            self._kde_done = False
         from .platform.linux_display import is_wayland
 
+        geo = screen.geometry()
         if is_wayland():
-            self.create()
-            handle = self.windowHandle()
-            if handle is not None and handle.screen() is not screen:
-                handle.setScreen(screen)
-            if not self.isVisible() or not self.isFullScreen():
-                self.showFullScreen()
+            # Wayland: Programme dürfen ihr Fenster nicht selbst setzen – KWin legt es auf Monitor 2 (und oben drauf)
+            if self.size() != geo.size():
+                self.resize(geo.size())
+            if not self.isVisible():
+                self.show()
         else:
-            if self.geometry() != screen.geometry():
-                self.setGeometry(screen.geometry())
+            if self.geometry() != geo:
+                self.setGeometry(geo)
             if not self.isVisible():
                 self.show()
         if not self._kde_done and self.isVisible():
             self._kde_done = True
-            from .platform.window_tools import kde_keep_above
-            from .ui.util import run_async
+            self._kde_pin(geo)
+            QTimer.singleShot(800, lambda: self._kde_pin(geo) if self.isVisible() and not self.embedded() else None)
+        self._raise_float()
 
-            run_async(lambda: kde_keep_above(self.TITLE), None, lambda _e: None)
-        self.raise_above()
+    def _kde_pin(self, geo) -> None:
+        """KDE: oben halten, aus Taskleiste/Alt+Tab nehmen, genau auf Monitor 2 legen."""
+        from .platform import linux_windows
+        from .ui.util import run_async
+
+        rect = (geo.x(), geo.y(), geo.width(), geo.height())
+        run_async(lambda: linux_windows.kwin_window_props(self.TITLE, above=True, geo=rect), None, lambda _e: None)
 
     def raise_above(self) -> None:
+        """Nach jedem Hochholen des Monitor-2-Fensters: Overlays wieder obendrauf (bzw. hinein, falls es jetzt etwas
+        zeigt)."""
+        if self.embedded() or self._host() is not None:
+            if self.needed():
+                self.place()
+            return
+        self._raise_float()
+
+    def _raise_float(self) -> None:
         if not self.isVisible():
             return
         from .platform.window_tools import keep_on_top

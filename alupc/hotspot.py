@@ -124,6 +124,21 @@ def _linux_ip(dev: str, run=_run) -> str:
     return first.split("/")[0].strip() or "10.42.0.1"
 
 
+VISIBLE_NOTE = "Unsichtbar ging mit dieser WLAN-Karte nicht – der Name ist in der WLAN-Liste zu sehen."
+
+
+def _ap_capable(dev: str, run=_run) -> bool | None:
+    """Kann die WLAN-Karte einen Hotspot aufmachen (AP-Modus)? None = unbekannt."""
+    code, out = run(["nmcli", "-g", "WIFI-PROPERTIES.AP", "device", "show", dev], 8)
+    value = out.strip().lower() if code == 0 else ""
+    return True if value == "yes" else False if value == "no" else None
+
+
+def _connection_on(dev: str, run=_run) -> str:
+    code, out = run(["nmcli", "-g", "GENERAL.CONNECTION", "device", "show", dev], 8)
+    return out.strip() if code == 0 else ""
+
+
 def _linux_start(ssid: str, password: str, run=_run, kind: str = "spiele",
                  hidden: bool = True) -> tuple[bool, str, str]:
     """Hotspot als eigene NetworkManager-Verbindung (AP-Modus, geteilt). hidden=True: Name wird nicht ausgestrahlt –
@@ -131,6 +146,9 @@ def _linux_start(ssid: str, password: str, run=_run, kind: str = "spiele",
     dev = wifi_device(run)
     if not dev:
         return False, "Keine WLAN-Karte gefunden.", ""
+    if _ap_capable(dev, run) is False:
+        return False, (f"Diese WLAN-Karte ({dev}) kann keinen Hotspot aufmachen (kein AP-Modus) – sie kann sich nur "
+                       "mit einem WLAN verbinden. Abhilfe: ein USB-WLAN-Stick, der AP-Modus kann."), ""
     con = CON_NAMES[kind]
     run(["nmcli", "connection", "delete", con], 10)
     cmd = ["nmcli", "connection", "add", "type", "wifi", "ifname", dev, "con-name", con, "autoconnect", "no",
@@ -142,10 +160,21 @@ def _linux_start(ssid: str, password: str, run=_run, kind: str = "spiele",
     code, out = run(cmd)
     if code == 0:
         code, out = run(["nmcli", "connection", "up", con])
+    note = ""
+    if code != 0 and hidden:  # manche WLAN-Karten/Treiber können keinen unsichtbaren Hotspot → sichtbar versuchen
+        run(["nmcli", "connection", "modify", con, "802-11-wireless.hidden", "no"], 10)
+        retry, retry_out = run(["nmcli", "connection", "up", con])
+        if retry == 0:
+            code, out, hidden, note = 0, retry_out, False, " " + VISIBLE_NOTE
     if code != 0:
         return False, f"Hotspot ging nicht: {out.splitlines()[-1] if out else 'unbekannter Fehler'}", ""
+    now = _connection_on(dev, run)
+    if now and now != con:  # NetworkManager hat sich stattdessen mit einem WLAN verbunden
+        run(["nmcli", "connection", "down", con], 10)
+        return False, (f"Hotspot ging nicht: die WLAN-Karte ist mit „{now}“ verbunden statt das WLAN „{ssid}“ "
+                       "aufzumachen."), ""
     seen = "unsichtbar – nur per QR-Code oder Name + Passwort" if hidden else f"über {dev}"
-    return True, f"Hotspot „{ssid}“ läuft ({seen}).", _linux_ip(dev, run)
+    return True, f"Hotspot „{ssid}“ läuft ({seen}).{note}", _linux_ip(dev, run)
 
 
 def _linux_stop(run=_run, kind: str = "spiele") -> tuple[bool, str]:
@@ -1078,7 +1107,7 @@ class Hotspot:
             ip = windows_hotspot_ip() if ok else ""
         self.running, self.ip, self.message = ok, ip, msg
         self.kind, self.ssid, self.password = (kind, ssid, password) if ok else ("", "", "")
-        self.hidden = bool(ok and hidden and not IS_WINDOWS)
+        self.hidden = bool(ok and hidden and not IS_WINDOWS and VISIBLE_NOTE not in msg)
         if ok and portal_msg:
             self.message = msg = f"{msg} {portal_msg}"
         return ok, msg

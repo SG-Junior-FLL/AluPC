@@ -656,8 +656,18 @@ class ShellWindow(QWidget):
         from ..platform.linux_display import is_wayland
 
         if is_wayland():  # Wayland: KWin legt die Fenster hin (Programme dürfen das dort nicht selbst)
-            linux_windows.kwin_window_props(self.TITLE, below=True, geo=(geo.x(), geo.y(), geo.width(), geo.height()))
-            linux_windows.kwin_window_props(self.BAR_TITLE, above=True, geo=bar)
+            desk = (geo.x(), geo.y(), geo.width(), geo.height())
+
+            def pin():
+                if self.system and self.isVisible():
+                    linux_windows.kwin_window_props(self.TITLE, below=True, geo=desk)
+                    linux_windows.kwin_window_props(self.BAR_TITLE, above=True, geo=bar)
+
+            pin()
+            # Das KWin-Skript findet ein Fenster erst, wenn KWin es kennt (kurz nach show) – darum nachfassen,
+            # sonst bleibt es ein normales Fenster (in der Taskleiste, verschiebbar, falsche Größe)
+            for ms in (250, 1000, 3000):
+                QTimer.singleShot(ms, self, pin)
         elif QGuiApplication.platformName() == "xcb":  # nur echtes X11 (nicht offscreen/Tests)
             virt = screen.virtualGeometry()
             linux_windows.set_x11_strut(int(self.bar_win.winId()), virt.bottom() - geo.bottom() + h, geo.left(),

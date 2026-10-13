@@ -315,3 +315,37 @@ def test_driver_scripts():
         ok, msg = drivers.install(["kamera"], elevated=True, run=run)
         assert ok and calls[0][:2] == ["sh", "-c"] and "Virtuelle Kamera" in msg
         assert drivers.install(["unbekannt"])[0]
+
+
+def test_pactl_missing_offers_install(env, monkeypatch):  # noqa: F811
+    """Kubuntu: PipeWire ist da, pactl aber nicht (kommt nur mit pulseaudio-utils) → klare Meldung + „Installieren“,
+    das pulseaudio-utils per pkexec nachinstalliert. Das .deb hängt jetzt selbst von pulseaudio-utils ab."""
+    from pathlib import Path
+
+    script = drivers.linux_script(["pactl"])
+    assert "pulseaudio-utils" in script and "command -v pactl" in script
+    if shutil.which("bash"):
+        assert subprocess.run(["bash", "-n"], input=drivers.linux_script(["pactl", "kamera"]), text=True).returncode == 0
+    deb = (Path(__file__).resolve().parent.parent / "packaging/linux/build_deb.sh").read_text()
+    depends = next(ln for ln in deb.splitlines() if ln.startswith("Depends:"))
+    assert "pulseaudio-utils" in depends
+    if sys.platform.startswith("win"):
+        assert drivers.install(["pactl"])[0]  # unter Windows nichts zu tun
+        return
+    calls = []
+    monkeypatch.setattr(drivers.os, "geteuid", lambda: 1000)
+    monkeypatch.setattr(drivers.shutil, "which", lambda n: "/usr/bin/pkexec" if n == "pkexec" else None)
+    ok, msg = drivers.install(["pactl"], run=lambda cmd, **kw: (calls.append(cmd),
+                                                                 subprocess.CompletedProcess(cmd, 0, "fertig", ""))[1])
+    assert ok and calls[0][0] == "pkexec" and "pulseaudio-utils" in calls[0][-1] and "Ton-Werkzeuge" in msg
+    # Seite: Meldung + Knopf, solange pactl fehlt
+    controller, window, _ = env
+    import alupc.ui.audio_page as ap
+
+    monkeypatch.setattr(ap.shutil, "which", lambda n: None)
+    page = ap.AudioPage(controller)
+    page._snap = {"out": [], "in": [], "apps": [], "rec": [], "virtual": {}, "routes": [],
+                  "ok": (False, "Ton-Werkzeug „pactl“ fehlt (Paket „pulseaudio-utils“).")}
+    page._fill()
+    assert page.note.isVisibleTo(page) and page.fix_btn.isVisibleTo(page) and "pulseaudio-utils" in page.note.text()
+    page.close()

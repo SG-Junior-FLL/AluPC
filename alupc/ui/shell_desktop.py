@@ -15,10 +15,10 @@ import zlib
 from functools import lru_cache
 from pathlib import Path
 
-from PySide6.QtCore import QFileInfo, QFileSystemWatcher, QPoint, QRectF, QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QFileInfo, QFileSystemWatcher, QPoint, QRect, QRectF, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QImageReader, QLinearGradient, QPainter, \
     QPainterPath, QPixmap
-from PySide6.QtWidgets import QFileIconProvider, QMenu, QWidget
+from PySide6.QtWidgets import QFileIconProvider, QMenu, QRubberBand, QWidget
 
 IS_WINDOWS = sys.platform.startswith("win")
 SKIP = {"desktop.ini", "thumbs.db", ".directory", ".ds_store"}
@@ -338,23 +338,45 @@ class DesktopIcon(Movable, QWidget):
         self._hover = False
         self.update()
 
+    def _siblings(self) -> list:
+        return [s for s in self.parentWidget().findChildren(DesktopIcon) if s is not self]
+
+    def set_selected(self, on: bool) -> None:
+        if self.selected != on:
+            self.selected = on
+            self.update()
+
     def mousePressEvent(self, e):
         if e.button() == Qt.RightButton:
             self.menu_requested.emit(self.entry, e.globalPosition().toPoint())
             return
+        if e.modifiers() & Qt.ControlModifier and e.button() == Qt.LeftButton:  # Strg+Klick: zur Auswahl dazu/weg
+            self.set_selected(not self.selected)
+            return
         if self._press(e):
-            for sib in self.parentWidget().findChildren(DesktopIcon):
-                if sib.selected and sib is not self:
-                    sib.selected = False
-                    sib.update()
-            self.selected = True
-            self.update()
+            if not self.selected:  # Klick auf ein nicht gewähltes Symbol: nur dieses wählen
+                for sib in self._siblings():
+                    sib.set_selected(False)
+            self.set_selected(True)
+            self._group_start = {s: s.pos() for s in self._siblings() if s.selected}
+            self._own_start = self.pos()
 
     def mouseMoveEvent(self, e):
         self._drag(e)
+        start = getattr(self, "_own_start", None)
+        if self._dragged and start is not None:  # mehrere gewählt: alle mitziehen
+            delta = self.pos() - start
+            par = self.parentWidget()
+            for sib, p in getattr(self, "_group_start", {}).items():
+                q = p + delta
+                sib.move(max(0, min(par.width() - sib.width(), q.x())), max(0, min(par.height() - sib.height(), q.y())))
 
     def mouseReleaseEvent(self, _e):
-        self._release()
+        group = getattr(self, "_group_start", {}) if self._dragged else {}
+        self._group_start, self._own_start = {}, None
+        if self._release():
+            for sib in group:
+                sib.moved.emit(sib.move_key, sib.pos())
 
     def mouseDoubleClickEvent(self, e):
         if e.button() == Qt.LeftButton:
@@ -422,6 +444,10 @@ class DesktopArea(QWidget):
         self._reload_soon.timeout.connect(self.reload)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._area_menu)
+        self.setFocusPolicy(Qt.ClickFocus)  # Strg+A, Enter für die gewählten Symbole
+        self._band: QRubberBand | None = None
+        self._band_from: QPoint | None = None
+        self._band_keep: set = set()
 
     # ---- Einstellungen
     def cfg(self) -> dict:
@@ -543,12 +569,52 @@ class DesktopArea(QWidget):
         super().resizeEvent(e)
         self.place_all()
 
+    # ---- Auswahlrahmen: auf freier Fläche ziehen markiert mehrere Symbole (Strg = dazu)
     def mousePressEvent(self, e):
-        for ic in self.icons:  # Klick ins Leere: Auswahl weg
-            if ic.selected:
-                ic.selected = False
-                ic.update()
+        keep = bool(e.modifiers() & Qt.ControlModifier)
+        if not keep:
+            for ic in self.icons:  # Klick ins Leere: Auswahl weg
+                ic.set_selected(False)
+        if e.button() == Qt.LeftButton:
+            self._band_from = e.position().toPoint()
+            self._band_keep = {ic for ic in self.icons if ic.selected} if keep else set()
+            if self._band is None:
+                self._band = QRubberBand(QRubberBand.Rectangle, self)
+                self._band.setStyleSheet("background: rgba(99,102,241,0.25); border: 1px solid rgba(165,180,252,0.9);")
+            self._band.setGeometry(QRect(self._band_from, QSize()))
         super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e):
+        if self._band_from is None or not (e.buttons() & Qt.LeftButton):
+            return super().mouseMoveEvent(e)
+        rect = QRect(self._band_from, e.position().toPoint()).normalized()
+        if rect.width() + rect.height() < 6:
+            return
+        self._band.setGeometry(rect)
+        self._band.show()
+        self._band.raise_()
+        for ic in self.icons:
+            ic.set_selected(ic in self._band_keep or rect.intersects(ic.geometry()))
+
+    def mouseReleaseEvent(self, e):
+        self._band_from = None
+        if self._band is not None:
+            self._band.hide()
+        super().mouseReleaseEvent(e)
+
+    def selected_icons(self) -> list:
+        return [ic for ic in self.icons if ic.selected]
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_A and e.modifiers() & Qt.ControlModifier:
+            for ic in self.icons:
+                ic.set_selected(True)
+            return
+        if e.key() in (Qt.Key_Return, Qt.Key_Enter):
+            for ic in self.selected_icons():
+                self._open(ic.entry)
+            return
+        super().keyPressEvent(e)
 
     # ---- Aktionen
     def _open(self, entry: dict) -> None:

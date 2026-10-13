@@ -212,3 +212,49 @@ def test_shell_as_system_desktop(env, monkeypatch, tmp_path):  # noqa: F811
     assert wait_for(lambda: "autostart" in calls) and sh.system and sh.isVisible() and "stop" not in calls
     window.system_desktop(False)
     wait_for(lambda: not sh.isVisible())
+
+
+def test_desktop_rubber_band_and_group_move(env, monkeypatch, tmp_path):  # noqa: F811
+    """Auswahlrahmen wie auf dem Windows-/KDE-Desktop: auf freier Fläche ziehen markiert mehrere Symbole, die
+    sich dann zusammen verschieben lassen; Klick ins Leere hebt die Auswahl auf."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    from alupc.ui import shell_desktop
+
+    controller, window, _ = env
+    desk = tmp_path / "Desktop"
+    desk.mkdir()
+    for n in ("A.txt", "B.txt", "C.txt"):
+        (desk / n).write_text("x")
+    monkeypatch.setattr(shell_desktop, "desktop_dirs", lambda: [desk])
+    controller.run_command("oberflaeche")
+    sh = window.shell
+    _pump(0.6)
+    area = sh.area
+    icons = {ic.entry["name"]: ic for ic in area.icons}
+    a, b, c = icons["A.txt"], icons["B.txt"], icons["C.txt"]
+    # Rahmen um A und B ziehen (beginnt rechts neben den Symbolen auf freier Fläche)
+    start = QPoint(a.geometry().right() + 30, a.geometry().top() - 4)
+    end = QPoint(a.geometry().left() + 10, b.geometry().center().y())
+    QTest.mousePress(area, Qt.LeftButton, Qt.NoModifier, start)
+    for i in range(1, 6):
+        QTest.mouseMove(area, start + (end - start) * i / 5)
+    _pump(0.05)
+    assert a.selected and b.selected and not c.selected
+    assert area._band is not None and area._band.isVisible()
+    QTest.mouseRelease(area, Qt.LeftButton, Qt.NoModifier, end)
+    assert not area._band.isVisible()
+    # A ziehen: B zieht mit, C bleibt
+    pa, pb, pc_ = a.pos(), b.pos(), c.pos()
+    QTest.mousePress(a, Qt.LeftButton, Qt.NoModifier, QPoint(10, 10))
+    for i in range(1, 8):
+        QTest.mouseMove(a, QPoint(10 + 20 * i, 10 + 6 * i))
+    QTest.mouseRelease(a, Qt.LeftButton, Qt.NoModifier, a.mapFromGlobal(a.mapToGlobal(QPoint(10, 10))))
+    _pump(0.1)
+    assert a.pos() != pa and b.pos() != pb and c.pos() == pc_
+    saved = controller.config["shell"]["pos"]
+    assert a.move_key in saved and b.move_key in saved  # beide Positionen gemerkt
+    # Klick ins Leere: Auswahl weg
+    QTest.mouseClick(area, Qt.LeftButton, Qt.NoModifier, QPoint(area.width() // 2, area.height() - 20))
+    assert not any(ic.selected for ic in area.icons)

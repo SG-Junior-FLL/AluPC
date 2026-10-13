@@ -8,7 +8,26 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.132.0)
+### Neu in dieser Version (0.133.0)
+Nach einem Test unter Kubuntu:
+- **Overlays auf Monitor 2 unter Linux repariert:** Zeigt Monitor 2 ein AluPC-Bild, liegen Overlays (auch der Chat)
+  jetzt als Ebene direkt in diesem Fenster – gleiche Skalierung, sicher obendrauf. Vorher waren sie unter Wayland ein
+  eigenes Fenster, das hinter dem Bild lag (Vorschau zeigte den Chat, der Beamer nicht) und nach Klick in die
+  Taskleiste falsch skaliert vorne klebte. Bei „Erweitern“ legt KWin das Overlay-Fenster jetzt genau auf Monitor 2
+  (nicht in die Taskleiste). Gleich unter Windows und Linux.
+- **„Overlays aus“ blendet alles aus** – auch den Chat auf Monitor 2.
+- **Ton unter Kubuntu:** AluPC braucht `pactl` – das kommt nicht mit PipeWire, sondern mit „pulseaudio-utils“. Das
+  Paket hängt jetzt davon ab; fehlt es trotzdem, zeigt „Audio & Kamera“ das klar an mit Knopf „Installieren“.
+- **Hotspot unter Linux robuster:** prüft vorher, ob die WLAN-Karte einen Hotspot kann (AP-Modus), versucht es
+  sichtbar, wenn unsichtbar nicht geht, und meldet einen Fehler, wenn sich die Karte stattdessen mit einem WLAN
+  verbindet (statt „läuft“ zu sagen).
+- **AluPC als Desktop unter KDE/Wayland:** KWin bekommt die Angaben (ganz unten, Bildschirmgröße, nicht in der
+  Taskleiste) jetzt auch noch kurz nach dem Anzeigen – vorher kam das oft zu früh, dann blieb es ein normales Fenster.
+- **Auswahlrahmen auf dem Desktop:** auf freier Fläche ziehen markiert mehrere Symbole, die sich dann zusammen
+  verschieben lassen (Strg+Klick dazu/weg, Strg+A alle, Enter öffnet).
+- Nicht auf echter Hardware getestet – Tests mit nachgestellten Fenstern, nmcli- und pactl-Antworten.
+
+### Davor: 0.132.0
 - **AluPC-Knopf in der Taskleiste der AluPC-Oberfläche** (direkt neben Start): öffnet das AluPC-Hauptfenster mit
   einem Klick – wichtig, wenn AluPC der System-Desktop ist (dann gibt es kein Infobereich-Symbol). Die Oberfläche
   bleibt dahinter.

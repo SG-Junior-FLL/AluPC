@@ -135,6 +135,7 @@ class Controller(QObject):
         self.overlay_window = OverlayWindow(self)
         # Reihenfolge: Ausgabe → Overlays → Zeichnungen/Laser ganz oben
         self.output.after_raise.insert(0, self.overlay_window.raise_above)
+        self.output.after_visibility.append(self.overlay_window.place)  # Monitor 2 zeigt etwas/nichts mehr
         from .handy import airplay_server
 
         self.airplay = airplay_server(config)
@@ -1650,8 +1651,11 @@ class Controller(QObject):
         cfg = dict(self.config["overlays"])
         cfg["on"] = (not cfg.get("on")) if on is None else bool(on)
         self.config["overlays"] = cfg
-        if not cfg["on"]:
+        if not cfg["on"]:  # „Overlays aus“ heißt: nichts mehr über Monitor 2 – auch der Chat nicht
             self.tile_overlays.clear()
+            if self.live_overlays.pop("chat", None) is not None:
+                self.config["chat"] = {**self.config["chat"], "overlay": False}
+                self.guests_changed.emit()
         if cfg["on"] and not any(it.get("on", True) for it in cfg.get("items", [])):
             self.message.emit("Overlays: noch keins angelegt · Pfeil an der Kachel → Bearbeiten")
         self.overlays_changed()

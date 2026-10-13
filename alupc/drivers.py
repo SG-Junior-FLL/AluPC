@@ -26,7 +26,8 @@ V4L2_OPTIONS = f'devices=1 video_nr={V4L2_NR} card_label="{CAM_LABEL}" exclusive
 VBCABLE_URLS = ["https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip",
                 "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip"]
 OBS_VCAM_CLSID = "{A3FCE0F5-3493-419F-958A-ABA1250EC20B}"  # „OBS Virtual Camera“ (DirectShow-Filter)
-WHAT = {"vbcable": "Virtuelles Mikro (VB-CABLE)", "kamera": "Virtuelle Kamera"}
+WHAT = {"vbcable": "Virtuelles Mikro (VB-CABLE)", "kamera": "Virtuelle Kamera", "pactl": "Ton-Werkzeuge (pactl)"}
+LINUX_ONLY = {"pactl"}
 
 
 # --------------------------------------------------------------------------- Skripte
@@ -68,10 +69,29 @@ Write-Output 'Virtuelle Kamera: fertig'
 """
 
 
+PACTL_SCRIPT = """set -e
+# pactl (Ton steuern, Mischpult, virtuelle Mikros) – kommt NICHT mit pipewire-pulse, sondern mit pulseaudio-utils
+if ! command -v pactl >/dev/null; then
+  if command -v apt-get >/dev/null; then DEBIAN_FRONTEND=noninteractive apt-get install -y pulseaudio-utils
+  elif command -v dnf >/dev/null; then dnf install -y pulseaudio-utils
+  elif command -v pacman >/dev/null; then pacman -S --noconfirm libpulse
+  elif command -v zypper >/dev/null; then zypper --non-interactive install pulseaudio-utils
+  else echo "FEHLER: Paketverwaltung unbekannt – pulseaudio-utils bitte selbst installieren"; exit 5; fi
+fi
+echo "Ton-Werkzeuge: fertig"
+"""
+
+
 def linux_script(what: list[str]) -> str:
-    """Als Administrator (pkexec): v4l2loopback installieren und dauerhaft mit dem AluPC-Gerät laden."""
-    if "kamera" not in what:
-        return "true"
+    """Als Administrator (pkexec): Ton-Werkzeuge (pactl) und/oder v4l2loopback installieren (Kamera: dauerhaft mit
+    dem AluPC-Gerät laden)."""
+    parts = [PACTL_SCRIPT] if "pactl" in what else []
+    if "kamera" in what:
+        parts.append(_camera_script())
+    return "\n".join(parts) or "true"
+
+
+def _camera_script() -> str:
     return f"""set -e
 if ! modinfo v4l2loopback >/dev/null 2>&1; then
   if command -v apt-get >/dev/null; then DEBIAN_FRONTEND=noninteractive apt-get install -y v4l2loopback-dkms
@@ -150,7 +170,7 @@ def vbcable_installed() -> bool:
 # --------------------------------------------------------------------------- Installieren
 def install(what: list[str], elevated: bool = False, run=subprocess.run) -> tuple[bool, str]:
     """Blockiert (im Hintergrund aufrufen). elevated=True: läuft schon als Administrator (Installer)."""
-    what = [w for w in what if w in WHAT]
+    what = [w for w in what if w in WHAT and not (IS_WINDOWS and w in LINUX_ONLY)]
     if not what:
         return True, ""
     try:
@@ -174,7 +194,7 @@ def install(what: list[str], elevated: bool = False, run=subprocess.run) -> tupl
             if r.returncode != 0 and not elevated:
                 return False, "Abgebrochen (keine Administrator-Rechte?)"
         else:
-            if "kamera" not in what:
+            if not {"kamera", "pactl"} & set(what):
                 return True, ""
             prefix = [] if elevated or os.geteuid() == 0 else (["pkexec"] if shutil.which("pkexec") else ["sudo", "-n"])
             r = run([*prefix, "sh", "-c", linux_script(what)], capture_output=True, text=True, timeout=900)

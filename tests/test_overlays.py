@@ -263,3 +263,37 @@ def test_overlay_editor_drag_snap_and_forms(env):  # noqa: F811
     assert controller.overlay_window.isVisible()
     rect = QRectF(controller.overlay_window._rects[0][1])
     assert rect.width() > 10
+
+
+def test_overlays_inside_monitor2_window(env):  # noqa: F811
+    """Zeigt Monitor 2 ein AluPC-Bild, sind die Overlays eine Ebene IM Monitor-2-Fenster (unter Wayland lag ein
+    eigenes Fenster sonst dahinter bzw. auf dem falschen Monitor, falsch skaliert). Bei „Erweitern“ eigenes Fenster
+    auf Monitor 2. „Overlays aus“ blendet alles aus – auch den Chat."""
+    controller, window, _ = env
+    win, out = controller.overlay_window, controller.output
+    item = ov.from_template({"type": "clock", "x": 1.0, "y": 0.0}, "Uhr")
+    controller.config["overlays"] = {"on": True, "items": [item]}
+    controller.overlays_changed()
+    controller.show_source({"type": "clock"})
+    pump()
+    assert out.isVisible() and win.isVisible() and win.parentWidget() is out and out.overlay_layer is win
+    assert win.geometry() == out.rect()
+    assert out.children().index(win) > out.children().index(out.content)  # über dem Inhalt
+    controller.toggle_freeze()  # Standbild: Overlays bleiben darüber
+    pump()
+    assert out.children().index(win) > out.children().index(out.freeze_layer) and win.isVisible()
+    controller.toggle_freeze()
+    controller.start_chat()
+    controller.set_chat_overlay(True)
+    pump()
+    assert "chat" in controller.live_overlays and any(it["type"] == "chat" for it in win.items())
+    controller.extend()  # kein AluPC-Bild mehr auf Monitor 2 → eigenes Fenster genau auf Monitor 2
+    pump()
+    assert not out.isVisible() and win.isVisible() and win.parentWidget() is None and out.overlay_layer is None
+    assert win.geometry() == controller.output_screen().geometry()
+    controller.show_source({"type": "clock"})  # wieder hinein
+    pump()
+    assert win.parentWidget() is out and win.isVisible()
+    controller.set_overlays(False)  # aus = alles aus, auch der Chat
+    pump()
+    assert not win.isVisible() and "chat" not in controller.live_overlays and not controller.config["chat"]["overlay"]

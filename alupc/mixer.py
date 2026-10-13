@@ -330,7 +330,8 @@ def available() -> tuple[bool, str]:
 
         return (True, "") if audio.available() else (False, "Windows-Ton (Core Audio) nicht erreichbar.")
     if not shutil.which("pactl"):
-        return False, "pactl fehlt (Paket „pulseaudio-utils“ bzw. „pipewire-pulse“)."
+        return False, ("Ton-Werkzeug „pactl“ fehlt (Paket „pulseaudio-utils“ – kommt nicht mit PipeWire mit). "
+                       "„Installieren“ richtet es ein.")
     code, out = _run(["pactl", "info"])
     return (True, "") if code == 0 else (False, "Kein Audio-Dienst (PipeWire/PulseAudio) erreichbar.")
 

@@ -499,6 +499,12 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   niemand Platz für die Taskleiste – maximierte Fenster liegen dort unter ihr (X11 und Windows: Platz reserviert).
   Ob der Explorer per Knopf als vollständiger Desktop startet (statt nur als Dateifenster), ist unter Windows
   nicht geprüft – AluPC prüft es und meldet es, wenn nicht. GNOME: nicht möglich.
+- **AluPC-WLAN (Hotspot) unter Linux** geht nur mit einer WLAN-Karte, die AP-Modus kann (AluPC prüft das vorher
+  und sagt es). Manche Karten können keinen *unsichtbaren* Hotspot – dann startet AluPC ihn sichtbar. Solange der
+  Hotspot läuft, ist der PC über diese Karte nicht mit einem anderen WLAN verbunden (Internet dann per Kabel).
+  Nicht mit echter WLAN-Hardware getestet.
+- **Ton unter Linux** braucht `pactl` (Paket „pulseaudio-utils“, das .deb installiert es mit; PipeWire bringt es
+  nicht mit).
 - **Dual-Boot-Abgleich**: Windows kann keine Linux-Laufwerke lesen – der Ordner muss auf dem
   Windows-Laufwerk (oder einer gemeinsamen NTFS/exFAT-Partition) liegen. Ist in Windows der
   **„Schnellstart“** an, darf Linux das Windows-Laufwerk nur lesen – dann in Windows Schnellstart

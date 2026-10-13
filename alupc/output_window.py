@@ -100,6 +100,8 @@ class OutputWindow(QWidget):
         self.yield_top = False
         self.suspended = False
         self.after_raise: list = []  # z. B. Laserpointer: muss über diesem Fenster bleiben
+        self.after_visibility: list = []  # z. B. Overlays: ins Fenster hinein bzw. wieder hinaus
+        self.overlay_layer: QWidget | None = None  # Overlays, als Ebene IN diesem Fenster (über Inhalt/Standbild)
         from .platform.window_tools import SecondaryTaskbar
 
         self.taskbar = SecondaryTaskbar()
@@ -145,7 +147,7 @@ class OutputWindow(QWidget):
         layer.setGeometry(self.rect())
         layer.show()
         layer.raise_()
-        for top in (self.freeze_layer, self.screensaver, self.privacy_layer):
+        for top in (self.freeze_layer, self.overlay_layer, self.screensaver, self.privacy_layer):
             if top is not None and top.isVisible():
                 top.raise_()
 
@@ -173,6 +175,7 @@ class OutputWindow(QWidget):
             self.freeze_layer.setGeometry(self.rect())
             self.freeze_layer.show()
             self.freeze_layer.raise_()
+            self.raise_layers()
             if self.screensaver is not None:
                 self.screensaver.raise_()
             self.privacy_layer.raise_()
@@ -254,6 +257,12 @@ class OutputWindow(QWidget):
             handle.setScreen(screen)
         self.update_visibility()
 
+    def raise_layers(self) -> None:
+        """Reihenfolge der Ebenen: Inhalt < Standbild < Overlays < Bildschirmschoner < Sichtschutz."""
+        for top in (self.overlay_layer, self.screensaver, self.privacy_layer):
+            if top is not None and top.isVisible():
+                top.raise_()
+
     def update_visibility(self) -> None:
         if self.needed() and self.screen_name:
             self.bring_to_front()
@@ -261,6 +270,8 @@ class OutputWindow(QWidget):
             if self.isVisible():
                 self.hide()
             self.taskbar.restore()
+        for callback in list(self.after_visibility):
+            callback()
 
     def bring_to_front(self) -> None:
         """Sicher sichtbar machen: Vollbild, ganz oben, auch über der Taskleiste."""
@@ -302,7 +313,7 @@ class OutputWindow(QWidget):
         self.taskbar.restore()
 
     def resizeEvent(self, _event):
-        for w in (self.content, self.freeze_layer, self.privacy_layer, self.screensaver, *self._fades):
+        for w in (self.content, self.freeze_layer, self.privacy_layer, self.screensaver, self.overlay_layer, *self._fades):
             if w is not None:
                 w.setGeometry(self.rect())
 

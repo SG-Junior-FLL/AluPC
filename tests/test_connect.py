@@ -81,6 +81,10 @@ def test_hotspot_settings_and_linux_commands(monkeypatch):
             return 0, "enp3s0:ethernet\nwlp4s0:wifi\nlo:loopback"
         if "hotspot" in cmd:
             return 0, "Device 'wlp4s0' successfully activated"
+        if cmd[:3] == ["nmcli", "-g", "WIFI-PROPERTIES.AP"]:
+            return 0, "yes"
+        if cmd[:3] == ["nmcli", "-g", "GENERAL.CONNECTION"]:
+            return 0, next((c[-1] for c in calls if c[:3] == ["nmcli", "connection", "up"]), "")
         if cmd[:2] == ["nmcli", "-g"]:
             return 0, "10.42.0.1/24"
         return 0, ""
@@ -196,6 +200,10 @@ def test_open_games_network_and_portal_script():
         calls.append(cmd)
         if cmd[:4] == ["nmcli", "-t", "-f", "DEVICE,TYPE"]:
             return 0, "wlp4s0:wifi"
+        if cmd[:3] == ["nmcli", "-g", "WIFI-PROPERTIES.AP"]:
+            return 0, "yes"
+        if cmd[:3] == ["nmcli", "-g", "GENERAL.CONNECTION"]:
+            return 0, next((c[-1] for c in calls if c[:3] == ["nmcli", "connection", "up"]), "")
         if cmd[:2] == ["nmcli", "-g"]:
             return 0, "10.42.0.1/24"
         return 0, ""
@@ -1049,3 +1057,37 @@ def test_cast_page_tablet_layout_and_ids():
     assert "@media (min-width: 740px)" in PAGE and "@media (min-width: 1060px) and (min-aspect-ratio: 1/1)" in PAGE
     assert 'id="side"' in html and 'id="c-mon2"' in html and '$("c-mon2").classList.toggle("hide", !allow.steuern)' in script
     assert "pill.style.top" in script  # Leuchtpunkt gleitet auch in der senkrechten Leiste
+
+
+def test_linux_hotspot_checks_ap_mode_and_result():
+    """Linux-Hotspot robuster: WLAN-Karte ohne AP-Modus → klare Meldung; unsichtbar geht nicht → sichtbar;
+    NetworkManager verbindet sich stattdessen mit einem WLAN → Fehler statt „läuft“."""
+    def fake(ap="yes", hidden_fails=False, connected=None):
+        calls = []
+
+        def run(cmd, timeout=25):
+            calls.append(cmd)
+            if cmd[:4] == ["nmcli", "-t", "-f", "DEVICE,TYPE"]:
+                return 0, "wlp4s0:wifi"
+            if cmd[:3] == ["nmcli", "-g", "WIFI-PROPERTIES.AP"]:
+                return 0, ap
+            if cmd[:3] == ["nmcli", "-g", "GENERAL.CONNECTION"]:
+                return 0, connected or "AluPC-Hotspot"
+            if cmd[:2] == ["nmcli", "-g"]:
+                return 0, "10.42.0.1/24"
+            if cmd[:3] == ["nmcli", "connection", "up"] and hidden_fails and \
+                    not any(c[:3] == ["nmcli", "connection", "modify"] for c in calls):
+                return 4, "Error: Connection activation failed: 802.1X supplicant failed"
+            return 0, ""
+        return run, calls
+
+    run, calls = fake(ap="no")
+    ok, msg, _ip = hotspot._linux_start("AluPC", "geheim123", run, kind="normal")
+    assert not ok and "AP-Modus" in msg and not any(c[:3] == ["nmcli", "connection", "add"] for c in calls)
+    run, calls = fake(hidden_fails=True)
+    ok, msg, ip = hotspot._linux_start("AluPC", "geheim123", run, kind="normal")
+    assert ok and ip == "10.42.0.1" and hotspot.VISIBLE_NOTE in msg
+    assert ["nmcli", "connection", "modify", "AluPC-Hotspot", "802-11-wireless.hidden", "no"] in calls
+    run, calls = fake(connected="FRITZ!Box 7590")
+    ok, msg, _ip = hotspot._linux_start("AluPC", "geheim123", run, kind="normal")
+    assert not ok and "FRITZ!Box 7590" in msg and ["nmcli", "connection", "down", "AluPC-Hotspot"] in calls

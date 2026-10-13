@@ -4,6 +4,8 @@ weiterleiten (Mikro → virtuelles Mikro, Mithören) und Monitor 2 als virtuelle
 
 from __future__ import annotations
 
+import shutil
+
 from PySide6.QtCore import QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
@@ -14,6 +16,7 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QMenu,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QSlider,
@@ -271,7 +274,14 @@ class AudioPage(QWidget):
         self.note.setWordWrap(True)
         self.note.setObjectName("Muted")
         self.note.hide()
-        root.addWidget(self.note)
+        note_row = QHBoxLayout()
+        note_row.addWidget(self.note, 1)
+        self.fix_btn = QPushButton("Installieren")  # pactl fehlt (Kubuntu: kommt nicht mit PipeWire mit)
+        self.fix_btn.setObjectName("Primary")
+        self.fix_btn.hide()
+        self.fix_btn.clicked.connect(self._install_pactl)
+        note_row.addWidget(self.fix_btn, 0, Qt.AlignTop)
+        root.addLayout(note_row)
         top = QHBoxLayout()
         top.setSpacing(14)
         top.addWidget(self._virtual_card(), 3)
@@ -541,6 +551,19 @@ class AudioPage(QWidget):
         menu.exec(chip.mapToGlobal(chip.rect().bottomLeft()))
 
     # ---------------------------------------------------------------- Mischpult
+    def _install_pactl(self) -> None:
+        from .. import drivers
+
+        self.fix_btn.setEnabled(False)
+        self.fix_btn.setText("Wird installiert …")
+
+        def done():
+            self.fix_btn.setEnabled(True)
+            self.fix_btn.setText("Installieren")
+            self.reload()
+
+        drivers.install_async(self, "pactl", done)
+
     def reload(self) -> None:
         if self._busy:
             return
@@ -580,6 +603,7 @@ class AudioPage(QWidget):
         ok, why = snap.get("ok", (True, ""))
         self.note.setVisible(not ok)
         self.note.setText(why)
+        self.fix_btn.setVisible(not ok and not IS_WINDOWS and shutil.which("pactl") is None)
         cfg = self.routing.cfg()
         if cfg["virtual"] and not IS_WINDOWS and not (snap.get("virtual") or {}).get("mic") and \
                 not getattr(self, "_reapplied", False):
