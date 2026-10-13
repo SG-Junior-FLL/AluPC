@@ -310,8 +310,22 @@ def self_test(log_path: str) -> int:
     import tempfile
     import traceback
 
-    lines = []
+    class _Log(list):  # jede Zeile sofort in die Datei – hängt etwas, sieht man, bis wohin es kam
+        def append(self, text):
+            super().append(text)
+            try:
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(f"{text}\n")
+            except OSError:
+                pass
+
     try:
+        open(log_path, "w", encoding="utf-8").close()
+    except OSError:
+        pass
+    lines = _Log()
+    try:
+        lines.append("Start")
         tmp = tempfile.mkdtemp(prefix="alupc-test-")
         os.environ["APPDATA"] = tmp  # eigene Einstellungen nicht anfassen
         os.environ["XDG_CONFIG_HOME"] = tmp
@@ -422,6 +436,7 @@ def self_test(log_path: str) -> int:
                         if ux else ""))
         lines.append("Handy-Einrichtung: " + (", ".join(label for label, _ in handy.setup_plan(config))
                                                  or "nichts zu installieren"))
+        lines.append("Schritt: Handy-Fenster/Ersteinrichtung")
         from .ui.first_run import FirstRunDialog
 
         first = FirstRunDialog(controller, window)
@@ -435,6 +450,7 @@ def self_test(log_path: str) -> int:
         if not ux:  # ohne UxPlay nur Hinweis auf Monitor 2
             controller.show_source({"type": "airplay"})
             app.processEvents()
+        lines.append("Schritt: AluCast")
         # AluCast: Webserver starten, Seite abrufen, QR-Code zeichnen (segno im Paket?)
         import urllib.request
 
@@ -507,6 +523,7 @@ def self_test(log_path: str) -> int:
                      f"{'sichtbar' if ow.isVisible() else 'aus (kein Monitor 2)'}")
         controller.config["overlays"] = saved_overlays
         controller.overlays_changed()
+        lines.append("Schritt: Diagnose")
         from . import diagnose
 
         # Echte Probe-Aufnahme (Spiegeln) + Gesamtbild – steht dann im Protokoll (CI zeigt es an)
@@ -516,6 +533,7 @@ def self_test(log_path: str) -> int:
         controller.show_source({"type": "camera", "device_id": "selbsttest"})  # Kamera-Leiste/Optionen
         window.camera_bar.sync()
         app.processEvents()
+        lines.append("Schritt: Beenden")
         controller.shutdown()
         lines.append("OK")
         code = 0

@@ -508,10 +508,18 @@ jobs:
         shell: pwsh
         run: |
           $setup = Get-ChildItem dist\AluPC-Setup-*.exe | Select-Object -First 1
-          $p = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER", "/MERGETASKS=!handy", "/DIR=$env:RUNNER_TEMP\AluPC-inst" -Wait -PassThru
+          $p = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER", "/MERGETASKS=!handy", "/DIR=$env:RUNNER_TEMP\AluPC-inst", "/LOG=$env:RUNNER_TEMP\setup.log" -PassThru
+          if (-not $p.WaitForExit(600000)) {
+            Get-Content "$env:RUNNER_TEMP\setup.log" -Tail 30 -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "::error title=Installer hängt::$_" }
+            Get-Process | Where-Object { $_.Path -like "*AluPC*" -or $_.Name -like "*netsh*" -or $_.Name -like "*powershell*" } | ForEach-Object { Write-Output "::error title=Läuft noch::$($_.Name) $($_.Path)" }
+            throw "Installer hängt (10 Minuten)" }
           if ($p.ExitCode -ne 0) { throw "Installer fehlgeschlagen (Exit-Code $($p.ExitCode))" }
           $log = Join-Path $env:RUNNER_TEMP "inst.txt"
-          $q = Start-Process -FilePath "$env:RUNNER_TEMP\AluPC-inst\AluPC.exe" -ArgumentList "--selbsttest", $log -Wait -PassThru
+          $q = Start-Process -FilePath "$env:RUNNER_TEMP\AluPC-inst\AluPC.exe" -ArgumentList "--selbsttest", $log -PassThru
+          if (-not $q.WaitForExit(600000)) {
+            Get-Content $log -Tail 15 -ErrorAction SilentlyContinue | Where-Object { $_ -notlike "DIAG *" } | ForEach-Object { Write-Output "::error title=Selbsttest hängt – zuletzt::$_" }
+            Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $q.Id } | ForEach-Object { Write-Output "::error title=Kindprozess::$($_.Name) $($_.CommandLine)" }
+            $q.Kill(); throw "Installiertes AluPC hängt im Selbsttest (10 Minuten)" }
           if (Test-Path $log) { Get-Content $log }
           if ($q.ExitCode -ne 0) { throw "Installiertes AluPC startet nicht (Exit-Code $($q.ExitCode))" }
       - name: Portable ZIP
