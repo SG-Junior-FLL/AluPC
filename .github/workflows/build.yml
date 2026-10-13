@@ -517,8 +517,12 @@ jobs:
           $setup = Get-ChildItem dist\AluPC-Setup-*.exe | Select-Object -First 1
           $p = Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER", "/MERGETASKS=!handy", "/DIR=$env:RUNNER_TEMP\AluPC-inst", "/LOG=$env:RUNNER_TEMP\setup.log" -PassThru
           if (-not $p.WaitForExit(600000)) {
-            Get-Content "$env:RUNNER_TEMP\setup.log" -Tail 30 -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "::error title=Installer hängt::$_" }
-            Get-Process | Where-Object { $_.Path -like "*AluPC*" -or $_.Name -like "*netsh*" -or $_.Name -like "*powershell*" } | ForEach-Object { Write-Output "::error title=Läuft noch::$($_.Name) $($_.Path)" }
+            # GitHub zeigt nur ~10 Meldungen je Schritt – deshalb alles in EINER Meldung (Zeilen mit %0A)
+            $tail = (Get-Content "$env:RUNNER_TEMP\setup.log" -Tail 25 -ErrorAction SilentlyContinue) -join "%0A"
+            Write-Output "::error title=Installer hängt – Protokollende::$tail"
+            $procs = (Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.Name -match 'AluPC|winget|netsh|powershell|setup|tmp|msiexec|VBCABLE|OBS|cmd') } |
+              ForEach-Object { "$($_.ProcessId) <- $($_.ParentProcessId) $($_.Name): $($_.CommandLine)" }) -join "%0A"
+            Write-Output "::error title=Installer hängt – laufende Prozesse::$procs"
             throw "Installer hängt (10 Minuten)" }
           if ($p.ExitCode -ne 0) { throw "Installer fehlgeschlagen (Exit-Code $($p.ExitCode))" }
           $log = Join-Path $env:RUNNER_TEMP "inst.txt"
