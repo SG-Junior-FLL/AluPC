@@ -29,6 +29,8 @@ und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beide
 | 🖥️ **Monitor 2 mit einem Klick** | Spiegeln, Erweitern, Kamera, Programm, Website, Bild/Video, Text, Uhr, Timer, Whiteboard, 32 gestaltete Karten, eigene Szenen mit Übergängen, Overlays, Sichtschutz, Standbild |
 | 📱 **Handy = Fernbedienung** | Nur übers AluPC-WLAN: WLAN-Code scannen → privaten Steuer-Code am PC scannen (nie auf Monitor 2), ohne App: Monitor 2 steuern, Live-Bild mit Laserpointer, zeichnen, Folien klicken, Touchpad, Fotos/Links senden – freigeben per „Erlauben“ am PC statt Code. **Auf dem iPad** eigenes Layout: Leiste links, Live-Bild bleibt stehen, große Zeichen- und Touchpad-Fläche |
 | 🎛️ **PC steuern** | Lautstärke, Musik, Fenster, Bildschirmfoto, Programme öffnen, Ausführen wie Win+R, Sperren – in der App, vom Handy, per Sprache („Alu PC, lauter“) oder Strg+K |
+| 🚢 **Schiffe versenken zu zweit** | Spieler 1 im Fenster auf Monitor 1, Spieler 2 auf Monitor 2 – mit Handy/iPad (nur AluPC-WLAN) oder Tastatur; jeder sieht nur die eigenen Schiffe |
+| ✏️ **Whiteboard für Gäste** | Alle im AluPC-WLAN schreiben mit – oder nur nach „Erlauben“ am PC; Anmeldeseite → „Whiteboard“ |
 | 🎮 **Minispiele = eigenes WLAN** | Snake, Tic-Tac-Toe, Pong, **Tetris** (alle dieselben Teile), Tipp-Rennen, Simon sagt, Schere-Stein-Papier, Space Invaders, Flappy Bird, Vier gewinnt – WLAN-Code scannen, Anmeldeseite öffnet sich (oder zweiten Code scannen: Seite im Browser), Name eingeben, mitspielen |
 | 📶 **AluPC-WLAN** | Der PC macht ein (unsichtbares) WLAN – 2 QR-Codes auf Monitor 2 (1. WLAN, 2. Seite im Browser, bleibt offen), Anmeldeseite wie im Hotel: Mitspielen, Abstimmen, AluPC steuern. Der **einzige** Weg fürs Handy; der Steuer-Code steht nur am PC. Kein Internet – außer für Geräte, die man im Hotspot-Fenster freischaltet |
 | 💬 **Chat & 📷 Foto-Wand** | Handys schreiben übers AluPC-WLAN, Nachrichten erscheinen **direkt als Overlay** auf Monitor 2 – als Liste oder als **Pop-up** (kurz, ohne QR) – oder als Chat-Wand – mit Wortfilter, Link-Sperre, Tempo-Grenze, Löschen und Handy sperren. Fotos vom Handy als Collage oder Diashow, neue Fotos erst groß. Verwalten auf der Seite **„Gäste“** |
@@ -96,7 +98,7 @@ Alle Screens mit Erklärung: **[Handbuch (PDF)](docs/AluPC-Handbuch.pdf)**. Frü
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
 | **Standbild** | friert das Bild auf Monitor 2 ein; du arbeitest auf Monitor 1 unbemerkt weiter |
-| **Bild-in-Bild** | kleines Fenster auf Monitor 1, das live zeigt, was auf Monitor 2 läuft (mit Hinweis „STANDBILD“/„SCHWARZ“) |
+| **Bild-in-Bild / Live-Ansicht** | Fenster auf Monitor 1, das live zeigt, was auf Monitor 2 läuft (mit Hinweis „STANDBILD“/„SCHWARZ“) – frei ziehen, Vollbild auf Monitor 1 (Doppelklick/F11, Esc), „Immer oben“ an/aus |
 | **Bildschirmschoner** | Uhr, Analoguhr, Klappuhr, schwebender Text/Logo, Nachricht, Diashow, Farbverlauf, Matrix, Code-Editor, Terminal, Netzwerk, Sternenflug, Polarlicht, Lavalampe, Lichtkugeln, Meer, Feuerwerk, Schneefall, Sprüche/Zitate oder eigene Szene (in Gruppen: Uhr, Text, Natur, Farben & Licht, Tech, Eigenes) – automatisch nach X Minuten ohne Maus/Tastatur oder per Klick |
 | **Zeigen & Zeichnen** | eigenes Fenster auf Monitor 1 mit Live-Bild von Monitor 2: darin mit dem **Laserpointer** zeigen oder mit **Stift/Textmarker** in 8 Farben (+ eigene) kritzeln, Radierer, Rückgängig, Alles löschen – erscheint sofort auf Monitor 2. **Zeichnungen bleiben stehen** (auch nach Schließen des Fensters und Neustart), bis man sie löscht oder die Szene wechselt. Vorschau mit 10–60 Bildern/s. Öffnen über Kachel, Taskleisten-Menü oder `Strg+Alt+K` |
 
@@ -462,6 +464,13 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
 - **Nicht auf echter Hardware getestet.** Die automatischen Tests laufen auf GitHub unter Linux und
   Windows (inkl. Start der fertigen Programme und der installierten Pakete) – aber ohne echte Monitore,
   Kameras und Fingerabdrucksensoren. Bitte Fehler mit Screenshot oder Meldungstext melden.
+- **Whiteboard für Gäste:** Gäste schreiben nur, solange die Tafel auf Monitor 2 zu sehen ist; ein Strich erscheint
+  in Stücken (etwa alle ⅓ Sekunde) – nicht ganz so flüssig wie am PC. Radieren, Seiten und Rückgängig bleiben beim PC.
+  „Nur nach Erlaubnis“ merkt sich die Erlaubnis je Browser bis zum Umschalten – wer den Browser-Speicher löscht,
+  fragt neu.
+- **Schiffe versenken:** Spielt Spieler 2 an der Tastatur, zeigt Monitor 2 seine Schiffe – wer auf den Beamer
+  schaut, sieht sie. Am Handy ist das fair: Monitor 2 zeigt dann nur die Schüsse auf beide Felder. Spieler 1 sieht
+  seine Schiffe im Fenster auf Monitor 1.
 - **Chromecast-Empfang geht nicht**: Google lässt als Empfänger nur zertifizierte Geräte zu. Einen
   eigenen „AirPlay“ oder „Chromecast“ nachzubauen geht auch nicht sinnvoll: AirPlay-Bildschirm­übertragung
   ist mit Apples FairPlay verschlüsselt, Chromecast mit Google-Zertifikaten. Deshalb gibt es

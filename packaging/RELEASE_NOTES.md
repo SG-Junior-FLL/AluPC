@@ -8,7 +8,24 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.134.0)
+### Neu in dieser Version (0.135.0)
+- **Schiffe versenken – zu zweit auf zwei Bildschirmen:** Spieler 1 spielt im Fenster auf Monitor 1 (Maus: links
+  Schiffe setzen, Rechtsklick/Mausrad dreht, rechts schießen), Spieler 2 auf Monitor 2 – **mit dem Handy/iPad**
+  (Anmeldeseite → „Schiffe versenken“ oder Code auf Monitor 2, nur übers AluPC-WLAN) **oder an der Tastatur**
+  (Pfeile, Enter, R drehen, Z zufällig, B bereit). Jeder sieht nur die eigenen Schiffe. Start: Minispiele-Fenster,
+  Befehlssuche oder Sprache („Schiffe versenken“).
+- **Live-Ansicht von Monitor 2** (Bild-in-Bild) ist jetzt ein richtiges Fenster: frei ziehen, **Vollbild auf
+  Monitor 1** (Doppelklick oder F11, Esc zurück), „Immer oben“ an/aus.
+- **Whiteboard für Gäste:** Einstellung „Gäste im AluPC-WLAN“ – *Aus*, *Alle dürfen schreiben* oder *Nur nach
+  Erlaubnis* (am PC erscheint „Erlauben / Ablehnen“). Gäste öffnen auf der Anmeldeseite „Whiteboard“, sehen die Tafel
+  live und schreiben mit Finger oder Stift (Stift/Marker, 3 Stärken, 8 Farben). Umschalten am PC
+  (Whiteboard-Einstellungen, Befehlssuche) oder in der Handysteuerung (Zeichnen → Tafel).
+- **iPad:** Anmeldeseite quer zweispaltig (alle Knöpfe ohne Scrollen), hochkant mit Knöpfen nebeneinander;
+  Handysteuerung mit Schnellleiste oben (Schwarz/Standbild/Erweitern auf jedem Reiter) und Zeichnen quer mit
+  Whiteboard-Hintergründen unter dem Bild.
+- Auf echter Hardware nicht getestet (Tests und Browser-Prüfung im Container: iPhone- und iPad-Größen).
+
+### Davor: 0.134.0
 - **Richtiger Lautstärkeregler in der AluPC-Oberfläche** (Taskleiste, Lautsprecher-Symbol) – wie bei Windows 11 und
   KDE: **Ausgabegerät wählen** (Lautsprecher, Kopfhörer, Monitor …, wird Standardgerät des Systems),
   Gesamtlautstärke + Stumm, **Mikrofon** (Lautstärke + Stumm), **Lautstärke je Programm** und **Musik**

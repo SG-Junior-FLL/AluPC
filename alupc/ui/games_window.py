@@ -62,6 +62,15 @@ class GamesWindow(QWidget):
             grid.addWidget(b, i // cols, i % cols)
             self.cards[key] = b
         left.addLayout(grid)
+        # Zwei Bildschirme statt Handys: Spieler 1 am PC, Spieler 2 auf Monitor 2
+        self.b_duel = QPushButton("🚢  Schiffe versenken – zu zweit\nSpieler 1 hier am PC · Spieler 2 auf Monitor 2 "
+                                  "(Handy oder Tastatur)")
+        self.b_duel.setFocusPolicy(Qt.NoFocus)
+        self.b_duel.setCursor(Qt.PointingHandCursor)
+        self.b_duel.setMinimumHeight(64)
+        self.b_duel.setStyleSheet(self._card_css(t))
+        self.b_duel.clicked.connect(lambda: self.controller.start_duel())
+        left.addWidget(self.b_duel)
         self.opts_row = QHBoxLayout()
         self.opts_row.setSpacing(10)
         left.addLayout(self.opts_row)

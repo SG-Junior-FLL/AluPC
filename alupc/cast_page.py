@@ -188,7 +188,7 @@ body.board .bonly-card { display:block !important; }
 body.board .tools { grid-template-columns:repeat(4,1fr); }
 body.board #draw-actions .lbl { display:none; }
 body.board #draw-actions > #b-undo, body.board #draw-actions > #b-redo { flex:0 0 56px; }
-#widths button.on { background:var(--on); color:#fff; }
+#widths button.on, #guests button.on { background:var(--on); color:#fff; }
 #b-zoom { font-variant-numeric:tabular-nums; min-width:76px; }
 /* Feinschliff für alle Größen */
 .side { min-width:0; }
@@ -250,6 +250,17 @@ body.board #draw-actions > #b-undo, body.board #draw-actions > #b-redo { flex:0 
   textarea { min-height:140px; }
   #login { max-width:520px; margin:40px auto; }
 }
+/* ---- Tablet: Schnellleiste oben rechts (Schwarz/Standbild/Erweitern auf jedem Reiter außer Start) */
+.quick { display:none; }
+@media (min-width: 740px) {
+  .quick:not(.hide) { display:flex; gap:8px; }
+  body[data-tab="start"] .quick { display:none; }
+  .quick button { padding:10px 14px; font-size:14px; border-radius:16px; background:var(--card); border:1px solid var(--line);
+                  box-shadow:0 4px 14px rgba(2,6,23,.12); }
+  .quick button.on { background:var(--on); color:#fff; border-color:transparent; }
+  .quick svg.i { width:20px; height:20px; }
+}
+@media (min-width: 740px) and (max-width: 900px) { .quick button span { display:none; } }
 /* ---- iPad quer: Live-Bild bleibt links stehen, Steuerung rechts daneben */
 @media (min-width: 1060px) and (min-aspect-ratio: 1/1) {
   #p-start.sel { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:18px; align-items:start; }
@@ -258,7 +269,10 @@ body.board #draw-actions > #b-undo, body.board #draw-actions > #b-redo { flex:0 
   #control:not(.hide) { grid-column:2; display:block; }
   #c-nocontrol { grid-column:2; }
   #p-zeichnen.sel { grid-template-columns:minmax(0,1fr) 330px; }
-  #p-zeichnen > .card:first-child { grid-column:1; grid-row:1 / span 2; position:sticky; top:calc(84px + env(safe-area-inset-top)); }
+  #p-zeichnen > .card:first-child { grid-column:1; grid-row:1; }
+  #p-zeichnen > .card:not(:first-child):not(#c-wbg) { grid-column:2; }
+  #p-zeichnen > #c-wbg { grid-column:1; grid-row:2; }
+  #c-wbg .wbg button { flex-basis:18%; }
   #p-zeichnen .tools { grid-template-columns:repeat(2,1fr); }
   #p-zeichnen .colors { gap:6px; }
   #c-keys:not(.hide) { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:16px; align-items:stretch; }
@@ -320,7 +334,12 @@ body.board #draw-actions > #b-undo, body.board #draw-actions > #b-redo { flex:0 
   <symbol id="i-expand" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
 </svg>
 <header><div class="logo"><svg class="i"><use href="#i-logo"/></svg></div>
-  <div class="t"><h1>AluPC</h1><div class="now"><span class="dot" id="dot"></span><span id="now">Verbinde …</span></div></div></header>
+  <div class="t"><h1>AluPC</h1><div class="now"><span class="dot" id="dot"></span><span id="now">Verbinde …</span></div></div>
+  <div class="quick hide" id="quick">
+    <button id="q-schwarz" onclick="cmd('schwarz')"><svg class="i"><use href="#i-black"/></svg><span>Schwarz</span></button>
+    <button id="q-standbild" onclick="cmd('standbild')"><svg class="i"><use href="#i-freeze"/></svg><span>Standbild</span></button>
+    <button id="q-erweitern" onclick="cmd('erweitern')"><svg class="i"><use href="#i-extend"/></svg><span>Erweitern</span></button>
+  </div></header>
 <div class="offline" id="offline">Keine Verbindung zu AluPC – gleiches WLAN? Versuche es weiter …</div>
 
 <div class="card" id="login">
@@ -561,12 +580,18 @@ body.board #draw-actions > #b-undo, body.board #draw-actions > #b-redo { flex:0 
       <button onclick="boardOp('seite_vor')" aria-label="Nächste Seite"><svg class="i"><use href="#i-next"/></svg></button>
       <button onclick="boardOp('seite_neu')"><svg class="i"><use href="#i-plus"/></svg>Seite</button>
     </div>
+    <div class="hint" style="margin:10px 0 6px">Gäste im AluPC-WLAN (Anmeldeseite → „Whiteboard“):</div>
+    <div class="chips" id="guests">
+      <button data-g="aus" onclick="cmd('tafel_gaeste_aus')">Aus</button>
+      <button data-g="alle" onclick="cmd('tafel_gaeste_alle')">Alle schreiben</button>
+      <button data-g="frage" onclick="cmd('tafel_gaeste_frage')">Nur mit Erlaubnis</button>
+    </div>
     <label class="live-row"><input type="checkbox" id="pencil" onchange="setPencil(this.checked)">
       <span>✏️ <b style="color:inherit">Nur Stift zeichnet</b> – Finger verschieben (Handballen-Schutz)</span></label>
     <div class="hint">Zwei Finger: zoomen und verschieben. Apple Pencil: fester drücken = dicker. Lasso: einkreisen,
       dann ziehen zum Verschieben. Form: nochmal tippen wechselt Linie → Pfeil → Rechteck → Kreis.</div>
   </div>
-  <div class="card">
+  <div class="card" id="c-wbg">
     <h2>Whiteboard</h2>
     <div class="wbg">
       <button onclick="cmd('whiteboard:weiss')">Weiß</button>
@@ -690,7 +715,7 @@ document.addEventListener("pointerdown", e => {
 function tab(name) {
   const btn = document.querySelector('nav button[data-p="' + name + '"]');
   if (!btn || btn.classList.contains("hide")) name = "start";
-  current = name; store.set("alucast-tab", name);
+  current = name; store.set("alucast-tab", name); document.body.dataset.tab = name;
   for (const b of document.querySelectorAll("nav button")) b.classList.toggle("sel", b.dataset.p === name);
   movePill();
   for (const p of document.querySelectorAll(".page")) p.classList.toggle("sel", p.id === "p-" + name);
@@ -825,7 +850,9 @@ async function refresh() {
     $("live-hint").textContent = allow.laser ? "Finger = Laser" : "Live-Bild";
     const f = s.flags || {};
     for (const [id, on] of [["b-schwarz", f.schwarz], ["b-standbild", f.standbild], ["b-spiegeln", f.spiegeln],
-                            ["b-erweitern", f.erweitern], ["b-schoner", f.schoner]]) $(id).classList.toggle("on", !!on);
+                            ["b-erweitern", f.erweitern], ["b-schoner", f.schoner], ["q-schwarz", f.schwarz],
+                            ["q-standbild", f.standbild], ["q-erweitern", f.erweitern]]) $(id).classList.toggle("on", !!on);
+    $("quick").classList.toggle("hide", !allow.steuern);
     $("c-video").classList.toggle("hide", !s.video);
     const v = s.vid;
     if (v) {
@@ -1048,6 +1075,7 @@ function showBoard(b) {
   $("b-page").textContent = b.page + " / " + b.pages;
   $("b-undo").disabled = !b.undo; $("b-redo").disabled = !b.redo;
   $("b-del").classList.toggle("hide", !b.sel);
+  for (const g of $("guests").children) g.classList.toggle("on", g.dataset.g === (b.guests || "aus"));
 }
 const ink = $("ink"), dpv = $("dpreview");
 function sizeInk() {

@@ -311,6 +311,8 @@ class MainWindow(QMainWindow):
         controller.message.connect(self.show_message)
         controller.presenter_requested.connect(self.open_presenter)
         controller.board_requested.connect(self.open_board)
+        controller.duel_requested.connect(self.open_duel_window)
+        controller.board_guest_requested.connect(self.ask_board_guest)
         controller.shell_requested.connect(self.toggle_shell)
         controller.window_requested.connect(self.open_front)
         self.shell = None
@@ -1090,6 +1092,52 @@ class MainWindow(QMainWindow):
         win.show()
         win.raise_()
         win.activateWindow()
+
+    def open_duel_window(self):
+        """Schiffe versenken: Fenster für Spieler 1 auf Monitor 1 (Monitor 2 zeigt Spieler 2)."""
+        from .duel_window import DuelWindow
+
+        win = getattr(self, "duel_window", None)
+        if win is None:
+            self.duel_window = win = DuelWindow(self.controller, self)
+            win.setAttribute(Qt.WA_DeleteOnClose)
+            win.destroyed.connect(lambda *_: setattr(self, "duel_window", None))
+        screen = self.controller.main_screen()
+        if screen is not None and not win.isVisible():
+            g = screen.availableGeometry()
+            win.resize(min(win.width(), g.width() - 40), min(win.height(), g.height() - 40))
+            win.move(g.x() + (g.width() - win.width()) // 2, g.y() + (g.height() - win.height()) // 2)
+        win.refresh()
+        win.show()
+        win.raise_()
+        win.activateWindow()
+
+    def ask_board_guest(self, gid: str, name: str) -> None:
+        """Gast im AluPC-WLAN möchte aufs Whiteboard schreiben (Einstellung „Nur nach Erlaubnis“)."""
+        from PySide6.QtWidgets import QMessageBox
+
+        text = f"„{name}“ möchte auf das Whiteboard schreiben."
+        if self.tray.isVisible():
+            self.tray.showMessage(APP_NAME, text, QSystemTrayIcon.Information, 6000)
+        box = QMessageBox(self)
+        box.setWindowTitle("Whiteboard: Gast erlauben?")
+        box.setIcon(QMessageBox.Question)
+        box.setText(f"<b>{text}</b>")
+        box.setInformativeText("Erlaubt gilt, bis „Gäste im AluPC-WLAN“ umgestellt wird. Radieren und Seiten "
+                               "bleiben beim PC.")
+        allow = box.addButton("Erlauben", QMessageBox.AcceptRole)
+        box.addButton("Ablehnen", QMessageBox.RejectRole)
+        box.setModal(False)
+
+        def done(_r=None):
+            ok = box.clickedButton() is allow
+            self.controller.answer_board_guest(gid, ok)
+            self.controller.message.emit(f"„{name}“ darf aufs Whiteboard schreiben." if ok else f"„{name}“ abgelehnt.")
+
+        box.finished.connect(done)
+        self._board_guest_boxes = [b for b in getattr(self, "_board_guest_boxes", []) if b.isVisible()] + [box]
+        box.show()
+        box.raise_()
 
     def ask_access(self, rid: str, name: str, ip: str) -> None:
         """Ein Handy möchte AluPC steuern (ohne Code): Benachrichtigung + Frage „Erlauben / Ablehnen“.

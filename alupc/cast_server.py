@@ -41,6 +41,7 @@ ALLOWED_COMMANDS = {"standbild", "schwarz", "spiegeln", "erweitern", "bildschirm
                     "timer_stopp", "ablauf_weiter", "ablauf_zurueck",
                     "musik_zeigen", "musik_pause", "musik_weiter", "musik_zurueck", "overlays", "gluecksrad", "gluecksrad_drehen", "wetter", "system",
                     "umfrage_zeigen", "umfrage_ende", "spiele", "whiteboard",
+                    "tafel_gaeste_aus", "tafel_gaeste_alle", "tafel_gaeste_frage",
                     "video_weiterschauen", "video_von_vorn", "video_vor30", "video_zurueck30", "video_neu",
                     "video_wiederholen",
                     # PC: Systemlautstärke, Desktop, Fenster, Bildschirmfoto (Ein/Aus nur am PC – mit Rückfrage)
@@ -184,6 +185,11 @@ class CastServer(QObject):
         self.games = None  # Minispiele (games.GameHub) – Handys spielen ohne Steuer-Code mit
         self.chat = None  # Chat (chat.Chat) – Handys schreiben ohne Steuer-Code, Monitor 2 zeigt es sofort
         self.wall = None  # Foto-Wand (photowall.PhotoWall) – Handys schicken Fotos ohne Steuer-Code
+        from .board_guests import BoardGuests
+
+        self.board_guests = BoardGuests()  # Whiteboard für Gäste: wer darf schreiben (board_guests.py)
+        self.board_info = None  # () → (Modus „aus“/„alle“/„frage“, Tafel gerade auf Monitor 2?) – vom Controller
+        self.duel = None  # Schiffe versenken (duel.Battleship) – Spieler 2 am Handy, nur mit dem Stichwort
         self.access: dict[str, dict] = {}  # Freigabe-Anfragen: id → {name, ip, state, key, t}
 
     # ------------------------------------------------------------ Einstellungen
@@ -509,6 +515,12 @@ def portal_page(server) -> str:
     poll = server.poll
     poll_url = html.escape("/abstimmung?u=" + poll.token) if poll is not None else ""
     game_title = html.escape(games.spec.title) if games is not None else ""
+    try:
+        board_mode = server.board_info()[0] if server.board_info else "aus"
+    except Exception:  # noqa: BLE001
+        board_mode = "aus"
+    duel = server.duel
+    duel_url = html.escape("/schiffe?u=" + duel.token) if duel is not None and not duel.p2_client else ""
     from .games import AVATARS
 
     avatars = "".join(f'<button type="button" class="av" data-a="{a}">{a}</button>' for a in AVATARS)
@@ -528,24 +540,33 @@ input:focus{{outline:none;border-color:#6366f1}}
 button{{width:100%;padding:20px;border-radius:18px;border:0;font-size:21px;font-weight:800;color:#fff;cursor:pointer}}
 button small{{display:block;font-size:13px;font-weight:600;opacity:.85;margin-top:3px}}
 .g{{background:linear-gradient(135deg,#6366f1,#ec4899)}}.p{{background:linear-gradient(135deg,#0891b2,#22c55e)}}.c{{background:#1e293b;border:2px solid #334155}}
-.h{{background:linear-gradient(135deg,#2563eb,#06b6d4)}}.f{{background:linear-gradient(135deg,#ec4899,#f59e0b)}}
+.h{{background:linear-gradient(135deg,#2563eb,#06b6d4)}}.s{{background:linear-gradient(135deg,#0e7490,#1d4ed8)}}.w{{background:linear-gradient(135deg,#7c3aed,#0ea5e9)}}.f{{background:linear-gradient(135deg,#ec4899,#f59e0b)}}
 button:disabled{{opacity:.45}}
 .avs{{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}}
 .av{{padding:6px 0;font-size:26px;border-radius:12px;background:#1e293b;border:2px solid transparent}}
 .av.sel{{border-color:#6366f1;background:#334155}}
 details ul{{padding-left:18px}}details{{color:#94a3b8;font-size:14px;line-height:1.45;background:#0f172a;border-radius:14px;padding:10px 14px}}
 summary{{cursor:pointer;font-weight:700;color:#cbd5e1}}details b{{color:#f1f5f9}}
-@media(min-width:700px){{.card{{max-width:500px;padding:36px;border-radius:30px;background:rgba(15,23,42,.6);
-border:1px solid #1e293b;box-shadow:0 20px 60px rgba(0,0,0,.4)}}}}</style></head>
-<body><div class="card"><div class="logo">📶</div><h1>AluPC-WLAN</h1>
+.who,.acts{{display:flex;flex-direction:column;gap:14px}}
+@media(min-width:700px){{.card{{max-width:620px;padding:36px;border-radius:30px;background:rgba(15,23,42,.6);
+border:1px solid #1e293b;box-shadow:0 20px 60px rgba(0,0,0,.4)}}
+.acts{{display:grid;grid-template-columns:1fr 1fr;gap:12px}}.acts button{{padding:18px 12px}}
+.av{{font-size:30px}}}}
+/* iPad quer: links Name + Symbol, rechts alle Knöpfe – alles ohne Scrollen sichtbar */
+@media(min-width:900px) and (orientation:landscape){{body{{padding:18px 28px}}
+.card{{max-width:1080px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);column-gap:34px;row-gap:16px;
+align-items:center}}.card details{{grid-column:1/-1}}.acts button{{padding:20px 12px;font-size:20px}}}}</style></head>
+<body><div class="card"><div class="who"><div class="logo">📶</div><h1>AluPC-WLAN</h1>
 <p>Du bist verbunden. Wie heißt du?</p>
 <input id="n" maxlength="16" placeholder="Dein Name" autocomplete="off" enterkeyhint="go">
-<div class="avs" id="avs">{avatars}</div>
-<button class="g" id="play" {"" if games is not None else "disabled"}>🎮 Mitspielen<small>{game_title or "Gerade keine Minispiele – am PC starten"}</small></button>
+<div class="avs" id="avs">{avatars}</div></div>
+<div class="acts"><button class="g" id="play" {"" if games is not None else "disabled"}>🎮 Mitspielen<small>{game_title or "Gerade keine Minispiele – am PC starten"}</small></button>
 {f'<button class="p" id="vote">📊 Abstimmen<small>{html.escape(poll.question)[:60]}</small></button>' if poll is not None else ""}
+{'<button class="s" id="duel">🚢 Schiffe versenken<small>Du gegen den PC-Spieler</small></button>' if duel_url else ""}
+{'<button class="w" id="board">✏️ Whiteboard<small>Mitschreiben auf Monitor 2' + (' – am PC fragen' if board_mode == 'frage' else '') + '</small></button>' if board_mode in ('alle', 'frage') else ""}
 {'<button class="h" id="chat">💬 Chat<small>Nachrichten erscheinen auf Monitor 2</small></button>' if server.chat is not None else ""}
 {'<button class="f" id="wall">📷 Foto-Wand<small>Fotos groß auf Monitor 2</small></button>' if server.wall is not None else ""}
-<button class="c" id="ctl">🔒 AluPC steuern<small>Am PC freigeben lassen · Fotos senden</small></button>
+<button class="c" id="ctl">🔒 AluPC steuern<small>Am PC freigeben lassen · Fotos senden</small></button></div>
 <details><summary>WLAN fliegt nach ein paar Sekunden raus?</summary>{stay_help}</details>
 </div><script>
 const n = document.getElementById("n");
@@ -566,7 +587,7 @@ document.getElementById("play").onclick = () => {{ location.href = "{game_url}" 
   "&avatar=" + encodeURIComponent(ava); }};
 const vote = document.getElementById("vote");
 if (vote) vote.onclick = () => {{ name(); location.href = "{poll_url}"; }};
-for (const [id, url] of [["chat", "/chat"], ["wall", "/fotos"]]) {{
+for (const [id, url] of [["chat", "/chat"], ["wall", "/fotos"], ["duel", "{duel_url}"], ["board", "/tafel"]]) {{
   const b = document.getElementById(id);
   if (b) b.onclick = () => {{ name(); location.href = url; }};
 }}
@@ -749,6 +770,33 @@ def _make_handler(server: CastServer):
                     self._send(200, data, "image/jpeg")
                 else:
                     self._json(404, {"error": "Foto nicht gefunden"})
+            elif path == "/tafel":
+                from .board_guests import GUEST_PAGE
+
+                self._send(200, GUEST_PAGE.encode(), "text/html; charset=utf-8")
+            elif path == "/api/tafel":
+                self._json(200, self._board_state(parse_qs(urlparse(self.path).query).get("g", [""])[0]))
+            elif path == "/api/tafel/bild":  # Live-Bild der Tafel – nur wer schreiben darf und nur wenn sie zu sehen ist
+                st = self._board_state(parse_qs(urlparse(self.path).query).get("g", [""])[0])
+                if st["state"] != "frei" or not st["active"]:
+                    self._json(403, {"error": "Kein Bild"})
+                else:
+                    server.preview_wanted = time.monotonic()
+                    if server.preview:
+                        self._send(200, server.preview, "image/jpeg")
+                    else:
+                        self._send(204, b"", "image/jpeg")
+            elif path == "/schiffe":
+                from .duel import PHONE_PAGE
+
+                self._send(200, PHONE_PAGE.encode(), "text/html; charset=utf-8")
+            elif path == "/api/schiffe":
+                duel = self._duel(parse_qs(urlparse(self.path).query).get("u", [""])[0])
+                if duel is not None:
+                    if duel.p2_client and duel.p2_client != self.client_address[0]:
+                        self._json(423, {"error": "Spieler 2 spielt schon mit einem anderen Handy"})
+                    else:
+                        self._json(200, duel.view(2))
             elif path == "/spiel":
                 from .game_page import GAME_PAGE
 
@@ -810,6 +858,67 @@ def _make_handler(server: CastServer):
                 self._json(404, {"error": "Keine Spielrunde"})
                 return None
             return hub
+
+        def _board_mode(self) -> tuple[str, bool]:
+            try:
+                return server.board_info() if server.board_info else ("aus", False)
+            except Exception:  # noqa: BLE001
+                return "aus", False
+
+        def _board_state(self, gid: str) -> dict:
+            mode, active = self._board_mode()
+            return {"state": server.board_guests.state(mode, gid), "active": active, "mode": mode}
+
+        def _board_post(self):
+            from .board_guests import BoardGuests, parse_stroke
+
+            guests = server.board_guests
+            if guests.throttle(self.client_address[0]):
+                self._json(429, {"error": "Nicht so schnell"})
+                return
+            try:
+                data = self._body_json()
+            except (ValueError, TypeError, json.JSONDecodeError):
+                self._json(400, {"error": "Ungültige Anfrage"})
+                return
+            gid = str(data.get("g", ""))
+            if not BoardGuests.valid_id(gid):
+                self._json(400, {"error": "Ungültige Anfrage"})
+                return
+            mode, active = self._board_mode()
+            guests.state(mode, gid)  # Modus gewechselt? → alte Erlaubnisse weg
+            action = data.get("action")
+            if action == "frage":
+                if mode == "frage" and guests.ask(gid, str(data.get("name", "")), self.client_address[0]):
+                    server.request.emit({"kind": "tafel_frage", "g": gid, "name": guests.names.get(gid, "Gast")})
+                self._json(200, self._board_state(gid))
+            elif action == "strich":
+                if guests.state(mode, gid) != "frei":
+                    self._json(403 if mode != "aus" else 404, {"error": "Das Whiteboard für Gäste ist aus" if mode == "aus"
+                                                               else "Erst am PC erlauben lassen"})
+                    return
+                if not active:
+                    self._json(423, {"error": "Das Whiteboard ist gerade nicht auf Monitor 2"})
+                    return
+                try:
+                    stroke = parse_stroke(data)
+                except (TypeError, ValueError):
+                    stroke = None
+                if stroke is None:
+                    self._json(400, {"error": "Ungültiger Strich"})
+                    return
+                server.request.emit({"kind": "tafel_strich", **stroke})
+                self._json(200, {"ok": True})
+            else:
+                self._json(400, {"error": "Ungültige Anfrage"})
+
+        def _duel(self, token: str):
+            """Laufendes Schiffe-versenken-Spiel zu diesem Stichwort – sonst 404."""
+            duel = server.duel
+            if not server.running() or duel is None or not hmac.compare_digest(token.encode(), duel.token.encode()):
+                self._json(404, {"error": "Kein Schiffe-versenken-Spiel"})
+                return None
+            return duel
 
         def _game_ws(self, q):
             from . import ws
@@ -913,6 +1022,28 @@ def _make_handler(server: CastServer):
                     self._game_post()
                 except (ValueError, TypeError, json.JSONDecodeError):
                     self._json(400, {"error": "Ungültige Anfrage"})
+                return
+            if u.path == "/api/tafel":  # Whiteboard für Gäste (ohne Steuer-Code, nur übers AluPC-WLAN)
+                self._board_post()
+                return
+            if u.path == "/api/schiffe":  # Schiffe versenken: Spieler 2 am Handy (Stichwort statt Steuer-Code)
+                duel = self._duel(parse_qs(u.query).get("u", [""])[0])
+                if duel is None:
+                    return
+                try:
+                    data = self._body_json()
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    self._json(400, {"error": "Ungültige Anfrage"})
+                    return
+                if data.get("action") == "join":
+                    from .hotspot import note_name
+
+                    note_name(self.client_address[0], str(data.get("name", "")))
+                result = duel.phone_action(data, self.client_address[0])
+                if result is None:
+                    self._json(423, {"error": "Spieler 2 spielt schon mit einem anderen Handy"})
+                else:
+                    self._json(200, result)
                 return
             if u.path == "/api/hallo":  # Anmeldeseite: Name merken (fürs Hotspot-Fenster: welches Gerät ist wer?)
                 from .hotspot import note_name

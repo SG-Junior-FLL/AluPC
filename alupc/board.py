@@ -28,7 +28,7 @@ SHAPES = ("line", "arrow", "rect", "ellipse")
 PALETTE = ["#111827", "#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#ffffff"]
 SETTINGS = {"background": DEFAULT, "format": "16:9", "width": 3.0, "smooth": 1, "pressure": True, "eraser": 18.0,
             "colors": PALETTE, "pencil_only": False, "autosave": True, "board": "Tafel 1", "follow": True,
-            "text_size": 36.0, "marker_width": 18.0}
+            "text_size": 36.0, "marker_width": 18.0, "guests": "aus"}
 ZOOM_MIN, ZOOM_MAX = 0.25, 8.0
 UNIT = 900 / 24  # Kästchen: 24 Reihen auf einer 16:9-Seite
 MARKER_ALPHA = 0.35
@@ -87,6 +87,8 @@ class Board(QObject):
             cfg["format"] = "16:9"
         colors = [c for c in (cfg.get("colors") or []) if re.fullmatch(r"#[0-9a-fA-F]{6}", str(c))]
         cfg["colors"] = (colors + PALETTE)[:8]
+        if cfg.get("guests") not in ("aus", "alle", "frage"):
+            cfg["guests"] = "aus"
         return cfg
 
     def set_settings(self, **values) -> None:
@@ -300,6 +302,17 @@ class Board(QObject):
             self._snapshot()
             self.strokes.append(stroke)
             self._changed()
+
+    def add_stroke(self, tool: str, color: str, width: float, points: list[tuple[float, float, float]]) -> None:
+        """Fertiger Strich auf einmal (Gäste im AluPC-WLAN, board_guests.py) – stört keinen laufenden Strich."""
+        if tool not in ("pen", "marker") or not points:
+            return
+        pts = [[round(x, 1), round(y, 1), round(pr, 2)] for x, y, pr in points]
+        if len(pts) == 1:
+            pts.append(list(pts[0]))
+        self._snapshot()
+        self.strokes.append({"t": tool, "c": color, "w": float(width), "p": pts})
+        self._changed()
 
     def add_text(self, x: float, y: float, text: str, color: str = "#111827", size: float | None = None) -> None:
         text = str(text or "").strip()[:500]

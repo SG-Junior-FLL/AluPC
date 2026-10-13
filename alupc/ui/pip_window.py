@@ -1,4 +1,5 @@
-"""Bild-in-Bild: kleines Fenster auf Monitor 1, das zeigt, was auf Monitor 2 läuft."""
+"""Bild-in-Bild / Live-Ansicht: Fenster auf Monitor 1, das live zeigt, was auf Monitor 2 läuft – frei verschiebbar,
+in der Größe änderbar, auf Wunsch im Vollbild auf Monitor 1 und „immer oben“ an/aus."""
 
 from __future__ import annotations
 
@@ -6,8 +7,8 @@ import os
 import sys
 
 from PySide6.QtCore import QPoint, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import QSizeGrip, QWidget
+from PySide6.QtGui import QColor, QFont, QKeySequence, QPainter, QPen, QShortcut
+from PySide6.QtWidgets import QHBoxLayout, QSizeGrip, QToolButton, QWidget
 
 from ..sources import FrameView, ScreenSource
 from . import theme
@@ -70,7 +71,40 @@ class PipWindow(QWidget):
         self.timer.setTimerType(Qt.PreciseTimer)
         self.timer.timeout.connect(self.refresh)
         self._drag: QPoint | None = None
-        self.setToolTip("Ziehen zum Verschieben, Ecke unten rechts zum Vergrößern, Doppelklick schließt")
+        self._normal_geo = None  # Größe/Lage vor dem Vollbild
+        self.on_top = True
+        self.setToolTip("Live-Ansicht von Monitor 2 · ziehen = verschieben, Ecke unten rechts = Größe, "
+                        "Doppelklick = Vollbild auf Monitor 1")
+        # Knöpfe oben rechts (erscheinen, sobald die Maus im Fenster ist)
+        self.bar = QWidget(self)
+        self.bar.setObjectName("PipBar")
+        self.bar.setStyleSheet("#PipBar { background: rgba(10,12,26,0.78); border-radius: 10px; }"
+                               " QToolButton { color: #f1f5f9; background: transparent; border: none;"
+                               " border-radius: 8px; padding: 4px 8px; font-weight: 600; }"
+                               " QToolButton:hover { background: rgba(255,255,255,0.16); }"
+                               " QToolButton:checked { background: rgba(99,102,241,0.55); }")
+        row = QHBoxLayout(self.bar)
+        row.setContentsMargins(4, 4, 4, 4)
+        row.setSpacing(2)
+        self.full_btn = QToolButton()
+        self.full_btn.setText("Vollbild")
+        self.full_btn.setToolTip("Vollbild auf Monitor 1 (Esc oder Doppelklick: zurück)")
+        self.full_btn.clicked.connect(lambda: self.toggle_fullscreen())
+        self.top_btn = QToolButton()
+        self.top_btn.setText("Immer oben")
+        self.top_btn.setCheckable(True)
+        self.top_btn.setChecked(True)
+        self.top_btn.toggled.connect(self.set_on_top)
+        self.close_btn = QToolButton()
+        self.close_btn.setText("✕")
+        self.close_btn.setToolTip("Schließen")
+        self.close_btn.clicked.connect(self._close)
+        for b in (self.full_btn, self.top_btn, self.close_btn):
+            row.addWidget(b)
+        self.bar.adjustSize()
+        self.bar.hide()
+        QShortcut(QKeySequence(Qt.Key_Escape), self, activated=lambda: self.toggle_fullscreen(False))
+        QShortcut(QKeySequence(Qt.Key_F11), self, activated=lambda: self.toggle_fullscreen())
         self.apply_settings()
         controller.changed.connect(self.refresh)
 
@@ -99,7 +133,8 @@ class PipWindow(QWidget):
         self.refresh()
         if target is not None:
             self._place_wayland(*target)
-        self._stay_on_top()
+        if self.on_top:
+            self._stay_on_top()
 
     def _stay_on_top(self) -> None:
         """Immer vor anderen Fenstern. Qt bittet nur darum – KDE (Wayland) ignoriert das, Windows lässt andere
@@ -180,7 +215,7 @@ class PipWindow(QWidget):
             import time
 
             now = time.monotonic()
-            if now - getattr(self, "_top_at", 0.0) > 2:
+            if self.on_top and now - getattr(self, "_top_at", 0.0) > 2:
                 self._top_at = now
                 from ..platform.window_tools import keep_on_top
 
@@ -230,10 +265,69 @@ class PipWindow(QWidget):
         self._drag = None
 
     def mouseDoubleClickEvent(self, _event):
-        self.hide()
-        self.controller.changed.emit()
+        self.toggle_fullscreen()
+
+    def enterEvent(self, _event):
+        self.bar.show()
+        self.bar.raise_()
+
+    def leaveEvent(self, _event):
+        if not self.isFullScreen():
+            self.bar.hide()
 
     def resizeEvent(self, _event):
         self.view.setGeometry(self.rect())
         self.grip.move(self.width() - self.grip.width(), self.height() - self.grip.height())
         self.grip.raise_()
+        self.bar.adjustSize()
+        self.bar.move(self.width() - self.bar.width() - 8, 8)
+        self.bar.raise_()
+
+    # ------------------------------------------------------------ Vollbild, oben halten, schließen
+    def toggle_fullscreen(self, on: bool | None = None) -> None:
+        """Live-Ansicht im Vollbild auf Monitor 1 (dem eigenen Bildschirm) – und wieder zurück ins Fenster."""
+        on = (not self.isFullScreen()) if on is None else bool(on)
+        if on == self.isFullScreen():
+            return
+        if on:
+            self._normal_geo = self.geometry()
+            screen = self.controller.main_screen()
+            handle = self.windowHandle()
+            if screen is not None:
+                if handle is not None:
+                    handle.setScreen(screen)
+                self.setGeometry(screen.geometry())
+            self.grip.hide()
+            self.showFullScreen()
+            self.full_btn.setText("Fenster")
+            self.bar.show()
+            self.bar.raise_()
+        else:
+            self.showNormal()
+            if self._normal_geo is not None:
+                self.setGeometry(self._normal_geo)
+            self.grip.show()
+            self.full_btn.setText("Vollbild")
+        self.refresh()
+
+    def set_on_top(self, on: bool) -> None:
+        if on == self.on_top:
+            return
+        self.on_top = on
+        was = self.isVisible()
+        geo = self.geometry()
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, on)
+        if was:
+            self.setGeometry(geo)
+            self.show()
+            self.timer.start()
+        if on:
+            self._stay_on_top()
+        else:
+            self._unpin()
+
+    def _close(self) -> None:
+        if self.isFullScreen():
+            self.toggle_fullscreen(False)
+        self.hide()
+        self.controller.changed.emit()

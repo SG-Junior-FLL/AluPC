@@ -1742,6 +1742,10 @@ def create_source(cfg: dict, scene_lookup, depth: int = 0, parent=None) -> QWidg
             from .game_source import GameSource
 
             return GameSource(cfg, parent)
+        if t == "schiffe":
+            from .duel_source import DuelSource
+
+            return DuelSource(cfg, parent)
         if t == "zufall":
             from .wheel import WheelSource
 

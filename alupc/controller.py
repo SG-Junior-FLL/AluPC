@@ -37,6 +37,8 @@ class Controller(QObject):
     access_requested = Signal(str, str, str)  # Handy bittet um Freigabe zum Steuern: (Anfrage-ID, Name, IP)
     video_resume = Signal(str, int)  # Video schon mal geschaut: (Titel, Position ms) → „Weiterschauen?“
     board_requested = Signal()  # Whiteboard-Fenster am PC öffnen (macht die Oberfläche)
+    board_guest_requested = Signal(str, str)  # Gast möchte aufs Whiteboard schreiben: (Geräte-ID, Name)
+    duel_requested = Signal()  # Schiffe versenken: Fenster für Spieler 1 öffnen (macht das Hauptfenster)
     presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
 
     def __init__(self, config: Config):
@@ -163,6 +165,7 @@ class Controller(QObject):
 
         self.cast = cast_server(config)
         self.cast.wifi_provider = self.games_wifi  # AluPC-WLAN läuft → Lobby zeigt dessen WLAN-Code
+        self.cast.board_info = lambda: (self.board.settings()["guests"], self.whiteboard_active())
         self.cast.wifi_status_provider = self.games_wifi_status  # nur über das WLAN: was steht statt des Codes?
         self._games_wifi_starting = False
         import threading
@@ -879,7 +882,7 @@ class Controller(QObject):
         return {"page": b.doc["page"] + 1, "pages": len(b.doc["pages"]), "zoom": round(b.zoom * 100),
                 "bg": b.page["bg"], "undo": b.can_undo(), "redo": b.can_redo(), "sel": len(b.sel),
                 "name": b.doc["name"], "colors": cfg["colors"], "pencil_only": bool(cfg["pencil_only"]),
-                "width": cfg["width"], "marker_width": cfg["marker_width"]}
+                "width": cfg["width"], "marker_width": cfg["marker_width"], "guests": cfg["guests"]}
 
     def board_action(self, op: str, arg: str = "") -> bool:
         """Whiteboard bedienen (Handy, Sprache, Befehle): zoom_in/out, fit, seite_neu/vor/zurueck/loeschen,
@@ -1033,6 +1036,20 @@ class Controller(QObject):
             return
         elif kind == "fotowand":
             self.guests_changed.emit()
+            return
+        elif kind == "tafel_frage":  # Gast möchte aufs Whiteboard schreiben → am PC fragen
+            self.board_guest_requested.emit(req["g"], req.get("name", "Gast"))
+            return
+        elif kind == "tafel_strich":  # fertiger Strich eines Gastes (Punkte 0…1 im sichtbaren Ausschnitt)
+            if self.whiteboard_active():
+                cfg = self.board.settings()
+                base = cfg["marker_width" if req["tool"] == "marker" else "width"]
+                width = base * {1: 0.6, 2: 1.0, 3: 2.2}.get(req.get("size", 2), 1.0)
+                pts = []
+                for x, y, pressure in req["pts"]:
+                    w = self.board.to_world(x, y)
+                    pts.append((w.x(), w.y(), pressure))
+                self.board.add_stroke(req["tool"], req["color"], width, pts)
             return
         elif kind == "ask":  # „Frag AluPC“ vom Handy (getippt oder mit der Tastatur diktiert)
             self.ask(req.get("text", ""), source="handy")
@@ -1526,6 +1543,11 @@ class Controller(QObject):
             "umfrage_ende": lambda: self.poll_action("ende"),
             "spiele": self.start_games,
             "spiel_start": lambda: self.game_action("start"),
+            "schiffe": self.start_duel,
+            "tafel_gaeste_aus": lambda: self.set_board_guests("aus"),
+            "tafel_gaeste_alle": lambda: self.set_board_guests("alle"),
+            "tafel_gaeste_frage": lambda: self.set_board_guests("frage"),
+            "schiffe_aus": self.stop_duel,
             "spiel_bestenliste": lambda: self.game_action("bestenliste"),
             "video_weiterschauen": lambda: self.video_resume_choice("weiter"),
             "video_von_vorn": lambda: self.video_resume_choice("neu"),
@@ -2286,6 +2308,43 @@ class Controller(QObject):
         self._games_timer.start()
         if not (self.mode == "content" and (self.content or {}).get("type") == "spiel"):
             self.show_source({"type": "spiel"}, remember=False)
+        self.changed.emit()
+
+    def set_board_guests(self, mode: str) -> None:
+        """Whiteboard für Gäste im AluPC-WLAN: „aus“, „alle“ (jeder darf schreiben) oder „frage“ (erst am PC
+        erlauben). Beim Wechsel werden alte Erlaubnisse vergessen."""
+        from .board_guests import MODES
+
+        if mode not in MODES:
+            return
+        self.board.set_settings(guests=mode)  # (alte Erlaubnisse vergisst board_guests beim Wechsel selbst)
+        self.message.emit("Whiteboard für Gäste: " + MODES[mode])
+        self.changed.emit()
+
+    def answer_board_guest(self, gid: str, allow: bool) -> None:
+        self.cast.board_guests.answer(gid, allow)
+
+    def start_duel(self, open_window: bool = True) -> None:
+        """Schiffe versenken: Spieler 1 im Fenster auf Monitor 1, Spieler 2 auf Monitor 2 (Handy oder Tastatur).
+        Ein laufendes Spiel bleibt erhalten."""
+        from .duel import Battleship
+
+        if self.cast.duel is None:
+            self.cast.duel = Battleship()
+            self._auto_games_wifi()  # fürs Handy von Spieler 2 (Tastatur geht auch ohne)
+        self.cast.start()
+        if not (self.mode == "content" and (self.content or {}).get("type") == "schiffe"):
+            self.show_source({"type": "schiffe"}, remember=False)
+        if open_window:
+            self.duel_requested.emit()
+        self.changed.emit()
+
+    def stop_duel(self) -> None:
+        if self.cast.duel is None:
+            return
+        self.cast.duel = None
+        if self.mode == "content" and (self.content or {}).get("type") == "schiffe":
+            self.extend()  # Monitor 2 wieder normaler Desktop
         self.changed.emit()
 
     def _games_tick(self) -> None:

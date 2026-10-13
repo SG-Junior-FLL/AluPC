@@ -113,6 +113,24 @@ def board_settings_widget(board) -> QWidget:
     root.controls["colors"] = buttons
     lay.addWidget(colors)
 
+    guests = QGroupBox("Gäste im AluPC-WLAN")
+    g = QFormLayout(guests)
+    from ..board_guests import MODES
+
+    mode = QComboBox()
+    for key, label in MODES.items():
+        mode.addItem(label, key)
+    mode.setCurrentIndex(max(0, mode.findData(cfg["guests"])))
+    mode.currentIndexChanged.connect(lambda _i: board.set_settings(guests=mode.currentData()))
+    g.addRow("Mitschreiben:", mode)
+    note = QLabel("Auf der Anmeldeseite erscheint dann „Whiteboard“. Gäste schreiben nur, solange die Tafel auf "
+                  "Monitor 2 zu sehen ist – radieren und Seiten wechseln bleibt beim PC.")
+    note.setWordWrap(True)
+    note.setObjectName("Muted")
+    g.addRow(note)
+    root.controls["guests"] = mode
+    lay.addWidget(guests)
+
     other = QGroupBox("Speichern")
     f = QFormLayout(other)
     auto = QCheckBox("Automatisch speichern (jede Änderung)")
