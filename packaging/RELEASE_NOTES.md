@@ -8,7 +8,20 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.133.0)
+### Neu in dieser Version (0.134.0)
+- **Richtiger Lautstärkeregler in der AluPC-Oberfläche** (Taskleiste, Lautsprecher-Symbol) – wie bei Windows 11 und
+  KDE: **Ausgabegerät wählen** (Lautsprecher, Kopfhörer, Monitor …, wird Standardgerät des Systems),
+  Gesamtlautstärke + Stumm, **Mikrofon** (Lautstärke + Stumm), **Lautstärke je Programm** und **Musik**
+  (Titel, Zurück/Abspielen/Weiter). Gleich unter Windows und Linux.
+- Behoben: Beim Nachladen der Programm-Logos im Startmenü der Oberfläche erschien jede neue Kachel kurz als eigenes
+  Fenster – das schloss offene Popups (z. B. die Lautstärke) und konnte aufflackern.
+- **Linux-Paket bringt jetzt alles mit:** zusätzlich `dnsmasq-base` (ohne das kann NetworkManager keinen Hotspot
+  verteilen und verbindet sich stattdessen wieder mit dem normalen WLAN), `iptables` (Anmeldeseite), `network-manager`
+  als feste Abhängigkeit; empfohlen außerdem `wireplumber`, `kscreen`, `xprintidle`, `gstreamer1.0-tools`,
+  `xdg-utils`, `udisks2`. Fehlt `dnsmasq` trotzdem, sagt AluPC das vor dem Start des Hotspots.
+- Nicht auf echter Hardware getestet.
+
+### Davor: 0.133.0
 Nach einem Test unter Kubuntu:
 - **Overlays auf Monitor 2 unter Linux repariert:** Zeigt Monitor 2 ein AluPC-Bild, liegen Overlays (auch der Chat)
   jetzt als Ebene direkt in diesem Fenster – gleiche Skalierung, sicher obendrauf. Vorher waren sie unter Wayland ein

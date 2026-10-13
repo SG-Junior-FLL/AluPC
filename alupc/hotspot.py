@@ -91,6 +91,9 @@ def supported() -> tuple[bool, str]:
     if sys.platform.startswith("linux"):
         if not shutil.which("nmcli"):
             return False, "NetworkManager (nmcli) fehlt – Hotspot geht nur damit."
+        if not shutil.which("dnsmasq") and not Path("/usr/sbin/dnsmasq").exists():
+            # ohne dnsmasq kann NetworkManager keinen Hotspot verteilen (DHCP) – er fällt dann aufs normale WLAN zurück
+            return False, "Für den Hotspot fehlt „dnsmasq-base“ (sudo apt install dnsmasq-base) – NetworkManager braucht es."
         return (True, "") if wifi_device() else (False, "Keine WLAN-Karte gefunden.")
     if IS_WINDOWS:
         return True, ""

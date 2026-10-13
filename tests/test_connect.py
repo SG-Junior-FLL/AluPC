@@ -1091,3 +1091,14 @@ def test_linux_hotspot_checks_ap_mode_and_result():
     run, calls = fake(connected="FRITZ!Box 7590")
     ok, msg, _ip = hotspot._linux_start("AluPC", "geheim123", run, kind="normal")
     assert not ok and "FRITZ!Box 7590" in msg and ["nmcli", "connection", "down", "AluPC-Hotspot"] in calls
+
+
+def test_hotspot_needs_dnsmasq(monkeypatch):
+    """Ohne dnsmasq kann NetworkManager keinen Hotspot verteilen – das sagt AluPC vorher (statt dass sich die Karte
+    still wieder mit dem normalen WLAN verbindet). Das .deb hängt jetzt davon ab."""
+    if not sys.platform.startswith("linux"):
+        return
+    monkeypatch.setattr(hotspot.shutil, "which", lambda n: "/usr/bin/nmcli" if n == "nmcli" else None)
+    monkeypatch.setattr(hotspot, "Path", lambda p: type("P", (), {"exists": lambda self: False})())
+    ok, why = hotspot.supported()
+    assert not ok and "dnsmasq-base" in why

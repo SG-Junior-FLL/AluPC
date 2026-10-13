@@ -20,6 +20,7 @@ import time
 from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -307,20 +308,35 @@ class StartMenu(QFrame):
         lay.addLayout(foot)
 
 
+SLIDER_CSS = ("QSlider::groove:horizontal { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.18); }"
+              "QSlider::sub-page:horizontal { border-radius: 4px; background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
+              " stop:0 #6366f1, stop:1 #ec4899); }"
+              "QSlider::handle:horizontal { background: #ffffff; width: 18px; height: 18px; margin: -5px 0;"
+              " border-radius: 9px; }")
+ROUND_CSS = ("QToolButton { background: rgba(255,255,255,0.10); border:none; border-radius: 11px; padding: 5px; }"
+             " QToolButton:checked { background: rgba(239,68,68,0.35); }")
+
+
 class VolumePopup(QFrame):
+    """Lautstärke wie bei Windows 11/KDE: Ausgabegerät, Gesamtlautstärke, Mikrofon, je Programm, Musik."""
+
     def __init__(self, shell):
         super().__init__(shell, Qt.Popup | Qt.FramelessWindowHint)
+        self.shell = shell
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(360, 110)
+        self.setFixedWidth(380)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         card = QFrame()
         card.setObjectName("VolCard")
-        card.setStyleSheet("#VolCard { background: rgba(16,18,36,0.96); border: 1px solid rgba(255,255,255,0.16);"
-                           " border-radius: 20px; } QLabel { background: transparent; border: none; }")
+        card.setStyleSheet("#VolCard { background: rgba(16,18,36,0.97); border: 1px solid rgba(255,255,255,0.16);"
+                           " border-radius: 20px; } QLabel { background: transparent; border: none; }"
+                           " QComboBox { color:#f1f5f9; background: rgba(255,255,255,0.08); border: 1px solid"
+                           " rgba(255,255,255,0.14); border-radius: 9px; padding: 4px 8px; }")
         outer.addWidget(card)
         lay = QVBoxLayout(card)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(16, 12, 16, 14)
+        lay.setSpacing(8)
         head = QHBoxLayout()
         head.addWidget(_label("Lautstärke", 14, 700, "#e0e7ff"))
         head.addStretch(1)
@@ -332,26 +348,202 @@ class VolumePopup(QFrame):
                                  " border-radius:11px; padding:4px 10px; font-size: 12px; }")
         head.addWidget(self.mixer)
         lay.addLayout(head)
+        # Ausgabegerät (Lautsprecher, Kopfhörer, Monitor …) – wird zum Standardgerät des Systems
+        self.device = QComboBox()
+        self.device.setToolTip("Ausgabegerät")
+        self.device.activated.connect(self._pick_device)
+        lay.addWidget(self.device)
         row = QHBoxLayout()
         self.mute = QToolButton()
         self.mute.setCheckable(True)
         self.mute.setIconSize(QSize(20, 20))
-        self.mute.setStyleSheet("QToolButton { background: rgba(255,255,255,0.10); border:none; border-radius: 11px;"
-                                " padding: 5px; } QToolButton:checked { background: rgba(239,68,68,0.35); }")
+        self.mute.setStyleSheet(ROUND_CSS)
         row.addWidget(self.mute)
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(0, 100)
-        self.slider.setStyleSheet(
-            "QSlider::groove:horizontal { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.18); }"
-            "QSlider::sub-page:horizontal { border-radius: 4px; background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
-            " stop:0 #6366f1, stop:1 #ec4899); }"
-            "QSlider::handle:horizontal { background: #ffffff; width: 18px; height: 18px; margin: -5px 0;"
-            " border-radius: 9px; }")
+        self.slider.setStyleSheet(SLIDER_CSS)
         row.addWidget(self.slider, 1)
         self.label = _label("", 13.5, 700)
         self.label.setMinimumWidth(44)
         row.addWidget(self.label)
         lay.addLayout(row)
+        # Mikrofon
+        mic = QHBoxLayout()
+        self.mic_mute = QToolButton()
+        self.mic_mute.setCheckable(True)
+        self.mic_mute.setIconSize(QSize(18, 18))
+        self.mic_mute.setStyleSheet(ROUND_CSS)
+        self.mic_mute.setToolTip("Mikrofon stumm")
+        self.mic_mute.toggled.connect(self._mic_muted)
+        mic.addWidget(self.mic_mute)
+        self.mic = QSlider(Qt.Horizontal)
+        self.mic.setRange(0, 100)
+        self.mic.setStyleSheet(SLIDER_CSS)
+        self.mic.setToolTip("Mikrofon")
+        self.mic.valueChanged.connect(lambda v: (self.mic_label.setText(f"{v} %"), self._mic_send.start()))
+        mic.addWidget(self.mic, 1)
+        self.mic_label = _label("", 12.5, 600, "#cbd5e1")
+        self.mic_label.setMinimumWidth(44)
+        mic.addWidget(self.mic_label)
+        self.mic_row = QWidget()
+        self.mic_row.setLayout(mic)
+        mic.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self.mic_row)
+        self._mic_send = QTimer(self, singleShot=True, interval=150)
+        self._mic_send.timeout.connect(self._apply_mic)
+        # Programme mit Ton (eigene Lautstärke je Programm)
+        self.apps_title = _label("Programme", 12, 700, "#94a3b8")
+        lay.addWidget(self.apps_title)
+        self.apps = QVBoxLayout()
+        self.apps.setSpacing(4)
+        lay.addLayout(self.apps)
+        # Musik (läuft gerade)
+        media = QHBoxLayout()
+        self.song = _label("", 12.5, 600, "#e2e8f0")
+        self.song.setMinimumWidth(10)
+        media.addWidget(self.song, 1)
+        self.media_buttons = {}
+        for action, icon_name, tip in (("previous", "back", "Zurück"), ("play_pause", "play", "Abspielen/Pause"),
+                                       ("next", "forward", "Weiter")):
+            b = QToolButton()
+            b.setIcon(icons.icon(icon_name, "#f1f5f9", 16))
+            b.setToolTip(tip)
+            b.setStyleSheet(ROUND_CSS)
+            b.clicked.connect(lambda _c=False, a=action: self._media(a))
+            media.addWidget(b)
+            self.media_buttons[action] = b
+        self.media_row = QWidget()
+        self.media_row.setLayout(media)
+        media.setContentsMargins(0, 4, 0, 0)
+        lay.addWidget(self.media_row)
+        self._devices: list[dict] = []
+        self._mic_id = ""
+        self._feed = None
+
+    # ---- Daten (im Hintergrund holen, dann eintragen)
+    def refresh(self) -> None:
+        from .. import mixer
+
+        def load():
+            ok, _why = mixer.available()
+            if not ok:
+                return None
+            return mixer.devices("out"), mixer.devices("in"), mixer.streams("out")
+
+        run_async(load, self._fill, lambda _e: self._fill(None))
+
+    def _fill(self, data) -> None:
+        if data is None:  # kein Audio-Dienst / pactl fehlt: nur Gesamtlautstärke (über wpctl bzw. Windows)
+            data = ([], [], [])
+        outs, ins, streams = data
+        outs = [d for d in outs if not d.get("alupc")] or outs
+        self._devices = outs
+        self.device.blockSignals(True)
+        self.device.clear()
+        for d in outs:
+            self.device.addItem(d["name"], d["id"])
+            if d.get("default"):
+                self.device.setCurrentIndex(self.device.count() - 1)
+        self.device.blockSignals(False)
+        self.device.setVisible(len(outs) > 1)
+        mic = next((d for d in ins if d.get("default") and not d.get("alupc")), None) or \
+            next((d for d in ins if not d.get("alupc")), None)
+        self.mic_row.setVisible(mic is not None)
+        if mic is not None:
+            self._mic_id = mic["id"]
+            for w, v in ((self.mic, int(mic.get("volume") or 0)), (self.mic_mute, bool(mic.get("muted")))):
+                w.blockSignals(True)
+                (w.setValue if isinstance(w, QSlider) else w.setChecked)(v)
+                w.blockSignals(False)
+            self.mic_label.setText(f"{self.mic.value()} %")
+            self.mic_mute.setIcon(icons.icon("mic_off" if self.mic_mute.isChecked() else "mic",
+                                             "#fca5a5" if self.mic_mute.isChecked() else "#f1f5f9", 18))
+        while self.apps.count():
+            item = self.apps.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        shown = [s for s in streams if s.get("app")][:5]
+        for s in shown:
+            self.apps.addWidget(self._app_row(s))
+        self.apps_title.setVisible(bool(shown))
+        self.adjustSize()
+        if self.isVisible():
+            self.shell._popup(self, self.shell.bar.sound)
+
+    def _app_row(self, s: dict) -> QWidget:
+        from .. import mixer
+
+        w = QWidget()
+        row = QHBoxLayout(w)
+        row.setContentsMargins(0, 0, 0, 0)
+        name = _label(str(s.get("app") or "Programm"), 12.5, 600, "#e2e8f0")
+        name.setFixedWidth(110)
+        name.setToolTip(str(s.get("title") or s.get("app") or ""))
+        row.addWidget(name)
+        sl = QSlider(Qt.Horizontal)
+        sl.setRange(0, 100)
+        sl.setValue(int(s.get("volume") or 0))
+        sl.setStyleSheet(SLIDER_CSS)
+        sid = s.get("id")
+        timer = QTimer(w, singleShot=True, interval=150)
+        timer.timeout.connect(lambda: run_async(lambda v=sl.value(): mixer.set_stream("out", sid, volume=v)))
+        sl.valueChanged.connect(lambda _v: timer.start())
+        row.addWidget(sl, 1)
+        return w
+
+    # ---- Aktionen
+    def _pick_device(self, index: int) -> None:
+        from .. import mixer
+
+        dev = self.device.itemData(index)
+        if dev:
+            run_async(lambda: mixer.set_default("out", dev), lambda _r: self.refresh())
+
+    def _apply_mic(self) -> None:
+        from .. import mixer
+
+        if self._mic_id:
+            v = self.mic.value()
+            run_async(lambda: mixer.set_device("in", self._mic_id, volume=v))
+
+    def _mic_muted(self, on: bool) -> None:
+        from .. import mixer
+
+        self.mic_mute.setIcon(icons.icon("mic_off" if on else "mic", "#fca5a5" if on else "#f1f5f9", 18))
+        if self._mic_id:
+            run_async(lambda: mixer.set_device("in", self._mic_id, muted=on))
+
+    def _media(self, action: str) -> None:
+        if self._feed is not None:
+            self._feed.control(action)
+
+    def _track(self, track) -> None:
+        self.media_row.setVisible(track is not None)
+        if track is None:
+            return
+        self.song.setText(self.song.fontMetrics().elidedText(
+            f"{track.title} – {track.artist}" if track.artist else track.title, Qt.ElideRight, 200))
+        self.media_buttons["play_pause"].setIcon(icons.icon("pause" if track.playing else "play", "#f1f5f9", 16))
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self._feed is None:
+            from ..now_playing_view import feed
+
+            self._feed = feed()
+            self._feed.changed.connect(self._track)
+            self._feed.acquire()
+            self._track(self._feed.track)
+
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        if self._feed is not None:
+            try:
+                self._feed.changed.disconnect(self._track)
+            except (RuntimeError, TypeError):
+                pass
+            self._feed.release()
+            self._feed = None
 
 
 # --------------------------------------------------------------------------- Taskleiste
@@ -473,7 +665,7 @@ class ShellWindow(QWidget):
         self._vol_send.timeout.connect(self._apply_volume)
         self.clock = self.bar.clock
         self.bar.start.clicked.connect(self.toggle_menu)
-        self.bar.sound.clicked.connect(lambda: self._popup(self.vol, self.bar.sound))
+        self.bar.sound.clicked.connect(self._open_volume)
         self.bar.gear.clicked.connect(self.customize)
         self.bar.mon.clicked.connect(self._monitor_menu)
         self.bar.wifi.clicked.connect(lambda: self._open_page(5))
@@ -685,6 +877,11 @@ class ShellWindow(QWidget):
         self.search.setFocus()
         self.search.selectAll()
 
+    def _open_volume(self) -> None:
+        self.vol.refresh()
+        self.vol.adjustSize()
+        self._popup(self.vol, self.bar.sound)
+
     def _popup(self, popup: QWidget, anchor: QWidget) -> None:
         g = anchor.mapToGlobal(QPoint(anchor.width(), 0))
         popup.move(min(g.x() - popup.width(), self.geometry().right() - popup.width() - 8), g.y() - popup.height() - 12)
@@ -875,6 +1072,8 @@ class ShellWindow(QWidget):
                                                   a[0].lower()))
         for name, path in order[:400]:
             tile = AppTile(name, self._app_icon(name, path))
+            tile.setParent(self.menu.grid.parentWidget())  # nie ohne Eltern (wäre ein eigenes Fenster)
+            tile.hide()
             tile.setText(("★ " if name in pinned else "") + name)
             tile.clicked.connect(lambda _c=False, n=name: self._launch(n))
             tile.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -892,8 +1091,8 @@ class ShellWindow(QWidget):
             if tl.property("hide"):
                 tl.hide()
                 continue
+            grid.addWidget(tl, i // 5, i % 5)  # erst einhängen, dann zeigen – sonst kurz ein eigenes Fenster
             tl.show()
-            grid.addWidget(tl, i // 5, i % 5)
             i += 1
 
     def _filter(self, text: str) -> None:

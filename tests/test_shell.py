@@ -258,3 +258,48 @@ def test_desktop_rubber_band_and_group_move(env, monkeypatch, tmp_path):  # noqa
     # Klick ins Leere: Auswahl weg
     QTest.mouseClick(area, Qt.LeftButton, Qt.NoModifier, QPoint(area.width() // 2, area.height() - 20))
     assert not any(ic.selected for ic in area.icons)
+
+
+def test_volume_flyout_like_system(env, monkeypatch):  # noqa: F811
+    """Lautstärke in der Taskleiste wie bei Windows 11/KDE: Ausgabegerät wählen, Gesamtlautstärke, Mikrofon,
+    Lautstärke je Programm, Musik-Knöpfe – alles wirkt aufs System (über mixer/pactl bzw. Windows Core Audio)."""
+    from alupc import mixer
+
+    controller, window, _ = env
+    calls = []
+    monkeypatch.setattr(mixer, "available", lambda: (True, ""))
+    monkeypatch.setattr(mixer, "devices", lambda kind: {
+        "out": [{"id": "spk", "name": "Lautsprecher", "volume": 40, "muted": False, "default": True, "alupc": False},
+                {"id": "hdmi", "name": "Monitor (HDMI)", "volume": 70, "muted": False, "default": False, "alupc": False},
+                {"id": "alupc_out", "name": "AluPC Virtueller Ausgang", "volume": 100, "muted": False,
+                 "default": False, "alupc": True}],
+        "in": [{"id": "mic", "name": "Headset-Mikro", "volume": 55, "muted": False, "default": True,
+                "alupc": False}]}[kind])
+    monkeypatch.setattr(mixer, "streams", lambda kind="out": [{"id": 7, "app": "Spotify", "title": "Song",
+                                                               "volume": 80, "muted": False, "device": "spk"}])
+    monkeypatch.setattr(mixer, "set_default", lambda kind, dev: (calls.append(("default", kind, dev)), (True, ""))[1])
+    monkeypatch.setattr(mixer, "set_device", lambda kind, dev, volume=None, muted=None:
+                        (calls.append(("device", kind, dev, volume, muted)), (True, ""))[1])
+    monkeypatch.setattr(mixer, "set_stream", lambda kind, sid, volume=None, muted=None:
+                        (calls.append(("stream", sid, volume)), (True, ""))[1])
+    controller.run_command("oberflaeche")
+    sh = window.shell
+    _pump(0.4)
+    sh.bar.sound.click()
+    vol = sh.vol
+    _pump(0.6)  # dabei laden auch die Programme im Startmenü nach – das darf den Regler nicht schließen
+    assert vol.isVisible()
+    assert [vol.device.itemText(i) for i in range(vol.device.count())] == ["Lautsprecher", "Monitor (HDMI)"]
+    assert vol.mic_row.isVisibleTo(vol) and vol.mic.value() == 55 and vol.apps.count() == 1
+    vol.device.setCurrentIndex(1)
+    vol.device.activated.emit(1)
+    _pump(0.4)  # Gerätewechsel → Werte neu gelesen
+    vol.mic.setValue(30)
+    vol.mic_mute.setChecked(True)
+    app_slider = vol.apps.itemAt(0).widget().findChild(type(vol.slider))
+    app_slider.setValue(25)
+    _pump(0.6)
+    assert ("default", "out", "hdmi") in calls
+    assert ("device", "in", "mic", 30, None) in calls and ("device", "in", "mic", None, True) in calls
+    assert ("stream", 7, 25) in calls
+    vol.hide()
