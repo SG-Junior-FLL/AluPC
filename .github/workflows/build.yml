@@ -364,8 +364,14 @@ jobs:
       - name: Tests (Oberfläche)
         shell: pwsh
         run: |
+          $env:ALUPC_TEST_HANG_EXIT = "300"  # hängt ein Test 5 Minuten: Stapel in gui-haenger.txt, Abbruch
           python -X faulthandler -m pytest -v -rf tests/test_gui.py 2>&1 | Tee-Object -FilePath gui.log
           $code = $LASTEXITCODE
+          if ($code -ne 0 -and (Select-String -Path gui-haenger.txt -Pattern 'Thread' -Quiet -ErrorAction SilentlyContinue)) {
+            Get-Content gui-haenger.txt | Where-Object { $_.Trim() } | Select-Object -First 60 |
+              ForEach-Object { Write-Output ("::error title=Test hängt::" + $_.Trim()) }
+            exit 1
+          }
           if ($code -ne 0 -and (Select-String -Path gui.log -Pattern 'Fatal Python error' -Quiet)) {
             # Absturz von Qt beim Auf-/Abbau zwischen zwei Tests: vollständig melden (Ursache finden) …
             $lines = Get-Content gui.log
@@ -452,6 +458,7 @@ jobs:
           # Diagnose (u. a. echte Probe-Aufnahme fürs Spiegeln) als Hinweise im Lauf sichtbar machen
           if (Test-Path $log) { Get-Content $log | Where-Object { $_ -like "DIAG *" } | ForEach-Object { Write-Output "::notice title=Windows-Diagnose::$($_.Substring(5))" } }
           if ($p.ExitCode -ne 0) {
+            Get-Content "$log.haenger.txt" -Tail 40 -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "::error title=Selbsttest-Stapel::$_" }
             if (Test-Path $log) { Get-Content $log -Tail 25 | Where-Object { $_ -notlike "DIAG *" } | ForEach-Object { Write-Output "::error title=Selbsttest::$_" } }
             throw "AluPC.exe Selbsttest fehlgeschlagen (Exit-Code $($p.ExitCode))" }
       - name: AirPlay echt – uxplay-windows über winget installieren und von AluPC starten lassen
@@ -518,10 +525,13 @@ jobs:
           $q = Start-Process -FilePath "$env:RUNNER_TEMP\AluPC-inst\AluPC.exe" -ArgumentList "--selbsttest", $log -PassThru
           if (-not $q.WaitForExit(600000)) {
             Get-Content $log -Tail 15 -ErrorAction SilentlyContinue | Where-Object { $_ -notlike "DIAG *" } | ForEach-Object { Write-Output "::error title=Selbsttest hängt – zuletzt::$_" }
+            Get-Content "$log.haenger.txt" -Tail 40 -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "::error title=Selbsttest-Stapel::$_" }
             Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $q.Id } | ForEach-Object { Write-Output "::error title=Kindprozess::$($_.Name) $($_.CommandLine)" }
             $q.Kill(); throw "Installiertes AluPC hängt im Selbsttest (10 Minuten)" }
           if (Test-Path $log) { Get-Content $log }
-          if ($q.ExitCode -ne 0) { throw "Installiertes AluPC startet nicht (Exit-Code $($q.ExitCode))" }
+          if ($q.ExitCode -ne 0) {
+            Get-Content "$log.haenger.txt" -Tail 40 -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "::error title=Selbsttest-Stapel::$_" }
+            throw "Installiertes AluPC startet nicht (Exit-Code $($q.ExitCode))" }
       - name: Portable ZIP
         shell: pwsh
         run: Compress-Archive -Path dist\AluPC\* -DestinationPath dist\AluPC-windows-portable-${{ steps.version.outputs.v }}.zip

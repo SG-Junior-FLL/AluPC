@@ -391,6 +391,7 @@ class Hotspot:
         self.password = ""
         self.hidden = False
         self.message = ""
+        self.started_here = False  # wirklich von diesem AluPC gestartet (nicht nur „läuft“ gemeldet)
 
     def start(self, ssid: str, password: str, kind: str = "normal", hidden: bool = True, **_old) -> tuple[bool, str]:
         kind = "normal"  # nur noch EIN AluPC-WLAN (früher eigenes Spiele-WLAN)
@@ -415,6 +416,7 @@ class Hotspot:
             hidden = False
             ip = windows_hotspot_ip() if ok else ""
         self.running, self.ip, self.message = ok, ip, msg
+        self.started_here = bool(ok)
         self.kind, self.ssid, self.password = (kind, ssid, password) if ok else ("", "", "")
         self.hidden = bool(ok and hidden and not IS_WINDOWS and VISIBLE_NOTE not in msg)
         return ok, msg
@@ -429,6 +431,7 @@ class Hotspot:
         else:
             ok, msg = False, ""
         self.running, self.ip, self.kind, self.message = False, "", "", msg
+        self.started_here = False
         return ok, msg
 
     def active(self) -> bool:

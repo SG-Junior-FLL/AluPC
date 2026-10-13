@@ -324,6 +324,13 @@ def self_test(log_path: str) -> int:
     except OSError:
         pass
     lines = _Log()
+    import faulthandler
+
+    try:  # hängt etwas: nach 5 Minuten alle Stapel ins Protokoll und beenden (statt CI-Zeitlimit ohne Spur)
+        hang_log = open(log_path + ".haenger.txt", "w", encoding="utf-8")
+        faulthandler.dump_traceback_later(300, exit=True, file=hang_log)
+    except (OSError, ValueError):
+        pass
     try:
         lines.append("Start")
         tmp = tempfile.mkdtemp(prefix="alupc-test-")
@@ -535,6 +542,7 @@ def self_test(log_path: str) -> int:
         app.processEvents()
         lines.append("Schritt: Beenden")
         controller.shutdown()
+        faulthandler.cancel_dump_traceback_later()
         lines.append("OK")
         code = 0
     except Exception:  # noqa: BLE001

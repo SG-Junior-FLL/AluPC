@@ -6,3 +6,4 @@ venv/
 build/
 dist/
 .pytest_cache/
+gui-haenger.txt

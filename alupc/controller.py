@@ -2440,7 +2440,7 @@ class Controller(QObject):
     def shutdown(self) -> None:
         from .hotspot import hotspot
 
-        if hotspot.running:  # das AluPC-WLAN gehört zu AluPC – ohne AluPC gäbe es darin nichts zu tun
+        if hotspot.running and hotspot.started_here:  # das AluPC-WLAN gehört zu AluPC – mit ihm beenden
             hotspot.stop()
         self._timer_watch.stop()
         if self._games_timer is not None:

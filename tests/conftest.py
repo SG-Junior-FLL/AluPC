@@ -63,3 +63,23 @@ def pytest_sessionfinish(session, exitstatus):
     import gc
 
     gc.collect()
+
+
+@pytest.fixture(autouse=True)
+def _hang_guard(request):
+    """CI: hängt ein Test (ALUPC_TEST_HANG_EXIT Sekunden), alle Stapel in gui-haenger.txt schreiben und hart beenden –
+    statt still bis zum Zeitlimit des Laufs zu warten (der Schritt meldet die Datei dann als Fehler)."""
+    seconds = int(os.environ.get("ALUPC_TEST_HANG_EXIT") or 0)
+    if not seconds:
+        yield
+        return
+    import faulthandler
+
+    with open("gui-haenger.txt", "w", encoding="utf-8") as f:
+        f.write(f"Test hängt: {request.node.nodeid}\n")
+        f.flush()
+        faulthandler.dump_traceback_later(seconds, exit=True, file=f)
+        try:
+            yield
+        finally:
+            faulthandler.cancel_dump_traceback_later()
