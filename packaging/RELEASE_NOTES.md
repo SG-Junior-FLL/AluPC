@@ -8,7 +8,24 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.137.0)
+### Neu in dieser Version (0.138.0)
+- **Schiffe versenken: Handy = nur Steuerung.** Spieler 2 hat am Handy ein Steuerkreuz, OK (setzen bzw. schießen,
+  auf einem Schiff: aufnehmen), Drehen, Zufällig, Zurück, Bereit – die Felder gibt es nur auf den Bildschirmen
+  (Spieler 1 im PC-Fenster auf Monitor 1, Spieler 2 auf Monitor 2 mit Auswahlrahmen und Vorschau-Schiff).
+  Folge: Wer auf Monitor 2 schaut, sieht die Schiffe von Spieler 2 – Spieler 1 sollte nicht hinschauen.
+- **Bild-in-Bild ist während Schiffe versenken aus** (sonst sähe Spieler 1 auf Monitor 1 die Schiffe von Spieler 2)
+  und lässt sich solange nicht einschalten; nach dem Spiel kommt es wieder, wenn es vorher an war.
+- **Neues Minispiel: Montagsmaler.** Reihum malt einer das geheime Wort am Handy (8 Farben, 3 Stärken, Radierer,
+  Alles löschen), Monitor 2 zeigt das Bild live, alle anderen tippen ihren Tipp ein (Groß-/Kleinschreibung und
+  Umlaute egal). Je schneller richtig, desto mehr Punkte; der Maler bekommt Punkte für jeden, der es errät. Nach der
+  Hälfte der Zeit kommt der erste Buchstabe als Hinweis. Über 100 Wörter.
+- **Kahoot (das echte) auf Monitor 2:** Minispiele-Fenster → „Kahoot“ (oder Befehlssuche/Sprache „Kahoot“).
+  Optional Kahoot-Link oder Quiz-ID eingeben → gleich die Gastgeber-Seite dieses Quiz, sonst die Kahoot-Startseite.
+  Bedient wird am PC im Fenster „Browser steuern“ (anmelden, Quiz wählen, Starten, Weiter); die Anmeldung bleibt
+  gespeichert. Mitspieler: kahoot.it am Handy + PIN von Monitor 2 – dafür brauchen die Handys Internet.
+  **Nicht mit dem echten Kahoot getestet** (im Test-Container ist kahoot.com nicht erreichbar).
+
+### Davor: 0.137.0
 - **AluPC-Oberfläche (eigener Desktop) entfernt** – auch „AluPC als System-Desktop“. Wer das in einer älteren
   Version eingeschaltet hatte: AluPC nimmt es beim ersten Start selbst zurück (Windows: Benutzer-Eintrag
   `Winlogon\Shell`; KDE: Zusatzdatei für plasmashell, ausgeblendeter Plasma-Autostart), ab der nächsten Anmeldung

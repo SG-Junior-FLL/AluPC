@@ -64,13 +64,22 @@ class GamesWindow(QWidget):
         left.addLayout(grid)
         # Zwei Bildschirme statt Handys: Spieler 1 am PC, Spieler 2 auf Monitor 2
         self.b_duel = QPushButton("🚢  Schiffe versenken – zu zweit\nSpieler 1 hier am PC · Spieler 2 auf Monitor 2 "
-                                  "(Handy oder Tastatur)")
+                                  "(Handy als Steuerung)")
         self.b_duel.setFocusPolicy(Qt.NoFocus)
         self.b_duel.setCursor(Qt.PointingHandCursor)
         self.b_duel.setMinimumHeight(64)
         self.b_duel.setStyleSheet(self._card_css(t))
         self.b_duel.clicked.connect(lambda: self.controller.start_duel())
         left.addWidget(self.b_duel)
+        # Das echte Kahoot: Gastgeber-Seite auf Monitor 2, hier am PC über „Browser steuern“ bedienen
+        self.b_kahoot = QPushButton("🟪  Kahoot – das echte\nQuiz auf Monitor 2 · am PC anmelden und starten · "
+                                    "Mitspieler über kahoot.it")
+        self.b_kahoot.setFocusPolicy(Qt.NoFocus)
+        self.b_kahoot.setCursor(Qt.PointingHandCursor)
+        self.b_kahoot.setMinimumHeight(64)
+        self.b_kahoot.setStyleSheet(self._card_css(t))
+        self.b_kahoot.clicked.connect(self.open_kahoot)
+        left.addWidget(self.b_kahoot)
         self.opts_row = QHBoxLayout()
         self.opts_row.setSpacing(10)
         left.addLayout(self.opts_row)
@@ -208,6 +217,14 @@ class GamesWindow(QWidget):
         codes = [("Mitspielen", link, ["Name + Symbol wählen", "Öffnet im Browser"])] if link else []
         ConnectDialog("Mitspielen", wifi, "1. WLAN-Code scannen · 2. Seite öffnen – Name eingeben, mitspielen",
                       parent=self, codes=codes).exec()
+
+    def open_kahoot(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        text, ok = QInputDialog.getText(
+            self, "Kahoot", "Kahoot-Link oder Quiz-ID (leer lassen = Kahoot-Startseite, dort anmelden und wählen):")
+        if ok:
+            self.controller.start_kahoot(text)
 
     def open_wifi(self) -> None:
         from .connect_dialog import HotspotDialog

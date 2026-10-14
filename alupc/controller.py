@@ -36,6 +36,7 @@ class Controller(QObject):
     access_requested = Signal(str, str, str)  # Handy bittet um Freigabe zum Steuern: (Anfrage-ID, Name, IP)
     video_resume = Signal(str, int)  # Video schon mal geschaut: (Titel, Position ms) → „Weiterschauen?“
     board_requested = Signal()  # Whiteboard-Fenster am PC öffnen (macht die Oberfläche)
+    browser_control_requested = Signal()  # Fenster „Browser steuern“ öffnen (z. B. für Kahoot)
     board_guest_requested = Signal(str, str)  # Gast möchte aufs Whiteboard schreiben: (Geräte-ID, Name)
     duel_requested = Signal()  # Schiffe versenken: Fenster für Spieler 1 öffnen (macht das Hauptfenster)
     presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
@@ -1575,6 +1576,7 @@ class Controller(QObject):
             "spiele": self.start_games,
             "spiel_start": lambda: self.game_action("start"),
             "schiffe": self.start_duel,
+            "kahoot": self.start_kahoot,
             "tafel_gaeste_aus": lambda: self.set_board_guests("aus"),
             "tafel_gaeste_alle": lambda: self.set_board_guests("alle"),
             "tafel_gaeste_frage": lambda: self.set_board_guests("frage"),
@@ -2315,6 +2317,17 @@ class Controller(QObject):
 
     def answer_board_guest(self, gid: str, allow: bool) -> None:
         self.cast.board_guests.answer(gid, allow)
+
+    def start_kahoot(self, text: str = "") -> None:
+        """Das echte Kahoot auf Monitor 2 (Website mit gespeicherter Anmeldung), bedient am PC über „Browser
+        steuern“. text: Kahoot-Link oder Quiz-ID (leer = Kahoot-Startseite)."""
+        from .kahoot import host_url
+
+        self.show_source({"type": "website", "url": host_url(text), "keep_login": True, "name": "Kahoot"},
+                         remember=False)
+        self.browser_control_requested.emit()
+        self.message.emit("Kahoot auf Monitor 2 – am PC im Fenster „Browser steuern“ anmelden, Quiz wählen, Starten. "
+                          "Mitspieler: kahoot.it am Handy + PIN von Monitor 2 (Internet nötig).")
 
     def start_duel(self, open_window: bool = True) -> None:
         """Schiffe versenken: Spieler 1 im Fenster auf Monitor 1, Spieler 2 auf Monitor 2 (Handy als Steuerung oder

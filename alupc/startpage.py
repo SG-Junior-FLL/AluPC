@@ -110,6 +110,7 @@ COMMANDS = {
     "spiele": "Minispiele zeigen (Lobby)",
     "spiel_start": "Minispiel starten",
     "schiffe": "Schiffe versenken (Monitor 1 gegen Monitor 2)",
+    "kahoot": "Kahoot auf Monitor 2 (das echte – am PC bedienen)",
     "schiffe_aus": "Schiffe versenken beenden",
     "tafel_gaeste_alle": "Whiteboard: alle Gäste im WLAN dürfen schreiben",
     "tafel_gaeste_frage": "Whiteboard: Gäste nur mit Erlaubnis",

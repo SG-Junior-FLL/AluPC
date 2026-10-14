@@ -29,9 +29,9 @@ und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beide
 | 🖥️ **Monitor 2 mit einem Klick** | Spiegeln, Erweitern, Kamera, Programm, Website, Bild/Video, Text, Uhr, Timer, Whiteboard, 32 gestaltete Karten, eigene Szenen mit Übergängen, Overlays, Sichtschutz, Standbild |
 | 📱 **Handy = Fernbedienung** | Nur übers AluPC-WLAN: WLAN-Code scannen → privaten Steuer-Code am PC scannen (nie auf Monitor 2), ohne App: Monitor 2 steuern, Live-Bild mit Laserpointer, zeichnen, Folien klicken, Touchpad, Fotos/Links senden – freigeben per „Erlauben“ am PC statt Code. **Auf dem iPad** eigenes Layout: Leiste links, Live-Bild bleibt stehen, große Zeichen- und Touchpad-Fläche |
 | 🎛️ **PC steuern** | Lautstärke, Musik, Fenster, Bildschirmfoto, Programme öffnen, Ausführen wie Win+R, Sperren – in der App, vom Handy, per Sprache („Alu PC, lauter“) oder Strg+K |
-| 🚢 **Schiffe versenken zu zweit** | Spieler 1 im Fenster auf Monitor 1, Spieler 2 auf Monitor 2 – mit Handy/iPad (nur AluPC-WLAN) oder Tastatur; jeder sieht nur die eigenen Schiffe |
+| 🚢 **Schiffe versenken zu zweit** | Spieler 1 im Fenster auf Monitor 1, Spieler 2 auf Monitor 2 – das Handy ist nur die Steuerung (Steuerkreuz, OK …), die Felder zeigen nur die Bildschirme; Bild-in-Bild ist dabei aus |
 | ✏️ **Whiteboard für Gäste** | Alle im AluPC-WLAN schreiben mit – oder nur nach „Erlauben“ am PC; Codes unten rechts auf der Tafel |
-| 🎮 **Minispiele = eigenes WLAN** | Snake, Tic-Tac-Toe, Pong, **Tetris** (alle dieselben Teile), Tipp-Rennen, Simon sagt, Schere-Stein-Papier, Space Invaders, Flappy Bird, Vier gewinnt – WLAN-Code scannen, dann den Spiel-Code, Name eingeben, mitspielen |
+| 🎮 **Minispiele = eigenes WLAN** | Snake, Tic-Tac-Toe, Pong, **Tetris** (alle dieselben Teile), Tipp-Rennen, Simon sagt, Schere-Stein-Papier, Space Invaders, Flappy Bird, Vier gewinnt, **Montagsmaler** (malen am Handy, Bild live auf Monitor 2) – dazu **Kahoot** (das echte) auf Monitor 2, bedient am PC – WLAN-Code scannen, dann den Spiel-Code, Name eingeben, mitspielen |
 | 📶 **AluPC-WLAN** | Der PC macht ein (unsichtbares) WLAN – jede Seite zeigt auf Monitor 2 zwei QR-Codes (1. WLAN, 2. direkt die Seite: Spiel, Abstimmung, Chat, Foto-Wand, Whiteboard, Schiffe versenken). Der **einzige** Weg fürs Handy; der Steuer-Code steht nur am PC. Hat der PC Internet, haben es die Handys auch |
 | 💬 **Chat & 📷 Foto-Wand** | Handys schreiben übers AluPC-WLAN, Nachrichten erscheinen **direkt als Overlay** auf Monitor 2 – als Liste oder als **Pop-up** (kurz, ohne QR) – oder als Chat-Wand – mit Wortfilter, Link-Sperre, Tempo-Grenze, Löschen und Handy sperren. Fotos vom Handy als Collage oder Diashow, neue Fotos erst groß. Verwalten auf der Seite **„Gäste“** |
 | 🎚️ **Mischpult für den ganzen PC** | Seite **„Audio & Kamera“**: Kanalzüge für jeden Ausgang, jedes Mikro und jedes Programm (Regler, Pegel, Stumm, ★ Standard), **virtuelle Geräte hinzufügen/entfernen** (Linux beliebig viele, Windows über VB-CABLE), Ton weiterleiten (Mikro → virtuelles Mikro, Mithören) |
@@ -462,9 +462,9 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   in Stücken (etwa alle ⅓ Sekunde) – nicht ganz so flüssig wie am PC. Radieren, Seiten und Rückgängig bleiben beim PC.
   „Nur nach Erlaubnis“ merkt sich die Erlaubnis je Browser bis zum Umschalten – wer den Browser-Speicher löscht,
   fragt neu.
-- **Schiffe versenken:** Spielt Spieler 2 an der Tastatur, zeigt Monitor 2 seine Schiffe – wer auf den Beamer
-  schaut, sieht sie. Am Handy ist das fair: Monitor 2 zeigt dann nur die Schüsse auf beide Felder. Spieler 1 sieht
-  seine Schiffe im Fenster auf Monitor 1.
+- **Schiffe versenken:** Die Felder gibt es nur auf den Bildschirmen – Monitor 2 zeigt also die Schiffe von
+  Spieler 2. Wer auf den Beamer schaut (auch Spieler 1), könnte sie sehen; am besten sitzt Spieler 1 mit dem Rücken
+  dazu. Bild-in-Bild ist deshalb während des Spiels aus.
 - **Chromecast-Empfang geht nicht**: Google lässt als Empfänger nur zertifizierte Geräte zu. Einen
   eigenen „AirPlay“ oder „Chromecast“ nachzubauen geht auch nicht sinnvoll: AirPlay-Bildschirm­übertragung
   ist mit Apples FairPlay verschlüsselt, Chromecast mit Google-Zertifikaten. Deshalb gibt es

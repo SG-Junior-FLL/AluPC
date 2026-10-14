@@ -311,6 +311,7 @@ class MainWindow(QMainWindow):
         controller.message.connect(self.show_message)
         controller.presenter_requested.connect(self.open_presenter)
         controller.board_requested.connect(self.open_board)
+        controller.browser_control_requested.connect(self.open_browser_control)
         controller.duel_requested.connect(self.open_duel_window)
         controller.board_guest_requested.connect(self.ask_board_guest)
         controller.window_requested.connect(self.open_front)

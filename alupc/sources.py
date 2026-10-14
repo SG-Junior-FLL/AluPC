@@ -1191,6 +1191,10 @@ class WebsiteSource(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.view = QWebEngineView(self)
+        if cfg.get("keep_login"):  # z. B. Kahoot: Anmeldung bleibt über Neustarts erhalten
+            from PySide6.QtWebEngineCore import QWebEnginePage
+
+            self.view.setPage(QWebEnginePage(persistent_profile(), self.view))
         layout.addWidget(self.view)
         allow_autoplay(self.view)
         allow_fullscreen(self.view)
@@ -1252,6 +1256,24 @@ VOLUME_JS = """(function () {
     document.addEventListener('play', function (e) { set(e.target); }, true);
   }
 })();"""
+
+
+_PROFILE = None
+
+
+def persistent_profile():
+    """Browser-Profil mit gespeicherten Anmeldungen (Cookies) im AluPC-Einstellungsordner – für Seiten wie Kahoot,
+    bei denen man angemeldet bleiben will. Normale Websites auf Monitor 2 nutzen es nicht."""
+    global _PROFILE
+    if _PROFILE is None:
+        from PySide6.QtWebEngineCore import QWebEngineProfile
+
+        from .config import config_dir
+
+        _PROFILE = QWebEngineProfile("AluPC-Web")
+        _PROFILE.setPersistentStoragePath(str(config_dir() / "web-profil"))
+        _PROFILE.setPersistentCookiesPolicy(QWebEngineProfile.ForcePersistentCookies)
+    return _PROFILE
 
 
 def normalize_url(url: str) -> str:
