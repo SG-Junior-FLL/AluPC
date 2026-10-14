@@ -91,6 +91,20 @@ button:disabled { opacity: .35; }
 .off { position: fixed; left: 12px; right: 12px; bottom: 14px; padding: 12px 14px; border-radius: 14px; background: #7f1d1d;
   color: #fff; font-weight: 700; text-align: center; font-size: 15px; z-index: 9; }
 .hidden { display: none !important; }
+/* Montagsmaler: Leinwand zum Malen, Feld zum Raten */
+.paint { display: flex; flex-direction: column; gap: 8px; width: min(94vw, 560px); margin: 0 auto; }
+.paint .word { text-align: center; font-size: 22px; font-weight: 900; }
+.paint canvas { width: 100%; aspect-ratio: 4/3; background: #fff; border-radius: 14px; touch-action: none; }
+.paint .tools { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; align-items: center; }
+.paint .sw { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; padding: 0; }
+.paint .sw.on { border-color: #fff; transform: scale(1.12); }
+.paint .tb { padding: 8px 12px; border-radius: 12px; border: 0; background: #1e293b; color: #fff; font-weight: 800; font-size: 15px; }
+.paint .tb.on { background: var(--c); }
+.guess { display: flex; flex-direction: column; gap: 12px; width: min(94vw, 480px); margin: 0 auto; }
+.guess .hint { text-align: center; font-size: 26px; font-weight: 900; letter-spacing: .12em; }
+.guess input { width: 100%; font-size: 22px; padding: 16px; border-radius: 16px; border: 2px solid #334155; background: #0f172a; color: #fff; }
+.guess button { padding: 16px; border-radius: 16px; border: 0; font-size: 20px; font-weight: 900; color: #fff; background: var(--c); }
+.guess .last { text-align: center; color: #94a3b8; min-height: 1.2em; }
 </style></head><body>
 <header><div class="dot" id="dot"></div><span id="ava"></span><b id="who">AluPC-Spiel</b><span id="count"></span><i id="net"></i></header>
 <main id="join">
@@ -295,6 +309,41 @@ const BUILD = {
     const stop = () => { fire.classList.remove("hit"); if (t) { clearInterval(t); t = null; } };
     for (const ev of ["pointerup", "pointercancel", "pointerleave"]) fire.addEventListener(ev, stop);
     return {move(dx) { x = Math.min(1, Math.max(0, x + dx)); th.style.left = (x * 78) + "%"; send({x}); }, shoot};
+  },
+  draw(ui, area) {  // Montagsmaler: malen – Striche gehen in Stücken an AluPC, Monitor 2 zeigt sie live
+    const box = el("div", "paint"), word = el("div", "word", "🎨 " + ui.word), cv = el("canvas"), tools = el("div", "tools");
+    box.append(word, cv, tools); area.append(box);
+    let color = ui.colors[0], w = 2, erase = false, sid = Math.floor(Math.random() * 1e6), pts = [], last = null, down = false, t = null;
+    const swatches = ui.colors.map(c => { const b = el("button", "sw" + (c === color ? " on" : "")); b.style.background = c;
+      b.onclick = () => { color = c; erase = false; for (const x of swatches) x.classList.toggle("on", x === b); er.classList.remove("on"); }; tools.append(b); return b; });
+    const sizes = [[1, "dünn"], [2, "mittel"], [3, "dick"]].map(([v, l]) => { const b = el("button", "tb" + (v === w ? " on" : ""), l);
+      b.onclick = () => { w = v; for (const x of sizes) x.classList.toggle("on", x === b); }; tools.append(b); return b; });
+    const er = el("button", "tb", "Radierer"); er.onclick = () => { erase = !erase; er.classList.toggle("on", erase); }; tools.append(er);
+    const clr = el("button", "tb", "🗑 Alles weg"); clr.onclick = () => { if (confirm("Bild löschen?")) { send({clear: 1}); ctx.clearRect(0, 0, cv.width, cv.height); } };
+    tools.append(clr);
+    const ctx = cv.getContext("2d");
+    const fit = () => { const r = cv.getBoundingClientRect(); cv.width = r.width * devicePixelRatio; cv.height = r.height * devicePixelRatio; };
+    new ResizeObserver(fit).observe(cv);
+    const at = e => { const r = cv.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
+    const flush = () => { if (pts.length) { const send_ = pts; pts = [send_[send_.length - 1]];
+      send({stroke: {id: sid, pts: send_.map(p => [Math.round(p[0] * 1000) / 1000, Math.round(p[1] * 1000) / 1000]), c: color, w, erase}}); } };
+    cv.addEventListener("pointerdown", e => { e.preventDefault(); cv.setPointerCapture(e.pointerId); down = true; sid += 1; last = at(e); pts = [last];
+      clearInterval(t); t = setInterval(flush, 90); });
+    cv.addEventListener("pointermove", e => { if (!down) return; const p = at(e); pts.push(p);
+      ctx.strokeStyle = erase ? "#ffffff" : color; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.lineWidth = devicePixelRatio * (erase ? 18 : w * 3);
+      ctx.beginPath(); ctx.moveTo(last[0] * cv.width, last[1] * cv.height); ctx.lineTo(p[0] * cv.width, p[1] * cv.height); ctx.stroke(); last = p; });
+    const up = () => { if (!down) return; down = false; clearInterval(t); flush(); pts = []; };
+    cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+    return {};
+  },
+  guess(ui, area) {  // Montagsmaler: raten (das Bild ist auf Monitor 2)
+    const box = el("div", "guess"), hint = el("div", "hint", ui.hint), inp = el("input"), ok = el("button", "", "Raten"), last = el("div", "last");
+    inp.maxLength = 40; inp.placeholder = "Dein Tipp …"; inp.autocomplete = "off"; inp.enterKeyHint = "send";
+    box.append(hint, inp, ok, last); area.append(box);
+    const go = () => { const v = inp.value.trim(); if (!v) return; send({guess: v}); last.textContent = "Getippt: " + v; inp.value = ""; vibrate(15); inp.focus(); };
+    ok.onclick = go; inp.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+    return {update(u) { hint.textContent = u.hint || ""; }};
   },
   connect4(ui, area) {  // Vier gewinnt: Spalte antippen
     const cols = el("div", "c4cols"), g = el("div", "c4");

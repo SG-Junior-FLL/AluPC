@@ -22,6 +22,7 @@ from .games_arcade import ConnectFourGame, FlappyGame, InvadersGame
 from .games_base import TEAM_COLORS, TEAM_NAMES, Game
 from .games_board import TicTacToeGame
 from .games_classic import RaceGame, SnakeGame
+from .games_paint import PaintGame
 from .games_party import PongGame, SimonGame
 from .games_retro import RpsGame
 from .games_tetris import TetrisGame
@@ -70,10 +71,15 @@ GAMES: dict[str, GameSpec] = {
                       "Euer Team ist dran: Spalte antippen – die Spalte mit den meisten Stimmen wird gesetzt",
                       ConnectFourGame, {"runden": ("Runden", [(1, "1"), (3, "3")], 1),
                                         "zeit": ("Bedenkzeit", [(10, "10 s"), (15, "15 s"), (25, "25 s")], 15)}),
+    "malen": GameSpec("Montagsmaler", "Einer malt am Handy, alle raten",
+                      "Wer dran ist, malt das geheime Wort am Handy – Monitor 2 zeigt das Bild live. Alle anderen "
+                      "tippen ihren Tipp ein: je schneller richtig, desto mehr Punkte",
+                      PaintGame, {"runden": ("Malen je Spieler", [(1, "1×"), (2, "2×")], 1),
+                                  "zeit": ("Zeit", [(60, "60 s"), (80, "80 s"), (100, "100 s")], 80)}),
 }
 DEFAULT_GAME = "schlangen"
 ICONS = {"schlangen": "🐍", "tictactoe": "⭕", "pong": "🏓", "tetris": "🧱", "rennen": "👆", "simon": "🟢",
-         "ssp": "✊", "invaders": "👾", "flappy": "🐤", "vierg": "🔴"}
+         "ssp": "✊", "invaders": "👾", "flappy": "🐤", "vierg": "🔴", "malen": "🎨"}
 
 COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ec4899", "#06b6d4", "#f97316", "#84cc16",
           "#eab308", "#14b8a6", "#e11d48", "#6366f1", "#10b981", "#f43f5e", "#0ea5e9"]

@@ -1425,5 +1425,75 @@ def vierg(c, g, events) -> None:
             text(p, QRectF(x, h * 0.2, w * 0.18, h * 0.06), "PC spielt", h * 0.03, MUTED)
 
 
-DRAW = {"simon": simon, "pong": pong, "tetris": tetris, "schlangen": schlangen, "rennen": rennen, "ssp": ssp,
+def malen(c, g, events) -> None:
+    """Montagsmaler: links das Bild (live vom Handy des Malers), rechts Wort-Lücken, Zeit, wer es schon hat."""
+    p, w, h, now = c.p, c.w, c.h, c.now
+    m = max(14, int(min(w, h) * 0.04))
+    for _n, t, kind, data in events:
+        if kind == "correct":
+            c.fx.born[("correct", data["pid"])] = t
+        elif kind == "reveal":
+            c.fx.born["paint_reveal"] = t
+    side_w = w * 0.27
+    tag(c, m, m, w - 2 * m, f"MONTAGSMALER · RUNDE {g.round} / {g.total}", "#f9a8d4")
+    # Leinwand 4:3, so groß wie möglich
+    avail = QRectF(m, m + h * 0.07, w - 3 * m - side_w, h - 2 * m - h * 0.07)
+    cw = min(avail.width(), avail.height() * 4 / 3)
+    canvas = QRectF(avail.x() + (avail.width() - cw) / 2, avail.y() + (avail.height() - cw * 3 / 4) / 2, cw, cw * 3 / 4)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor("#ffffff"))
+    p.drawRoundedRect(canvas, 18, 18)
+    p.save()
+    p.setClipRect(canvas)
+    for st in g.strokes:
+        pts = st["pts"]
+        pen = QPen(QColor("#ffffff" if st.get("erase") else st["c"]),
+                   cw * (0.03 if st.get("erase") else 0.005 * st["w"] + 0.002))
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
+        p.setPen(pen)
+        if len(pts) == 1:
+            x, y = pts[0]
+            p.drawPoint(QPointF(canvas.x() + x * cw, canvas.y() + y * canvas.height()))
+            continue
+        path = QPainterPath(QPointF(canvas.x() + pts[0][0] * cw, canvas.y() + pts[0][1] * canvas.height()))
+        for x, y in pts[1:]:
+            path.lineTo(canvas.x() + x * cw, canvas.y() + y * canvas.height())
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(path)
+    p.restore()
+    side = QRectF(w - m - side_w, m + h * 0.07, side_w, h - 2 * m - h * 0.07)
+    drawer = name_of(c, g.drawer) if getattr(g, "drawer", None) else ""
+    text(p, QRectF(side.x(), side.y(), side.width(), h * 0.06), f"🎨 {drawer} malt", h * 0.04, TEXT, True)
+    if g.phase == "malen":
+        text(p, QRectF(side.x(), side.y() + h * 0.08, side.width(), h * 0.1), g.hint(now), h * 0.05, "#fde68a", True,
+             wrap=True)
+        time_bar(c, QRectF(side.x(), side.y() + h * 0.2, side.width(), h * 0.018), (g.until - now) / g.seconds)
+        text(p, QRectF(side.x(), side.y() + h * 0.23, side.width(), h * 0.05), clock_text(g.until - now), h * 0.035,
+             MUTED, True)
+    y = side.y() + h * 0.3
+    others = g.guessers() if hasattr(g, "guessers") else []
+    for pid in others[:9]:
+        ok = pid in getattr(g, "guessed", {})
+        pop = now - c.fx.born.get(("correct", pid), -9)
+        k = 1 + 0.15 * max(0.0, 1 - pop / 0.4)
+        rect = QRectF(side.x(), y, side.width() * k, h * 0.055)
+        chip(p, rect, name_of(c, pid), color_of(c, pid), "✓" if ok else "…", dim=1.0 if ok else 0.5,
+             avatar=avatar_of(c, pid))
+        y += h * 0.065
+    if g.phase == "malen" and g.guesses:  # falsche Tipps – ohne die richtigen zu verraten
+        lines = " · ".join(t for _pid, t in g.guesses[-5:])
+        text(p, QRectF(side.x(), side.bottom() - h * 0.1, side.width(), h * 0.1), lines, h * 0.026, MUTED,
+             wrap=True)
+    if g.phase == "aufloesen":
+        t = now - c.fx.born.get("paint_reveal", now)
+        k = min(1.0, t / 0.35)
+        band = QRectF(canvas.x(), canvas.center().y() - h * 0.09, canvas.width(), h * 0.18)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(15, 23, 42, int(220 * k)))
+        p.drawRoundedRect(band, 18, 18)
+        text(p, band, f"Es war: {g.word}", h * 0.08 * (0.7 + 0.3 * k), "#fde68a", True)
+
+
+DRAW = {"malen": malen, "simon": simon, "pong": pong, "tetris": tetris, "schlangen": schlangen, "rennen": rennen, "ssp": ssp,
         "tictactoe": tictactoe, "invaders": invaders, "flappy": flappy, "vierg": vierg}

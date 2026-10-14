@@ -276,7 +276,8 @@ def test_hub_full_and_every_game_runs():
         hub.tick()
         for p in ps:
             ui = hub.state_for(p.pid)["ui"]
-            assert ui["ui"] in ("msg", "tap", "pad", "buttons", "board", "paddle", "tetris", "shooter", "connect4"), key
+            assert ui["ui"] in ("msg", "tap", "pad", "buttons", "board", "paddle", "tetris", "shooter", "connect4",
+                                    "draw", "guess"), key
         hub.finish()
         assert hub.phase == "over" and len(hub.ranking) == 3, key
 
