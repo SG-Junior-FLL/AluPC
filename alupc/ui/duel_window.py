@@ -123,7 +123,7 @@ class DuelWindow(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 14, 18, 14)
         head = QHBoxLayout()
-        head.addWidget(page_header("Schiffe versenken", "Du = Spieler 1 hier · Spieler 2 schaut auf Monitor 2",
+        head.addWidget(page_header("Schiffe versenken", "Du = Spieler 1 hier · Spieler 2: Handy als Steuerung, Felder auf Monitor 2",
                                    "gamepad"), 1)
         root.addLayout(head)
         self.status = QLabel()
@@ -162,8 +162,9 @@ class DuelWindow(QWidget):
             b.setFocusPolicy(Qt.NoFocus)
             row.addWidget(b)
         root.addLayout(row)
-        self.keys = QLabel("Spieler 2 an der Tastatur: Pfeile = Feld · Enter = setzen/schießen · R = drehen · "
-                           "Z = zufällig · B = bereit · ← Rücktaste = Schiff zurück")
+        self.keys = QLabel("Gesetztes Schiff anklicken = aufnehmen und verschieben. Ohne Handy: Spieler 2 an der "
+                           "Tastatur – Pfeile = Feld · Enter = setzen/schießen (auf einem Schiff: aufnehmen) · "
+                           "R = drehen · Z = zufällig · B = bereit · ← Rücktaste = Schiff zurück")
         self.keys.setObjectName("Muted")
         self.keys.setWordWrap(True)
         root.addWidget(self.keys)

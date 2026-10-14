@@ -1834,6 +1834,10 @@ class Controller(QObject):
 
     def toggle_pip(self) -> None:
         if self.pip is not None and self._guard():
+            if self.cast.duel is not None and not self.pip.isVisible():
+                self.message.emit("Bild-in-Bild ist bei Schiffe versenken aus – sonst sähe Spieler 1 die Schiffe "
+                                  "von Spieler 2.")
+                return
             self.pip.toggle()
             self.changed.emit()
 
@@ -2313,8 +2317,8 @@ class Controller(QObject):
         self.cast.board_guests.answer(gid, allow)
 
     def start_duel(self, open_window: bool = True) -> None:
-        """Schiffe versenken: Spieler 1 im Fenster auf Monitor 1, Spieler 2 auf Monitor 2 (Handy oder Tastatur).
-        Ein laufendes Spiel bleibt erhalten."""
+        """Schiffe versenken: Spieler 1 im Fenster auf Monitor 1, Spieler 2 auf Monitor 2 (Handy als Steuerung oder
+        Tastatur). Bild-in-Bild geht dabei aus. Ein laufendes Spiel bleibt erhalten."""
         from .duel import Battleship
 
         if self.cast.duel is None:
@@ -2323,6 +2327,10 @@ class Controller(QObject):
         self.cast.start()
         if not (self.mode == "content" and (self.content or {}).get("type") == "schiffe"):
             self.show_source({"type": "schiffe"}, remember=False)
+        # Bild-in-Bild (Monitor 2 auf Monitor 1) würde Spieler 1 die Schiffe von Spieler 2 zeigen → aus
+        if self.pip is not None and self.pip.isVisible():
+            self._pip_before_duel = True
+            self.pip.hide()
         if open_window:
             self.duel_requested.emit()
         self.changed.emit()
@@ -2333,6 +2341,9 @@ class Controller(QObject):
         self.cast.duel = None
         if self.mode == "content" and (self.content or {}).get("type") == "schiffe":
             self.extend()  # Monitor 2 wieder normaler Desktop
+        if getattr(self, "_pip_before_duel", False) and self.pip is not None:
+            self._pip_before_duel = False
+            self.pip.show_on_main()  # war vor dem Spiel an → wieder an
         self.changed.emit()
 
     def _games_tick(self) -> None:

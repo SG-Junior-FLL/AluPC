@@ -114,6 +114,19 @@ def test_phone_player_two(env, monkeypatch, tmp_path):  # noqa: F811
     assert status == 200 and json.loads(body)["ok"] and json.loads(body)["next"] == 4
     _req(port, u, json.dumps({"action": "undo"}).encode())
     _req(port, u, json.dumps({"action": "random"}).encode())
+    # Handy als Controller: Steuerkreuz + OK (Feld zeigt nur Monitor 2)
+    _req(port, u, json.dumps({"action": "undo"}).encode())
+    assert duel.fleets[2].remaining_lengths() == [2]
+    duel.cursor = (0, 0)
+    for _ in range(3):
+        _req(port, u, json.dumps({"action": "move", "dx": 1, "dy": 0}).encode())
+    body = json.loads(_req(port, u, json.dumps({"action": "move", "dx": 5, "dy": 0}).encode())[1])  # max 1 Schritt
+    assert duel.cursor == (4, 0) and body["cursor"] == [4, 0]
+    free = next((x, y) for y in range(SIZE) for x in range(SIZE - 1)
+                if duel.fleets[2].can_place([(x, y), (x + 1, y)]))
+    duel.cursor = free
+    assert json.loads(_req(port, u, json.dumps({"action": "ok"}).encode())[1])["ok"]
+    assert duel.fleets[2].complete()
     assert _req(port, u, json.dumps({"action": "ready"}).encode())[0] == 200 and duel.ready[2]
     # Spieler 1 im Fenster: Zufällig + Bereit
     win.rnd_btn.click()
@@ -125,7 +138,8 @@ def test_phone_player_two(env, monkeypatch, tmp_path):  # noqa: F811
     assert v["turn"] == 2 and "ships" not in v["target"]
     target = duel.fleets[1]
     x, y = next((x, y) for x in range(SIZE) for y in range(SIZE) if target.ship_at((x, y)) is None)
-    status, body = _req(port, u, json.dumps({"action": "shoot", "x": x, "y": y}).encode())
+    duel.cursor = (x, y)
+    status, body = _req(port, u, json.dumps({"action": "ok"}).encode())  # OK = schießen aufs gewählte Feld
     assert status == 200 and json.loads(body)["ok"] and duel.turn == 1
     assert not json.loads(_req(port, u, json.dumps({"action": "shoot", "x": x, "y": y}).encode())[1])["ok"]
     # Spieler 1 schießt per Mausklick ins rechte Feld
@@ -151,16 +165,9 @@ def test_phone_player_two(env, monkeypatch, tmp_path):  # noqa: F811
     src = DuelSource({})
     src.resize(1280, 720)
     ship = QColor(dd.SHIP)
-
-    def ship_pixels():
-        img = src.grab().toImage()
-        return sum(img.pixelColor(x, y) == ship for x in range(0, 1280, 2) for y in range(0, 720, 2))
-
-    spectator = ship_pixels()
-    duel.p2_phone = False  # zum Vergleich: Tastatur-Ansicht zeigt die eigene Flotte
-    shown = ship_pixels()
-    duel.p2_phone = True
-    assert shown > 2000 and spectator < 100, (shown, spectator)  # (wenige Pixel: Text in derselben Farbe)
+    img = src.grab().toImage()
+    shown = sum(img.pixelColor(x, y) == ship for x in range(0, 1280, 2) for y in range(0, 720, 2))
+    assert shown > 2000, shown  # Monitor 2 zeigt die Flotte von Spieler 2 (das Handy ist nur die Steuerung)
     src.stop()
     # Handy abmelden → Platz wieder frei
     duel.release_phone()
@@ -259,9 +266,32 @@ def test_free_order_pick_up_and_move():
     assert game.set_ready(2) and game.remove(2, *game.fleets[2].ships[0][0]) is None  # bereit: nichts mehr ändern
 
 
-def test_phone_page_has_preview_and_name():
+def test_phone_page_is_a_controller():
+    """Handy = nur Steuerung (Name, Steuerkreuz, OK, Drehen, Zufällig, Zurück, Bereit) – keine Felder."""
     from alupc.duel import PHONE_PAGE
 
-    for needle in ('id="jname"', 'id="set"', 'id="dock"', 'action: "remove"', "canPlace", "gok", "gbad"):
+    for needle in ('id="jname"', 'id="pad"', 'id="ok"', 'action: "move"', 'action: "ok"', 'id="rot"', 'id="ready"'):
         assert needle in PHONE_PAGE, needle
+    assert 'class="grid"' not in PHONE_PAGE
     assert "/anmelden" not in PHONE_PAGE
+
+
+def test_pip_off_during_duel(env, monkeypatch):  # noqa: F811
+    """Bild-in-Bild (Monitor 2 auf Monitor 1) würde Spieler 1 die Schiffe von Spieler 2 zeigen: aus, solange das
+    Spiel läuft, danach wieder wie vorher."""
+    controller, window, _ = env
+    monkeypatch.setenv("ALUPC_NO_AUTO_WIFI", "1")
+    controller.cast.duel = None
+    pip = controller.pip
+    pip.show_on_main()
+    pump()
+    controller.start_duel(open_window=False)
+    pump()
+    assert not pip.isVisible()
+    controller.toggle_pip()  # einschalten geht während des Spiels nicht
+    assert not pip.isVisible()
+    controller.stop_duel()
+    pump()
+    assert pip.isVisible()
+    pip.hide()
+    controller.cast.stop()
