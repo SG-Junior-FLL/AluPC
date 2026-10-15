@@ -176,7 +176,7 @@ def sync_group(page) -> QGroupBox:
     lay.addWidget(what)
     short = {"startseite": "Startseite", "szenen": "Szenen", "favoriten": "Websites & Medien",
              "tasten": "Tastenkürzel", "aussehen": "Darstellung", "schoner": "Schoner & Timer", "toene": "Töne",
-             "monitor2": "Monitor 2", "handy": "Handy", "rgb": "RGB", "overlays": "Overlays",
+             "monitor2": "Bildschirm", "handy": "Handy", "rgb": "RGB", "overlays": "Overlays",
              "fingerabdruck": "Fingerabdruck", "sprache": "Sprache", "spiele": "Spiele & WLAN", "extras": "Extras",
              "start": "App-Start"}
     section_boxes: dict[str, QCheckBox] = {}

@@ -61,7 +61,7 @@ def button(text: str, icon_name: str | None = None, primary: bool = False, dange
 
 # Symbol je Seitenkopf (automatisch nach Titel – so bekommen alle Dialoge ein einheitliches Aussehen)
 PAGE_ICONS = {"Setup": "sliders", "Meine Szenen": "scenes", "Fingerabdruck": "fingerprint", "Mediathek": "image",
-              "Handy auf Monitor 2": "phone", "Website anzeigen": "globe", "Programm auf Monitor 2": "window",
+              "Handy auf dem Bildschirm": "phone", "Website anzeigen": "globe", "Programm auf dem Bildschirm": "window",
               "Bildschirmschoner": "moon", "Quelle wählen": "plus", "Startseite anpassen": "edit",
               "Eigene Kachel": "plus", "Fingerabdruck einrichten": "fingerprint", "Neue Szene": "scenes",
               "Szene bearbeiten": "scenes"}
@@ -382,7 +382,7 @@ class MonitorCard(QWidget):
         self.compact = False
         self.setFixedHeight(166)
         self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip("Monitor 2 – Klick: zur Startseite")
+        self.setToolTip("Bildschirm – Klick: zur Startseite")
 
     def set_compact(self, on: bool) -> None:
         """Schmale Seitenleiste: nur kleines Bild mit Zustandspunkt."""
@@ -525,7 +525,7 @@ class PreviewThumb(QWidget):
         self.icon_name = "monitor"
         self.setFixedSize(272, 153)
         self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip("Live-Vorschau von Monitor 2 – Klick öffnet Bild-in-Bild")
+        self.setToolTip("Live-Vorschau vom Bildschirm – Klick öffnet Bild-in-Bild")
 
     def set(self, image, icon_name: str):
         self.image = image if image is not None and not image.isNull() else None

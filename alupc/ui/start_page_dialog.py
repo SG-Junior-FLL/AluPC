@@ -53,7 +53,7 @@ from .widgets import button, menu_header, page_header
 
 
 ACTION_KINDS = {
-    "source": "Etwas auf Monitor 2 anzeigen",
+    "source": "Etwas auf dem Bildschirm anzeigen",
     "screensaver": "Eigenen Bildschirmschoner zeigen (nochmal klicken = beenden)",
     "overlay": "Overlay einblenden (nochmal klicken = aus)",
     "timer": "Timer mit eigener Dauer starten",
@@ -439,7 +439,7 @@ class StartPageDialog(QDialog):
         self.title = QLineEdit(self.cfg.get("title", ""))
         self.title.setPlaceholderText("Was sollen die anderen sehen?")
         self.subtitle = QLineEdit(self.cfg.get("subtitle", ""))
-        self.subtitle.setPlaceholderText("Kachel antippen – läuft sofort auf Monitor 2")
+        self.subtitle.setPlaceholderText("Kachel antippen – läuft sofort auf dem Bildschirm")
         self.show_status = QCheckBox("Statuskarte zeigen")
         self.show_status.setChecked(bool(self.cfg.get("show_status", True)))
         self.show_hint = QCheckBox("Hinweis mit Tastenkürzeln anzeigen")

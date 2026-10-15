@@ -187,7 +187,7 @@ class PresenterCanvas(QWidget):
         p.drawText(pill.adjusted(18, 0, 0, 0), Qt.AlignVCenter | Qt.AlignLeft, label)
         if c.privacy:
             p.setPen(QColor("#ffffff"))
-            p.drawText(a, Qt.AlignCenter, "SCHWARZ ist an – auf Monitor 2 ist gerade nichts zu sehen")
+            p.drawText(a, Qt.AlignCenter, "SCHWARZ ist an – auf dem Bildschirm ist gerade nichts zu sehen")
         p.end()
 
 
@@ -256,7 +256,7 @@ class PresenterWindow(QWidget):
         self.fps_combo = QComboBox()
         for fps in FPS_CHOICES:
             self.fps_combo.addItem(f"{fps} fps", fps)
-        self.fps_combo.setToolTip("Wie oft die Vorschau hier aktualisiert wird (Monitor 2 selbst läuft immer "
+        self.fps_combo.setToolTip("Wie oft die Vorschau hier aktualisiert wird (der Bildschirm selbst läuft immer "
                                   "flüssig). Mehr Bilder/s = flüssiger, braucht aber mehr Rechenleistung.")
         wanted = int(controller.config["draw"].get("fps", 30))
         self.fps_combo.setCurrentIndex(max(0, self.fps_combo.findData(wanted)))
@@ -271,7 +271,7 @@ class PresenterWindow(QWidget):
         undo.clicked.connect(controller.laser.undo)
         clear = button("Alles löschen", "trash", danger=True)
         self.clear_btn = clear
-        clear.setToolTip("Alle Zeichnungen auf Monitor 2 entfernen (Entf)")
+        clear.setToolTip("Alle Zeichnungen auf dem Bildschirm entfernen (Entf)")
         clear.clicked.connect(controller.laser.clear_strokes)
         actions.addWidget(undo)
         actions.addWidget(clear)

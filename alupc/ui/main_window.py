@@ -132,7 +132,7 @@ class WebsiteDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Website anzeigen", "Vollbild auf Monitor 2"))
+        lay.addWidget(page_header("Website anzeigen", "Vollbild auf dem Bildschirm"))
         caption = QLabel("Gespeicherte Websites")
         caption.setObjectName("SectionTitle")
         lay.addWidget(caption)
@@ -268,7 +268,7 @@ class MainWindow(QMainWindow):
         self.controller = controller
         self.config = controller.config
         self.hotkeys = hotkeys
-        self.setWindowTitle(f"{APP_NAME} – Monitor 2 steuern")
+        self.setWindowTitle(f"{APP_NAME} – Bildschirm steuern")
         self.setWindowIcon(app_icon())
         self.resize(1080, 720)
         self.setMinimumSize(480, 460)
@@ -339,7 +339,7 @@ class MainWindow(QMainWindow):
         names.setSpacing(0)
         title = QLabel(APP_NAME)
         title.setObjectName("Brand")
-        sub = QLabel("Monitor 2 steuern")
+        sub = QLabel("Bildschirm steuern")
         self.brand_texts = (title, sub)
         self.brand_layout = brand
         sub.setObjectName("BrandSub")
@@ -404,7 +404,7 @@ class MainWindow(QMainWindow):
         wrow.setContentsMargins(8, 4, 8, 0)
         wrow.setSpacing(4)
         self.wheel_spin = button("Drehen", "wheel", primary=True)
-        self.wheel_spin.setToolTip("Glücksrad auf Monitor 2 drehen")
+        self.wheel_spin.setToolTip("Glücksrad auf dem Bildschirm drehen")
         self.wheel_spin.clicked.connect(lambda: self.controller.spin_wheel())
         wheel_names = button("", "edit")
         wheel_names.setToolTip("Einträge bearbeiten")
@@ -422,7 +422,7 @@ class MainWindow(QMainWindow):
         self.mic_button = mic
         lay.addWidget(mic)
         lock = NavButton("lock", "Computer sperren")
-        lock.setToolTip("Wie Win+L – Monitor 2 zeigt weiter, was gerade läuft")
+        lock.setToolTip("Wie Win+L – der Bildschirm zeigt weiter, was gerade läuft")
         lock.setCheckable(False)
         lock.clicked.connect(self.lock)
         self.lock_button = lock
@@ -517,7 +517,7 @@ class MainWindow(QMainWindow):
         self.status_card = StatusCard()
         self.status_card.preview.clicked.connect(self.controller.toggle_pip)
         self.stop_btn = button("Beenden", "x")
-        self.stop_btn.setToolTip("AluPC-Anzeige beenden – Monitor 2 wird wieder ein normaler Bildschirm (Erweitern)")
+        self.stop_btn.setToolTip("AluPC-Anzeige beenden – der Bildschirm wird wieder normal erweitert")
         self.stop_btn.clicked.connect(self.controller.extend)
         self.status_card.actions.addWidget(self.stop_btn, 0, Qt.AlignRight)
         # Schnellschalter direkt beim Live-Bild (statt eigener Kacheln)
@@ -525,7 +525,7 @@ class MainWindow(QMainWindow):
         for key, icon_name, text, slot, tip in [
             ("black", "eye_off", "Schwarz", self.controller.toggle_privacy, "Sichtschutz an/aus (Strg+Alt+B)"),
             ("freeze", "snowflake", "Standbild", self.controller.toggle_freeze, "Bild einfrieren (Strg+Alt+S)"),
-            ("pip", "pip", "Bild-in-Bild", self.controller.toggle_pip, "Monitor 2 klein auf Monitor 1"),
+            ("pip", "pip", "Bild-in-Bild", self.controller.toggle_pip, "Bildschirm klein hier am PC"),
             ("draw", "edit", "Zeichnen", self.open_presenter, "Zeigen & Zeichnen (Strg+Alt+K)"),
         ]:
             chip = QPushButton(text)
@@ -571,7 +571,7 @@ class MainWindow(QMainWindow):
         self.t_music = self.tiles["nowplaying"]
         self.t_music.activated.connect(c.show_now_playing)
         music_menu = QMenu(self)
-        for icon_name, text, action in [("music", "Auf Monitor 2 zeigen", None),
+        for icon_name, text, action in [("music", "Auf dem Bildschirm zeigen", None),
                                         ("play", "Abspielen / Pause", "play_pause"),
                                         ("fastforward", "Nächster Titel", "next"),
                                         ("rewind", "Vorheriger Titel", "previous")]:
@@ -591,7 +591,7 @@ class MainWindow(QMainWindow):
         draw_menu = QMenu(self)
         draw_menu.addAction(icons.icon("edit", theme.current().text, 18), "Zeigen & Zeichnen öffnen …",
                             self.open_presenter)
-        draw_menu.addAction(icons.icon("trash", theme.current().text, 18), "Zeichnungen auf Monitor 2 löschen",
+        draw_menu.addAction(icons.icon("trash", theme.current().text, 18), "Zeichnungen auf dem Bildschirm löschen",
                             c.laser.clear_strokes)
         self.t_draw.set_menu(draw_menu, split=True)
         # Whiteboard: Klick = Tafel auf Monitor 2 + Whiteboard-Fenster, Pfeil = Hintergrund, Seiten
@@ -610,7 +610,7 @@ class MainWindow(QMainWindow):
         self.t_system = self.tiles["system"]
         self.t_system.activated.connect(lambda: c.show_source({"type": "system"}))
         system_menu = QMenu(self)
-        system_menu.addAction(icons.icon("monitor", theme.current().text, 18), "Auf Monitor 2 zeigen",
+        system_menu.addAction(icons.icon("monitor", theme.current().text, 18), "Auf dem Bildschirm zeigen",
                               lambda: c.show_source({"type": "system"}))
         system_menu.addAction(icons.icon("gauge", theme.current().text, 18), "Seite „System“ öffnen",
                               lambda: self._go(4))
@@ -630,7 +630,7 @@ class MainWindow(QMainWindow):
         self.t_hotspot.activated.connect(self.toggle_hotspot)
         hotspot_menu = QMenu(self)
         hotspot_menu.addAction(icons.icon("wifi", theme.current().text, 18), "An / aus", self.toggle_hotspot)
-        hotspot_menu.addAction(icons.icon("monitor", theme.current().text, 18), "WLAN-QR-Code auf Monitor 2",
+        hotspot_menu.addAction(icons.icon("monitor", theme.current().text, 18), "WLAN-QR-Code auf dem Bildschirm",
                                self.controller.show_wifi_qr)
         hotspot_menu.addAction(icons.icon("qr", theme.current().text, 18), "Name, Passwort, Geräte, QR-Code …",
                                lambda: self.open_hotspot_dialog("normal"))
@@ -638,7 +638,7 @@ class MainWindow(QMainWindow):
                                "Handy-Steuerung: privater Steuer-Code (nur hier am PC)",
                                lambda: self.open_hotspot_dialog("normal"))
         hotspot_menu.addAction(icons.icon("info", theme.current().text, 18),
-                               "Handy fliegt aus dem WLAN? – Anleitung auf Monitor 2", self.controller.show_wifi_help)
+                               "Handy fliegt aus dem WLAN? – Anleitung auf dem Bildschirm", self.controller.show_wifi_help)
         self.t_hotspot.set_menu(hotspot_menu, split=True)
         c.hotspot_changed.connect(self.refresh)
         c.access_requested.connect(self.ask_access)  # Handy möchte steuern → hier erlauben/ablehnen
@@ -723,7 +723,7 @@ class MainWindow(QMainWindow):
         """Startseite nach den Einstellungen neu zusammensetzen."""
         cfg = self.config["start_page"]
         self.start_title.setText(cfg.get("title") or "Was sollen die anderen sehen?")
-        self.start_subtitle.setText(cfg.get("subtitle") or "Kachel antippen – läuft sofort auf Monitor 2")
+        self.start_subtitle.setText(cfg.get("subtitle") or "Kachel antippen – läuft sofort auf dem Bildschirm")
         self.status_card.setVisible(bool(cfg.get("show_status", True)))
         self.shortcut_hint.setVisible(bool(cfg.get("show_hint", True)))
         # eigene Kacheln neu anlegen
@@ -960,7 +960,7 @@ class MainWindow(QMainWindow):
     def save_current_website(self):
         view = self.controller.current_web_view()
         if view is None:
-            self.show_message("Auf Monitor 2 läuft gerade keine Website.", "warn")
+            self.show_message("Auf dem Bildschirm läuft gerade keine Website.", "warn")
             return
         from PySide6.QtWidgets import QInputDialog
 
@@ -1014,7 +1014,7 @@ class MainWindow(QMainWindow):
         col = theme.current().text
         place = c.config["weather"].get("label", "")
         menu_header(menu, place or "Kein Ort eingestellt")
-        menu.addAction(icons.icon("monitor", col, 18), "Auf Monitor 2 zeigen", c.show_weather)
+        menu.addAction(icons.icon("monitor", col, 18), "Auf dem Bildschirm zeigen", c.show_weather)
         menu.addSeparator()
         menu.addAction(icons.icon("edit", col, 18), "Ort ändern …", lambda: ask_weather_place(c, self))
         menu.addAction(icons.icon("refresh", col, 18), "Jetzt aktualisieren", lambda: c.weather.refresh(force=True))
@@ -1042,7 +1042,7 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         question = poll.question if len(poll.question) <= 34 else poll.question[:33] + "…"
         menu_header(menu, f"{question} · {poll.total()} Stimmen")
-        menu.addAction(icons.icon("monitor", col, 18), "Auf Monitor 2 zeigen",
+        menu.addAction(icons.icon("monitor", col, 18), "Auf dem Bildschirm zeigen",
                        lambda: c.show_source({"type": "umfrage"}, remember=False))
         if poll.open:
             menu.addAction(icons.icon("check", col, 18), "Beenden – Ergebnis zeigen", lambda: c.poll_action("ende"))
@@ -1185,7 +1185,7 @@ class MainWindow(QMainWindow):
             mark_current(act, key == current)
             act.setEnabled(not running or key == current)
         menu.addSeparator()
-        menu.addAction(icons.icon("monitor", col, 18), "Lobby auf Monitor 2", lambda: c.start_games())
+        menu.addAction(icons.icon("monitor", col, 18), "Lobby auf dem Bildschirm", lambda: c.start_games())
         if hub is None:
             return
         menu_header(menu, f"{len(hub.players)} dabei")
@@ -1211,7 +1211,7 @@ class MainWindow(QMainWindow):
         c = self.controller
         col = theme.current().text
         menu_header(menu, "Glücksrad")
-        menu.addAction(icons.icon("monitor", col, 18), "Auf Monitor 2 zeigen", c.show_wheel)
+        menu.addAction(icons.icon("monitor", col, 18), "Auf dem Bildschirm zeigen", c.show_wheel)
         spin = menu.addAction(icons.icon("play", col, 18), "Drehen", c.spin_wheel)
         wheel = c.wheel_widget()
         spin.setEnabled(not (wheel is not None and wheel.spinning))
@@ -1267,7 +1267,7 @@ class MainWindow(QMainWindow):
         menu.clear()
         page = ("sliders", "Einrichten …", self.open_handy_window)
         items = {
-            "airplay": [("phone", "Auf Monitor 2 zeigen", c.start_airplay)],
+            "airplay": [("phone", "Auf dem Bildschirm zeigen", c.start_airplay)],
             "handy_remote": [("qr", "QR-Code zeigen", c.start_cast)]
             + ([("x", "Beenden", c.stop_cast)] if c.cast.running() else [])
             + [("refresh", "Neuer Code", c.cast.renew_code)],
@@ -1594,11 +1594,11 @@ class MainWindow(QMainWindow):
 
         if getattr(self, "handy_window", None) is None:
             dlg = QDialog(self)
-            dlg.setWindowTitle("Handy auf Monitor 2")
+            dlg.setWindowTitle("Handy auf dem Bildschirm")
             dlg.resize(1060, 820)
             lay = QVBoxLayout(dlg)
             lay.setContentsMargins(22, 18, 22, 18)
-            lay.addWidget(page_header("Handy auf Monitor 2", "AirPlay · QR-Code"))
+            lay.addWidget(page_header("Handy auf dem Bildschirm", "AirPlay · QR-Code"))
             self.handy_page = HandyPage(self.controller)
             lay.addWidget(self.handy_page, 1)
             self.handy_window = dlg
@@ -1678,7 +1678,7 @@ class MainWindow(QMainWindow):
         self.a_status = menu.addAction("")
         self.a_status.setEnabled(False)
         menu.addAction(ic("grid"), "Schnellfenster …", self.open_tray_panel)
-        menu.addSection("Monitor 2")
+        menu.addSection("Bildschirm")
         self.a_freeze = QAction(ic("snowflake"), "Standbild", menu, checkable=True)
         self.a_freeze.triggered.connect(lambda _=False: c.toggle_freeze())
         self.a_black = QAction(ic("eye_off"), "Schwarz (Sichtschutz)", menu, checkable=True)
@@ -1693,7 +1693,7 @@ class MainWindow(QMainWindow):
             menu.addAction(act)
         self.tray_timer = menu.addMenu(ic("timer"), "Timer")
         self._fill_timer_menu(self.tray_timer)
-        self.tray_volume = menu.addMenu(ic("sound"), "Ton auf Monitor 2")
+        self.tray_volume = menu.addMenu(ic("sound"), "Ton auf dem Bildschirm")
         self.a_mute = QAction(ic("mute"), "Ton aus", menu, checkable=True)
         self.a_mute.triggered.connect(lambda on: c.set_media_volume(muted=on))
         self.tray_volume.addAction(self.a_mute)
@@ -1748,7 +1748,7 @@ class MainWindow(QMainWindow):
         menu.clear()
         col = theme.current().text
         menu_header(menu, "Timer")
-        menu.addAction(icons.icon("monitor", col, 18), "Auf Monitor 2 zeigen", c.show_timer)
+        menu.addAction(icons.icon("monitor", col, 18), "Auf dem Bildschirm zeigen", c.show_timer)
         menu.addAction(icons.icon("play", col, 18), "Start / Pause", lambda: c.timer_action("toggle"))
         menu.addAction(icons.icon("refresh", col, 18), "Neu starten", lambda: c.timer_action("restart"))
         menu.addAction(icons.icon("up", col, 18), "+1 Minute", lambda: c.timer_action("plus"))
@@ -1871,12 +1871,12 @@ class MainWindow(QMainWindow):
         pip_on = bool(c.pip and c.pip.isVisible())
         if out is not None:
             size = out.size()
-            where = f"Monitor 2 · {out.name()} · {size.width()} × {size.height()}"
+            where = f"Bildschirm · {out.name()} · {size.width()} × {size.height()}"
             hz = out.refreshRate()
             if hz:
                 where += f" · {hz:.0f} Hz"
         else:
-            where = "Monitor 2 · nicht angeschlossen"
+            where = "Bildschirm · nicht angeschlossen"
         typ = c.content.get("type") if c.mode == "content" and c.content else None
         is_mirror = bool(c.content and c.content.get("mirror"))
         icon_name = "mirror" if is_mirror else icons.SOURCE_ICONS.get(typ, "extend" if c.mode == "desktop" else "monitor")
@@ -1907,7 +1907,7 @@ class MainWindow(QMainWindow):
         self.camera_bar.sync()
         self._sync_tray_volume()
         state = pills[0] if pills else ("", t.success)
-        self.side_monitor.set(f"Monitor 2 · {out.name()}" if out else "Kein Monitor 2",
+        self.side_monitor.set(f"Bildschirm · {out.name()}" if out else "Kein Bildschirm",
                               c.describe() if out else "Anschließen – AluPC erkennt ihn selbst",
                               state if out else ("FEHLT", t.danger), icon_name)
         label = c.step_label()
@@ -1981,8 +1981,8 @@ class MainWindow(QMainWindow):
         self.a_black.setChecked(c.privacy)
         self.a_pip.setChecked(pip_on)
         self.a_saver.setChecked(c.screensaver.active)
-        self.a_status.setText(f"Monitor 2: {c.describe()}"[:70])
-        self.tray.setToolTip(f"{APP_NAME} – Monitor 2: {c.describe()}")
+        self.a_status.setText(f"Bildschirm: {c.describe()}"[:70])
+        self.tray.setToolTip(f"{APP_NAME} – Bildschirm: {c.describe()}")
         icon = self._tray_icon()
         if icon is not None:
             self.tray.setIcon(icon)

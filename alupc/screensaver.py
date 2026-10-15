@@ -465,7 +465,7 @@ class ScreensaverManager(QObject):
             return "Läuft gerade" + (" (von Hand gestartet – aus mit Kachel, Tastenkürzel oder „Bildschirmschoner aus“)"
                                      if self.manual else " – Maus oder Tastatur beendet ihn.")
         if c.output_screen() is None:
-            return "Geht gerade nicht: kein zweiter Monitor gefunden."
+            return "Geht gerade nicht: kein Bildschirm gefunden."
         if c.screens_overlap():
             return "Geht gerade nicht: das System spiegelt die Monitore – in AluPC „Spiegeln“ nutzen."
         if not cfg.get("enabled"):
@@ -473,7 +473,7 @@ class ScreensaverManager(QObject):
         if c.privacy:
             return "Wartet: Schwarz ist an."
         if cfg.get("when", "desktop") == "desktop" and c.mode != "desktop":
-            return ("Wartet: Monitor 2 zeigt gerade etwas von AluPC – bei „Nur wenn nichts läuft“ startet er dann "
+            return ("Wartet: Der Bildschirm zeigt gerade etwas von AluPC – bei „Nur wenn nichts läuft“ startet er dann "
                     "nicht. „Wann: Immer“ wählen, wenn er trotzdem kommen soll.")
         idle = self.idle_seconds()
         need = max(1, float(cfg.get("minutes", 10))) * 60
@@ -507,7 +507,7 @@ class ScreensaverManager(QObject):
         """Bildschirmschoner zeigen – mit den Einstellungen aus dem Setup oder (Kachel) eigenen."""
         c = self.controller
         if c.output_screen() is None:
-            c.message.emit("Kein zweiter Monitor gefunden.")
+            c.message.emit("Kein Bildschirm gefunden.")
             return
         if c.screens_overlap():
             c.message.emit("Bildschirmschoner geht nicht bei System-Spiegeln – nutze „Spiegeln“ in AluPC.")

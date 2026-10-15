@@ -72,7 +72,7 @@ class FreezeLayer(FrameView):
 
 class OutputWindow(QWidget):
     # Titel wird auch von KWin-Skripten benutzt, um dieses Fenster zu finden
-    TITLE = "AluPC – Monitor 2"
+    TITLE = "AluPC – Bildschirm"
 
     def __init__(self):
         super().__init__(None, Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint

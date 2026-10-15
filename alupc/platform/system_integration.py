@@ -18,8 +18,8 @@ from .autostart import _quote, launch_command
 IS_WINDOWS = sys.platform.startswith("win")
 SCHEME = "alupc"
 MENU_ID = "AluPC.Monitor2"
-SHOW_LABEL = "Auf Monitor 2 zeigen"
-SLIDES_LABEL = "Als Diashow auf Monitor 2"
+SHOW_LABEL = "Auf dem Bildschirm zeigen"
+SLIDES_LABEL = "Als Diashow auf dem Bildschirm"
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tif", ".tiff"}
 VIDEO_EXT = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v", ".mpg", ".mpeg", ".wmv"}

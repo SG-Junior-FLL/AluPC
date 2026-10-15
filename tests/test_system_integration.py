@@ -59,7 +59,7 @@ def test_linux_files_on_off(tmp_path, monkeypatch):
     assert ok and si.is_active() and "Dolphin" in msg
     menu = tmp_path / "data" / "kio" / "servicemenus" / "alupc-monitor2.desktop"
     text = menu.read_text()
-    assert "Name=Auf Monitor 2 zeigen" in text and "--zeigen %f" in text and "MimeType=inode/directory;" in text
+    assert "Name=Auf dem Bildschirm zeigen" in text and "--zeigen %f" in text and "MimeType=inode/directory;" in text
     assert os.access(menu, os.X_OK)
     assert (tmp_path / "data" / "kservices5" / "ServiceMenus" / "alupc-monitor2.desktop").is_file()
     link = (tmp_path / "data" / "applications" / "alupc-link.desktop").read_text()
@@ -94,7 +94,7 @@ def test_sync_follows_setting(tmp_path, monkeypatch):
 
 def test_windows_entries():
     e = si.windows_entries()
-    assert e[r"SystemFileAssociations\image\shell\AluPC.Monitor2"]["MUIVerb"] == "Auf Monitor 2 zeigen"
-    assert e[r"Directory\shell\AluPC.Monitor2"]["MUIVerb"] == "Als Diashow auf Monitor 2"
+    assert e[r"SystemFileAssociations\image\shell\AluPC.Monitor2"]["MUIVerb"] == "Auf dem Bildschirm zeigen"
+    assert e[r"Directory\shell\AluPC.Monitor2"]["MUIVerb"] == "Als Diashow auf dem Bildschirm"
     assert e[r"SystemFileAssociations\.pdf\shell\AluPC.Monitor2\command"][""].endswith('--zeigen "%1"')
     assert e["alupc"]["URL Protocol"] == "" and e[r"alupc\shell\open\command"][""].endswith('"%1"')

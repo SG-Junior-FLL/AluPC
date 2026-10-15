@@ -12,7 +12,7 @@ from .config import config_dir
 
 # Ereignis → Anzeigename (Reihenfolge = Reihenfolge im Setup)
 EVENTS = {
-    "inhalt": "Neuer Inhalt auf Monitor 2",
+    "inhalt": "Neuer Inhalt auf dem Bildschirm",
     "szene": "Szene gewechselt",
     "standbild_an": "Standbild an",
     "standbild_aus": "Standbild aus",

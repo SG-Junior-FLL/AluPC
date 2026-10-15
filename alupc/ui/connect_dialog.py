@@ -46,7 +46,7 @@ def control_code(cast) -> tuple[str, list[str]] | None:
     if not cast.running():
         return None
     return cast.url(True), [f"Adresse: <b>{cast.base().split('://', 1)[-1].rstrip('/')}</b> · Code: "
-                            f"<b>{cast.code()}</b>", "Privat – nur hier am PC, nicht auf Monitor 2"]
+                            f"<b>{cast.code()}</b>", "Privat – nur hier am PC, nicht auf dem Bildschirm"]
 
 
 class ConnectDialog(QDialog):
@@ -82,8 +82,8 @@ class ConnectDialog(QDialog):
             lay.addWidget(msg)
         buttons = QHBoxLayout()
         if on_monitor is not None:
-            mon = button("Auf Monitor 2 zeigen", "monitor")
-            mon.setToolTip("Zeigt WLAN-Code und Seiten-Code auf Monitor 2 – den privaten Steuer-Code nicht")
+            mon = button("Auf dem Bildschirm zeigen", "monitor")
+            mon.setToolTip("Zeigt WLAN-Code und Seiten-Code auf dem Bildschirm – den privaten Steuer-Code nicht")
             mon.clicked.connect(on_monitor)
             buttons.addWidget(mon)
         buttons.addStretch(1)
@@ -143,8 +143,8 @@ class HotspotDialog(QDialog):
         self.toggle.setEnabled(ok)
         self.toggle.clicked.connect(self._toggle)
         row.addWidget(self.toggle)
-        self.show_qr = button("QR auf Monitor 2", "monitor")
-        self.show_qr.setToolTip("WLAN-QR-Code groß auf Monitor 2 zeigen – Handys scannen ihn von dort")
+        self.show_qr = button("QR auf dem Bildschirm", "monitor")
+        self.show_qr.setToolTip("WLAN-QR-Code groß auf dem Bildschirm zeigen – Handys scannen ihn von dort")
         self.show_qr.clicked.connect(controller.show_wifi_qr)
         row.addWidget(self.show_qr)
         row.addStretch(1)
@@ -156,7 +156,7 @@ class HotspotDialog(QDialog):
         self.state.setObjectName("Muted")
         self.state.setWordWrap(True)
         bl.addWidget(self.state)
-        hint = QLabel("Handy: WLAN-Code scannen, dann den zweiten Code der jeweiligen Seite auf Monitor 2 (Spiel, "
+        hint = QLabel("Handy: WLAN-Code scannen, dann den zweiten Code der jeweiligen Seite auf dem Bildschirm (Spiel, "
                       "Chat, Abstimmung …). Steuern: der Steuer-Code unten – privat, nur hier am PC. Hat der PC "
                       "Internet, haben es die Handys im WLAN auch. Das normale WLAN des PCs kann dabei getrennt "
                       "werden (viele WLAN-Karten können nicht beides).")
@@ -248,7 +248,7 @@ class HotspotDialog(QDialog):
         box.setWindowTitle("Handy bleibt im AluPC-WLAN")
         box.setTextFormat(Qt.RichText)
         box.setText(stay_help_html())
-        show = box.addButton("Auf Monitor 2 zeigen", QMessageBox.ActionRole)
+        show = box.addButton("Auf dem Bildschirm zeigen", QMessageBox.ActionRole)
         box.addButton("Schließen", QMessageBox.RejectRole)
         box.exec()
         if box.clickedButton() is show:

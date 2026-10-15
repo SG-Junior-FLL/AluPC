@@ -151,7 +151,7 @@ class MediaLibraryDialog(QDialog):
         self.rename_btn.clicked.connect(self.rename_selected)
         self.remove_btn = button("Entfernen", "trash", danger=True)
         self.remove_btn.clicked.connect(self.remove_selected)
-        self.show_btn = button("Auf Monitor 2 zeigen", "play", primary=True)
+        self.show_btn = button("Auf dem Bildschirm zeigen", "play", primary=True)
         self.show_btn.clicked.connect(self.show_selected)
         actions = QHBoxLayout()
         actions.setSpacing(8)

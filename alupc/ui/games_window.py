@@ -29,7 +29,7 @@ class GamesWindow(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 16, 20, 16)
         head = QHBoxLayout()
-        head.addWidget(page_header("Minispiele", "Handys scannen den Code auf Monitor 2 – gestartet wird nur hier",
+        head.addWidget(page_header("Minispiele", "Handys scannen den Code auf dem Bildschirm – gestartet wird nur hier",
                                    "gamepad"), 1)
         self.pill = QLabel()
         self.pill.setAlignment(Qt.AlignCenter)
@@ -63,7 +63,7 @@ class GamesWindow(QWidget):
             self.cards[key] = b
         left.addLayout(grid)
         # Zwei Bildschirme statt Handys: Spieler 1 am PC, Spieler 2 auf Monitor 2
-        self.b_duel = QPushButton("🚢  Schiffe versenken – zu zweit\nSpieler 1 hier am PC · Spieler 2 auf Monitor 2 "
+        self.b_duel = QPushButton("🚢  Schiffe versenken – zu zweit\nSpieler 1 hier am PC · Spieler 2 auf dem Bildschirm "
                                   "(Handy als Steuerung)")
         self.b_duel.setFocusPolicy(Qt.NoFocus)
         self.b_duel.setCursor(Qt.PointingHandCursor)
@@ -72,7 +72,7 @@ class GamesWindow(QWidget):
         self.b_duel.clicked.connect(lambda: self.controller.start_duel())
         left.addWidget(self.b_duel)
         # Das echte Kahoot: Gastgeber-Seite auf Monitor 2, hier am PC über „Browser steuern“ bedienen
-        self.b_kahoot = QPushButton("🟪  Kahoot – das echte\nQuiz auf Monitor 2 · am PC anmelden und starten · "
+        self.b_kahoot = QPushButton("🟪  Kahoot – das echte\nQuiz auf dem Bildschirm · am PC anmelden und starten · "
                                     "Mitspieler über kahoot.it")
         self.b_kahoot.setFocusPolicy(Qt.NoFocus)
         self.b_kahoot.setCursor(Qt.PointingHandCursor)
@@ -111,7 +111,7 @@ class GamesWindow(QWidget):
         self.b_end = button("Ergebnis   E", "check")
         self.b_lobby = button("Lobby   L", "home")
         self.b_teams = button("Teams mischen   T", "refresh")
-        self.b_show = button("Monitor 2   M", "monitor")
+        self.b_show = button("Bildschirm   M", "monitor")
         self.b_board = button("Bestenliste   B", "star")
         self.b_sound = button("Töne an   S", "sound")
         for i, b in enumerate((self.b_start, self.b_next, self.b_end, self.b_lobby, self.b_teams, self.b_show,
@@ -307,9 +307,9 @@ class GamesWindow(QWidget):
                 n = len(hub.players)
                 text = f"Lobby · {n} dabei" if n else "Lobby · noch niemand dabei"
             elif hub.phase == "over":
-                text = "Ergebnis auf Monitor 2"
+                text = "Ergebnis auf dem Bildschirm"
             elif hub.phase == "board":
-                text = f"Bestenliste auf Monitor 2 · {hub.board_games} Spiele"
+                text = f"Bestenliste auf dem Bildschirm · {hub.board_games} Spiele"
             elif now < hub.intro_until:
                 text = f"{hub.spec.title} startet …"
             else:

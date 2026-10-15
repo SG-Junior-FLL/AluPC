@@ -73,7 +73,7 @@ class PipWindow(QWidget):
         self._drag: QPoint | None = None
         self._normal_geo = None  # Größe/Lage vor dem Vollbild
         self.on_top = True
-        self.setToolTip("Live-Ansicht von Monitor 2 · ziehen = verschieben, Ecke unten rechts = Größe, "
+        self.setToolTip("Live-Ansicht vom Bildschirm · ziehen = verschieben, Ecke unten rechts = Größe, "
                         "Doppelklick = Vollbild auf Monitor 1")
         # Knöpfe oben rechts (erscheinen, sobald die Maus im Fenster ist)
         self.bar = QWidget(self)
@@ -236,7 +236,7 @@ class PipWindow(QWidget):
         if screen is None:
             self._stop_live()
             self.view.set_image(None)
-            self.view.set_message("Kein zweiter Monitor")
+            self.view.set_message("Kein Bildschirm")
             return
         # Normaler Desktop auf Monitor 2 → Monitor 2 live aufnehmen (gemeinsam mit Handy-Live-Bild und Kamera)
         feed = self.controller.monitor_feed
@@ -244,7 +244,7 @@ class PipWindow(QWidget):
         if image is not None:
             self.view.set_image(image)
         else:
-            self.view.set_message(feed.problem() or "Monitor 2 wird aufgenommen …")
+            self.view.set_message(feed.problem() or "Der Bildschirm wird aufgenommen …")
 
     # ------------------------------------------------------------ Maus
     def mousePressEvent(self, event):

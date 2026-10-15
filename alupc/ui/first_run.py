@@ -191,10 +191,10 @@ class FirstRunDialog(QDialog):
     def _step_monitors(self):
         out = self.controller.output_screen()
         if out is None:
-            self._next("warn", "Kein Monitor 2 – wird später erkannt")
+            self._next("warn", "Kein Bildschirm – wird später erkannt")
         else:
             g = out.geometry()
-            self._next("ok", f"Monitor 2: {out.name()} ({g.width()} × {g.height()})")
+            self._next("ok", f"Bildschirm: {out.name()} ({g.width()} × {g.height()})")
 
     def _step_mirror(self):
         from ..platform.linux_display import is_wayland

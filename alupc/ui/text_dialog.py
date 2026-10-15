@@ -19,9 +19,9 @@ class TextDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Text anzeigen", "Eintippen · Anzeigen · steht groß auf Monitor 2", "text"))
+        lay.addWidget(page_header("Text anzeigen", "Eintippen · Anzeigen · steht groß auf dem Bildschirm", "text"))
         self.text = QPlainTextEdit()
-        self.text.setPlaceholderText("Text für Monitor 2")
+        self.text.setPlaceholderText("Text für den Bildschirm")
         current = controller.content or {}
         if current.get("type") == "text" and controller.mode == "content":
             self.text.setPlainText(current.get("text", ""))  # läuft gerade → zum Ändern vorbefüllt
@@ -34,7 +34,7 @@ class TextDialog(QDialog):
         self._fill_recent()
         lay.addWidget(self.recent_box)
         row = QHBoxLayout()
-        self.live = QCheckBox("Live – sofort auf Monitor 2")
+        self.live = QCheckBox("Live – sofort auf dem Bildschirm")
         self.live.setChecked(bool(controller.config.get("text_live", False)))
         self.live.setStyleSheet("QCheckBox { font-weight: 600; }")
         self.live.toggled.connect(self._live_toggled)
@@ -60,7 +60,7 @@ class TextDialog(QDialog):
     def _sync_live_ui(self):
         on = self.live.isChecked()
         self.show_btn.setText("Fertig" if on else "Anzeigen")
-        self.text.setPlaceholderText("Tippen – erscheint sofort auf Monitor 2" if on else "Text für Monitor 2")
+        self.text.setPlaceholderText("Tippen – erscheint sofort auf dem Bildschirm" if on else "Text für den Bildschirm")
 
     def _live_toggled(self, on: bool):
         self.controller.config["text_live"] = on

@@ -269,7 +269,7 @@ class AudioPage(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(14)
         root.addWidget(page_header("Audio & Kamera", "Mischpult für den ganzen PC: Geräte, Programme, virtuelle "
-                                                     "Mikros und Monitor 2 als Kamera", "mixer"))
+                                                     "Mikros und Bildschirm als Kamera", "mixer"))
         self.note = QLabel()
         self.note.setWordWrap(True)
         self.note.setObjectName("Muted")
@@ -456,12 +456,12 @@ class AudioPage(QWidget):
                                   "padding:3px 12px; font-weight:700;")
         self.c_toggle.setText("Ausschalten" if on else ("Einschalten" if installed else "Einrichten"))
         self.c_toggle.setIcon(icons.icon("x" if on else ("play" if installed else "download"), t.text, 18))
-        name = "„OBS Virtual Camera“" if IS_WINDOWS else "„AluPC Monitor 2“"
+        name = "„OBS Virtual Camera“" if IS_WINDOWS else "„AluPC Bildschirm“"
         if on:
             text = f"Läuft – in Zoom, Teams, Discord oder OBS die Kamera <b>{name}</b> wählen." + \
                 (f" ({cam.device})" if cam.device and not IS_WINDOWS else "")
         else:
-            text = (f"Monitor 2 (mit Overlays und Zeichnungen) als Webcam {name}." if installed else why)
+            text = (f"Bildschirm (mit Overlays und Zeichnungen) als Webcam {name}." if installed else why)
         if cam.error:
             text += f"<br><span style='color:{t.danger}'>{cam.error}</span>"
         self.c_text.setText(text)

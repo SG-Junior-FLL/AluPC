@@ -190,7 +190,7 @@ class MonitorArrangement(QWidget):
             p.fillPath(rounded(r, 8), fill)
             p.setPen(QPen(color, 2.5 if item["name"] == self.current else 1.2))
             p.drawPath(rounded(r, 8))
-            title = "Monitor 2" if is_out else ("Hauptmonitor" if item.get("primary") else item["name"])
+            title = "Bildschirm" if is_out else ("Hauptmonitor" if item.get("primary") else item["name"])
             tf, df = font(10.5, QFont.Bold), font(8.5)
             th, dh = QFontMetrics(tf).height(), QFontMetrics(df).height()
             top = r.center().y() - (th + 2 * dh + 4) / 2
@@ -212,7 +212,7 @@ class SetupPage(QWidget):
 
     SECTIONS = [
         ("monitor", "Monitore", "Auflösung · Anordnung"),
-        ("pip", "Monitor 2", "Maus · Sichtschutz · PiP"),
+        ("pip", "Bildschirm", "Maus · Sichtschutz · PiP"),
         ("palette", "Darstellung", "Design · Farbe"),
         ("moon", "Bildschirmschoner", "Stil · Zeit"),
         ("timer", "Timer", "Dauer · Warnfarben"),
@@ -234,7 +234,7 @@ class SetupPage(QWidget):
         self.outputs = []
         builders = {
             "Monitore": [self._display_group],
-            "Monitor 2": [self._output_group, self._privacy_group, self._pip_group],
+            "Bildschirm": [self._output_group, self._privacy_group, self._pip_group],
             "Darstellung": [self._appearance_group],
             "Bildschirmschoner": [self._screensaver_group],
             "Timer": [self._timer_group],
@@ -388,7 +388,7 @@ class SetupPage(QWidget):
         self.side_combo = QComboBox()
         for key, label in SIDES:
             self.side_combo.addItem(label, key)
-        form.addRow("Monitor 2 liegt:", self.side_combo)
+        form.addRow("Der Bildschirm liegt:", self.side_combo)
         if not backend.supports_scale:
             self.scale_spin.setEnabled(False)
             self.scale_spin.setToolTip("Skalierung stellst du unter Windows/X11 in den Systemeinstellungen ein.")
@@ -584,7 +584,7 @@ class SetupPage(QWidget):
     def _system_extend(self):
         main, out = self.controller.main_screen(), self.controller.output_screen()
         if main is None or out is None:
-            error_box(self, "Kein zweiter Monitor gefunden.")
+            error_box(self, "Kein Bildschirm gefunden.")
             return
         side = self.side_combo.currentData()
         if side == "mirror":
@@ -641,7 +641,7 @@ class SetupPage(QWidget):
         self.transition_ms.setSuffix(" ms")
         self.transition_ms.setValue(int(tr.get("ms", 400)))
         try_btn = button("Ausprobieren", "play")
-        try_btn.setToolTip("Zeigt den Übergang einmal auf Monitor 2 (der aktuelle Inhalt bleibt)")
+        try_btn.setToolTip("Zeigt den Übergang einmal auf dem Bildschirm (der aktuelle Inhalt bleibt)")
         try_btn.clicked.connect(self._try_transition)
         tr_row = QHBoxLayout()
         tr_row.addWidget(self.transition_combo, 1)
@@ -684,7 +684,7 @@ class SetupPage(QWidget):
         power.currentIndexChanged.connect(save_power)
         form.addRow("Leistung:", power)
         form.addRow("Szenenwechsel:", tr_row)
-        hint = QLabel("Beim Wechsel auf Monitor 2 · je Szene änderbar")
+        hint = QLabel("Beim Wechsel auf dem Bildschirm · je Szene änderbar")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         form.addRow("", hint)
@@ -763,7 +763,7 @@ class SetupPage(QWidget):
         if c.mode == "content" and c.content:
             c.show_source(c.content, remember=False, sound=False)
         else:
-            error_box(self, "Auf Monitor 2 läuft gerade kein Inhalt von AluPC – zeige zuerst eine Szene "
+            error_box(self, "Auf dem Bildschirm läuft gerade kein Inhalt von AluPC – zeige zuerst eine Szene "
                             "oder Quelle an.")
 
     def _style_swatches(self, active: str):
@@ -922,7 +922,7 @@ class SetupPage(QWidget):
         app.screenRemoved.connect(lambda _s: self._fill_screen_combo())
 
         self.start_combo = QComboBox()
-        self.start_combo.setToolTip("Was Monitor 2 zeigt, sobald AluPC startet")
+        self.start_combo.setToolTip("Was der Bildschirm zeigt, sobald AluPC startet")
         self._fill_start_combo()
         self.start_combo.currentIndexChanged.connect(self._start_changed)
 
@@ -935,10 +935,10 @@ class SetupPage(QWidget):
         minimized = QCheckBox("Minimiert starten")
         minimized.setChecked(bool(self.config["start_minimized"]))
         minimized.toggled.connect(lambda v: self.config.__setitem__("start_minimized", v))
-        form.addRow("Monitor 2:", self.screen_combo)
+        form.addRow("Bildschirm:", self.screen_combo)
         form.addRow("Beim Start zeigen:", self.start_combo)
-        integ = QCheckBox("Im System (Rechtsklick „Auf Monitor 2 zeigen“, alupc://-Links)")
-        integ.setToolTip("Rechtsklick auf Bild, Video, PDF oder Ordner im Dateimanager → Monitor 2.\n"
+        integ = QCheckBox("Im System (Rechtsklick „Auf dem Bildschirm zeigen“, alupc://-Links)")
+        integ.setToolTip("Rechtsklick auf Bild, Video, PDF oder Ordner im Dateimanager → Bildschirm.\n"
                          "Links wie alupc://standbild oder alupc://szene/Pause steuern AluPC.")
         integ.setChecked(bool(self.config["system_integration"]))
         integ.toggled.connect(self._integration)
@@ -1410,7 +1410,7 @@ class SetupPage(QWidget):
         follow.toggled.connect(save_speak)
         stt_box.currentIndexChanged.connect(save_stt)
         test_say.clicked.connect(lambda: self.controller.speaker.say(
-            "Alles klar, Monitor 2 ist jetzt schwarz. Sag einfach, was ich tun soll.", force=True))
+            "Alles klar, der Bildschirm ist jetzt schwarz. Sag einfach, was ich tun soll.", force=True))
         refresh_talk()
 
         # ---- eigene Befehle
@@ -1701,10 +1701,10 @@ class SetupPage(QWidget):
 
     # ================================================================ Monitor 2
     def _output_group(self):
-        box = QGroupBox("Monitor 2")
+        box = QGroupBox("Bildschirm")
         lay = QVBoxLayout(box)
         cfg = self.config["output"]
-        taskbar = QCheckBox("Taskleiste auf Monitor 2 ausblenden (Windows)")
+        taskbar = QCheckBox("Taskleiste auf dem Bildschirm ausblenden (Windows)")
         taskbar.setChecked(bool(cfg.get("hide_taskbar", True)))
         taskbar.setEnabled(IS_WINDOWS)
         badge = QCheckBox("Standbild-Symbol zeigen")
@@ -1715,7 +1715,7 @@ class SetupPage(QWidget):
         confine.setChecked(bool(cfg.get("confine_cursor", True)))
         guard = self.controller.cursor_guard
         if guard.wayland_gap:
-            confine.setToolTip("KDE/Wayland: AluPC rückt Monitor 2 dafür mit Abstand weg – über die Lücke kommt "
+            confine.setToolTip("KDE/Wayland: AluPC rückt den Bildschirm dafür mit Abstand weg – über die Lücke kommt "
                                "die Maus nicht. Bei „Erweitern“ und beim Beenden geht die Lücke wieder zu.")
         elif not guard.supported:
             confine.setEnabled(False)
@@ -1738,7 +1738,7 @@ class SetupPage(QWidget):
             note.setWordWrap(True)
             lay.addWidget(note)
 
-        hint = QLabel("„Computer sperren“ = wie Win+L (auch Monitor 2)")
+        hint = QLabel("„Computer sperren“ = wie Win+L (gilt auch für den Bildschirm)")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         lay.addWidget(hint)

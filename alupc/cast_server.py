@@ -381,7 +381,7 @@ BLOCKED_PAGE = """<!doctype html><html lang="de"><head><meta charset="utf-8">
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0c1a;
 color:#eef0ff;font:16px system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
 b{font-size:22px;display:block;margin-bottom:10px}</style></head><body><div>
-<b>📶 Nur über das AluPC-WLAN</b>Scanne zuerst den WLAN-Code auf Monitor 2, dann den Code der Seite.</div></body></html>"""
+<b>📶 Nur über das AluPC-WLAN</b>Scanne zuerst den WLAN-Code auf dem Bildschirm, dann den Code der Seite.</div></body></html>"""
 
 
 _ACTIVE = None  # laufender CastServer
@@ -528,7 +528,7 @@ def _make_handler(server: CastServer):
                 return False
             self.close_connection = True
             if path.startswith("/api/") or path.startswith("/ws/"):
-                self._json(403, {"error": "Nur über das AluPC-WLAN: WLAN-Code auf Monitor 2 scannen"})
+                self._json(403, {"error": "Nur über das AluPC-WLAN: WLAN-Code auf dem Bildschirm scannen"})
             else:
                 self._send(403, BLOCKED_PAGE.encode(), "text/html; charset=utf-8")
             return True
@@ -748,7 +748,7 @@ def _make_handler(server: CastServer):
                                                                else "Erst am PC erlauben lassen"})
                     return
                 if not active:
-                    self._json(423, {"error": "Das Whiteboard ist gerade nicht auf Monitor 2"})
+                    self._json(423, {"error": "Das Whiteboard ist gerade nicht auf dem Bildschirm"})
                     return
                 try:
                     stroke = parse_stroke(data)

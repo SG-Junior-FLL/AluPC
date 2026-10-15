@@ -23,7 +23,7 @@ class KeepAwake:
         self._conn = None
         self._cookies: list[tuple[str, str, str, int]] = []
 
-    def set(self, on: bool, reason: str = "AluPC zeigt etwas auf Monitor 2") -> bool:
+    def set(self, on: bool, reason: str = "AluPC zeigt etwas auf dem Bildschirm") -> bool:
         """Ein-/ausschalten (mehrfach aufrufen ist harmlos). Rückgabe: jetzt aktiv?"""
         if on == self.active:
             return self.active

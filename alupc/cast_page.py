@@ -140,7 +140,7 @@ input[type=range] { width:100%; accent-color:#8b5cf6; height:30px; }
                  border:3px solid transparent; }
 .colors button { box-shadow:inset 0 0 0 1px rgba(127,127,127,.35); }  /* Weiß auf heller Karte sichtbar */
 .colors button.sel { border-color:var(--text); transform:scale(1.08); }
-/* Seitenverhältnis = Monitor 2 (per JS aus dem Live-Bild), damit Finger und Monitor genau übereinstimmen */
+/* Seitenverhältnis = Bildschirm (per JS aus dem Live-Bild), damit Finger und Monitor genau übereinstimmen */
 /* Vergrößern: das Bild hängt dann direkt an der Seite (sonst läge es unter der schwarzen Abdeckung) */
 .preview.fullview { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); border-radius:0; z-index:20;
                     width:min(100vw, calc(100vh * var(--ar, 1.7778))); height:auto; margin:0; touch-action:none; }
@@ -180,7 +180,7 @@ nav button.sel svg.i { animation:pop .35s cubic-bezier(.3,1.8,.5,1); }
 .toast.bad { background:var(--bad); }
 #login { display:none; margin-top:20px; }
 .hide { display:none !important; }
-/* Tafel-Modus (Whiteboard auf Monitor 2): zusätzliche Werkzeuge und die Tafel-Karte */
+/* Tafel-Modus (Whiteboard auf dem Bildschirm): zusätzliche Werkzeuge und die Tafel-Karte */
 .bonly, .bonly-card { display:none !important; }
 body.board .bonly { display:flex !important; }
 body.board .bonly.hide { display:none !important; }
@@ -226,7 +226,7 @@ body.board #draw-actions > #b-undo, body.board #draw-actions > #b-redo { flex:0 
   .row + .row { margin-top:10px; }
   input[type=range] { height:36px; }
   .timer { font-size:60px; }
-  /* Start: Live-Bild + Monitor 2 (eine Reihe) oben; breite Karten über die ganze Breite, kleine paarweise */
+  /* Start: Live-Bild + Bildschirm (eine Reihe) oben; breite Karten über die ganze Breite, kleine paarweise */
   #c-mon2 .grid { grid-template-columns:repeat(6,1fr); }
   #control:not(.hide) { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:16px;
                         grid-auto-flow:row dense; align-items:start; }
@@ -412,7 +412,7 @@ body.heftmode nav, body.heftmode header { display:none; }
         <button class="corner small" onclick="toggleFull('preview')" aria-label="Vergrößern"><svg class="i"><use href="#i-expand"/></svg></button></div>
     </div>
     <div class="card" id="c-mon2">
-      <h2>Monitor 2</h2>
+      <h2>Bildschirm</h2>
       <div class="grid">
         <button class="tile" id="b-schwarz" onclick="cmd('schwarz')"><svg class="i"><use href="#i-black"/></svg>Schwarz</button>
         <button class="tile" id="b-standbild" onclick="cmd('standbild')"><svg class="i"><use href="#i-freeze"/></svg>Standbild</button>
@@ -616,7 +616,7 @@ body.heftmode nav, body.heftmode header { display:none; }
       <svg class="i"><use href="#i-trash"/></svg>Auswahl löschen</button>
     <button class="bonly primary" id="b-heft" style="width:100%;margin-top:10px" onclick="heft(true, true)">
       <svg class="i"><use href="#i-expand"/></svg>Heft-Ansicht – wie am PC</button>
-    <div class="hint" id="draw-hint">Mit dem Finger auf das Bild zeichnen – erscheint sofort auf Monitor 2.</div>
+    <div class="hint" id="draw-hint">Mit dem Finger auf das Bild zeichnen – erscheint sofort auf dem Bildschirm.</div>
   </div>
   <div class="card bonly-card" id="c-board">
     <h2>Tafel <span id="b-name" style="text-transform:none;letter-spacing:0;font-weight:600"></span></h2>
@@ -737,7 +737,7 @@ body.heftmode nav, body.heftmode header { display:none; }
     <input type="file" id="cam" accept="image/*" capture="environment">
     <input type="file" id="gal" accept="image/*,video/*">
     <div class="bar" id="bar"><div></div></div>
-    <div class="hint" id="upinfo">Wird sofort auf Monitor 2 gezeigt.</div>
+    <div class="hint" id="upinfo">Wird sofort auf dem Bildschirm gezeigt.</div>
     <div class="hint" id="cna-hint">Knopf tut nichts? Im Anmelde­fenster erlauben manche Handys keine Fotos. Dann oben
       „Abbrechen“ → <b>„Ohne Internet verwenden“</b> (iPhone) bzw. „Netzwerk so verwenden“ (Android) und im Browser
       <b id="here"></b> öffnen – du bist dort schon erlaubt.</div>
@@ -745,13 +745,13 @@ body.heftmode nav, body.heftmode header { display:none; }
   <div class="card">
     <h2>Link</h2>
     <input type="url" id="url" placeholder="https://… (z. B. YouTube)" autocomplete="off">
-    <button class="primary" style="width:100%;margin-top:8px" onclick="sendLink()"><svg class="i"><use href="#i-link"/></svg>Auf Monitor 2 öffnen</button>
+    <button class="primary" style="width:100%;margin-top:8px" onclick="sendLink()"><svg class="i"><use href="#i-link"/></svg>Auf dem Bildschirm öffnen</button>
     <div class="hint">YouTube: „Teilen → Link kopieren“ und hier einfügen – läuft im Vollbild.</div>
   </div>
   <div class="card">
     <h2>Text</h2>
-    <textarea id="text" placeholder="Text für Monitor 2" oninput="liveInput()"></textarea>
-    <label class="live-row"><input type="checkbox" id="live" onchange="liveToggle()"> <b>Live</b> – sofort auf Monitor 2</label>
+    <textarea id="text" placeholder="Text für den Bildschirm" oninput="liveInput()"></textarea>
+    <label class="live-row"><input type="checkbox" id="live" onchange="liveToggle()"> <b>Live</b> – sofort auf dem Bildschirm</label>
     <button id="text-btn" style="width:100%;margin-top:8px" onclick="sendText()"><svg class="i"><use href="#i-text"/></svg>Anzeigen</button>
   </div>
 </div>
@@ -1022,7 +1022,7 @@ async function loadPreview() {
     if (r.ok && r.status === 200) {
       const url = URL.createObjectURL(await r.blob());
       $("prev").src = url; $("dprev").src = url;
-      $("dprev").onload = () => {  // Seitenverhältnis von Monitor 2 übernehmen
+      $("dprev").onload = () => {  // Seitenverhältnis vom Bildschirm übernehmen
         const ar = $("dprev").naturalWidth / $("dprev").naturalHeight;
         if (ar > 0.2 && ar < 5 && Math.abs(ar - (window._ar || 0)) > 0.01) {
           window._ar = ar; document.documentElement.style.setProperty("--ar", ar);
@@ -1087,7 +1087,7 @@ function laserOn(pv, dot) {
 }
 laserOn($("preview"), $("laser"));
 
-// ---- Zeichnen: Strich sofort auf dem Handy sehen, gleichzeitig auf Monitor 2
+// ---- Zeichnen: Strich sofort auf dem Handy sehen, gleichzeitig auf dem Bildschirm
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#ffffff", "#111827"];
 let tool = store.get("alucast-tool") || "stift", color = store.get("alucast-color") || COLORS[0];
 const NAMES = { laser: "Laser", stift: "Stift", marker: "Marker", radierer: "Radierer", lasso: "Lasso", form: "Form",
@@ -1147,8 +1147,8 @@ function showBoard(b) {
   const was = !!board; board = b;
   document.body.classList.toggle("board", !!b);
   $("clear-label").textContent = b ? "Seite leeren" : "Alles löschen";
-  $("draw-hint").textContent = b ? "Auf die Tafel zeichnen – Monitor 2 zeigt genau diese Ansicht."
-                                 : "Mit dem Finger auf das Bild zeichnen – erscheint sofort auf Monitor 2.";
+  $("draw-hint").textContent = b ? "Auf die Tafel zeichnen – der Bildschirm zeigt genau diese Ansicht."
+                                 : "Mit dem Finger auf das Bild zeichnen – erscheint sofort auf dem Bildschirm.";
   if (!b) { if (heftOn) heft(false); if (!["laser", "stift", "marker", "radierer"].includes(tool)) pick("stift");
             buildColors(COLORS); return; }
   if (!was && store.get("alucast-pencil") === "") { pencilOnly = !!b.pencil_only; }
@@ -1220,7 +1220,7 @@ function hRender() {
   const paper = (board.papers || []).find(p => p[0] === board.bg);
   $("h-paper").textContent = (paper ? paper[1] : "Papier") + " ▾";
   $("hstatus").textContent = "„" + board.name + "“ · Seite " + board.page + " von " + board.pages + " · Zoom " + board.zoom +
-    " %" + (board.sel ? " · " + board.sel + " ausgewählt" : "") + " · zwei Finger: zoomen und verschieben · Monitor 2 zeigt genau diese Ansicht";
+    " %" + (board.sel ? " · " + board.sel + " ausgewählt" : "") + " · zwei Finger: zoomen und verschieben · der Bildschirm zeigt genau diese Ansicht";
   loadThumbs();
 }
 async function loadThumbs() {
@@ -1527,7 +1527,7 @@ async function upload(input) {
   xhr.upload.onprogress = e => { if (e.lengthComputable) fill.style.width = (100 * e.loaded / e.total) + "%"; };
   xhr.onload = () => {
     bar.style.display = "none";
-    if (xhr.status === 200) { toast("Auf Monitor 2"); $("upinfo").textContent = "Gesendet: " + file.name; setTimeout(refresh, 500); }
+    if (xhr.status === 200) { toast("Auf dem Bildschirm"); $("upinfo").textContent = "Gesendet: " + file.name; setTimeout(refresh, 500); }
     else if (xhr.status === 403) { forget(); }
     else { let m = "Fehler " + xhr.status; try { m = JSON.parse(xhr.responseText).error || m; } catch (e) {}
            toast(m, true); $("upinfo").textContent = m; }

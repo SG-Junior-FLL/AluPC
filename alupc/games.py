@@ -72,7 +72,7 @@ GAMES: dict[str, GameSpec] = {
                       ConnectFourGame, {"runden": ("Runden", [(1, "1"), (3, "3")], 1),
                                         "zeit": ("Bedenkzeit", [(10, "10 s"), (15, "15 s"), (25, "25 s")], 15)}),
     "malen": GameSpec("Montagsmaler", "Einer malt am Handy, alle raten",
-                      "Wer dran ist, malt das geheime Wort am Handy – Monitor 2 zeigt das Bild live. Alle anderen "
+                      "Wer dran ist, malt das geheime Wort am Handy – der Bildschirm zeigt das Bild live. Alle anderen "
                       "tippen ihren Tipp ein: je schneller richtig, desto mehr Punkte",
                       PaintGame, {"runden": ("Malen je Spieler", [(1, "1×"), (2, "2×")], 1),
                                   "zeit": ("Zeit", [(60, "60 s"), (80, "80 s"), (100, "100 s")], 80)}),

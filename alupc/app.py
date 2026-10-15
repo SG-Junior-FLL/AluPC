@@ -14,9 +14,9 @@ COMMANDS_HELP = ("standbild, schwarz, bild-in-bild, bildschirmschoner, zeichnen,
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(prog="alupc", description=f"{APP_NAME} – Monitor 2 steuern")
+    parser = argparse.ArgumentParser(prog="alupc", description=f"{APP_NAME} – Bildschirm steuern")
     parser.add_argument("--befehl", metavar="BEFEHL", help=f"An laufendes AluPC senden: {COMMANDS_HELP}")
-    parser.add_argument("--zeigen", metavar="DATEI", help="Bild, Video, PDF oder Ordner (Diashow) auf Monitor 2 zeigen")
+    parser.add_argument("--zeigen", metavar="DATEI", help="Bild, Video, PDF oder Ordner (Diashow) auf dem Bildschirm zeigen")
     parser.add_argument("link", nargs="?", help=argparse.SUPPRESS)  # alupc://… oder Datei (Rechtsklick, Links)
     parser.add_argument("--minimiert", action="store_true", help="Nur als Symbol in der Taskleiste starten")
     # Alte Einträge „AluPC als Desktop“ (gibt es nicht mehr): bei der Anmeldung → normaler Desktop
@@ -527,7 +527,7 @@ def self_test(log_path: str) -> int:
         if ow.needed():
             ow.repaint()
         lines.append(f"Overlays: {len(ow.items())} Vorlagen, Fenster "
-                     f"{'sichtbar' if ow.isVisible() else 'aus (kein Monitor 2)'}")
+                     f"{'sichtbar' if ow.isVisible() else 'aus (kein Bildschirm)'}")
         controller.config["overlays"] = saved_overlays
         controller.overlays_changed()
         lines.append("Schritt: Diagnose")

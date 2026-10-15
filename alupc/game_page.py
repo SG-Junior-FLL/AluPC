@@ -310,7 +310,7 @@ const BUILD = {
     for (const ev of ["pointerup", "pointercancel", "pointerleave"]) fire.addEventListener(ev, stop);
     return {move(dx) { x = Math.min(1, Math.max(0, x + dx)); th.style.left = (x * 78) + "%"; send({x}); }, shoot};
   },
-  draw(ui, area) {  // Montagsmaler: malen – Striche gehen in Stücken an AluPC, Monitor 2 zeigt sie live
+  draw(ui, area) {  // Montagsmaler: malen – Striche gehen in Stücken an AluPC, der Bildschirm zeigt sie live
     const box = el("div", "paint"), word = el("div", "word", "🎨 " + ui.word), cv = el("canvas"), tools = el("div", "tools");
     box.append(word, cv, tools); area.append(box);
     let color = ui.colors[0], w = 2, erase = false, sid = Math.floor(Math.random() * 1e6), pts = [], last = null, down = false, t = null;
@@ -337,7 +337,7 @@ const BUILD = {
     cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
     return {};
   },
-  guess(ui, area) {  // Montagsmaler: raten (das Bild ist auf Monitor 2)
+  guess(ui, area) {  // Montagsmaler: raten (das Bild ist auf dem Bildschirm)
     const box = el("div", "guess"), hint = el("div", "hint", ui.hint), inp = el("input"), ok = el("button", "", "Raten"), last = el("div", "last");
     inp.maxLength = 40; inp.placeholder = "Dein Tipp …"; inp.autocomplete = "off"; inp.enterKeyHint = "send";
     box.append(hint, inp, ok, last); area.append(box);

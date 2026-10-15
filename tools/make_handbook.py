@@ -30,8 +30,8 @@ from alupc import __version__  # noqa: E402
 AREAS = [
     ("App", "Die App am PC", "Hauptfenster mit Seitenleiste: Start, Szenen, System, Setup, Fingerabdruck."),
     ("Fenster", "Fenster und Dialoge", "Was sich aus Kacheln, Menüs und dem Setup öffnet."),
-    ("Monitor 2", "Was die anderen sehen", "Anzeigen auf dem zweiten Monitor (Beamer, Fernseher, Kundenmonitor)."),
-    ("Minispiele", "Minispiele", "Handys sind die Controller, Monitor 2 ist das Spielfeld – gestartet wird nur am PC."),
+    ("Bildschirm", "Was die anderen sehen", "Anzeigen auf dem Bildschirm (Beamer, Fernseher, Kundenmonitor)."),
+    ("Minispiele", "Minispiele", "Handys sind die Controller, der Bildschirm ist das Spielfeld – gestartet wird nur am PC."),
     ("Handy", "Auf dem Handy", "Im Browser, ohne App: erst WLAN-Code, dann den Code der Seite scannen."),
 ]
 
@@ -89,7 +89,7 @@ def build_html(tour: Path) -> str:
     if phone.is_file():
         screens += json.loads(phone.read_text(encoding="utf-8"))
     for s in screens:  # Spiel-Screens als eigener Bereich
-        if s["area"] == "Monitor 2" and (s["key"].startswith("spiel") or "Minispiele" in s["title"]):
+        if s["area"] == "Bildschirm" and (s["key"].startswith("spiel") or "Minispiele" in s["title"]):
             s["area"] = "Minispiele"
         if s["key"] == "spiele-fenster":
             s["area"] = "Minispiele"
@@ -181,7 +181,7 @@ figcaption {{ font-size: 9.5pt; color: #334155; margin-top: 2mm; }}
 </style></head><body>
 <section class="cover"><img src="{logo}"><h1>AluPC – Handbuch</h1>
 <p>Anleitung und alle Screens · Version {__version__} · {today}</p>
-<p>Monitor 2 steuern, Handy als Fernbedienung und Controller, PC steuern, Minispiele, Dual-Boot-Abgleich.
+<p>Bildschirm steuern, Handy als Fernbedienung und Controller, PC steuern, Minispiele, Dual-Boot-Abgleich.
 Für Windows 11 und Kubuntu/Linux.</p>
 <p style="font-size:10pt;color:#94a3b8;margin-top:8mm">Bilder automatisch aus der laufenden App erzeugt
 (tools/screens_tour.py) – Beispieldaten, ohne echte Monitore/Kameras.</p></section>

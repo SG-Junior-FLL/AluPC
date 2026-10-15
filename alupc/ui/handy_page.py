@@ -337,7 +337,7 @@ class HandyPage(QWidget):
         self.log.setPlainText("\n".join(self.controller.airplay.log[-20:]))
         self.log.hide()
         card.body.addWidget(self.log)
-        start = button("Auf Monitor 2 zeigen", "phone", primary=True)
+        start = button("Auf dem Bildschirm zeigen", "phone", primary=True)
         start.clicked.connect(self.controller.start_airplay)
         self.air_start = start
         details = button("Meldungen", "text")
@@ -424,7 +424,7 @@ class HandyPage(QWidget):
         air = self.cards["airplay"]
         ux = c.airplay.binary()
         name = c.airplay.settings()["airplay_name"]
-        self.airplay_steps.setText(steps("Auf Monitor 2 zeigen", "iPhone: Bildschirmsynchronisierung",
+        self.airplay_steps.setText(steps("Auf dem Bildschirm zeigen", "iPhone: Bildschirmsynchronisierung",
                                          f"„{name}“ wählen"))
         running = c.airplay.running_settings()
         if running:

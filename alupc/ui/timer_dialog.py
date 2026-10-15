@@ -54,7 +54,7 @@ class TimerDialog(QDialog):
         form.addRow("", self.warn)
         form.addRow("", self.start_now)
         buttons = QDialogButtonBox()
-        buttons.addButton(button("Auf Monitor 2 zeigen", "play", primary=True), QDialogButtonBox.AcceptRole)
+        buttons.addButton(button("Auf dem Bildschirm zeigen", "play", primary=True), QDialogButtonBox.AcceptRole)
         buttons.addButton(button("Abbrechen"), QDialogButtonBox.RejectRole)
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)

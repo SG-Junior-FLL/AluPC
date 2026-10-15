@@ -2396,7 +2396,7 @@ def test_diagnose_report(env):
     controller, window, _ = env
     text = diagnose.report(controller, probe=False)
     assert "Android" not in text and "Miracast" not in text
-    for part in ("== Monitore ==", "Monitor 2 = Zweit", "== AirPlay",
+    for part in ("== Monitore ==", "Bildschirm = Zweit", "== AirPlay",
                  "== RGB und Lüfter =="):
         assert part in text, part
 
@@ -4419,13 +4419,13 @@ def test_assistant_replies_follow_state(env):
     a = controller.assistant
     spoken = controller.speaker.spoken
     controller._voice_command("schwarz_an", "Schwarz", "mach den bildschirm schwarz")
-    assert controller.privacy and spoken[-1].endswith("Monitor 2 ist jetzt schwarz.")
+    assert controller.privacy and spoken[-1].endswith("Der Bildschirm ist jetzt schwarz.")
     controller._voice_command("schwarz_an", "Schwarz", "")
-    assert controller.privacy and spoken[-1] == "Monitor 2 ist schon schwarz."
+    assert controller.privacy and spoken[-1] == "Der Bildschirm ist schon schwarz."
     controller._voice_command("schwarz", "Schwarz", "")  # nur „schwarz“ = umschalten
     assert not controller.privacy and spoken[-1].endswith("Das Bild ist wieder da.")
     controller._voice_command("schwarz_aus", "Schwarz aus", "")
-    assert spoken[-1] == "Monitor 2 ist gar nicht schwarz."
+    assert spoken[-1] == "Der Bildschirm ist gar nicht schwarz."
     assert controller.voice.follow_until == 0  # normale Antwort: danach nur mit Startwort
     controller._voice_command("frage:ja", "Ja?", "")
     assert controller.voice.follow_until > 0  # nach „Ja?“: einmal ohne Startwort
@@ -4726,7 +4726,7 @@ def test_show_file_from_file_manager(env):
     (tmp / "x.docx").write_text("x")
     controller.run_command("datei:" + str(tmp / "x.docx"))
     controller.run_command("link_unbekannt:alupc://pc_herunterfahren")
-    assert got == ["Geht nicht auf Monitor 2: x.docx", "Unbekannter AluPC-Link: alupc://pc_herunterfahren"]
+    assert got == ["Geht nicht auf dem Bildschirm: x.docx", "Unbekannter AluPC-Link: alupc://pc_herunterfahren"]
     assert controller.content["type"] == "website"
 
 

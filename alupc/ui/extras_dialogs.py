@@ -53,7 +53,7 @@ class PollDialog(QDialog):
     def _check(self):
         ok = bool(self.question.text().strip()) and len(self.answers()) >= 2
         self.start.setEnabled(ok)
-        self.hint.setText("QR-Code erscheint auf Monitor 2 · Ergebnis live" if ok else
+        self.hint.setText("QR-Code erscheint auf dem Bildschirm · Ergebnis live" if ok else
                           "Frage und mindestens zwei Antworten eingeben")
 
     def _start(self):

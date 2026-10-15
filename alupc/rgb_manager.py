@@ -12,7 +12,7 @@ RGB_DEFAULTS = {"enabled": False, "port": 6742, "mode": "farbe", "color": "#3b82
                 "zone_sizes": {}}
 # Nach dem Verbinden noch einmal nachsehen: OpenRGB findet Maus/Tastatur sofort, Mainboard/RAM erst nach Sekunden
 RESCAN_MS = (3000, 8000, 15000, 30000)
-MODES = {"farbe": "Farbe", "monitor2": "Farbe folgt Monitor 2", "aus": "Aus"}
+MODES = {"farbe": "Farbe", "monitor2": "Farbe folgt dem Bildschirm", "aus": "Aus"}
 
 
 class RgbManager(QObject):

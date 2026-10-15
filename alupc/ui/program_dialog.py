@@ -145,19 +145,19 @@ class ProgramDialog(QDialog):
         super().__init__(parent)
         self.controller = controller
         self.backend = controller.windows
-        self.setWindowTitle("Programm auf Monitor 2")
+        self.setWindowTitle("Programm auf dem Bildschirm")
         self.resize(680, 580)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Programm auf Monitor 2", "Programm wählen · Anzeigen"))
+        lay.addWidget(page_header("Programm auf dem Bildschirm", "Programm wählen · Anzeigen"))
         lay.addWidget(self._capture_tab(), 1)
 
     # ------------------------------------------------------------ Aufnahme
     def _capture_tab(self):
         page = QWidget()
         lay = QVBoxLayout(page)
-        info = QLabel("Vollbild auf Monitor 2 · Fenster darf hinten liegen")
+        info = QLabel("Vollbild auf dem Bildschirm · Fenster darf hinten liegen")
         info.setWordWrap(True)
         self.capture_list = ProgramList(
             lambda: capture_programs(self.backend),

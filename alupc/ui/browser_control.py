@@ -264,7 +264,7 @@ class BrowserControl(QWidget):
         self.preview = LivePreview(self)
         self.set_tool(None)
         self.set_color(self.color, switch=False)
-        hint = QLabel("Klicken · Scrollen · Tippen – direkt auf Monitor 2")
+        hint = QLabel("Klicken · Scrollen · Tippen – direkt auf dem Bildschirm")
         hint.setObjectName("Muted")
         open_btn = button("Website öffnen …", "globe")
         open_btn.clicked.connect(self._open_website)
@@ -314,8 +314,8 @@ class BrowserControl(QWidget):
             self.banner.hide()
         else:
             self.preview.set_image(None)
-            self.preview.set_message("Keine Website auf Monitor 2")
-            self.banner.set("Keine Website auf Monitor 2 · „Website öffnen …“", "warn")
+            self.preview.set_message("Keine Website auf dem Bildschirm")
+            self.banner.set("Keine Website auf dem Bildschirm · „Website öffnen …“", "warn")
             self.banner.show()
 
     def set_tool(self, key):

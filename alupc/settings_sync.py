@@ -60,7 +60,7 @@ SECTIONS: dict[str, tuple[str, list[str]]] = {
     "aussehen": ("Darstellung und Übergänge", ["appearance", "transition"]),
     "schoner": ("Bildschirmschoner und Timer", ["screensaver", "timer"]),
     "toene": ("Töne", ["sounds"]),
-    "monitor2": ("Monitor 2, Bild-in-Bild, Zeichnen, Kamera-Optionen",
+    "monitor2": ("Bildschirm, Bild-in-Bild, Zeichnen, Kamera-Optionen",
                  ["output", "privacy", "pip", "laser", "draw", "program", "camera"]),
     "handy": ("Handy (Name, Code)", ["handy", "cast"]),
     "rgb": ("RGB-Beleuchtung", ["rgb"]),

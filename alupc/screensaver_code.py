@@ -83,7 +83,7 @@ class Matrix:
 
 # =========================================================================== Code-Editor
 SNIPPETS = [
-    ("monitor2.py", "python", '''# AluPC – Monitor 2 steuern
+    ("monitor2.py", "python", '''# AluPC – Bildschirm steuern
 from dataclasses import dataclass
 
 
@@ -94,7 +94,7 @@ class Szene:
     felder: list = None
 
     def zeigen(self, monitor):
-        """Szene auf Monitor 2 bringen – mit weichem Übergang."""
+        """Szene auf den Bildschirm bringen – mit weichem Übergang."""
         for feld, quelle in zip(layout_felder(self.layout), self.felder or []):
             monitor.lege(quelle, in_bereich=feld)
         monitor.uebergang("blende", ms=400)
@@ -321,7 +321,7 @@ class Terminal:
         ("✔ dist/AluPC/AluPC erstellt", "ok"),
         ("$ packaging/linux/build_deb.sh {v}", "cmd"), ("dpkg-deb: building package 'alupc'", "dim"),
         ("✔ alupc_{v}_amd64.deb", "ok"),
-        ("$ alupc --befehl spiegeln", "cmd"), ("Monitor 2: Spiegeln aktiv · 60 Hz · 1920×1080", "info"),
+        ("$ alupc --befehl spiegeln", "cmd"), ("Bildschirm: Spiegeln aktiv · 60 Hz · 1920×1080", "info"),
         ("$ ping -c 3 monitor2.local", "cmd"),
         ("64 bytes from monitor2.local: icmp_seq=1 ttl=64 time={ms} ms", "dim"),
         ("64 bytes from monitor2.local: icmp_seq=2 ttl=64 time={ms} ms", "dim"),

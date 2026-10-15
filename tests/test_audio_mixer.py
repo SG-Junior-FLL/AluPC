@@ -292,7 +292,7 @@ def test_virtual_camera_sends_monitor2(env, monkeypatch):  # noqa: F811
 
 def test_driver_scripts():
     script = drivers.linux_script(["kamera"])
-    assert "v4l2loopback-dkms" in script and 'card_label="AluPC Monitor 2"' in script and "exclusive_caps=1" in script
+    assert "v4l2loopback-dkms" in script and 'card_label="AluPC Bildschirm"' in script and "exclusive_caps=1" in script
     assert subprocess.run(["bash", "-n"], input=script, text=True).returncode == 0 if shutil.which("bash") else True
     assert drivers.linux_script([]) == "true"
     ps = drivers.vbcable_ps() + drivers.obs_vcam_ps()

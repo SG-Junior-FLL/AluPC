@@ -20,7 +20,8 @@ import sys
 from pathlib import Path
 
 IS_WINDOWS = sys.platform.startswith("win")
-CAM_LABEL = "AluPC Monitor 2"
+CAM_LABEL = "AluPC Bildschirm"
+OLD_CAM_LABELS = ("AluPC Monitor 2",)  # bis 0.138: Gerät mit altem Namen läuft weiter (bis zum Neustart)
 V4L2_NR = 42
 V4L2_OPTIONS = f'devices=1 video_nr={V4L2_NR} card_label="{CAM_LABEL}" exclusive_caps=1'
 VBCABLE_URLS = ["https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip",
@@ -103,7 +104,7 @@ fi
 echo 'options v4l2loopback {V4L2_OPTIONS}' > /etc/modprobe.d/alupc-v4l2loopback.conf
 echo v4l2loopback > /etc/modules-load.d/alupc-v4l2loopback.conf
 if [ -d /sys/module/v4l2loopback ]; then
-  if ! grep -qs "{CAM_LABEL}" /sys/class/video4linux/*/name; then
+  if ! grep -qsE "^({'|'.join((CAM_LABEL,) + OLD_CAM_LABELS)})$" /sys/class/video4linux/*/name; then
     if command -v v4l2loopback-ctl >/dev/null; then v4l2loopback-ctl add -n "{CAM_LABEL}" -x 1 /dev/video{V4L2_NR} || true; fi
   fi
 else
@@ -131,7 +132,7 @@ def v4l2_device() -> str:
             driver = os.path.basename(os.path.realpath(dev / "device" / "driver"))
         except OSError:
             pass
-        if name == CAM_LABEL:
+        if name == CAM_LABEL or name in OLD_CAM_LABELS:
             return f"/dev/{dev.name}"
         if "loopback" in name.lower() or "v4l2loopback" in driver or "Dummy video device" in name:
             other = other or f"/dev/{dev.name}"

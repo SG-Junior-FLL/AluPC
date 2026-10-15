@@ -193,22 +193,22 @@ out = controller.output
 def monitor2(key, title, text):
     pump(0.6)
     widget = out.content if getattr(out, "content", None) is not None else out
-    save(widget, key, title, "Monitor 2", text)
+    save(widget, key, title, "Bildschirm", text)
 
 
 print("App")
 save(window, "start", "Startseite", "App",
-     "Kacheln antippen – läuft sofort auf Monitor 2. Oben: was Monitor 2 gerade zeigt (Vorschau, Sichtschutz, "
+     "Kacheln antippen – läuft sofort auf dem Bildschirm. Oben: was der Bildschirm gerade zeigt (Vorschau, Sichtschutz, "
      "Standbild, Bild-in-Bild, Zeichnen). Pfeil an einer Kachel = mehr Möglichkeiten.")
 step(lambda: (window._go(1), save(window, "szenen", "Szenen", "App",
-                                  "Eigene Szenen: mehrere Quellen (Kamera, Bild, Text, Uhr …) auf Monitor 2 – anlegen "
+                                  "Eigene Szenen: mehrere Quellen (Kamera, Bild, Text, Uhr …) auf dem Bildschirm – anlegen "
                                   "aus Vorlagen, bearbeiten, mit einem Klick zeigen.")), "Szenen")
 step(lambda: (window._go(5), save(window, "gaeste", "Gäste – Chat & Foto-Wand", "App",
-                                  "Chat übers AluPC-WLAN (direkt als Overlay auf Monitor 2, Wortfilter, Sperren) und "
+                                  "Chat übers AluPC-WLAN (direkt als Overlay auf dem Bildschirm, Wortfilter, Sperren) und "
                                   "Foto-Wand (Collage/Diashow, Fotos entfernen, Handy sperren).")), "Gäste")
 step(lambda: (window._go(6), save(window, "audio", "Audio & Kamera – Mischpult", "App",
                                   "Mischpult für den ganzen PC: Ausgänge, Eingänge und Programme mit Regler und Pegel, "
-                                  "virtuelle Geräte hinzufügen/entfernen, Weiterleitungen, Monitor 2 als Kamera.")),
+                                  "virtuelle Geräte hinzufügen/entfernen, Weiterleitungen, Bildschirm als Kamera.")),
      "Audio")
 
 
@@ -220,10 +220,10 @@ step(lambda: (window._go(3), save(window, "fingerabdruck", "Fingerabdruck", "App
                                   "ZW101-Fingerabdruckmodul: Personen und Finger anlernen, Windows-/Linux-Anmeldung "
                                   "mit dem Finger, Finger als Schnelltaste.")), "Fingerabdruck")
 setup_texts = {
-    "Monitore": "Auflösung, Anordnung, Drehung und Helligkeit der Monitore; Monitor 2 auswählen.",
-    "Monitor 2": "Mauszeiger, Sichtschutz, Bild-in-Bild und was beim Start auf Monitor 2 läuft.",
+    "Monitore": "Auflösung, Anordnung, Drehung und Helligkeit der Monitore; Bildschirm auswählen.",
+    "Bildschirm": "Mauszeiger, Sichtschutz, Bild-in-Bild und was beim Start auf dem Bildschirm läuft.",
     "Darstellung": "Hell/Dunkel/wie das System, Akzentfarbe (auch die von Windows/KDE), Übergänge, Leistung.",
-    "Bildschirmschoner": "Stil und Wartezeit des Bildschirmschoners auf Monitor 2.",
+    "Bildschirmschoner": "Stil und Wartezeit des Bildschirmschoners auf dem Bildschirm.",
     "Timer": "Countdown/Stoppuhr: Dauer, Warnfarben, Text am Ende.",
     "Whiteboard": "Tafel-Einstellungen: Format (16:9, A4, unendlich), Stift- und Marker-Stärke, Glätten, Druck, "
                   "Handballen-Schutz, Radierer, Textgröße, eigene Farben, automatisch speichern.",
@@ -273,16 +273,16 @@ def edit_first_scene():
 dialog("szenen-editor", "Szenen-Editor", "Fenster",
        "Quellen einer Szene anordnen (Größe, Lage, Ebenen), Texte und Farben ändern, Vorschau.", edit_first_scene)
 window._go(0)
-dialog("text", "Text zeigen", "Fenster", "Schnell einen Text groß auf Monitor 2 zeigen.", window.open_text_dialog)
+dialog("text", "Text zeigen", "Fenster", "Schnell einen Text groß auf dem Bildschirm zeigen.", window.open_text_dialog)
 dialog("timer", "Timer einstellen", "Fenster", "Countdown oder Stoppuhr mit Warnfarben.", window.edit_timer)
 dialog("abstimmung", "Abstimmung", "Fenster", "Frage und Antworten – abgestimmt wird per Handy (QR-Code).",
        window.open_poll_dialog)
-dialog("gluecksrad", "Glücksrad", "Fenster", "Namen eintragen und auf Monitor 2 drehen.", window.open_wheel_dialog)
-dialog("overlays", "Overlays", "Fenster", "Einblendungen über Monitor 2 (Uhr, Logo, Laufschrift …), frei verschiebbar.",
+dialog("gluecksrad", "Glücksrad", "Fenster", "Namen eintragen und auf dem Bildschirm drehen.", window.open_wheel_dialog)
+dialog("overlays", "Overlays", "Fenster", "Einblendungen über dem Bildschirm (Uhr, Logo, Laufschrift …), frei verschiebbar.",
        window.open_overlays)
 dialog("mediathek", "Mediathek", "Fenster", "Bilder und Videos sammeln und mit einem Klick zeigen.",
        window.open_media_library)
-dialog("programm", "Programm zeigen", "Fenster", "Ein Programmfenster auf Monitor 2 zeigen.",
+dialog("programm", "Programm zeigen", "Fenster", "Ein Programmfenster auf dem Bildschirm zeigen.",
        window.open_program_dialog)
 dialog("hotspot", "Hotspot", "Fenster",
        "Der PC macht ein eigenes WLAN – der einzige Weg fürs Handy. Danach scannen Handys den Code der jeweiligen "
@@ -308,7 +308,7 @@ def connect_dialog():
 dialog("handy-verbinden", "Handy verbinden", "Fenster",
        "1. das AluPC-WLAN, 2. der private Steuer-Code (nur hier am PC). Ohne Code: auf der Steuerseite „Am PC "
        "freigeben lassen“.", connect_dialog)
-dialog("handy-fenster", "Handy auf Monitor 2", "Fenster",
+dialog("handy-fenster", "Handy auf dem Bildschirm", "Fenster",
        "AirPlay (iPhone), Miracast/Spiegeln (Android), AluCast im Browser – Status und Einrichtung.",
        window.open_handy_window)
 dialog("ersteinrichtung", "Ersteinrichtung", "Fenster", "Beim ersten Start: Monitore, Handy, Autostart – geführt.",
@@ -335,10 +335,10 @@ def bug_dialog():
 dialog("fehlerbericht", "Fehlerbericht", "Fenster", "Diagnose und Protokolle mit einem Klick als Datei speichern.",
        bug_dialog)
 
-print("Monitor 2")
+print("Bildschirm")
 step(lambda: (controller.show_source({"type": "clock"}), monitor2("uhr", "Uhr", "Große Uhr mit Datum.")), "Uhr")
 step(lambda: (controller.show_source({"type": "system"}),
-              monitor2("system-m2", "System-Dashboard", "Live-Werte des PCs groß auf Monitor 2.")), "System M2")
+              monitor2("system-m2", "System-Dashboard", "Live-Werte des PCs groß auf dem Bildschirm.")), "System M2")
 def wlan_qr():
     fake_wlan(True)
     controller.start_cast()  # Handy-Steuerung = WLAN-Code des AluPC-WLANs
@@ -351,7 +351,7 @@ def wlan_qr():
 
 step(wlan_qr, "WLAN-QR")
 step(lambda: (controller.show_source({"type": "text", "text": "Gleich geht's los!", "size": 12}),
-              monitor2("text-m2", "Text", "Schnelltext groß auf Monitor 2.")), "Text M2")
+              monitor2("text-m2", "Text", "Schnelltext groß auf dem Bildschirm.")), "Text M2")
 step(lambda: (controller.run_command("timer_zeigen"), controller.run_command("timer_start_pause"),
               monitor2("timer-m2", "Timer", "Countdown mit Warnfarben.")), "Timer M2")
 
@@ -377,7 +377,7 @@ def whiteboard_tour():
     b.add_text(300, 170, "y = sin(x)", "#3b82f6", 48)
     b.add_text(1090, 300, "Merke:", "#ef4444", 40)
     b.add_text(1090, 360, "Periode 2π", "#111827", 36)
-    monitor2("whiteboard", "Whiteboard", "Tafel mit Seiten, Zoom, Stift mit Druck, Formen und Text – Monitor 2 zeigt "
+    monitor2("whiteboard", "Whiteboard", "Tafel mit Seiten, Zoom, Stift mit Druck, Formen und Text – der Bildschirm zeigt "
                                          "genau die Ansicht vom PC bzw. Handy.")
     win = getattr(window, "board_window", None)
     if win is not None:

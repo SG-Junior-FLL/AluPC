@@ -4,7 +4,7 @@
 
 # AluPC
 
-**Monitor 2 für die anderen – du arbeitest am Hauptmonitor weiter.**
+**Bildschirm für die anderen – du arbeitest am Hauptmonitor weiter.**
 Beamer, Fernseher oder Kundenmonitor mit einem Klick steuern, das Handy wird zur Fernbedienung und zum
 Spiele-Controller, der PC lässt sich aus der Ferne bedienen. Für **Windows 11** und **Kubuntu/Linux** (KDE, Wayland
 und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beiden Systemen.
@@ -26,16 +26,16 @@ und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beide
 
 | | |
 |---|---|
-| 🖥️ **Monitor 2 mit einem Klick** | Spiegeln, Erweitern, Kamera, Programm, Website, Bild/Video, Text, Uhr, Timer, Whiteboard, 32 gestaltete Karten, eigene Szenen mit Übergängen, Overlays, Sichtschutz, Standbild |
-| 📱 **Handy = Fernbedienung** | Nur übers AluPC-WLAN: WLAN-Code scannen → privaten Steuer-Code am PC scannen (nie auf Monitor 2), ohne App: Monitor 2 steuern, Live-Bild mit Laserpointer, zeichnen, Folien klicken, Touchpad, Fotos/Links senden – freigeben per „Erlauben“ am PC statt Code. **Auf dem iPad** eigenes Layout: Leiste links, Live-Bild bleibt stehen, große Zeichen- und Touchpad-Fläche |
+| 🖥️ **Bildschirm mit einem Klick** | Spiegeln, Erweitern, Kamera, Programm, Website, Bild/Video, Text, Uhr, Timer, Whiteboard, 32 gestaltete Karten, eigene Szenen mit Übergängen, Overlays, Sichtschutz, Standbild |
+| 📱 **Handy = Fernbedienung** | Nur übers AluPC-WLAN: WLAN-Code scannen → privaten Steuer-Code am PC scannen (nie auf dem Bildschirm), ohne App: Bildschirm steuern, Live-Bild mit Laserpointer, zeichnen, Folien klicken, Touchpad, Fotos/Links senden – freigeben per „Erlauben“ am PC statt Code. **Auf dem iPad** eigenes Layout: Leiste links, Live-Bild bleibt stehen, große Zeichen- und Touchpad-Fläche |
 | 🎛️ **PC steuern** | Lautstärke, Musik, Fenster, Bildschirmfoto, Programme öffnen, Ausführen wie Win+R, Sperren – in der App, vom Handy, per Sprache („Alu PC, lauter“) oder Strg+K |
-| 🚢 **Schiffe versenken zu zweit** | Spieler 1 im Fenster auf Monitor 1, Spieler 2 auf Monitor 2 – das Handy ist nur die Steuerung (Steuerkreuz, OK …), die Felder zeigen nur die Bildschirme; Bild-in-Bild ist dabei aus |
+| 🚢 **Schiffe versenken zu zweit** | Spieler 1 im Fenster auf Monitor 1, Spieler 2 auf dem Bildschirm – das Handy ist nur die Steuerung (Steuerkreuz, OK …), die Felder zeigen nur die Bildschirme; Bild-in-Bild ist dabei aus |
 | ✏️ **Whiteboard für Gäste** | Alle im AluPC-WLAN schreiben mit – oder nur nach „Erlauben“ am PC; Codes unten rechts auf der Tafel |
-| 🎮 **Minispiele = eigenes WLAN** | Snake, Tic-Tac-Toe, Pong, **Tetris** (alle dieselben Teile), Tipp-Rennen, Simon sagt, Schere-Stein-Papier, Space Invaders, Flappy Bird, Vier gewinnt, **Montagsmaler** (malen am Handy, Bild live auf Monitor 2) – dazu **Kahoot** (das echte) auf Monitor 2, bedient am PC – WLAN-Code scannen, dann den Spiel-Code, Name eingeben, mitspielen |
-| 📶 **AluPC-WLAN** | Der PC macht ein (unsichtbares) WLAN – jede Seite zeigt auf Monitor 2 zwei QR-Codes (1. WLAN, 2. direkt die Seite: Spiel, Abstimmung, Chat, Foto-Wand, Whiteboard, Schiffe versenken). Der **einzige** Weg fürs Handy; der Steuer-Code steht nur am PC. Hat der PC Internet, haben es die Handys auch |
-| 💬 **Chat & 📷 Foto-Wand** | Handys schreiben übers AluPC-WLAN, Nachrichten erscheinen **direkt als Overlay** auf Monitor 2 – als Liste oder als **Pop-up** (kurz, ohne QR) – oder als Chat-Wand – mit Wortfilter, Link-Sperre, Tempo-Grenze, Löschen und Handy sperren. Fotos vom Handy als Collage oder Diashow, neue Fotos erst groß. Verwalten auf der Seite **„Gäste“** |
+| 🎮 **Minispiele = eigenes WLAN** | Snake, Tic-Tac-Toe, Pong, **Tetris** (alle dieselben Teile), Tipp-Rennen, Simon sagt, Schere-Stein-Papier, Space Invaders, Flappy Bird, Vier gewinnt, **Montagsmaler** (malen am Handy, Bild live auf dem Bildschirm) – dazu **Kahoot** (das echte) auf dem Bildschirm, bedient am PC – WLAN-Code scannen, dann den Spiel-Code, Name eingeben, mitspielen |
+| 📶 **AluPC-WLAN** | Der PC macht ein (unsichtbares) WLAN – jede Seite zeigt auf dem Bildschirm zwei QR-Codes (1. WLAN, 2. direkt die Seite: Spiel, Abstimmung, Chat, Foto-Wand, Whiteboard, Schiffe versenken). Der **einzige** Weg fürs Handy; der Steuer-Code steht nur am PC. Hat der PC Internet, haben es die Handys auch |
+| 💬 **Chat & 📷 Foto-Wand** | Handys schreiben übers AluPC-WLAN, Nachrichten erscheinen **direkt als Overlay** auf dem Bildschirm – als Liste oder als **Pop-up** (kurz, ohne QR) – oder als Chat-Wand – mit Wortfilter, Link-Sperre, Tempo-Grenze, Löschen und Handy sperren. Fotos vom Handy als Collage oder Diashow, neue Fotos erst groß. Verwalten auf der Seite **„Gäste“** |
 | 🎚️ **Mischpult für den ganzen PC** | Seite **„Audio & Kamera“**: Kanalzüge für jeden Ausgang, jedes Mikro und jedes Programm (Regler, Pegel, Stumm, ★ Standard), **virtuelle Geräte hinzufügen/entfernen** (Linux beliebig viele, Windows über VB-CABLE), Ton weiterleiten (Mikro → virtuelles Mikro, Mithören) |
-| 🎥 **Monitor 2 als Webcam** | Virtuelle Kamera mit allem, was Monitor 2 zeigt (inkl. Overlays/Zeichnungen) – für Zoom, Teams, Discord, OBS. Treiber richtet der Installer ein (Linux v4l2loopback, Windows OBS-Kamera) |
+| 🎥 **Bildschirm als Webcam** | Virtuelle Kamera mit allem, was der Bildschirm zeigt (inkl. Overlays/Zeichnungen) – für Zoom, Teams, Discord, OBS. Treiber richtet der Installer ein (Linux v4l2loopback, Windows OBS-Kamera) |
 | 🎨 **Design fürs ganze System** | AluPC-Akzentfarbe, Hell/Dunkel und ein passendes Hintergrundbild (Aurora in den Design-Farben) auf Windows, KDE oder GNOME übertragen – zieht bei Änderungen mit, „Zurück“ stellt alles wieder her |
 | 🔁 **Dual-Boot-Abgleich** | Windows ↔ Linux: Einstellungen, Szenen, Bilder/Videos zusammenführen, Bereiche wählbar, Prüfen, Sicherungen |
 | 🗣️ **Sprache, offline** | Startwort „Alu PC“ oder „Computer“, ganze Sätze, Antwort per Stimme |
@@ -49,7 +49,7 @@ und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beide
 | **Befehlssuche (Strg+K)** | **Neue Szene – Vorlagen** | **Hotspot** |
 | ![Befehlssuche](docs/screens/befehlssuche.png) | ![Vorlagen](docs/screens/neue-szene.png) | ![Hotspot](docs/screens/hotspot.png) |
 
-**Auf Monitor 2**
+**Auf dem Bildschirm**
 
 | Design-Karte | Abstimmung | WLAN-QR-Code |
 |---|---|---|
@@ -76,7 +76,7 @@ Alle Screens mit Erklärung: **[Handbuch (PDF)](docs/AluPC-Handbuch.pdf)**. Frü
 - **Tastenkürzel gelten überall** – Windows und jetzt auch KDE (auch wenn AluPC im Hintergrund ist).
 - Alle Symbole sind selbst gezeichnet – sehen unter Kubuntu und Windows gleich scharf aus
   (keine Emojis, die je nach System anders aussehen).
-- **Übergänge zwischen Szenen** auf Monitor 2: Überblenden, über Schwarz, Wegschieben, Wischen,
+- **Übergänge zwischen Szenen** auf dem Bildschirm: Überblenden, über Schwarz, Wegschieben, Wischen,
   Zoom oder harter Schnitt, Dauer einstellbar (Setup → Darstellung); jede Szene kann einen eigenen
   Übergang haben (Szenen-Editor).
 - Kurze **Hinweise** unten im Fenster statt Fehlerfenster, **Fortschrittsring** beim
@@ -84,22 +84,22 @@ Alle Screens mit Erklärung: **[Handbuch (PDF)](docs/AluPC-Handbuch.pdf)**. Frü
 
 ## Funktionen
 
-| Kachel | Was passiert auf Monitor 2 |
+| Kachel | Was passiert auf dem Bildschirm |
 |---|---|
 | **Spiegeln** | zeigt dasselbe wie Monitor 1 – mit Mauszeiger (AluPC nimmt Monitor 1 auf – dadurch gehen Standbild und Sichtschutz) |
-| **Erweitern** | Monitor 2 ist ein normaler zweiter Bildschirm |
+| **Erweitern** | der Bildschirm ist ein normaler zweiter Bildschirm |
 | **Kamera** | eine Kamera im Vollbild – **Klick startet sofort die Standard-Kamera** (vorausgewählt: die gewählte, sonst die erste), der Pfeil wählt eine andere (die dann Standard wird; auch in Setup → Handy & Kamera, samt Anzeige „füllen“/„ganzes Bild“). Läuft eine Kamera (auch in einer Szene), erscheint im Hauptfenster die **Kamera-Leiste**: **Zoom 1–5×** (optisch, wenn die Kamera das kann, sonst digital), Ausschnitt verschieben, **spiegeln**, **um 90° drehen**, **Helligkeit** (wenn die Kamera das unterstützt), Zurücksetzen. Gilt pro Kamera und bleibt gespeichert. AluPC wählt automatisch das schärfste flüssige Kamerabild bis Full HD |
 | **Programm** | ein Programm zeigen: *Anzeigen (Aufnahme)* oder *Fenster wirklich verschieben* |
 | **Website** | Adresse eingeben oder gespeicherte Website wählen → Vollbild. Pfeil an der Kachel: gespeicherte Websites, **Browser steuern** (eigenes Fenster: Adresse, Zurück/Vor, Zoom, Scrollen, Live-Vorschau zum Klicken und Tippen, **Stift/Marker/Radierer zum Zeichnen auf der Website**; bei **Standbild** zeigt die Vorschau die echte Seite dahinter – schon weiterklicken, während das Publikum noch das Standbild sieht), aktuelle Seite **unter „Website“ speichern** |
 | **Bild / Video** | **Mediathek** mit Vorschaubildern: gespeicherte Bilder, Videos und Diashows, dazu automatisch „Zuletzt gezeigt“; Filter, Suche, Umbenennen. Pfeil an der Kachel: gespeicherte Einträge direkt starten. Läuft ein Video (auch in einer eigenen Szene), erscheint oben eine **Mediensteuerung**: Pause/Weiter, ±10 Sekunden, Zeitleiste zum Springen |
-| **Handy** | eigenes **Fenster „Handy“** mit zwei Wegen. **Jedes Handy** (nur übers AluPC-WLAN: WLAN-Code scannen → privaten Steuer-Code im Fenster am PC scannen – oder auf der Steuerseite „Am PC freigeben lassen“, ohne App) – die Handy-Seite hat vier Reiter: **Start** (Live-Bild mit Laserpointer, Schwarz/Standbild/Spiegeln/Erweitern/Schoner, Kamera/iPhone/QR-Code/Timer zeigen, Szenen, Video, Lautstärke, **Timer mit Vorgaben** 1–15 min, RGB), **Zeichnen** (mit dem Finger **direkt auf Monitor 2**: Stift, Marker, Radierer, Laser, 7 Farben, Rückgängig, Vollbild), **Folien** (Präsentations-Klicker und **Touchpad für die PC-Maus** mit Klick, Rechtsklick und Scrollen) und **Senden** (Foto/Video, Link, Text). Lässt sich als **App auf den Home-Bildschirm** legen. Was Handys dürfen, stellt man in **Setup → Handy & Kamera** ein. **iPhone & iPad** per AirPlay (UxPlay; unter Windows „uxplay-windows“): Monitor 2 zeigt ohne iPhone schlicht **„AirPlay bereit“** (oder schwarz bzw. Anleitung, einstellbar), beim Verbinden legt AluPC das iPhone-Bild randlos darüber. **Richtet sich selbst ein** (Kubuntu: Pakete mit einem Passwort; Windows: uxplay-windows, Bonjour und Firewall-Freigabe) |
+| **Handy** | eigenes **Fenster „Handy“** mit zwei Wegen. **Jedes Handy** (nur übers AluPC-WLAN: WLAN-Code scannen → privaten Steuer-Code im Fenster am PC scannen – oder auf der Steuerseite „Am PC freigeben lassen“, ohne App) – die Handy-Seite hat vier Reiter: **Start** (Live-Bild mit Laserpointer, Schwarz/Standbild/Spiegeln/Erweitern/Schoner, Kamera/iPhone/QR-Code/Timer zeigen, Szenen, Video, Lautstärke, **Timer mit Vorgaben** 1–15 min, RGB), **Zeichnen** (mit dem Finger **direkt auf dem Bildschirm**: Stift, Marker, Radierer, Laser, 7 Farben, Rückgängig, Vollbild), **Folien** (Präsentations-Klicker und **Touchpad für die PC-Maus** mit Klick, Rechtsklick und Scrollen) und **Senden** (Foto/Video, Link, Text). Lässt sich als **App auf den Home-Bildschirm** legen. Was Handys dürfen, stellt man in **Setup → Handy & Kamera** ein. **iPhone & iPad** per AirPlay (UxPlay; unter Windows „uxplay-windows“): Der Bildschirm zeigt ohne iPhone schlicht **„AirPlay bereit“** (oder schwarz bzw. Anleitung, einstellbar), beim Verbinden legt AluPC das iPhone-Bild randlos darüber. **Richtet sich selbst ein** (Kubuntu: Pakete mit einem Passwort; Windows: uxplay-windows, Bonjour und Firewall-Freigabe) |
 | **Vorlagen** | nur beim Anlegen einer Szene (Szenen → „Neue Szene“): „Leer“ oder eine von **32 Karten** (Neon, Glitch, Synthwave, Poster, Now Playing, LIVE, Versus, Link-QR, Willkommen, Agenda, Pause, Quiz …) bzw. **24 Szenen-Vorlagen** (Stream-Overlay, Partynacht, Gaming-Duell …) – Text eintragen, im Editor anpassen, speichern. Nach Kategorien geordnet, mit Filter und Suche |
 | **Meine Szenen** | eigene, selbst gebaute Szenen (siehe unten) |
 | **Schwarz** | Sichtschutz an/aus – schwarz, eigener Text oder eigenes Bild/Logo |
-| **Standbild** | friert das Bild auf Monitor 2 ein; du arbeitest auf Monitor 1 unbemerkt weiter |
-| **Bild-in-Bild / Live-Ansicht** | Fenster auf Monitor 1, das live zeigt, was auf Monitor 2 läuft (mit Hinweis „STANDBILD“/„SCHWARZ“) – frei ziehen, Vollbild auf Monitor 1 (Doppelklick/F11, Esc), „Immer oben“ an/aus |
+| **Standbild** | friert das Bild auf dem Bildschirm ein; du arbeitest auf Monitor 1 unbemerkt weiter |
+| **Bild-in-Bild / Live-Ansicht** | Fenster auf Monitor 1, das live zeigt, was auf dem Bildschirm läuft (mit Hinweis „STANDBILD“/„SCHWARZ“) – frei ziehen, Vollbild auf Monitor 1 (Doppelklick/F11, Esc), „Immer oben“ an/aus |
 | **Bildschirmschoner** | Uhr, Analoguhr, Klappuhr, schwebender Text/Logo, Nachricht, Diashow, Farbverlauf, Matrix, Code-Editor, Terminal, Netzwerk, Sternenflug, Polarlicht, Lavalampe, Lichtkugeln, Meer, Feuerwerk, Schneefall, Sprüche/Zitate oder eigene Szene (in Gruppen: Uhr, Text, Natur, Farben & Licht, Tech, Eigenes) – automatisch nach X Minuten ohne Maus/Tastatur oder per Klick |
-| **Zeigen & Zeichnen** | eigenes Fenster auf Monitor 1 mit Live-Bild von Monitor 2: darin mit dem **Laserpointer** zeigen oder mit **Stift/Textmarker** in 8 Farben (+ eigene) kritzeln, Radierer, Rückgängig, Alles löschen – erscheint sofort auf Monitor 2. **Zeichnungen bleiben stehen** (auch nach Schließen des Fensters und Neustart), bis man sie löscht oder die Szene wechselt. Vorschau mit 10–60 Bildern/s. Öffnen über Kachel, Taskleisten-Menü oder `Strg+Alt+K` |
+| **Zeigen & Zeichnen** | eigenes Fenster auf Monitor 1 mit Live-Bild vom Bildschirm: darin mit dem **Laserpointer** zeigen oder mit **Stift/Textmarker** in 8 Farben (+ eigene) kritzeln, Radierer, Rückgängig, Alles löschen – erscheint sofort auf dem Bildschirm. **Zeichnungen bleiben stehen** (auch nach Schließen des Fensters und Neustart), bis man sie löscht oder die Szene wechselt. Vorschau mit 10–60 Bildern/s. Öffnen über Kachel, Taskleisten-Menü oder `Strg+Alt+K` |
 
 Außerdem:
 
@@ -107,11 +107,11 @@ Außerdem:
   (auch jeder Kern einzeln), Arbeitsspeicher, Grafikkarte (NVIDIA über `nvidia-smi`, AMD unter Linux),
   Temperaturen und Lüfter, Laufwerke, Netzwerk (↓/↑, IP), Akku und die Programme mit der meisten Last
   (mit „Beenden“). **Steuerung:** Sperren, Energie sparen, Neu starten, Herunterfahren (jeweils mit
-  Rückfrage), RGB an/aus und Farbe, Systemüberwachung öffnen. **„Auf Monitor 2“** zeigt ein großes
+  Rückfrage), RGB an/aus und Farbe, Systemüberwachung öffnen. **„Auf dem Bildschirm“** zeigt ein großes
   System-Dashboard – auch über die Kachel „System“ oder per Sprache („Alu PC, System“).
 - **RGB & Lüfter** (eigene Seite links): **RGB-Beleuchtung** aller Geräte, die das kostenlose
   **OpenRGB** kennt (Mainboard, RAM, Grafikkarte, Lüfter-LEDs, Tastatur …) – Farbe wählen, Helligkeit,
-  aus, oder **„Farbe folgt Monitor 2“** (die LEDs leuchten in der Farbe dessen, was gerade gezeigt wird).
+  aus, oder **„Farbe folgt dem Bildschirm“** (die LEDs leuchten in der Farbe dessen, was gerade gezeigt wird).
   AluPC spricht das OpenRGB-Protokoll selbst; OpenRGB muss installiert sein (AluPC startet es mit
   SDK-Server). **Temperaturen und Lüfter** (Linux): alle Sensoren live, steuerbare Lüfter per Regler
   (nie unter 30 %, „Automatisch“ gibt die Regelung ans Mainboard zurück, Administrator-Passwort nötig).
@@ -153,15 +153,15 @@ Außerdem:
   Kamera, Programm, Bildschirm, Website, Bild, Video, Diashow, Text, Uhr, Countdown,
   Farbfläche oder eine andere Szene.
 - **Ton pro Medium**: Videos und Websites haben eine eigene Lautstärke und „Ton aus“ (in der
-  Quelle einstellbar). Läuft etwas mit Ton auf Monitor 2, erscheint oben im Hauptfenster ein
-  Lautstärkeregler, und im Taskleisten-Menü gibt es „Ton auf Monitor 2“.
+  Quelle einstellbar). Läuft etwas mit Ton auf dem Bildschirm, erscheint oben im Hauptfenster ein
+  Lautstärkeregler, und im Taskleisten-Menü gibt es „Ton auf dem Bildschirm“.
 - **Programm aufnehmen im Hintergrund**: Das aufgenommene Programm darf hinter anderen Fenstern
   liegen. Minimierte Programme liefern kein Bild – unter Windows holt AluPC sie (abschaltbar)
   automatisch zurück, legt sie aber ganz nach hinten, ohne sie zu aktivieren.
 
-  | Szenen | Szenen-Editor | Ergebnis auf Monitor 2 |
+  | Szenen | Szenen-Editor | Ergebnis auf dem Bildschirm |
   |---|---|---|
-  | ![Szenen](docs/szenen.png) | ![Szenen-Editor](docs/szenen-editor.png) | ![Monitor 2](docs/monitor2-beispiel.png) |
+  | ![Szenen](docs/szenen.png) | ![Szenen-Editor](docs/szenen-editor.png) | ![Bildschirm](docs/monitor2-beispiel.png) |
 - **Setup**: Auflösung, **Bildwiederholrate (Hz)**, Skalierung (KDE/Wayland), Drehung,
   Hauptmonitor, Anordnung (rechts/links/oben/unten/gespiegelt). Nach „Übernehmen“ fragt AluPC
   „Einstellungen behalten?“ – ohne Antwort wird nach 15 Sekunden zurückgesetzt.
@@ -194,7 +194,7 @@ Außerdem:
 - **Finger als Schnelltaste** (neu in 0.68, Modul am USB-Seriell-Adapter): Seite *Fingerabdruck* →
   „Finger als Schnelltaste“ → jedem angelernten Finger einen Befehl geben (z. B. Zeigefinger = Schwarz,
   Daumen = Glücksrad). Nur wenn der PC entsperrt ist; ein Befehl kommt erst beim erneuten Auflegen.
-- **Abstimmung per Handy** (neu in 0.68): Kachel *Abstimmung* → Frage und 2–6 Antworten. Monitor 2 zeigt
+- **Abstimmung per Handy** (neu in 0.68): Kachel *Abstimmung* → Frage und 2–6 Antworten. Der Bildschirm zeigt
   QR-Code und Balken, die live mitwachsen. Abstimmen geht ohne App und **ohne** den Code der Handy-Steuerung
   (der QR-Code erlaubt nur Abstimmen). Pfeil: Beenden (Ergebnis), weiter abstimmen, Stimmen löschen.
 - **Glücksrad** (neu in 0.68): „Wer ist dran?“ – beliebige Einträge (Namen, Aufgaben, Zahlen …; leer = Personen vom Fingerabdruck), fair gezogen,
@@ -206,7 +206,7 @@ Außerdem:
   |---|---|---|
   | ![Abstimmung](docs/abstimmung.png) | ![Glücksrad](docs/gluecksrad.png) | ![Wetter & Uhr](docs/wetter.png) |
 - **Minispiele – Handy = Controller** (neu in 0.76, stark erweitert in 0.77): Kachel *Minispiele* öffnet das
-  **Steuerfenster** am PC, Monitor 2 zeigt die Lobby mit **zwei** QR-Codes: 1. WLAN-Code des AluPC-WLANs,
+  **Steuerfenster** am PC, der Bildschirm zeigt die Lobby mit **zwei** QR-Codes: 1. WLAN-Code des AluPC-WLANs,
   2. die Spielseite. Name eingeben, mitspielen – ohne App. Einen anderen Weg (anderes WLAN) gibt es nicht.
   Bis 16 Spieler.
   **Gestartet wird nur am PC** – Handys können nichts starten oder umstellen.
@@ -224,13 +224,13 @@ Außerdem:
   - **Schnelle Steuerung:** Die Handys sind per WebSocket verbunden – Eingaben gehen ohne Umweg raus. Klappt das
     nicht, fällt die Seite automatisch auf normale Abfragen zurück (grüner Punkt oben rechts = schnelle Verbindung).
   - **Steuerfenster mit Tasten:** Leertaste = Start, N = Weiter, E = Ergebnis, L = Lobby, T = Teams mischen,
-    M = Monitor 2, Entf = Spieler entfernen, 1 … 0 = Spiel wählen, B = Bestenliste, S = Töne an/aus.
+    M = Bildschirm, Entf = Spieler entfernen, 1 … 0 = Spiel wählen, B = Bestenliste, S = Töne an/aus.
     Dazu Einstellungen je Spiel (Dauer, Runden, Bedenkzeit, Tempo …).
   - **Bestenliste des Abends** (neu in 0.79): Jedes Spiel bringt Punkte (Platz 1: 10, Platz 2: 7, 3: 5, 4: 4,
-    5: 3, 6: 2, danach 1; Teams: Sieger 6, Verlierer 2, unentschieden 4). Taste B zeigt sie mit Animation auf
-    Monitor 2; die Lobby zeigt die ersten drei. Ein „Abend“ geht bis 6 Uhr früh, danach beginnt eine neue Liste
+    5: 3, 6: 2, danach 1; Teams: Sieger 6, Verlierer 2, unentschieden 4). Taste B zeigt sie mit Animation auf dem
+    Bildschirm; die Lobby zeigt die ersten drei. Ein „Abend“ geht bis 6 Uhr früh, danach beginnt eine neue Liste
     (oder „Bestenliste zurücksetzen“).
-  - **Avatare** (neu in 0.81): beim Beitreten ein Tier/Symbol wählen – erscheint auf Monitor 2 in Lobby, Punkten,
+  - **Avatare** (neu in 0.81): beim Beitreten ein Tier/Symbol wählen – erscheint auf dem Bildschirm in Lobby, Punkten,
     Siegertreppchen und Bestenliste.
   - **Vibration** (neu in 0.81): das Handy vibriert bei „raus“, falsch, Treffer, Tor, „raus“ bei Tetris, Sieg …
     (nur Android-Browser – iPhones erlauben das im Browser nicht).
@@ -254,7 +254,7 @@ Außerdem:
   nie etwas. Beispiele stehen im Setup.
   - **Ganz normal sprechen** (neu in 0.83): keine festen Befehle mehr – „Alu PC, mach mal den Bildschirm schwarz“,
     „… kein Standbild mehr“, „… Licht auf blau“, „… Licht aus“, „… Timer auf fünf Minuten“, „… zeig mir die
-    Kamera“. **An und aus** gehen gezielt („Bildschirmschoner aus“), AluPC antwortet passend zum Zustand („Monitor 2
+    Kamera“. **An und aus** gehen gezielt („Bildschirmschoner aus“), AluPC antwortet passend zum Zustand („Bildschirm
     ist schon schwarz“). **Fragen:** Uhrzeit, Datum, Wetter, Prozessor-Temperatur, Auslastung, was gerade läuft,
     „Was kannst du?“, Witz. „Hallo PC“ zählt auch als Startwort (so hört das kleine Modell „Alu PC“ oft). Nur
     „Alu PC“ → „Ja?“, dann einmal ohne Startwort. Seit 0.93 zählt das Startwort nur am Satzanfang; „Computer“ ist dazugekommen.
@@ -278,7 +278,7 @@ Außerdem:
     „… Lobby“, „… Teams mischen“, „… Töne aus“. „Weiter“ heißt im laufenden Spiel „nächste Frage/Runde“.
 - **Whiteboard wie ein Notizbuch** (neu in 0.128): Kachel *Whiteboard* öffnet am PC ein eigenes Fenster – Seiten
   mit Vorschau, Zoom an der Mausstelle (Strg+Mausrad, zwei Finger), Stift mit Druck, Marker, Radierer, Lasso,
-  Formen, Text, Laser, Rückgängig, Export als PNG/PDF, mehrere Tafeln mit automatischem Speichern. Monitor 2 zeigt
+  Formen, Text, Laser, Rückgängig, Export als PNG/PDF, mehrere Tafeln mit automatischem Speichern. Der Bildschirm zeigt
   genau denselben Ausschnitt. Einstellungen: Setup → *Whiteboard* (Format 16:9/A4/unendlich, Stärken, Glätten,
   Druck, Handballen-Schutz, eigene Farben …).
 - **Whiteboard vom Handy/iPad**: Handy-Steuerung → *Zeichnen* → Hintergrund antippen – dann auf der Tafel
@@ -317,7 +317,7 @@ Außerdem:
 - **Autostart**, letzten Inhalt beim Start wiederherstellen, Monitor wird nach dem
   Wieder-Anstecken automatisch wieder benutzt.
 - **Computer sperren** (Seitenleiste, Taskleisten-Menü, Befehl `sperren`): wie Win+L bzw. die
-  Bildschirmsperre unter Linux – Monitor 2 zeigt dabei weiter, was gerade läuft.
+  Bildschirmsperre unter Linux – der Bildschirm zeigt dabei weiter, was gerade läuft.
 - **Töne** (Setup → Töne): Ton bei Standbild an/aus, Schwarz an/aus, neuem Inhalt, Szenenwechsel,
   Bildschirmschoner, Timer-Start/-Pause, „noch 1 Minute“, Timer-Ende … – 7 eingebaute Klänge oder
   eigene Dateien hochladen (WAV, MP3, OGG …). Lautstärke und Ausgabegerät (z. B. HDMI des Beamers)
@@ -325,16 +325,16 @@ Außerdem:
 - **Eigene Kacheln – mehr Möglichkeiten**: etwas anzeigen, **eigener Bildschirmschoner** (z. B.
   „Pause – gleich geht's weiter“ mit Hintergrundbild; nochmal klicken = beenden), **Timer mit eigener
   Dauer** oder ein Befehl – jeweils mit eigenem Symbol, Farbe, Ton und Tastenkürzel.
-- **Setup in Bereichen**: Monitore, Monitor 2, Darstellung, Bildschirmschoner, Timer, Töne,
+- **Setup in Bereichen**: Monitore, Bildschirm, Darstellung, Bildschirmschoner, Timer, Töne,
   Tastenkürzel, Allgemein.
 - **Timer** (Kachel „Timer“): Countdown oder Stoppuhr, läuft durch – auch wenn Szenen neu
-  aufgebaut werden. Klick = Start/Pause (beim ersten Mal wird er auf Monitor 2 gezeigt), Pfeil =
+  aufgebaut werden. Klick = Start/Pause (beim ersten Mal wird er auf dem Bildschirm gezeigt), Pfeil =
   Neu starten, ±1 Minute, Einstellen. Letzte Minute orange, letzte 10 Sekunden rot, am Ende blinkt
   er. Tastenkürzel: `Strg+Alt+T` = Start/Pause (weitere frei belegbar).
 - **Standbild-Symbol**: kleine Schneeflocke oben rechts auf dem eingefrorenen Bild (abschaltbar
-  unter Setup → Monitor 2).
-- **Monitor 2 bleibt vorne**: Wird das Fenster verdeckt oder minimiert (z. B. Win+D), holt AluPC es
-  sofort zurück. Unter Windows wird die Taskleiste auf Monitor 2 ausgeblendet, solange AluPC dort
+  unter Setup → Bildschirm).
+- **der Bildschirm bleibt vorne**: Wird das Fenster verdeckt oder minimiert (z. B. Win+D), holt AluPC es
+  sofort zurück. Unter Windows wird die Taskleiste auf dem Bildschirm ausgeblendet, solange AluPC dort
   etwas zeigt (abschaltbar), unter KDE wird das Fenster über die Leisten gelegt.
 
 ## Installation
@@ -458,11 +458,11 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
 - **Nicht auf echter Hardware getestet.** Die automatischen Tests laufen auf GitHub unter Linux und
   Windows (inkl. Start der fertigen Programme und der installierten Pakete) – aber ohne echte Monitore,
   Kameras und Fingerabdrucksensoren. Bitte Fehler mit Screenshot oder Meldungstext melden.
-- **Whiteboard für Gäste:** Gäste schreiben nur, solange die Tafel auf Monitor 2 zu sehen ist; ein Strich erscheint
+- **Whiteboard für Gäste:** Gäste schreiben nur, solange die Tafel auf dem Bildschirm zu sehen ist; ein Strich erscheint
   in Stücken (etwa alle ⅓ Sekunde) – nicht ganz so flüssig wie am PC. Radieren, Seiten und Rückgängig bleiben beim PC.
   „Nur nach Erlaubnis“ merkt sich die Erlaubnis je Browser bis zum Umschalten – wer den Browser-Speicher löscht,
   fragt neu.
-- **Schiffe versenken:** Die Felder gibt es nur auf den Bildschirmen – Monitor 2 zeigt also die Schiffe von
+- **Schiffe versenken:** Die Felder gibt es nur auf den Bildschirmen – der Bildschirm zeigt also die Schiffe von
   Spieler 2. Wer auf den Beamer schaut (auch Spieler 1), könnte sie sehen; am besten sitzt Spieler 1 mit dem Rücken
   dazu. Bild-in-Bild ist deshalb während des Spiels aus.
 - **Chromecast-Empfang geht nicht**: Google lässt als Empfänger nur zertifizierte Geräte zu. Einen
@@ -471,7 +471,7 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   **AluCast** (Browser, QR-Code) als eigenen Weg – das kann aber **nicht den Handy-Bildschirm
   übertragen** (das erlauben Handy-Browser nicht), sondern Fotos, Videos, Links, Text und Fernbedienung.
 - **AluCast** läuft ohne Verschlüsselung (http) im eigenen WLAN; der Code schützt vor Fremden, aber
-  jeder, der den QR-Code auf Monitor 2 sieht, kann senden („Neuer Code“ im Einrichten-Dialog). In
+  jeder, der den QR-Code auf dem Bildschirm sieht, kann senden („Neuer Code“ im Einrichten-Dialog). In
   Gäste-/Schul-WLANs, die Geräte voneinander trennen, erreichen Handys den PC nicht. Windows fragt beim
   ersten Start nach der Firewall-Freigabe. Live-Kamerabild vom Handy geht nicht (bräuchte https).
 - **Sprache:** Echt geprüft wird in der CI nur mit synthetischer Stimme (Piper spricht, Vosk/Whisper hören) –
@@ -525,7 +525,7 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   **Community-Paket** eines einzelnen Entwicklers, das UxPlay für Windows fertig baut – nicht vom
   UxPlay-Projekt selbst, nicht signiert (Windows Defender kann warnen). AluPC schreibt Name und Code in
   dessen `arguments.txt` (`%APPDATA%\leapbtw\uxplay-windows`), startet und beendet es und legt dessen
-  Videofenster **randlos und im Vordergrund** genau über Monitor 2 (abschaltbar: dann maximiert). Das Bild
+  Videofenster **randlos und im Vordergrund** genau über dem Bildschirm (abschaltbar: dann maximiert). Das Bild
   ist dort keine AluPC-Quelle (keine Szenen, kein Standbild). Ältere uxplay-windows-Versionen (1.x) haben
   keine Einstellungsdatei – dort startet AluPC deren mitgeliefertes `uxplay.exe` direkt. Läuft uxplay-windows
   schon (eigener Autostart), beendet AluPC es beim AirPlay-Start – es darf nur einen Empfänger geben.
@@ -555,8 +555,8 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
 - **Hz/Auflösung**: Wählbar ist nur, was Monitor, Kabel und Grafikkarte melden. Skalierung
   lässt sich unter Windows/X11 nur in den Systemeinstellungen ändern.
 - **Gesperrter Computer (Win+L / KDE-Sperre)**: Der Sperrbildschirm des Systems liegt über
-  **allen** Monitoren; kein Programm (auch nicht AluPC) kann dann etwas auf Monitor 2 zeigen –
-  auch nicht den Bildschirmschoner. Wer Monitor 2 weiter bespielen will, sperrt nicht, sondern nutzt
+  **allen** Monitoren; kein Programm (auch nicht AluPC) kann dann etwas auf dem Bildschirm zeigen –
+  auch nicht den Bildschirmschoner. Wer den Bildschirm weiter bespielen will, sperrt nicht, sondern nutzt
   „Schwarz“ oder den Bildschirmschoner von AluPC.
 - **Programm-Aufnahme**: Windows (Windows Graphics Capture) und X11 nehmen Fenster auch auf, wenn sie
   verdeckt sind. Minimierte Fenster zeichnen sich nicht: Windows → automatisch im Hintergrund
@@ -564,18 +564,18 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
   Der Ton eines aufgenommenen Programms wird nicht übertragen (er kommt weiter aus dem Programm).
 - **Website-Lautstärke** wirkt auf `<video>`/`<audio>` der Seite (z. B. YouTube). Töne, die eine Seite
   anders erzeugt (Web Audio, z. B. manche Spiele), lassen sich nur mit „Ton aus“ abschalten.
-- **Taskleiste ausblenden (Windows)** nutzt die versteckte Taskleiste auf Monitor 2
+- **Taskleiste ausblenden (Windows)** nutzt die versteckte Taskleiste auf dem Bildschirm
   („Shell_SecondaryTrayWnd“). Beim Beenden von AluPC wird sie wieder eingeblendet; sollte AluPC
   abstürzen, kommt sie spätestens nach einer Ab-/Anmeldung zurück.
 - **Maus bleibt auf Monitor 1** (außer bei „Erweitern“): Windows begrenzt die Maus (ClipCursor), X11
-  bekommt unsichtbare Wände am Rand von Monitor 2. **Unter Wayland erlaubt das System das Programmen
-  nicht** – dort kann die Maus weiter auf Monitor 2. Sollte AluPC unter Windows abstürzen, während die
+  bekommt unsichtbare Wände am Rand vom Bildschirm. **Unter Wayland erlaubt das System das Programmen
+  nicht** – dort kann die Maus weiter auf dem Bildschirm. Sollte AluPC unter Windows abstürzen, während die
   Maus begrenzt ist: `Strg+Alt+Entf` → `Esc` gibt sie frei.
 - **Mauszeiger beim Spiegeln**: Unter Windows und X11 zeichnet AluPC den Zeiger selbst ins Bild (mit
   seiner echten Form). Unter KDE/Wayland liefert KWin ihn mit. Mit der normalen Wayland-Aufnahme
   (Start aus dem Quellcode) hängt es vom System ab, ob er zu sehen ist.
 - **Maus zu 100 % auf Monitor 1**: Windows – ClipCursor plus systemweite Maus-Sperre (fängt jede
-  Bewegung auf Monitor 2 ab, auch wenn Windows die Begrenzung kurz aufhebt). X11 – Wände plus
+  Bewegung auf dem Bildschirm ab, auch wenn Windows die Begrenzung kurz aufhebt). X11 – Wände plus
   Nachkorrektur alle 50 ms. **Wayland (Kubuntu-Standard): nicht möglich.** Wer das braucht, wählt
   beim Anmelden unten links die Sitzung **„Plasma (X11)“**.
 - **Bildschirmschoner – Leerlaufzeit**: Unter Windows und KDE meldet das System, wann zuletzt Maus
@@ -605,8 +605,8 @@ Aufbau:
 ```
 alupc/
   app.py            Start, Kommandozeile, eine Instanz
-  controller.py     Was läuft auf Monitor 2 (Modi, Standbild, Sichtschutz)
-  output_window.py  Vollbild auf Monitor 2 + Standbild-/Sichtschutz-Ebene
+  controller.py     Was läuft auf dem Bildschirm (Modi, Standbild, Sichtschutz)
+  output_window.py  Vollbild auf dem Bildschirm + Standbild-/Sichtschutz-Ebene
   sources.py        Quellen: Kamera, Bildschirm, Programm, Website, Bild, Video, Text, Uhr …
   scenes.py         Layout-Vorlagen und Szenen-Logik
   screensaver.py    Bildschirmschoner: Stile, Leerlaufzeit (Windows, KDE/GNOME, xprintidle)

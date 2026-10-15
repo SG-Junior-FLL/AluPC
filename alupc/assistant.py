@@ -38,8 +38,8 @@ HELP = ("Sag zum Beispiel: Mach den Bildschirm schwarz. Zeig die Kamera. Licht a
 
 # (an, aus, schon an, schon aus)
 FLAG_TEXT = {
-    "schwarz": ("Monitor 2 ist jetzt schwarz.", "Das Bild ist wieder da.", "Monitor 2 ist schon schwarz.",
-                "Monitor 2 ist gar nicht schwarz."),
+    "schwarz": ("Der Bildschirm ist jetzt schwarz.", "Das Bild ist wieder da.", "Der Bildschirm ist schon schwarz.",
+                "Der Bildschirm ist gar nicht schwarz."),
     "standbild": ("Das Bild ist eingefroren.", "Das Bild läuft wieder.", "Das Standbild ist schon an.",
                   "Es ist kein Standbild an."),
     "bildschirmschoner": ("Der Bildschirmschoner läuft.", "Der Bildschirmschoner ist aus.",
@@ -56,14 +56,14 @@ SHOW_TEXT = {
     "gluecksrad_drehen": "Und los!", "spiele": "Die Minispiele sind bereit. Scannt den QR-Code.",
     "umfrage_zeigen": "Hier ist die Abstimmung.", "umfrage_ende": "Die Abstimmung ist beendet.",
     "spiel_bestenliste": "Hier ist die Bestenliste.", "airplay": "AirPlay ist bereit.",
-    "spiegeln": "Monitor 2 spiegelt jetzt.", "erweitern": "Monitor 2 ist jetzt erweitert.",
+    "spiegeln": "Der Bildschirm spiegelt jetzt.", "erweitern": "Der Bildschirm ist jetzt erweitert.",
     "musik_zeigen": "Hier ist die Musik.", "timer_zeigen": "Hier ist der Timer.", "qr": "Hier ist der QR-Code.",
     "naechste_szene": "Nächste Szene.", "vorherige_szene": "Vorherige Szene.", "timer_start": "Der Timer läuft.",
     "timer_pause": "Timer angehalten.", "timer_neustart": "Der Timer startet neu.",
     "timer_plus": "Eine Minute mehr.", "timer_minus": "Eine Minute weniger.", "musik_weiter": "Nächstes Lied.",
     "musik_zurueck": "Vorheriges Lied.", "musik_pause": "Pause.", "musik_play": "Weiter geht's.",
     "rgb_heller": "Etwas heller.", "rgb_dunkler": "Etwas dunkler.",
-    "rgb_monitor2": "Das Licht folgt jetzt Monitor 2.", "zeichnungen_loeschen": "Die Zeichnungen sind weg.",
+    "rgb_monitor2": "Das Licht folgt jetzt dem Bildschirm.", "zeichnungen_loeschen": "Die Zeichnungen sind weg.",
     "sperren": "Der Computer wird gesperrt.", "spiel_start": "Los geht's!", "spiel_weiter": "Weiter.",
     "spiel_ende": "Hier ist das Ergebnis.", "spiel_lobby": "Zurück zur Lobby.", "spiel_teams": "Teams gemischt.",
 }
@@ -274,7 +274,7 @@ class Assistant:
         if kind == "befinden":
             return "Mir geht's gut, danke! Und dir?"
         if kind == "wer":
-            return "Ich bin AluPC. Ich steuere deinen zweiten Monitor – und ein bisschen mehr."
+            return "Ich bin AluPC. Ich steuere deinen Bildschirm – und ein bisschen mehr."
         if kind == "witz":
             return self.random.choice(JOKES)
         if kind == "danke":

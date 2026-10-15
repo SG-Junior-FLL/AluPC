@@ -181,7 +181,7 @@ class OverlayCanvas(QWidget):
             f.setPixelSize(int(a.height() * 0.06))
             p.setFont(f)
             p.setPen(QColor(255, 255, 255, 60))
-            p.drawText(QRectF(0, 0, a.width(), a.height()), Qt.AlignCenter, "Monitor 2")
+            p.drawText(QRectF(0, 0, a.width(), a.height()), Qt.AlignCenter, "Bildschirm")
         p.restore()
         p.save()
         p.translate(a.topLeft())
@@ -280,10 +280,10 @@ class OverlayDialog(QDialog):
         lay.setSpacing(12)
         lay.addWidget(page_header("Overlay der Kachel" if self.single else "Overlays",
                                   ("Klick auf die Kachel blendet es ein, nochmal klicken aus · " if self.single else
-                                   "Über allem, was Monitor 2 zeigt · ") + "ziehen = verschieben, Mausrad = Größe",
+                                   "Über allem, was der Bildschirm zeigt · ") + "ziehen = verschieben, Mausrad = Größe",
                                   "layers"))
         top = QHBoxLayout()
-        self.enabled = QCheckBox("Overlays auf Monitor 2 zeigen")
+        self.enabled = QCheckBox("Overlays auf dem Bildschirm zeigen")
         self.enabled.setChecked(bool(cfg.get("on")))
         self.enabled.toggled.connect(lambda _on: self._schedule())
         self.enabled.setVisible(not self.single)

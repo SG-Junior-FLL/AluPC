@@ -339,7 +339,7 @@ class Controller(QObject):
         """Zoom der (ersten) Kamera auf Monitor 2: mal `factor`, None = zurück auf 1×."""
         cams = self.cameras_on_output()
         if not cams:
-            self.message.emit("Keine Kamera auf Monitor 2.")
+            self.message.emit("Keine Kamera auf dem Bildschirm.")
             return
         cam = cams[0]
         zoom = 1.0 if factor is None else cam.options()["zoom"] * factor
@@ -390,7 +390,7 @@ class Controller(QObject):
         if not self._guard():
             return
         if self.output_screen() is None:
-            self.message.emit("Kein zweiter Monitor gefunden.")
+            self.message.emit("Kein Bildschirm gefunden.")
         self.ensure_extended()
         self._unfreeze()
         self.screensaver.stop()
@@ -507,7 +507,7 @@ class Controller(QObject):
             return None
         out, main = self.output_screen(), self.main_screen()
         if out is None or main is None:
-            self.message.emit("Kein zweiter Monitor gefunden.")
+            self.message.emit("Kein Bildschirm gefunden.")
             return None
         if self.privacy:
             self.toggle_privacy()
@@ -516,7 +516,7 @@ class Controller(QObject):
         return main.name(), out.name()
 
     def program_moved(self, title: str) -> None:
-        self._set_desktop(f"Programm direkt auf Monitor 2: {title}")
+        self._set_desktop(f"Programm direkt auf dem Bildschirm: {title}")
 
     # ------------------------------------------------------------ Handy → Monitor 2
     def start_airplay(self) -> None:
@@ -528,7 +528,7 @@ class Controller(QObject):
             self.message.emit("AirPlay: Empfänger fehlt · Handy → Einrichten")
             return
         if self.output_screen() is None:
-            self.message.emit("Kein zweiter Monitor gefunden.")
+            self.message.emit("Kein Bildschirm gefunden.")
             return
         self.show_source({"type": "airplay"})
         name = self.airplay.settings()["airplay_name"]
@@ -1049,7 +1049,7 @@ class Controller(QObject):
             if req["type"] == "video":
                 cfg.update(loop=False, volume=100)
             self.show_source(cfg)
-            self.message.emit(("Foto" if req["type"] == "image" else "Video") + " vom Handy auf Monitor 2.")
+            self.message.emit(("Foto" if req["type"] == "image" else "Video") + " vom Handy auf dem Bildschirm.")
         elif kind == "link":
             self.show_source({"type": "website", "url": req["url"]})
             self.message.emit(f"Link vom Handy: {req.get('original', req['url'])}")
@@ -1435,7 +1435,7 @@ class Controller(QObject):
 
         cfg = file_source(path)
         if cfg is None:
-            self.message.emit(f"Geht nicht auf Monitor 2: {Path(path).name or path}")
+            self.message.emit(f"Geht nicht auf dem Bildschirm: {Path(path).name or path}")
             return False
         self.show_source(cfg)
         return True
@@ -1471,7 +1471,7 @@ class Controller(QObject):
         """Nächsten/vorherigen Punkt (Kachel, Tastenkürzel, Handy, Seitenleiste) – mit Animation."""
         sources = self.step_sources()
         if not sources:
-            self.message.emit("Auf Monitor 2 ist gerade nichts zum Weiterschalten.")
+            self.message.emit("Auf dem Bildschirm ist gerade nichts zum Weiterschalten.")
             return
         for src in sources:
             src.step(delta)
@@ -1719,7 +1719,7 @@ class Controller(QObject):
         if tile_id in self.tile_overlays:
             del self.tile_overlays[tile_id]
         elif self.output_screen() is None:
-            self.message.emit("Kein zweiter Monitor gefunden.")
+            self.message.emit("Kein Bildschirm gefunden.")
             return
         else:
             self.tile_overlays[tile_id] = {**item, "id": f"kachel-{tile_id}", "on": True}
@@ -2027,7 +2027,7 @@ class Controller(QObject):
         on = not self.vcam.running if on is None else on
         if on:
             ok, why = self.vcam.start()
-            self.message.emit("Virtuelle Kamera „AluPC Monitor 2“ an." if ok else why)
+            self.message.emit("Virtuelle Kamera „AluPC Bildschirm“ an." if ok else why)
         else:
             self.vcam.stop()
             self.message.emit("Virtuelle Kamera aus.")
@@ -2326,8 +2326,8 @@ class Controller(QObject):
         self.show_source({"type": "website", "url": host_url(text), "keep_login": True, "name": "Kahoot"},
                          remember=False)
         self.browser_control_requested.emit()
-        self.message.emit("Kahoot auf Monitor 2 – am PC im Fenster „Browser steuern“ anmelden, Quiz wählen, Starten. "
-                          "Mitspieler: kahoot.it am Handy + PIN von Monitor 2 (Internet nötig).")
+        self.message.emit("Kahoot auf dem Bildschirm – am PC im Fenster „Browser steuern“ anmelden, Quiz wählen, Starten. "
+                          "Mitspieler: kahoot.it am Handy + PIN vom Bildschirm (Internet nötig).")
 
     def start_duel(self, open_window: bool = True) -> None:
         """Schiffe versenken: Spieler 1 im Fenster auf Monitor 1, Spieler 2 auf Monitor 2 (Handy als Steuerung oder
@@ -2393,11 +2393,11 @@ class Controller(QObject):
         if hub is None:
             if action == "start":
                 self.start_games()
-                self.message.emit("Minispiele: erst Handys mitspielen lassen (QR-Code auf Monitor 2).")
+                self.message.emit("Minispiele: erst Handys mitspielen lassen (QR-Code auf dem Bildschirm).")
             return
         if action == "start":
             if not hub.start(restart=True):
-                self.message.emit("Minispiele: noch niemand dabei – QR-Code auf Monitor 2 scannen.")
+                self.message.emit("Minispiele: noch niemand dabei – QR-Code auf dem Bildschirm scannen.")
             if not (self.mode == "content" and (self.content or {}).get("type") == "spiel"):
                 self.show_source({"type": "spiel"}, remember=False)
         elif action == "weiter":

@@ -2,7 +2,7 @@
 ; Wird von GitHub Actions gebaut (siehe .github/workflows/build.yml).
 
 #ifndef AppVersion
-  #define AppVersion "0.138.0"
+  #define AppVersion "0.139.0"
 #endif
 
 [Setup]
@@ -28,10 +28,10 @@ Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Symbol auf dem Desktop anlegen"; Flags: unchecked
-Name: "handy"; Description: "AirPlay-Empfang mitinstallieren: uxplay-windows (Community-Paket mit UxPlay) und Bonjour – aus dem Internet über winget"; GroupDescription: "iPhone auf Monitor 2:"
+Name: "handy"; Description: "AirPlay-Empfang mitinstallieren: uxplay-windows (Community-Paket mit UxPlay) und Bonjour – aus dem Internet über winget"; GroupDescription: "iPhone auf dem Bildschirm:"
 Name: "rgb"; Description: "RGB-Beleuchtung: OpenRGB mitinstallieren (freies Programm für Mainboard-, RAM-, Grafikkarten- und Lüfter-RGB) – über winget"; GroupDescription: "RGB && Lüfter:"
 Name: "vbcable"; Description: "Virtuelles Mikro + virtueller Ausgang: VB-CABLE (VB-Audio, kostenlos) – Windows fragt einmal, ob der Treiber installiert werden darf"; GroupDescription: "Audio && Kamera:"
-Name: "vkamera"; Description: "Monitor 2 als virtuelle Kamera (für Zoom, Teams, Discord, OBS): Kamera-Treiber von OBS Studio – über winget"; GroupDescription: "Audio && Kamera:"
+Name: "vkamera"; Description: "Bildschirm als virtuelle Kamera (für Zoom, Teams, Discord, OBS): Kamera-Treiber von OBS Studio – über winget"; GroupDescription: "Audio && Kamera:"
 Name: "luefter"; Description: "Lüftersteuerung: FanControl mitinstallieren (eigenes Programm – AluPC zeigt Lüfter unter Windows nur an, wenn das System sie meldet)"; GroupDescription: "RGB && Lüfter:"; Flags: unchecked
 
 [Files]

@@ -1237,7 +1237,7 @@ def test_keep_awake_linux_inhibits_and_releases(monkeypatch):
     monkeypatch.setattr(dbus_util, "call", call)
     ka = keep_awake.KeepAwake()
     assert ka.set(True) and ka.active
-    assert ("org.freedesktop.ScreenSaver", "Inhibit", ("AluPC", "AluPC zeigt etwas auf Monitor 2")) in calls
+    assert ("org.freedesktop.ScreenSaver", "Inhibit", ("AluPC", "AluPC zeigt etwas auf dem Bildschirm")) in calls
     n = len(calls)
     assert ka.set(True) and len(calls) == n  # zweimal einschalten: nichts Doppeltes
     assert not ka.set(False)

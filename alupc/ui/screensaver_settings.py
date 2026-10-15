@@ -28,7 +28,7 @@ class ScreensaverSettings(QGroupBox):
     tile_mode: eigener Bildschirmschoner einer Kachel – nur Aussehen, gespeichert in `data`.
     """
 
-    def __init__(self, controller, title: str = "Bildschirmschoner (Monitor 2)", parent=None,
+    def __init__(self, controller, title: str = "Bildschirmschoner", parent=None,
                  data: dict | None = None, tile_mode: bool = False, on_change=None):
         super().__init__(parent)
         from ..screensaver import STYLE_GROUPS, STYLES, WHEN
@@ -55,7 +55,7 @@ class ScreensaverSettings(QGroupBox):
         when.setCurrentIndex(max(0, when.findData(cfg.get("when", "desktop"))))
         awake = QCheckBox("System nicht abdunkeln lassen")
         awake.setToolTip("Linux/Windows dimmen und schalten die Monitore sonst selbst ab – dann sieht man den "
-                         "Bildschirmschoner nie. Gilt, solange der Schoner an ist oder Monitor 2 etwas zeigt. "
+                         "Bildschirmschoner nie. Gilt, solange der Schoner an ist oder der Bildschirm etwas zeigt. "
                          "Achtung: Der PC sperrt sich dann auch nicht von selbst.")
         awake.setChecked(bool(cfg.get("keep_awake", True)))
         style = QComboBox()
@@ -87,7 +87,7 @@ class ScreensaverSettings(QGroupBox):
         scene = QComboBox()
         scene.addItems(controller.config.scene_names())
         scene.setCurrentText(cfg.get("scene", ""))
-        test = button("Vorschau auf Monitor 2" if tile_mode else "Jetzt starten / beenden", "moon", primary=True)
+        test = button("Vorschau auf dem Bildschirm" if tile_mode else "Jetzt starten / beenden", "moon", primary=True)
         test.clicked.connect(self._test)
         info = QLabel(controller.screensaver.idle.describe())
         info.setObjectName("Muted")

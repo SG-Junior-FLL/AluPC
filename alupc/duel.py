@@ -139,7 +139,7 @@ class Battleship:
         self.phase = "setzen"
         self.turn = 1
         self.winner = 0
-        self.message = "Schiffe setzen – Spieler 1 am PC, Spieler 2 auf Monitor 2"
+        self.message = "Schiffe setzen – Spieler 1 am PC, Spieler 2 auf dem Bildschirm"
         self.last = {1: None, 2: None}  # letzter Schuss je Schütze: (x, y, Ergebnis)
         self.token = secrets.token_urlsafe(6)  # fürs Handy von Spieler 2 (nur übers AluPC-WLAN)
         self.p2_phone = False  # Spieler 2 hat sich mit dem Handy angemeldet
@@ -383,7 +383,7 @@ body.joining > :not(h1):not(#join){display:none!important}body.joining #join{dis
 </style></head><body>
 <h1>🚢 Schiffe versenken</h1>
 <div id="join"><input id="jname" maxlength="16" placeholder="Dein Name" autocomplete="off" enterkeyhint="go">
-<button class="b p" id="jgo">Mitspielen</button><div class="hint">Die Felder siehst du auf Monitor 2 – das Handy ist die Steuerung.</div>
+<button class="b p" id="jgo">Mitspielen</button><div class="hint">Die Felder siehst du auf dem Bildschirm – das Handy ist die Steuerung.</div>
 <div class="hint" id="jerr"></div></div>
 <div class="msg" id="msg">Verbinde …</div>
 <div class="pad" id="pad">
@@ -392,7 +392,7 @@ body.joining > :not(h1):not(#join){display:none!important}body.joining #join{dis
  <button class="e"></button><button data-d="0,1">▼</button><button class="e"></button>
 </div>
 <div id="side">
- <div class="hint"><span class="cell" id="cell">A1</span> · <span id="what">Schau auf Monitor 2</span></div>
+ <div class="hint"><span class="cell" id="cell">A1</span> · <span id="what">Schau auf den Bildschirm</span></div>
  <div class="row" id="setup1"><button class="b" id="rot">↻ Drehen</button><button class="b" id="rnd">🎲 Zufällig</button></div>
  <div class="row" id="setup2"><button class="b" id="undo">↶ Zurück</button><button class="b p" id="ready">Bereit</button></div>
 </div>
@@ -424,7 +424,7 @@ function draw() {
   const m = $("msg"); m.className = cls; m.innerHTML = ""; m.append(head);
   if (!setting) { const s = document.createElement("span"); s.className = "sub"; s.textContent = st.message; m.append(s); }
   const c = st.cursor || [0, 0]; $("cell").textContent = L[c[0]] + (c[1] + 1);
-  $("what").textContent = edit ? "OK = setzen · auf einem Schiff: aufnehmen" : mine ? "OK = schießen" : "Schau auf Monitor 2";
+  $("what").textContent = edit ? "OK = setzen · auf einem Schiff: aufnehmen" : mine ? "OK = schießen" : "Schau auf den Bildschirm";
   $("ok").textContent = mine ? "🎯" : "OK"; $("ok").classList.toggle("fire", mine);
   $("setup1").style.display = $("setup2").style.display = edit ? "flex" : "none";
   $("ready").disabled = !!st.next;

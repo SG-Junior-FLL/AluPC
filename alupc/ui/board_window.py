@@ -520,7 +520,7 @@ class BoardWindow(QWidget):
         sel = f" · {len(b.sel)} ausgewählt (Entf löscht, Farbe färbt um, ziehen verschiebt)" if b.sel else ""
         self.status.setText(f"„{b.doc['name']}“ · Seite {b.doc['page'] + 1} von {len(b.doc['pages'])} · "
                             f"Zoom {round(b.zoom * 100)} %{sel}   ·   Strg+Mausrad / zwei Finger: zoomen · "
-                            "Mausrad / Leertaste+Ziehen: verschieben · Monitor 2 zeigt genau diese Ansicht")
+                            "Mausrad / Leertaste+Ziehen: verschieben · der Bildschirm zeigt genau diese Ansicht")
 
     def _thumbs(self) -> None:
         b = self.board

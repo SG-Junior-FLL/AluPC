@@ -189,8 +189,8 @@ function show() {
   else if (s === "nein") msg("Am PC abgelehnt.", "bad");
   else if (s === "warten") msg("Warte auf Erlaubnis am PC …");
   else if (s === "fragen") msg("Zum Schreiben erst am PC fragen.");
-  else if (!st.active) msg("Das Whiteboard ist gerade nicht auf Monitor 2 – kurz warten.");
-  else msg("Schreib los – erscheint sofort auf Monitor 2", "ok");
+  else if (!st.active) msg("Das Whiteboard ist gerade nicht auf dem Bildschirm – kurz warten.");
+  else msg("Schreib los – erscheint sofort auf dem Bildschirm", "ok");
 }
 async function poll() { try { const r = await fetch("/api/tafel?g=" + gid); if (r.ok) { st = await r.json(); show(); } } catch (e) {} }
 $("ask").onclick = async () => { if (!name) { $("gname").focus(); msg("Erst deinen Namen eingeben – dann fragen.", "bad"); return; }

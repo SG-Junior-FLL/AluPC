@@ -301,7 +301,7 @@ def understand(words: list[str], scenes: list[str] | None = None,
         if any_of(words, ("dunkler",)):
             return "rgb_dunkler", "Licht dunkler"
         if light and any_of(words, ("bildschirm", "monitor", "passend", "bild")) and state != "aus":
-            return "rgb_monitor2", "Licht wie Monitor 2"
+            return "rgb_monitor2", "Licht wie der Bildschirm"
     # 6) Timer mit Dauer und Steuerung
     if any_of(words, ("timer", "countdown", "stoppuhr", "wecker")) or (parse_duration(words) and
                                                                       any_of(words, ("stell", "stelle", "minuten"))):

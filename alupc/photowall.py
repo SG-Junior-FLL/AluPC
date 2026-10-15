@@ -202,7 +202,7 @@ h2 { font-size: 15px; color: #cbd5e1; margin: 8px 0 0; }
   #grid img { border-radius: 14px; }
 }
 </style></head><body><main>
-<header><div class="logo">📷</div><div><b>Foto-Wand</b><small>Deine Fotos erscheinen groß auf Monitor 2</small></div>
+<header><div class="logo">📷</div><div><b>Foto-Wand</b><small>Deine Fotos erscheinen groß auf dem Bildschirm</small></div>
 </header>
 <input type="text" id="name" maxlength="20" placeholder="Dein Name" autocomplete="off">
 <label class="pick" for="file">📷 Foto senden<small>aufnehmen oder aus der Galerie – auch mehrere</small></label>
@@ -249,7 +249,7 @@ $("file").onchange = async () => {
     if (status === 200) ok++; else last = d.error || "Nicht gesendet";
   }
   $("bar").style.display = "none";
-  if (ok) info(ok === 1 ? "Gesendet ✓ – gleich auf Monitor 2" : ok + " Fotos gesendet ✓", "ok");
+  if (ok) info(ok === 1 ? "Gesendet ✓ – gleich auf dem Bildschirm" : ok + " Fotos gesendet ✓", "ok");
   if (last) info((ok ? ok + " gesendet · " : "") + last, "err");
   load();
 };

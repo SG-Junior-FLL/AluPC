@@ -1,4 +1,4 @@
-## AluPC – Monitor 2 steuern (Kubuntu & Windows 11)
+## AluPC – Bildschirm steuern (Kubuntu & Windows 11)
 
 ### Downloads
 | System | Datei | Hinweis |
@@ -8,21 +8,30 @@
 | **Kubuntu / Ubuntu** (22.04, 24.04 und neuer) | `alupc_…_amd64.deb` | `sudo apt install ./alupc_…_amd64.deb` – danach im Startmenü |
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 
-### Neu in dieser Version (0.138.0)
+### Neu in dieser Version (0.139.0)
+- **Einheitlicher Name: „Bildschirm“.** Überall, wo man es sieht (App, Handy-Seiten, Meldungen, Sprachantworten,
+  Installer, README, Handbuch), heißt der Anzeige-Bildschirm jetzt einfach **„Bildschirm“** statt „Monitor 2“.
+- Virtuelle Kamera unter Linux heißt jetzt **„AluPC Bildschirm“**. Ein schon eingerichtetes Gerät mit altem Namen
+  („AluPC Monitor 2“) wird weiter erkannt; der neue Name erscheint nach dem nächsten Einrichten bzw. Neustart.
+- Rechtsklick im Dateimanager: **„Auf dem Bildschirm zeigen“** – wird beim nächsten Start von AluPC automatisch
+  umbenannt.
+- Nicht geändert: „Monitor 1“ (dein eigener Monitor) und das Sprach-Startwort „Monitor“.
+
+### Davor: 0.138.0
 - **Schiffe versenken: Handy = nur Steuerung.** Spieler 2 hat am Handy ein Steuerkreuz, OK (setzen bzw. schießen,
   auf einem Schiff: aufnehmen), Drehen, Zufällig, Zurück, Bereit – die Felder gibt es nur auf den Bildschirmen
-  (Spieler 1 im PC-Fenster auf Monitor 1, Spieler 2 auf Monitor 2 mit Auswahlrahmen und Vorschau-Schiff).
-  Folge: Wer auf Monitor 2 schaut, sieht die Schiffe von Spieler 2 – Spieler 1 sollte nicht hinschauen.
+  (Spieler 1 im PC-Fenster auf Monitor 1, Spieler 2 auf dem Bildschirm mit Auswahlrahmen und Vorschau-Schiff).
+  Folge: Wer auf dem Bildschirm schaut, sieht die Schiffe von Spieler 2 – Spieler 1 sollte nicht hinschauen.
 - **Bild-in-Bild ist während Schiffe versenken aus** (sonst sähe Spieler 1 auf Monitor 1 die Schiffe von Spieler 2)
   und lässt sich solange nicht einschalten; nach dem Spiel kommt es wieder, wenn es vorher an war.
 - **Neues Minispiel: Montagsmaler.** Reihum malt einer das geheime Wort am Handy (8 Farben, 3 Stärken, Radierer,
-  Alles löschen), Monitor 2 zeigt das Bild live, alle anderen tippen ihren Tipp ein (Groß-/Kleinschreibung und
+  Alles löschen), der Bildschirm zeigt das Bild live, alle anderen tippen ihren Tipp ein (Groß-/Kleinschreibung und
   Umlaute egal). Je schneller richtig, desto mehr Punkte; der Maler bekommt Punkte für jeden, der es errät. Nach der
   Hälfte der Zeit kommt der erste Buchstabe als Hinweis. Über 100 Wörter.
-- **Kahoot (das echte) auf Monitor 2:** Minispiele-Fenster → „Kahoot“ (oder Befehlssuche/Sprache „Kahoot“).
+- **Kahoot (das echte) auf dem Bildschirm:** Minispiele-Fenster → „Kahoot“ (oder Befehlssuche/Sprache „Kahoot“).
   Optional Kahoot-Link oder Quiz-ID eingeben → gleich die Gastgeber-Seite dieses Quiz, sonst die Kahoot-Startseite.
   Bedient wird am PC im Fenster „Browser steuern“ (anmelden, Quiz wählen, Starten, Weiter); die Anmeldung bleibt
-  gespeichert. Mitspieler: kahoot.it am Handy + PIN von Monitor 2 – dafür brauchen die Handys Internet.
+  gespeichert. Mitspieler: kahoot.it am Handy + PIN vom Bildschirm – dafür brauchen die Handys Internet.
   **Nicht mit dem echten Kahoot getestet** (im Test-Container ist kahoot.com nicht erreichbar).
 
 ### Davor: 0.137.0
@@ -32,7 +41,7 @@
   kommt der normale Desktop. Meldet man sich noch mit dem alten Eintrag an, startet sofort der normale Desktop und
   AluPC im Hintergrund. Tastenkürzel `Strg+Alt+O` entfällt.
 - **Anmeldeseite (Captive Portal) entfernt.** Keine DNS-Umleitung, kein Port 80, kein „Internet je Gerät“ mehr, kein
-  Administrator-Skript beim WLAN-Start. Stattdessen zeigt jede Seite auf Monitor 2 zwei Codes: **1. WLAN, 2. direkt
+  Administrator-Skript beim WLAN-Start. Stattdessen zeigt jede Seite auf dem Bildschirm zwei Codes: **1. WLAN, 2. direkt
   die Seite** (Minispiel-Lobby, Abstimmung, Chat, Foto-Wand, Schiffe versenken; Whiteboard: Codes unten rechts auf
   der Tafel, solange Gäste schreiben dürfen). Steuern weiter nur mit dem privaten Steuer-Code am PC oder „Am PC
   freigeben lassen“. Hat der PC Internet, haben es die Handys im AluPC-WLAN auch (wie bei jedem Hotspot).
@@ -61,8 +70,8 @@
   Warnung von pactl die Ausgabe kaputt. Jetzt: Rückfall auf die normale Textausgabe (immer auf Englisch gelesen),
   Warnungen werden getrennt. Mit echtem PulseAudio geprüft – beide Wege liefern dieselben Geräte. Findet AluPC
   trotzdem nichts, steht auf der Seite „Audio“ jetzt der Grund (Version, Rohliste) statt nur „Keine Geräte“.
-- **Kamera, Handy-Live-Bild und Live-Ansicht zeigen bei „Erweitern“ den echten Bildschirm** von Monitor 2 statt des
-  Hinweises „Monitor 2: normaler Bildschirm“ (eine gemeinsame Aufnahme; unter KDE/Wayland über KWin ohne Nachfrage).
+- **Kamera, Handy-Live-Bild und Live-Ansicht zeigen bei „Erweitern“ den echten Bildschirm** vom Bildschirm statt des
+  Hinweises „Bildschirm: normaler Bildschirm“ (eine gemeinsame Aufnahme; unter KDE/Wayland über KWin ohne Nachfrage).
   Geht die Aufnahme nicht, kommt ein dunkles Bild mit kleinem Grund unten.
 - **Linux: AluPC ersetzt den Desktop jetzt wirklich** (wie unter Windows). Unter KDE/Wayland läuft AluPC als Desktop
   über XWayland – nur so ist die Oberfläche für KWin ein echter Desktop (nicht minimierbar/schließbar, ganz unten) und
@@ -83,11 +92,11 @@
 
 ### Davor: 0.135.0
 - **Schiffe versenken – zu zweit auf zwei Bildschirmen:** Spieler 1 spielt im Fenster auf Monitor 1 (Maus: links
-  Schiffe setzen, Rechtsklick/Mausrad dreht, rechts schießen), Spieler 2 auf Monitor 2 – **mit dem Handy/iPad**
-  (Anmeldeseite → „Schiffe versenken“ oder Code auf Monitor 2, nur übers AluPC-WLAN) **oder an der Tastatur**
+  Schiffe setzen, Rechtsklick/Mausrad dreht, rechts schießen), Spieler 2 auf dem Bildschirm – **mit dem Handy/iPad**
+  (Anmeldeseite → „Schiffe versenken“ oder Code auf dem Bildschirm, nur übers AluPC-WLAN) **oder an der Tastatur**
   (Pfeile, Enter, R drehen, Z zufällig, B bereit). Jeder sieht nur die eigenen Schiffe. Start: Minispiele-Fenster,
   Befehlssuche oder Sprache („Schiffe versenken“).
-- **Live-Ansicht von Monitor 2** (Bild-in-Bild) ist jetzt ein richtiges Fenster: frei ziehen, **Vollbild auf
+- **Live-Ansicht vom Bildschirm** (Bild-in-Bild) ist jetzt ein richtiges Fenster: frei ziehen, **Vollbild auf
   Monitor 1** (Doppelklick oder F11, Esc zurück), „Immer oben“ an/aus.
 - **Whiteboard für Gäste:** Einstellung „Gäste im AluPC-WLAN“ – *Aus*, *Alle dürfen schreiben* oder *Nur nach
   Erlaubnis* (am PC erscheint „Erlauben / Ablehnen“). Gäste öffnen auf der Anmeldeseite „Whiteboard“, sehen die Tafel
@@ -113,12 +122,12 @@
 
 ### Davor: 0.133.0
 Nach einem Test unter Kubuntu:
-- **Overlays auf Monitor 2 unter Linux repariert:** Zeigt Monitor 2 ein AluPC-Bild, liegen Overlays (auch der Chat)
+- **Overlays auf dem Bildschirm unter Linux repariert:** Zeigt Bildschirm ein AluPC-Bild, liegen Overlays (auch der Chat)
   jetzt als Ebene direkt in diesem Fenster – gleiche Skalierung, sicher obendrauf. Vorher waren sie unter Wayland ein
   eigenes Fenster, das hinter dem Bild lag (Vorschau zeigte den Chat, der Beamer nicht) und nach Klick in die
-  Taskleiste falsch skaliert vorne klebte. Bei „Erweitern“ legt KWin das Overlay-Fenster jetzt genau auf Monitor 2
+  Taskleiste falsch skaliert vorne klebte. Bei „Erweitern“ legt KWin das Overlay-Fenster jetzt genau auf dem Bildschirm
   (nicht in die Taskleiste). Gleich unter Windows und Linux.
-- **„Overlays aus“ blendet alles aus** – auch den Chat auf Monitor 2.
+- **„Overlays aus“ blendet alles aus** – auch den Chat auf dem Bildschirm.
 - **Ton unter Kubuntu:** AluPC braucht `pactl` – das kommt nicht mit PipeWire, sondern mit „pulseaudio-utils“. Das
   Paket hängt jetzt davon ab; fehlt es trotzdem, zeigt „Audio & Kamera“ das klar an mit Knopf „Installieren“.
 - **Hotspot unter Linux robuster:** prüft vorher, ob die WLAN-Karte einen Hotspot kann (AP-Modus), versucht es
@@ -138,7 +147,7 @@ Nach einem Test unter Kubuntu:
   (änderbar unter Setup → Tastenkürzel).
 - Behoben: Unter Linux/X11 konnte ein Fehler beim Platz-Reservieren für die Taskleiste (System-Desktop) AluPC
   sofort beenden – wird jetzt abgefangen.
-- **Handbuch (PDF) neu:** vorne eine Anleitung (Start, Monitor 2, Handy, Spiele, Whiteboard, AluPC als Desktop,
+- **Handbuch (PDF) neu:** vorne eine Anleitung (Start, Bildschirm, Handy, Spiele, Whiteboard, AluPC als Desktop,
   Dual-Boot-Abgleich, Grenzen), hinten wie bisher alle Screens.
 
 ### Davor: 0.131.0
@@ -189,7 +198,7 @@ Nach einem Test unter Kubuntu:
 - **Whiteboard wie ein Notizbuch (ähnlich GoodNotes):**
   - **Richtig zoomen:** Strg+Mausrad oder zwei Finger (Touchscreen, Handy, iPad) zoomen genau an der Stelle unter
     der Maus bzw. den Fingern (25 % bis 800 %), Mausrad/Leertaste+Ziehen/mittlere Maustaste verschieben, „0“ = ganze
-    Seite. Monitor 2 zeigt immer genau denselben Ausschnitt.
+    Seite. Der Bildschirm zeigt immer genau denselben Ausschnitt.
   - **Seiten:** beliebig viele Seiten mit eigenem Papier (Kariert, Liniert, Punkte, Millimeter, Tafel …), Leiste mit
     Vorschaubildern, Bild↑/Bild↓. Formate: 16:9, A4 hoch, A4 quer oder unendlich.
   - **Werkzeuge:** Stift mit Druckstärke (Grafiktablett, Stift, Apple Pencil) und Glättung, Marker (durchscheinend),
@@ -210,10 +219,10 @@ Nach einem Test unter Kubuntu:
 - **AluPC-Oberfläche = eigener Desktop:**
   - **Desktop-Ordner automatisch:** Dateien, Ordner und Verknüpfungen von deinem Desktop erscheinen als Symbole
     (Ordner zuerst, Bilder als Vorschau, Programme mit Logo). Neue Dateien tauchen von selbst auf.
-  - **Frei verschiebbar:** Symbole (am Raster oder ganz frei) und Widgets (Uhr, Monitor 2, AluPC-Aktionen) einfach
+  - **Frei verschiebbar:** Symbole (am Raster oder ganz frei) und Widgets (Uhr, Bildschirm, AluPC-Aktionen) einfach
     ziehen – die Position wird gemerkt. Doppelklick öffnet, Rechtsklick: Öffnen, Im Ordner zeigen, Anordnen.
   - **Eigene Taskleiste:** Start-Knopf mit Startmenü (Suche + „Frag AluPC“, alle Programme mit Logos), angeheftete
-    Programme, offene Fenster mit Logo; rechts Monitor 2, AluPC-WLAN, Lautstärke (mit Regler), Akku, Uhr, Anpassen.
+    Programme, offene Fenster mit Logo; rechts Bildschirm, AluPC-WLAN, Lautstärke (mit Regler), Akku, Uhr, Anpassen.
   - **Echte App-Logos:** Windows aus den Verknüpfungen, Linux aus dem Icon-Theme – und wenn Qt kein Theme kennt,
     sucht AluPC selbst (hicolor, Breeze, Adwaita, Papirus, Pixmaps, Flatpak). Erst ohne Treffer: Buchstaben-Kachel.
   - **Anpassen:** Hintergrund (Aurora oder eigenes Bild), Symbolgröße, Raster, Taskleiste mittig/links, Uhr mit
@@ -222,10 +231,10 @@ Nach einem Test unter Kubuntu:
 
 ### Davor: 0.126.0
 - **Chat als Pop-up:** Seite „Gäste“ → Anzeige „Pop-up (kurz, ohne QR)“: jede neue Nachricht ploppt auf
-  Monitor 2 auf (mit Rand in der Namensfarbe), bleibt ein paar Sekunden (Standard 8 s) und blendet aus – ohne
+  Bildschirm auf (mit Rand in der Namensfarbe), bleibt ein paar Sekunden (Standard 8 s) und blendet aus – ohne
   QR-Code, ohne Liste. Auch im Overlay-Editor und als Befehl „Chat als Pop-up / Liste umschalten“.
 - **AluPC-Oberfläche komplett neu:** Aurora-Hintergrund in der Akzentfarbe, große Uhr, Suche als Pille,
-  Programme mit echten Symbolen (sonst farbige Buchstaben-Kacheln), Monitor 2 mit Live-Bild und leuchtenden
+  Programme mit echten Symbolen (sonst farbige Buchstaben-Kacheln), Bildschirm mit Live-Bild und leuchtenden
   Schaltern, bunte AluPC-Aktionen, Lautstärke, offene Fenster und ein schwebendes **Dock** (AluPC, Gäste, Audio,
   Einstellungen, angeheftete Programme, Sperren, Energie). Passt sich kleinen Bildschirmen an.
 - **Neues Hintergrundbild fürs System („Aurora“):** weiche Farbwolken und seidige Lichtbänder in den
@@ -237,7 +246,7 @@ Nach einem Test unter Kubuntu:
   vor dem Release gefunden, Test prüft das jetzt streng.
 
 ### Davor: 0.125.0
-- **Handy-Steuerung fürs iPad:** ab Tablet-Breite Leiste links statt unten, Live-Bild und „Monitor 2“ oben, Karten
+- **Handy-Steuerung fürs iPad:** ab Tablet-Breite Leiste links statt unten, Live-Bild und „Bildschirm“ oben, Karten
   zweispaltig; quer bleibt das Live-Bild links stehen, die Steuerung scrollt daneben. **Zeichnen** mit großem Bild
   und Werkzeugen daneben, **Folien** mit riesigen Weiter/Zurück-Knöpfen und großem Touchpad nebeneinander,
   **Senden** in Spalten. Größere Knöpfe, Farbe Weiß auch im hellen Modus sichtbar. Handy-Ansicht wie gewohnt.
@@ -248,23 +257,23 @@ Nach einem Test unter Kubuntu:
 
 Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
 - **Chat per QR (Seite „Gäste“):** Handys schreiben übers AluPC-WLAN (Anmeldeseite → „Chat“ oder Seiten-Code),
-  die Nachrichten erscheinen **direkt als Overlay** auf Monitor 2 (mit QR-Code zum Mitschreiben) oder als große
+  die Nachrichten erscheinen **direkt als Overlay** auf dem Bildschirm (mit QR-Code zum Mitschreiben) oder als große
   Chat-Wand. Schutz: Schimpfwörter-Filter + eigene Wörter, Links ausgeblendet, höchstens 4 Nachrichten in 10 s je
   Handy. Am PC: Nachrichten löschen, Handy sperren, leeren, als „AluPC“ schreiben. Chat-Overlay auch im
   Overlay-Editor (Vorlage „Chat“).
-- **Foto-Wand:** Fotos vom Handy (auch mehrere, auf dem Handy verkleinert) – auf Monitor 2 als Collage
+- **Foto-Wand:** Fotos vom Handy (auch mehrere, auf dem Handy verkleinert) – auf dem Bildschirm als Collage
   (Polaroids) oder Diashow, neue Fotos kommen erst groß. Am PC: Vorschau, entfernen (Datei weg), Handy sperren,
   Wand leeren, Ordner „Bilder/AluPC Foto-Wand“.
 - **Mischpult (Seite „Audio & Kamera“):** Kanalzüge für alle Ausgänge, Eingänge und **jedes Programm** mit Regler,
   Pegel (dB), Stumm und Standardgerät; Programme auf andere Ausgänge legen (Linux; Windows: Einstellungen).
   **Virtuelle Geräte:** virtuelles Mikro + virtueller Ausgang, unter Linux beliebig viele dazu („+ Mikro“,
   „+ Ausgang“) und wieder entfernen; Ton weiterleiten per Knopf (Mikro → virtuelles Mikro, Mithören).
-- **Monitor 2 als virtuelle Kamera** („AluPC Monitor 2“, Windows „OBS Virtual Camera“) – mit Overlays und
+- **Bildschirm als virtuelle Kamera** („AluPC Bildschirm“, Windows „OBS Virtual Camera“) – mit Overlays und
   Zeichnungen, 540p/720p/1080p, 5–60 Bilder/s, spiegelbar.
 - **Installer:** Windows-Installer bietet VB-CABLE (virtuelles Mikro) und die virtuelle Kamera (OBS-Kamera über
   winget) an; Linux-Installationsskript richtet v4l2loopback ein. Später auch per „Einrichten“ in AluPC.
 - **AluPC-Oberfläche (Strg+Alt+O):** Vollbild statt Desktop – Uhr, Suche/„Frag AluPC“, Programme (anheftbar), offene
-  Fenster, Lautstärke, Monitor 2 live, Gäste, Energie; optional beim Start.
+  Fenster, Lautstärke, Bildschirm live, Gäste, Energie; optional beim Start.
 - **Design fürs System:** Setup → Darstellung → „AluPC-Design aufs System“: Akzentfarbe (die gewählte, nicht nur
   AluPC-Blau), Hell/Dunkel und ein passendes Hintergrundbild für Windows bzw. KDE; zieht bei Änderungen mit,
   „Zurück“ stellt alles wieder her.
@@ -276,24 +285,24 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   (Kamera mit nachgebautem Treiber getestet), Hintergrundbild/Hell-Dunkel auf echtem KDE.
 
 ### Neu in Version 0.123.0
-- **Wieder 2 QR-Codes auf Monitor 2:** 1. AluPC-WLAN, 2. „Seite öffnen“ (Name, Symbol, Mitspielen, Abstimmen).
+- **Wieder 2 QR-Codes auf dem Bildschirm:** 1. AluPC-WLAN, 2. „Seite öffnen“ (Name, Symbol, Mitspielen, Abstimmen).
   Der zweite Code öffnet die Seite im normalen Browser – sie bleibt offen, auch wenn das Anmeldefenster des Handys
   von selbst zugeht. Gilt für den WLAN-Bildschirm, die Spiele-Lobby und die Anleitung „Handy fliegt aus dem WLAN?“.
 - **Steuern ist privat:** Adresse + Code zum Steuern gibt es nur als QR-Code im Fenster am PC (Hotspot-Fenster,
-  „Handy verbinden“) – nie auf Monitor 2. Wer ihn scannt (im AluPC-WLAN), steuert sofort.
+  „Handy verbinden“) – nie auf dem Bildschirm. Wer ihn scannt (im AluPC-WLAN), steuert sofort.
 - Anleitung ergänzt: „Anmeldefenster geht zu? Zweiten QR-Code scannen.“
-- Geprüft: 444 Tests; QR-Codes mit echtem Decoder gelesen (Monitor 2: genau WLAN + Seite, kein Steuer-Code;
+- Geprüft: 444 Tests; QR-Codes mit echtem Decoder gelesen (Bildschirm: genau WLAN + Seite, kein Steuer-Code;
   PC-Fenster: Steuer-Code); WLAN-Anmeldeseite mit virtuellem Handy 30/30. Nicht geprüft: echte Handys – vor allem,
   ob Android die Seite im Browser lädt, solange mobile Daten an sind (sonst: mobile Daten aus).
 
 ### Neu in Version 0.122.0
-- **Anleitung „Handy fliegt aus dem WLAN?“ groß auf Monitor 2:** Hotspot-Kachel → Menü „Handy fliegt aus dem WLAN? –
-  Anleitung auf Monitor 2“ oder im Hotspot-Fenster bei der Anleitung „Auf Monitor 2 zeigen“. Zeigt WLAN-Code, Name,
+- **Anleitung „Handy fliegt aus dem WLAN?“ groß auf dem Bildschirm:** Hotspot-Kachel → Menü „Handy fliegt aus dem WLAN? –
+  Anleitung auf dem Bildschirm“ oder im Hotspot-Fenster bei der Anleitung „Auf dem Bildschirm zeigen“. Zeigt WLAN-Code, Name,
   Passwort und die Schritte für Android, iPhone/iPad und „Klappt immer“ – quer und hochkant.
 - **Anleitung überarbeitet:** Android zuerst „Mobile Daten ausschalten“; „Dieses Netzwerk unverändert verwenden“
   gibt es nicht auf jedem Handy (z. B. Nothing Phone nicht). Sicher klappt nur: im Hotspot-Fenster beim Handy den
   Haken „Internet“ setzen – ein Handy ohne Internet im WLAN kann Android jederzeit wieder verlassen.
-- Gleicher Text überall (Monitor 2, Hotspot-Fenster, Anmeldeseite am Handy).
+- Gleicher Text überall (Bildschirm, Hotspot-Fenster, Anmeldeseite am Handy).
 - Geprüft: 443 Tests; WLAN-Anmeldeseite mit virtuellem Handy 29/29; Anzeige in 1920×1080, 1280×720, 1080×1920
   und 768×1366 angesehen. Nicht geprüft: echte Handys.
 
@@ -322,7 +331,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   442 Tests. Nicht geprüft: echte Handys im echten WLAN.
 
 ### Neu in Version 0.119.0
-- **Drei neue Retro-Minispiele** (Handy = Controller, alle gleichzeitig auf Monitor 2):
+- **Drei neue Retro-Minispiele** (Handy = Controller, alle gleichzeitig auf dem Bildschirm):
   - **👾 Space Invaders** – alle zusammen gegen die Aliens: Schieberegler = Raumschiff, FEUER (gedrückt halten =
     Dauerfeuer), 3 Leben, jede Welle schneller; kommen die Aliens unten an, ist es für alle vorbei.
   - **🐤 Flappy Bird** – tippen = flattern, alle durch dieselben Röhren, wer am weitesten kommt, gewinnt
@@ -394,7 +403,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
 ### Neu in Version 0.114.0
 - **Anmeldeseite immer erreichbar:** Android öffnet sie oft nur beim ersten Verbinden von selbst (danach nur die
   Benachrichtigung „Im WLAN anmelden“). Jetzt geht immer: im Browser die Hotspot-Adresse eingeben (z. B.
-  192.168.137.1) → Anmeldeseite. Monitor 2 zeigt die Adresse unter dem WLAN-Code („Nicht offen? …“).
+  192.168.137.1) → Anmeldeseite. Der Bildschirm zeigt die Adresse unter dem WLAN-Code („Nicht offen? …“).
 - **Anmeldeseite bleibt offen:** Windows schaltete den Hotspot im Energiesparmodus ab, wenn kurz kein Gerät
   verbunden war – jetzt abgeschaltet. Die Internet-Sperre wird nur noch geändert, wenn nötig (vorher alle 2 s neu
   gesetzt = jedes Mal eine Netzwerk-Meldung).
@@ -409,7 +418,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
 ### Neu in Version 0.113.0
 - **Videosteuerung am Handy:** Stelle per Leiste wählen (mit Zeit), −30/−10/+10/+30 s, Abspielen/Pause,
   Tempo 0,5×–2×, „Von vorn“, „Wiederholen“ an/aus. Neu: **„Weiterschauen“** – die zuletzt geschauten Videos mit
-  gemerkter Stelle; antippen = auf Monitor 2 genau dort weiter.
+  gemerkter Stelle; antippen = auf dem Bildschirm genau dort weiter.
 - **Auch am PC:** Medienleiste → „Mehr“ (±30 s, Tempo, Wiederholen, Von vorn, Weiterschauen); Medien-Menü →
   „Weiterschauen“.
 - **Ton am PC (Handy und System-Seite):** Lautsprecher und Mikrofon getrennt – genaue Lautstärke, stumm an/aus und
@@ -479,8 +488,8 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
 ### Neu in Version 0.108.0
 - **AluPC ist jetzt ins System eingebunden** (Linux und Windows gleich; Einstellungen → Allgemein → „Im System“,
   an ab Werk, abschaltbar, wird bei Deinstallation/„Alle Daten löschen“ entfernt):
-  - **Rechtsklick auf Bild, Video oder PDF → „Auf Monitor 2 zeigen“**, auf einen Ordner → „Als Diashow auf
-    Monitor 2“. Dolphin (KDE) bzw. Explorer (Windows 11: unter „Weitere Optionen anzeigen“).
+  - **Rechtsklick auf Bild, Video oder PDF → „Auf dem Bildschirm zeigen“**, auf einen Ordner → „Als Diashow auf
+    Bildschirm“. Dolphin (KDE) bzw. Explorer (Windows 11: unter „Weitere Optionen anzeigen“).
   - **Links `alupc://…`** steuern AluPC von überall (Browser-Lesezeichen, Verknüpfung, Stream Deck …):
     `alupc://standbild`, `alupc://schwarz`, `alupc://szene/Pause`, `alupc://naechste-szene` … Nur harmlose
     Befehle – nichts, was Programme startet, den PC sperrt oder ausschaltet.
@@ -497,7 +506,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
     über IPv6 (unter Linux jetzt ausgeschaltet bzw. gesperrt). So bleibt das Anmeldefenster offen.
   - Hotspot-Fenster → **„Geräte im WLAN“**: jedes Gerät mit Name (von der Anmeldeseite), Adresse und MAC – Haken
     setzen = dieses Gerät darf ins Internet. Gilt für das Gerät, auch beim nächsten Mal.
-- **Abstimmen nur noch übers WLAN** – wie alles andere: Monitor 2 zeigt den WLAN-Code, auf der Anmeldeseite
+- **Abstimmen nur noch übers WLAN** – wie alles andere: Der Bildschirm zeigt den WLAN-Code, auf der Anmeldeseite
   erscheint „📊 Abstimmen“.
 - **Fotos senden geht wieder:** „AluPC steuern“ → am PC erlauben → Foto. Geht die Kamera im Anmeldefenster nicht
   (manche Handys erlauben dort keine Dateien), steht auf der Seite, wie man in den Browser wechselt – dort ist das
@@ -533,10 +542,10 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   - Neues Skript bedient jede Einstellung im Setup echt (gespeichert, zurückstellbar, wirkt) – Linux und Windows.
     Dabei gefunden und behoben:
     - Windows: Autostart ging nicht, wenn der „Run“-Eintrag in der Registry noch fehlte (neues Benutzerkonto).
-    - Fette Texte auf Monitor 2 wurden manchmal abgeschnitten.
+    - Fette Texte auf dem Bildschirm wurden manchmal abgeschnitten.
     - Ein altes Testfenster färbte das Theme um (nur Tests betroffen).
   - Anmeldeseite echt (Linux-Netz bzw. Windows-Internetfreigabe + Container-Handy):
-    - Monitor 2 zeigt genau 1 QR-Code = WLAN (echter Decoder),
+    - der Bildschirm zeigt genau 1 QR-Code = WLAN (echter Decoder),
     - Anmeldeseite → mitspielen, „AluPC steuern“ → am PC fragen,
     - ein Handy aus einem anderen Netz bekommt überall 403.
     Dabei gefunden und behoben: Geräte außerhalb des WLANs wurden zur Anmeldeseite umgeleitet.
@@ -632,9 +641,9 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   der Windows-Hotspot die Umleitung an die Handys weitergibt, der echte Dual-Boot-Abgleich nach dem Zurücksetzen.
 
 ### Neu in Version 0.101.0
-- **WLAN-QR-Code auf Monitor 2:** Hotspot-Kachel → Pfeil → „WLAN-QR-Code auf Monitor 2“ (oder im Hotspot-Fenster
-  „QR auf Monitor 2“). Groß, mit Name und Passwort – Handys scannen ihn von dort.
-- **Minispiele ohne WLAN-QR-Code:** Lobby auf Monitor 2 und „QR groß“ zeigen nur noch den Spiel-Code.
+- **WLAN-QR-Code auf dem Bildschirm:** Hotspot-Kachel → Pfeil → „WLAN-QR-Code auf dem Bildschirm“ (oder im Hotspot-Fenster
+  „QR auf dem Bildschirm“). Groß, mit Name und Passwort – Handys scannen ihn von dort.
+- **Minispiele ohne WLAN-QR-Code:** Lobby auf dem Bildschirm und „QR groß“ zeigen nur noch den Spiel-Code.
 - **Anmeldeseite auch beim normalen Hotspot:** WLAN-QR scannen → das Handy öffnet „Im WLAN anmelden“ →
   **Mitspielen** (wenn Minispiele laufen) oder **AluPC steuern** (Freigabe am PC).
 - Linux: Umgeleitet werden nur noch Anfragen an den PC selbst – normales Surfen über den Hotspot bleibt unberührt.
@@ -885,14 +894,14 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
 - **Stimme anlernen geht jetzt immer:** Knopf ist nicht mehr gesperrt; der Dialog lädt die Stimmerkennung selbst,
   startet das Zuhören kurz selbst (auch wenn Sprachbefehle aus sind) und zeigt, was er hört.
 - **Bildschirmschoner:** neue Zeile „Zustand“ im Setup sagt, ob er läuft und warum er gerade nicht startet (z. B.
-  „Automatisch: aus“, „Monitor 2 zeigt gerade etwas – „Wann: Immer“ wählen“, Leerlauf in Sekunden).
+  „Automatisch: aus“, „Der Bildschirm zeigt gerade etwas – „Wann: Immer“ wählen“, Leerlauf in Sekunden).
 - Ehrlich: in der CI läuft das nur in virtuellen Maschinen ohne echtes Mikrofon; ob die Leistungswerte auf deinem
   PC genau zum Task-Manager bzw. KDE-Systemmonitor passen, konnte ich nicht vergleichen.
 
 ### Neu in Version 0.83.0
 - **Ganz normal sprechen** statt fester Befehle: „Alu PC, mach mal den Bildschirm schwarz“, „… Licht auf blau“,
   „… Timer auf fünf Minuten“, „… kein Standbild mehr“, „… zeig mir die Kamera“. An und aus gehen gezielt.
-- **Bessere Antworten:** passend zum Zustand („Monitor 2 ist schon schwarz“), echte Antworten auf Fragen
+- **Bessere Antworten:** passend zum Zustand („Der Bildschirm ist schon schwarz“), echte Antworten auf Fragen
   (Uhrzeit, Datum, Wetter, Prozessor-Temperatur, Auslastung, was läuft, „Was kannst du?“, Witz).
 - **Startwort zuverlässiger:** Das kleine Sprachmodell hört „Alu PC“ oft als „Hallo PC“ (in der CI gemessen) –
   das zählt jetzt auch. „Hallo“ allein nicht.
@@ -910,7 +919,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   Lüfter und die Programme mit der meisten Last (mit „Beenden“).
 - **Steuerung:** Sperren, Energie sparen, Neu starten, Herunterfahren (mit Rückfrage), RGB an/aus und
   Farbe, „RGB & Lüfter …“, Systemüberwachung öffnen.
-- **System-Dashboard auf Monitor 2:** Knopf „Auf Monitor 2“, neue Kachel „System“ und Sprachbefehl
+- **System-Dashboard auf dem Bildschirm:** Knopf „Auf dem Bildschirm“, neue Kachel „System“ und Sprachbefehl
   „Alu PC, System“.
 - **Installer mit RGB & Lüftern:** Windows-Installer bietet OpenRGB (vorausgewählt) und FanControl
   (abgewählt) über winget an. Das .deb empfiehlt lm-sensors, i2c-tools, openrgb und lädt `i2c-dev`.
@@ -926,7 +935,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   Befehle, Szenen, eigene Kacheln). Eigene Sätze gehen vor den eingebauten.
 - **Minispiele per Sprache:** „Alu PC, Spiel Pong“ (Spiel wählen), „… nächste Frage“, „… Ergebnis zeigen“,
   „… Lobby“, „… Teams mischen“, „… Töne aus“. „Alu PC, weiter“ im laufenden Spiel = nächste Frage/Runde.
-- **Minispiele: Avatare** – beim Beitreten ein Tier oder Symbol wählen, es erscheint auf Monitor 2.
+- **Minispiele: Avatare** – beim Beitreten ein Tier oder Symbol wählen, es erscheint auf dem Bildschirm.
 - **Minispiele: Vibration** bei „raus“, falsch, Treffer, Tor, Plopp, Sieg … – nur Android (iPhones können das im
   Browser nicht).
 - **Videos weiterschauen oder von vorn:** Bei Videos ab 2 Minuten merkt sich AluPC die Stelle. Beim nächsten
@@ -956,10 +965,10 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   einmal herunterladen (ca. 45 MB), einschalten, Mikrofon wählen. Alles bleibt auf dem PC (Vosk). Ohne das Wort
   „Monitor“ passiert nichts; „Monitor zwei …“ geht auch.
 - **Bestenliste des Abends** für die Minispiele: Punkte aus allen Spielen, Taste **B** im Steuerfenster zeigt sie
-  animiert auf Monitor 2, Lobby und Handys zeigen den Stand. Bleibt bis 6 Uhr früh erhalten (auch nach Neustart).
+  animiert auf dem Bildschirm, Lobby und Handys zeigen den Stand. Bleibt bis 6 Uhr früh erhalten (auch nach Neustart).
 - **Töne für die Minispiele:** 3-2-1, Los, richtig/falsch, raus, Plopp, Treffer, Tor, Fanfare, Simon-Töne.
   An/aus mit Taste **S** im Steuerfenster.
-- **Whiteboard vom Handy:** im Tab *Zeichnen* Hintergrund antippen → Whiteboard auf Monitor 2.
+- **Whiteboard vom Handy:** im Tab *Zeichnen* Hintergrund antippen → Whiteboard auf dem Bildschirm.
 - Ehrlich: Die Spracherkennung habe ich nur mit nachgebauter Erkennung getestet – das echte Sprachmodell und ein
   echtes Mikrofon konnte ich hier nicht ausprobieren. Wie gut sie dich versteht, zeigt sich erst bei dir
   (unter Setup → Sprache steht, was AluPC gehört hat).
@@ -979,7 +988,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
 ### Neu in Version 0.77.0
 - **7 neue Minispiele** (jetzt 10):
   - **Schätzen** – knapp 300 Fragen in 8 Themen, Thema und Anzahl wählbar; Auflösung auf einem Zahlenstrahl.
-  - **Malen & Raten** – einer malt auf dem Handy (live auf Monitor 2), die anderen raten.
+  - **Malen & Raten** – einer malt auf dem Handy (live auf dem Bildschirm), die anderen raten.
   - **Farb-Chaos** (Stroop) – Farbe oder Wort tippen; wer falsch liegt, ist raus.
   - **Simon sagt** – Farbfolge merken; alle gleichzeitig, ein Fehler und man ist raus.
   - **Tauziehen** und **Pong** – Team Rot gegen Team Blau.
@@ -995,7 +1004,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   noch nicht mit vielen echten Handys gleichzeitig im WLAN.
 
 ### Neu in Version 0.76.0
-- **Minispiele – das Handy ist der Controller:** neue Kachel *Minispiele* (Bereich Handy). Monitor 2 zeigt eine
+- **Minispiele – das Handy ist der Controller:** neue Kachel *Minispiele* (Bereich Handy). Der Bildschirm zeigt eine
   Lobby mit QR-Code → scannen, Namen eingeben, mitspielen (ohne App, bis 12 Spieler). Start am Handy oder am PC.
   - **Schlangen-Party** – Steuerkreuz oder wischen, 90 Sekunden, wer am meisten frisst, gewinnt.
   - **Schnellster Finger** – bei GRÜN zuerst tippen (3/2/1 Punkte, zu früh = −1), 5 Runden.
@@ -1036,7 +1045,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
 - Test „Bildschirmschoner“ robuster (Feuerwerk ist zufällig – 0.72.0 war daran im Windows-Build gescheitert und
   wurde deshalb nicht veröffentlicht; alles aus 0.72 steht hier mit drin):
 - **Glücksrad dreht nicht mehr von selbst:** Die Kachel zeigt das Rad nur. Gedreht wird mit **„Drehen“** – neuer
-  Knopf in der Seitenleiste (erscheint, solange das Rad auf Monitor 2 ist), im Pfeil-Menü, per Befehl
+  Knopf in der Seitenleiste (erscheint, solange das Rad auf dem Bildschirm ist), im Pfeil-Menü, per Befehl
   `gluecksrad_drehen`, Finger-Schnelltaste oder Handy.
 - **Menüs überarbeitet:** runde Ecken, Überschriften (z. B. HINTERGRUND, TAFEL), die aktuelle Auswahl ist fett mit
   Haken (Kamera, Whiteboard-Hintergrund), sichtbare Häkchen-Kästchen, Symbole im Timer-Menü, runde
@@ -1070,7 +1079,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   Entsperren draufliegt). AluPC lässt das Modul in Ruhe, solange es selbst anlernt oder testet.
   *Ehrlich:* mit einem nachgebauten Modul getestet, nicht mit dem echten ZW101. Unter Linux kann eine
   gleichzeitige sudo-Abfrage per Finger mit der Schnelltaste kollidieren (dann einfach nochmal auflegen).
-- **Abstimmung per Handy** (neue Kachel): Frage + 2–6 Antworten → Monitor 2 zeigt QR-Code und Live-Balken.
+- **Abstimmung per Handy** (neue Kachel): Frage + 2–6 Antworten → der Bildschirm zeigt QR-Code und Live-Balken.
   Abstimmen ohne App und ohne den Code der Handy-Steuerung. Beenden zeigt das Ergebnis.
   *Ehrlich:* Wer die Browserdaten löscht, kann nochmal abstimmen.
 - **Glücksrad** (neue Kachel): Namen eintragen oder die Personen vom Fingerabdruck nehmen; fair gezogen;
@@ -1115,15 +1124,15 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   blieb der Player beim alten stehen. AluPC erkennt das jetzt und startet ihn mit dem neuen Bild neu.
 
 ### Neu in Version 0.64.0
-- **AirPlay flüssiger (vor allem Linux/VM):** AluPC meldet dem iPhone/iPad jetzt die Größe von Monitor 2
+- **AirPlay flüssiger (vor allem Linux/VM):** AluPC meldet dem iPhone/iPad jetzt die Größe vom Bildschirm
   (höchstens 1920×1080). Das Gerät schickt dann nicht mehr Pixel als nötig. Gemessen bei 1280×720 statt iPad-
   Auflösung: ~3,7 statt ~10 ms Rechenzeit je Bild in AluPC – dazu weniger Arbeit beim Dekodieren. Gilt auch
   für ältere UxPlay-Versionen mit eigenem Fenster.
 
 ### Neu in Version 0.63.0
-- **Behoben (Linux): AluPC öffnete sich auf Monitor 2** – man musste es jedes Mal zurückziehen. Wayland lässt
+- **Behoben (Linux): AluPC öffnete sich auf dem Bildschirm** – man musste es jedes Mal zurückziehen. Wayland lässt
   Programme ihr Fenster nicht selbst platzieren; AluPC bittet jetzt KDE, es mittig auf Monitor 1 zu legen (auch
-  wenn es beim Wiederholen aus der Taskleiste auf Monitor 2 landet).
+  wenn es beim Wiederholen aus der Taskleiste auf dem Bildschirm landet).
 
 ### Neu in Version 0.62.0
 - **Behoben: Bild-in-Bild wurde von anderen Fenstern verdeckt.** KDE (Wayland) ignoriert „immer im
@@ -1134,7 +1143,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
 
 ### Neu in Version 0.61.0
 **Neu: Whiteboard**
-- Kachel „Whiteboard“: Monitor 2 wird zur Tafel, „Zeigen & Zeichnen“ öffnet sich gleich mit dem Stift.
+- Kachel „Whiteboard“: Der Bildschirm wird zur Tafel, „Zeigen & Zeichnen“ öffnet sich gleich mit dem Stift.
   Hintergründe (Pfeil an der Kachel): Weiß, Kariert, Liniert, Punkteraster, Millimeterpapier,
   Koordinatensystem, Notenlinien, grüne Tafel, schwarze Tafel, Blaupause. Die Stiftfarbe passt sich an
   (hell auf Tafeln, dunkel auf Papier). „Tafel wischen“ löscht alles Gezeichnete.
@@ -1147,7 +1156,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   kann weiter durchklicken). Das Fenster zeigt, welcher Weg gilt.
 - „Alle aus“ nutzt das Energiesparen des Systems (Windows, KDE, X11). Einzelne Monitore schaltet AluPC per
   DDC/CI aus (wenn der Monitor das kann) und deckt sie schwarz ab.
-- Auch als eigene Kachel-Befehle: Alle Displays aus, Monitor 2 aus, Heller, Dunkler.
+- Auch als eigene Kachel-Befehle: Alle Displays aus, Bildschirm aus, Heller, Dunkler.
 
 **Design-Update**
 - Farbverläufe statt Einzelfarben: Jede Akzentfarbe hat eine Partnerfarbe (z. B. Blau → Violett) – Hauptknöpfe,
@@ -1160,7 +1169,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
 ### Neu in Version 0.60.0
 **Bildschirmschoner zuverlässig – und das System dunkelt nicht mehr ab**
 - Linux und Windows dimmen bzw. schalten die Monitore nicht mehr selbst ab, solange der Bildschirmschoner
-  eingeschaltet ist oder Monitor 2 etwas zeigt (wie bei einem Videoplayer). Einstellung: Setup →
+  eingeschaltet ist oder Bildschirm etwas zeigt (wie bei einem Videoplayer). Einstellung: Setup →
   Bildschirmschoner → „System nicht abdunkeln lassen“ (Standard an). Hinweis: Der PC sperrt sich dann auch nicht
   von selbst. Beim Beenden von AluPC darf das System wieder abdunkeln.
 - KDE meldet die Leerlaufzeit je nach Version in Millisekunden statt Sekunden (oder unter Wayland immer 0).
@@ -1183,7 +1192,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   (2048×1536). Mit einem echten iPad konnte ich nicht testen.
 
 ### Neu in Version 0.58.0
-- **Programme: „Verschieben“ entfernt.** „Programm auf Monitor 2“ zeigt jetzt nur noch die Liste der Programme –
+- **Programme: „Verschieben“ entfernt.** „Programm auf dem Bildschirm“ zeigt jetzt nur noch die Liste der Programme –
   auswählen, „Anzeigen“, fertig (AluPC zeigt eine Kopie des Fensters; das Programm bleibt, wo es ist).
 
 ### Neu in Version 0.57.0
@@ -1193,7 +1202,7 @@ Ab hier: auch neu seit 0.123 (0.124 wurde nicht einzeln veröffentlicht)
   statt bei jedem Neuzeichnen umgewandelt.
 
 ### Neu in Version 0.56.0
-- **Behoben: „Vollbildmodus nicht verfügbar“** bei YouTube & Co. auf Monitor 2. Der eingebaute Browser erlaubt
+- **Behoben: „Vollbildmodus nicht verfügbar“** bei YouTube & Co. auf dem Bildschirm. Der eingebaute Browser erlaubt
   jetzt Vollbild: Der Vollbild-Knopf der Seite lässt das Video die ganze Website-Fläche füllen (Esc oder der
   Knopf beendet es). Ist die Website Teil einer Szene mit mehreren Feldern, füllt das Video sein Feld.
 
@@ -1278,7 +1287,7 @@ statt mit „…wird dein Windows-Passwort gebraucht“ abzubrechen.
 Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschritts nicht veröffentlicht).
 
 **Design-Update und Rundum-Prüfung**
-- **Startseite ragte rechts über den Rand**, sobald etwas auf Monitor 2 lief (die Statuskarte verlangte ~925 px).
+- **Startseite ragte rechts über den Rand**, sobald etwas auf dem Bildschirm lief (die Statuskarte verlangte ~925 px).
   Die Karte wählt ihre Form jetzt selbst: breit mit beschrifteten Schnellschaltern, mittel nur mit Symbolen
   (Name als Tooltip), schmal untereinander. Nichts wird mehr abgeschnitten („Bild-in-Bil…“).
 - **Overlay-Editor:** Schnellwahl unter der Vorschau (Musik, Uhr, Bauchbinde, Laufschrift, LIVE) – ein Klick
@@ -1291,11 +1300,11 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
 
 ### Neu in dieser Version (0.49.0)
 **Linux: AirPlay-Bild jetzt direkt in AluPC (auch mit UxPlay 1.68 aus Kubuntu)**
-- Bisher zeigte UxPlay 1.68 das iPhone-Bild in einem eigenen Fenster, das AluPC auf Monitor 2 schieben musste –
+- Bisher zeigte UxPlay 1.68 das iPhone-Bild in einem eigenen Fenster, das AluPC auf dem Bildschirm schieben musste –
   unter Wayland und in VMs kam es oft nicht an (verbunden, Ton ja, Bild nein). Jetzt baut AluPC UxPlays
   Bildweg selbst: `-vd identity -vc identity -vs "rtph264pay … ! udpsink …"` – UxPlay reicht das H.264 vom
   iPhone unverändert an AluPC weiter (wie `-vrtp` ab UxPlay 1.73), AluPC zeigt es als normale Quelle.
-- Dadurch auf Monitor 2 ohne Fensterschieben, mit Übergängen, Standbild, Bild-in-Bild und Overlays darüber.
+- Dadurch auf dem Bildschirm ohne Fensterschieben, mit Übergängen, Standbild, Bild-in-Bild und Overlays darüber.
 - Geprüft: echtes UxPlay 1.68 nimmt den Bildweg an („Initialized GStreamer video renderer“, auch in der CI);
   genau diese Pipeline liefert Bilder an AluPCs Player. Ein echtes iPhone konnte nicht getestet werden.
 - „Diagnose kopieren“ zeigt, welcher Weg genutzt wird.
@@ -1308,9 +1317,9 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
 - Auch als Aktion jeder eigenen Kachel wählbar („Overlay einblenden“), mit Tastenkürzel.
 
 ### Neu in dieser Version (0.47.0)
-**Overlays – Einblendungen über allem, was Monitor 2 zeigt**
+**Overlays – Einblendungen über allem, was der Bildschirm zeigt**
 - Neue Kachel **Overlays** (Bereich Werkzeuge): Klick = an/aus, Pfeil = einzelne Overlays an/aus und
-  „Bearbeiten …“. Overlays liegen in einem eigenen durchsichtigen Fenster über Monitor 2 – also auch über dem
+  „Bearbeiten …“. Overlays liegen in einem eigenen durchsichtigen Fenster über Bildschirm – also auch über dem
   iPhone-Bild (AirPlay), einem Programm, Video, Website oder der Kamera.
 - **15 Vorlagen:** Musik (kompakt, Leiste, großes Cover, schlicht – zeigt, was der PC abspielt), Uhr, Uhr mit
   Datum, Timer, Bauchbinde, Überschrift, Laufschrift, Hinweis, Logo/Bild, QR-Code, LIVE, REC.
@@ -1323,7 +1332,7 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
   Laufschrift und LIVE-Punkt.
 
 ### Neu in dieser Version (0.46.0)
-**„Läuft gerade“ – was der PC abspielt, groß auf Monitor 2**
+**„Läuft gerade“ – was der PC abspielt, groß auf dem Bildschirm**
 - Neue Kachel **Läuft gerade**: Cover, Titel, Künstler, Album und Zeitleiste – von jedem Player, nicht nur
   Spotify: YouTube im Browser, VLC, Musik-Apps … Der Hintergrund ist das weichgezeichnete Cover; bei Pause
   erscheint ein Pause-Zeichen. Läuft nichts, steht dort „Gerade läuft nichts“.
@@ -1335,7 +1344,7 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
   Medien-Popup bei den Lautstärketasten). Fragt nur ab, solange es angezeigt wird (etwa 1× pro Sekunde).
 
 ### Neu in dieser Version (0.45.0)
-**Linux: iPad/iPhone verbunden (Ton kommt), aber kein Bild auf Monitor 2**
+**Linux: iPad/iPhone verbunden (Ton kommt), aber kein Bild auf dem Bildschirm**
 - In einer virtuellen Maschine startet AluPC UxPlay jetzt mit Software-Decoder und ohne Zeitstempel-Abgleich
   (`-avdec -vsync no`, nur wenn die UxPlay-Version das kennt). Die Uhr einer VM läuft ungleichmäßig – UxPlay hat
   dann jedes Bild als „zu spät“ verworfen: Ton ja, Bild nein.
@@ -1344,18 +1353,18 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
 - „Diagnose kopieren“ zeigt, ob AluPC eine virtuelle Maschine erkannt hat und welche UxPlay-Zusätze gelten.
 
 ### Neu in dieser Version (0.44.0)
-- **Websites/YouTube auf Monitor 2 jetzt mit Ton.** Der eingebaute Browser (Chromium) spielte Ton erst nach einem
-  Klick auf die Seite – auf Monitor 2 klickt aber niemand, also blieb es stumm („NotAllowedError“). Jetzt dürfen
-  Websites auf Monitor 2 sofort mit Ton abspielen. Geprüft mit echtem Ton-Server: vorher blockiert, jetzt läuft ein
+- **Websites/YouTube auf dem Bildschirm jetzt mit Ton.** Der eingebaute Browser (Chromium) spielte Ton erst nach einem
+  Klick auf die Seite – auf dem Bildschirm klickt aber niemand, also blieb es stumm („NotAllowedError“). Jetzt dürfen
+  Websites auf dem Bildschirm sofort mit Ton abspielen. Geprüft mit echtem Ton-Server: vorher blockiert, jetzt läuft ein
   Ton-Stream.
 - **Diagnose: Ton für AirPlay (Linux).** „Diagnose kopieren“ zeigt jetzt, ob UxPlay Ton ausgeben kann
   (AAC-Decoder, GStreamer-Ausgabe, Ton-Server mit Standard-Ausgang) und UxPlays Meldungen zum Ton.
 
 ### Neu in dieser Version (0.43.0)
 - **Linux (KDE, Wayland): Maus bleibt auf Monitor 1.** Wayland erlaubt keinem Programm, die Maus festzuhalten –
-  KWin lässt sie aber nicht über eine Lücke zwischen zwei Monitoren springen. AluPC rückt Monitor 2 darum mit
+  KWin lässt sie aber nicht über eine Lücke zwischen zwei Monitoren springen. AluPC rückt den Bildschirm darum mit
   Abstand weg, sobald die Maus auf Monitor 1 ist, und schließt die Lücke bei „Erweitern“ und beim Beenden wieder.
-  Landet die Maus doch auf Monitor 2 (z. B. Grafiktablett), geht die Lücke zu, damit sie zurück kann.
+  Landet die Maus doch auf dem Bildschirm (z. B. Grafiktablett), geht die Lücke zu, damit sie zurück kann.
   In einer virtuellen Maschine mit Mausintegration hilft das nicht (dort setzt der echte PC die Maus direkt).
 
 ### Neu in dieser Version (0.42.0)
@@ -1368,8 +1377,8 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
   Windows-Laufwerk nicht eingehängt ist.
 
 ### Neu in dieser Version (0.41.0)
-- **Linux: Spiegeln war falsch herum** (der Hauptbildschirm zeigte Monitor 2). KDE-Spiegeln legte beide Monitore
-  nur an dieselbe Stelle – welcher welchen zeigt, entschied KDE. Jetzt sagt AluPC KDE ausdrücklich „Monitor 2 ist
+- **Linux: Spiegeln war falsch herum** (der Hauptbildschirm zeigte Bildschirm). KDE-Spiegeln legte beide Monitore
+  nur an dieselbe Stelle – welcher welchen zeigt, entschied KDE. Jetzt sagt AluPC KDE ausdrücklich „Der Bildschirm ist
   eine Kopie von Monitor 1“ (KDE Plasma ab 6.1) und prüft das Ergebnis; ältere KDE-Versionen nutzen wie bisher
   die Position. „Erweitern“ hebt die Kopie wieder auf.
 
@@ -1410,14 +1419,14 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
   Aufnahmen, sieht die X11-Aufnahme nur alte X11-Programme – echte Wayland-Fenster fehlten. Jetzt versucht AluPC
   das gar nicht erst, sondern lässt KDE selbst spiegeln (kscreen-doctor): alle Fenster, Maus inklusive.
 - **Programm spiegeln statt verschieben:** Unter KDE/Wayland nimmt AluPC das gewählte Fenster jetzt über KWin
-  auf – es bleibt auf Monitor 1 und erscheint als Kopie auf Monitor 2 (auch verdeckt; nach Schließen/neuem
+  auf – es bleibt auf Monitor 1 und erscheint als Kopie auf dem Bildschirm (auch verdeckt; nach Schließen/neuem
   Dokument findet es das Programm wieder). Die Reiter heißen jetzt „Spiegeln (Kopie)“ und „Verschieben (weg
   von Monitor 1)“. Braucht die KDE-Freigabe, die das .deb einrichtet.
-- **Maus auf Monitor 2:** KDE erlaubt unter Wayland keinem Programm, die Maus festzuhalten. Mit der Sitzung
+- **Maus auf dem Bildschirm:** KDE erlaubt unter Wayland keinem Programm, die Maus festzuhalten. Mit der Sitzung
   „Plasma (X11)“ beim Anmelden hält AluPC sie auf Monitor 1 (Hinweis im Setup).
 
 ### Neu in dieser Version (0.36.0)
-- **Behoben: Statt „AirPlay bereit“ erschien manchmal ein offenes Browserfenster auf Monitor 2.** AluPC hat das
+- **Behoben: Statt „AirPlay bereit“ erschien manchmal ein offenes Browserfenster auf dem Bildschirm.** AluPC hat das
   iPhone-Fenster über den Titel gesucht – und jedes Fenster genommen, in dessen Titel „AluPC“ vorkam (z. B. die
   Handy-Steuerung im Browser oder die GitHub-Seite). Jetzt zählt nur noch UxPlays eigenes Fenster oder ein Fenster,
   das **genau** so heißt; Browser, Explorer, Editoren und AluPC selbst sind ausgeschlossen – auf Windows, unter
@@ -1427,7 +1436,7 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
 **Flüssig und sparsam – auch auf schwachen PCs**
 - Animierte Seiten zeichnen bis zu **8× schneller**: Leuchtschrift, Schriftgrößen und unbewegte Hintergründe
   werden einmal berechnet und dann nur noch kopiert (Neon: 70 → 13 ms pro Bild, Synthwave: 74 → 10 ms).
-  Gemessen: Neon auf Monitor 2 vorher über 100 % eines Prozessorkerns, jetzt ~15 %.
+  Gemessen: Neon auf dem Bildschirm vorher über 100 % eines Prozessorkerns, jetzt ~15 %.
 - **Leistung** (Setup → Darstellung): Automatisch · Flüssig · Sparsam. „Automatisch“ erkennt schwache PCs
   (≤ 4 Kerne) und zeichnet Animationen dann mit 15 statt 30 Bildern pro Sekunde; „Sparsam“ schaltet auch die
   Übergänge in der App ab.
@@ -1454,7 +1463,7 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
 
 ### Neu in dieser Version (0.33.0)
 - **Text live schreiben:** Beim Text anzeigen (Kachel „Text“ am PC und Handy → Senden → Text) gibt es den
-  Schalter **„Live“**. Dann erscheint jeder getippte Buchstabe sofort auf Monitor 2 – auch Löschen. Der Text
+  Schalter **„Live“**. Dann erscheint jeder getippte Buchstabe sofort auf dem Bildschirm – auch Löschen. Der Text
   wird dabei nur ausgetauscht (kein Flackern, keine Überblendung). Am PC wird „Anzeigen“ zu „Fertig“; der
   Schalter bleibt gespeichert, der fertige Text landet in „Zuletzt“.
 
@@ -1467,8 +1476,8 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
   im Hintergrund – mit **deinem Namen und Code** – und schaltet fremde UxPlay-Autostarts ab (Windows:
   Autostart-Eintrag, Autostart-Ordner, Aufgabenplanung; Linux: ~/.config/autostart, systemd). Dateien werden
   nur umbenannt („.aus-durch-AluPC“), also umkehrbar.
-- **Verbindet sich ein iPhone, schaltet Monitor 2 von selbst aufs iPhone-Bild** („Bei Verbindung sofort auf
-  Monitor 2“, abschaltbar).
+- **Verbindet sich ein iPhone, schaltet Bildschirm von selbst aufs iPhone-Bild** („Bei Verbindung sofort auf
+  Bildschirm“, abschaltbar).
 - Windows: Name/Code landen bei jeder Änderung sofort in der Einstellungsdatei von uxplay-windows – auch wenn
   AirPlay gerade nicht läuft.
 - Geprüft unter Linux mit echtem UxPlay 1.68: vorher „UxPlay@Rechner“ ohne Code im Netz, danach nur noch der
@@ -1476,7 +1485,7 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
 
 ### Neu in dieser Version (0.31.0)
 **Neues Schnellfenster in der Taskleiste**
-- Klick aufs AluPC-Symbol öffnet statt der langen Liste ein gestaltetes Schnellfenster: Live-Bild von Monitor 2
+- Klick aufs AluPC-Symbol öffnet statt der langen Liste ein gestaltetes Schnellfenster: Live-Bild vom Bildschirm
   mit Zustand, Schalter (Standbild, Schwarz, Schoner, Mini-Bild), Kacheln zum Zeigen (Spiegeln, Erweitern,
   Kamera, Text, iPhone, Handy, Timer, Zeichnen), Weiter/Zurück bei Ablauf & Co., bis zu 6 Szenen, Ton-Regler
   (wenn etwas mit Ton läuft) und AluPC öffnen / Sperren / Beenden. Hell und dunkel, passend zur App.
@@ -1492,7 +1501,7 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
 
 ### Neu in dieser Version (0.30.0)
 - **Text anzeigen am PC – wie am Handy:** neue Kachel **„Text“** auf der Startseite. Text eintippen,
-  „Anzeigen“ (oder Strg+Enter) – steht groß auf Monitor 2. Die letzten Texte (auch vom Handy gesendete)
+  „Anzeigen“ (oder Strg+Enter) – steht groß auf dem Bildschirm. Die letzten Texte (auch vom Handy gesendete)
   sind als „Zuletzt“ antippbar und über den Pfeil der Kachel mit einem Klick wieder da.
 - **Neue Szene → Filter „✦ Animiert“:** zeigt alle Vorlagen mit dauerhafter Bewegung (Laufschrift, Konfetti,
   Neon-Flackern, Synthwave, Glitch, Equalizer …) – Seiten und Szenen. Vorschaubilder tragen ein
@@ -1547,7 +1556,7 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
   Beliebig viele, jeder als eigene Kachel; Klick startet ihn, anderer Schoner wechselt, nochmal = aus.
 
 ### Neu in dieser Version (0.25.0)
-- **AirPlay ohne iPhone:** Solange kein iPhone verbunden ist, zeigt Monitor 2 nur noch schlicht **„AirPlay bereit“**
+- **AirPlay ohne iPhone:** Solange kein iPhone verbunden ist, zeigt Bildschirm nur noch schlicht **„AirPlay bereit“**
   (schwarz, kleines Symbol, Name und ggf. Code) statt der großen Anleitung. Einstellbar unter
   Setup → Handy & Kamera → AirPlay → „Ohne iPhone“: „AirPlay bereit“ · Schwarz · Anleitung.
 - **Handy-Seite zoomt nicht mehr ungewollt:** Doppeltippen und Zwei-Finger-Gesten vergrößern die Seite nicht mehr
@@ -1568,7 +1577,7 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
 
 ### Neu in dieser Version (0.22.0)
 **AirPlay repariert**
-- Das AluPC-Fenster auf Monitor 2 hat sich alle paar Sekunden selbst wieder „ganz nach vorne“ geholt und dabei
+- Das AluPC-Fenster auf dem Bildschirm hat sich alle paar Sekunden selbst wieder „ganz nach vorne“ geholt und dabei
   das iPhone-Bild verdeckt (Windows: „immer oben“, KDE: „über anderen halten“). Jetzt gibt AluPC bei AirPlay den
   Vordergrund ab, das iPhone-Fenster bekommt ihn (auch unter KDE), und sobald es da ist, blendet sich der
   Warte-Bildschirm aus. Trennt sich das iPhone, ist der Warte-Bildschirm wieder da.
@@ -1576,12 +1585,12 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
   platziert (Programmfehler in der Fenster-Verfolgung seit 0.18).
 
 **Vorlagen statt fertiger Szenen**
-- Vorlagen legen keine Szenen mehr an. „Jetzt zeigen“ zeigt die Vorlage direkt auf Monitor 2 (live, ohne
+- Vorlagen legen keine Szenen mehr an. „Jetzt zeigen“ zeigt die Vorlage direkt auf dem Bildschirm (live, ohne
   Speichern). **„Als eigene Szene anlegen …“** öffnet den Szenen-Editor mit der Vorlage – anpassen, dann
   speichern. Auf der Szenen-Seite: **„Neue Szene aus Vorlage …“** und „Leere Szene“.
 
 **Design**
-- **Kleines Fenster:** unter ca. 1000 px Breite schmale Seitenleiste nur mit Symbolen (Monitor 2 als kleines
+- **Kleines Fenster:** unter ca. 1000 px Breite schmale Seitenleiste nur mit Symbolen (Bildschirm als kleines
   Live-Bild), weniger Rand, Kacheln passen sich an (bis zu einer Spalte), Statuskarte gestapelt, Schnellschalter
   als Symbole, Setup-Bereiche als Symbolleiste. AluPC lässt sich jetzt bis ca. 480 px schmal machen.
 - **Gleiches Aussehen unter Windows und Linux:** AluPC bringt seine Schriften mit (Inter und JetBrains Mono,
@@ -1616,14 +1625,14 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
 ### Neu in dieser Version (0.19.0)
 - **9 neue Bildschirmschoner:** Polarlicht, Lavalampe, Lichtkugeln, Meer bei Sonnenuntergang, Feuerwerk,
   Analoguhr, Klappuhr, Schneefall (mit eigenem Text) und **Sprüche/Zitate im Wechsel** (eigene mit | trennen).
-- **Neue Seiten für Monitor 2** („Gestaltete Seite“) – jeweils mit eigenem Text: **Willkommen**,
+- **Neue Seiten für Bildschirm** („Gestaltete Seite“) – jeweils mit eigenem Text: **Willkommen**,
   **Ablauf/Agenda** (aktueller Punkt markiert, weiterschalten per Kachel, Tastenkürzel oder Handy),
   **Pause** mit Restzeit und „weiter um …“, **Laufschrift**, **Zitat**, **Ankündigung**, **Fragen?** und
   **WLAN-Zugang mit QR-Code** (Handy scannt und verbindet sich).
 - **Vorlagen** (neue Kachel, auch unter Szenen „Aus Vorlage …“): Seiten und **fertige Szenen** (Begrüßung mit
   Uhr, Ablauf + Uhr + Hinweis, Pause, Kamera + Laufschrift, Fragerunde, Gäste-WLAN, Countdown bis zum Start) –
   Text eingeben, Vorschau sehen, **sofort zeigen oder als Szene speichern**.
-- **Browser steuern:** jetzt mit **Stift, Marker und Radierer** – direkt auf die Website auf Monitor 2 zeichnen
+- **Browser steuern:** jetzt mit **Stift, Marker und Radierer** – direkt auf die Website auf dem Bildschirm zeichnen
   (mit Farben, Rückgängig, Löschen).
 - **Browser bei Standbild:** Die Vorschau zeigt jetzt die **echte Seite hinter dem Standbild** – man kann schon
   weiterklicken/scrollen, während das Publikum noch das eingefrorene Bild sieht; „Standbild aus“ zeigt dann das
@@ -1631,15 +1640,15 @@ Enthält auch den AirPlay-Fix aus 0.49.0 (0.49.0 wurde wegen eines CI-Prüfschri
 
 ### Neu in dieser Version (0.18.0)
 **AirPlay repariert**
-- Monitor 2 ist bei AirPlay **nicht mehr „Erweitert“**: Er zeigt sofort einen großen **Warte-Bildschirm mit
+- der Bildschirm ist bei AirPlay **nicht mehr „Erweitert“**: Er zeigt sofort einen großen **Warte-Bildschirm mit
   Name und Code**. Verbindet sich das iPhone, legt AluPC dessen Bild **randlos und im Vordergrund** genau über
-  Monitor 2 – vorher ging das Fenster unter Windows im Hintergrund auf.
+  Bildschirm – vorher ging das Fenster unter Windows im Hintergrund auf.
 - **Einstellungen werden übernommen:** Ändert man Name oder Code, startet der Empfänger sofort neu. Ältere
   uxplay-windows-Versionen (1.x) ignorierten AluPCs Einstellungen – AluPC startet dort jetzt deren
   `uxplay.exe` direkt. Ein schon laufendes uxplay-windows (eigener Autostart) wird vorher beendet.
 
 **Handy-Steuerung – komplett neu**
-- Vier Reiter: **Start**, **Zeichnen** (mit dem Finger direkt auf Monitor 2: Stift, Marker, Radierer, Laser,
+- Vier Reiter: **Start**, **Zeichnen** (mit dem Finger direkt auf dem Bildschirm: Stift, Marker, Radierer, Laser,
   Farben, Rückgängig, Vollbild), **Folien** (Klicker + **Touchpad für die PC-Maus**) und **Senden**.
 - Vom Handy aus: **Kamera, iPhone-Warte-Bildschirm, QR-Code und Timer** zeigen, **Timer-Vorgaben** 1–15 min.
 - Als **App auf den Home-Bildschirm** legen; Anzeige „Keine Verbindung“, wenn das WLAN weg ist.
@@ -1671,7 +1680,7 @@ Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (sie
   **„uxplay-windows“** (Paket `leapbtw.uxplay`, UxPlay fertig für Windows gebaut) und **Bonjour** – in der
   Ersteinrichtung, über „Automatisch einrichten“ im Handy-Fenster oder gleich im Setup.exe.
 - AluPC trägt **Name und Code** in dessen Einstellungsdatei ein, startet und beendet den Empfänger selbst und
-  legt das iPhone-Fenster **maximiert auf Monitor 2**. Läuft uxplay-windows schon (eigener Autostart), wird es
+  legt das iPhone-Fenster **maximiert auf dem Bildschirm**. Läuft uxplay-windows schon (eigener Autostart), wird es
   dafür beendet – es darf nur einen AirPlay-Empfänger geben.
 - Geprüft auf einem echten Windows-Rechner (GitHub): AluPC startet uxplay-windows, Port 7000 ist offen und der
   PC wird per Bonjour als „AluPC CI-Test“ angekündigt – genau das, was ein iPhone in der Liste
@@ -1684,15 +1693,15 @@ Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (sie
 
 ### Neu in dieser Version (0.16.0)
 - **Handy-Stream (Android/scrcpy) und Miracast entfernt** – Kacheln, Einrichtung, Diagnose und Installer.
-  Handy auf Monitor 2 heißt jetzt: **AirPlay** (iPhone/iPad) und **Handy-Steuerung** (QR-Code, jedes Handy).
+  Handy auf dem Bildschirm heißt jetzt: **AirPlay** (iPhone/iPad) und **Handy-Steuerung** (QR-Code, jedes Handy).
 - Installer: kein scrcpy und kein Miracast-Empfänger (DISM) mehr; Setup.exe bietet nur noch Bonjour an.
 - Vorbereitet: ein mit dem Installer mitgeliefertes UxPlay für Windows wird automatisch gefunden und mit
   seinen eigenen Video-Bibliotheken gestartet.
 
 ### Neu in dieser Version (0.15.2)
 - Behoben: **Zeichnungen und Laserpunkt fehlten in Bild-in-Bild** (und in der Live-Vorschau im Hauptfenster
-  und im Live-Bild auf dem Handy). Sie liegen in einem eigenen Fenster über Monitor 2 und werden jetzt in
-  alle Vorschauen mit eingezeichnet (bei „Schwarz“ wie auf Monitor 2 nicht).
+  und im Live-Bild auf dem Handy). Sie liegen in einem eigenen Fenster über Bildschirm und werden jetzt in
+  alle Vorschauen mit eingezeichnet (bei „Schwarz“ wie auf dem Bildschirm nicht).
 
 ### Neu in dieser Version (0.15.1)
 - Behoben: Beim Beenden konnten noch laufende Hintergrundaufgaben (z. B. Android-Suche, Miracast-Prüfung)
@@ -1701,7 +1710,7 @@ Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (sie
 ### Neu in dieser Version (0.15.0) – Reparaturen: AirPlay, Spiegeln, Miracast
 - **AirPlay repariert:** UxPlay (Kubuntu 24.04: Version 1.68) öffnet sein Bild-Fenster erst, wenn sich das
   iPhone verbindet – AluPC hat es bisher nur 15 Sekunden lang gesucht (unter KDE sogar gar nicht richtig)
-  und dann aufgegeben. Jetzt wird es dauerhaft verfolgt und bei jeder Verbindung auf Monitor 2 gelegt.
+  und dann aufgegeben. Jetzt wird es dauerhaft verfolgt und bei jeder Verbindung auf dem Bildschirm gelegt.
   Feste Ports (Firewall), und die Einrichtung installiert/aktiviert auch **avahi** (ohne den findet das
   iPhone den PC nicht), GStreamer-Decoder und öffnet die Firewall. Scheitert UxPlay, sagt AluPC warum.
   Geprüft mit dem echten UxPlay 1.68: „AluPC (Rechnername)“ erscheint im Netz als AirPlay-Gerät.
@@ -1738,16 +1747,16 @@ Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (sie
 - **Neue Seite „Handy“** (links in der Leiste, auch per Klick auf die Kachel „Handy“): vier klar getrennte
   Karten – **Jedes Handy** (Browser/QR-Code), **iPhone & iPad** (AirPlay), **Android** (USB) und
   **Miracast** – jede mit Status („Bereit“, „Einrichten“, „Verbunden“ …), drei Schritten und einem großen
-  „Auf Monitor 2 zeigen“.
+  „Auf dem Bildschirm zeigen“.
 - **Richtet sich automatisch ein**: Beim ersten Öffnen installiert AluPC fehlende Programme selbst
   (Kubuntu: UxPlay und scrcpy mit einer Passwortabfrage; Windows: scrcpy und Bonjour über winget),
   vergibt einen eindeutigen AirPlay-Namen („AluPC (Rechnername)“) und den Zugangscode. Später reicht
   „Automatisch einrichten“ oben auf der Seite.
 - **Android-Handys werden per USB automatisch erkannt** (inkl. Hinweis „am Handy zulassen“).
 - **Bessere Handysteuerung** (QR-Code scannen): neues Design mit Reitern „Steuern“ und „Senden“,
-  **Live-Bild von Monitor 2** auf dem Handy, **Laserpointer per Finger** auf dem Live-Bild, große Knöpfe
+  **Live-Bild vom Bildschirm** auf dem Handy, **Laserpointer per Finger** auf dem Live-Bild, große Knöpfe
   mit Anzeige, was gerade an ist (Schwarz, Standbild, Spiegeln, Erweitern, Bildschirmschoner),
-  aktive Szene hervorgehoben, **Timer** (Start/Pause, ±1 min, auf Monitor 2), Video, Lautstärke,
+  aktive Szene hervorgehoben, **Timer** (Start/Pause, ±1 min, auf dem Bildschirm), Video, Lautstärke,
   **RGB-Licht**. Leichtes Vibrieren beim Tippen (Android).
 - **Ehrlich:** AirPlay unter Windows braucht weiterhin UxPlay von Hand (dafür gibt es kein
   winget-Paket). Das Live-Bild aufs Handy ist ein Standbild pro Sekunde, kein Video. Nicht mit echten
@@ -1762,7 +1771,7 @@ Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (sie
   haben beide Seiten geändert, wird die andere Fassung als Sicherung aufgehoben. Monitor-Namen, Kameras,
   Programmpfade und Fingerabdruck bleiben je System getrennt.
 - **RGB-Beleuchtung** (neue Seite „RGB & Lüfter“) über **OpenRGB**: Farbe, Helligkeit, aus, **Farbe
-  folgt Monitor 2**, Geräte einzeln an/aus; Befehle `rgb_farbe`, `rgb_monitor2`, `rgb_aus`.
+  folgt dem Bildschirm**, Geräte einzeln an/aus; Befehle `rgb_farbe`, `rgb_monitor2`, `rgb_aus`.
 - **Temperaturen und Lüfter** (Linux): alle Sensoren live mit Farbbalken; steuerbare Lüfter per Regler
   (mindestens 30 %, „Automatisch“ zurück ans Mainboard). Windows: nicht möglich (keine Schnittstelle).
 - **Design**: Kacheln mit weichem Schatten und Anheben beim Drüberfahren, aktive Kacheln mit Verlauf,
@@ -1772,8 +1781,8 @@ Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (sie
   simulierten Systemen getestet, nicht mit echtem Dual-Boot.
 
 ### Neu in dieser Version (0.12.1)
-- **Live-Vorschau von Monitor 2** in der Statuskarte (Klick darauf: Bild-in-Bild) und Knopf
-  **„Beenden“**, der Monitor 2 sofort wieder zum normalen Bildschirm macht.
+- **Live-Vorschau vom Bildschirm** in der Statuskarte (Klick darauf: Bild-in-Bild) und Knopf
+  **„Beenden“**, der Bildschirm sofort wieder zum normalen Bildschirm macht.
 - Kacheln: kürzere, verständliche Untertexte (nichts mehr abgeschnitten), „AKTIV“ und Menü-Pfeil
   überlappen nicht mehr; „Meine Szenen“: Klick öffnet die Szenen-Seite, Pfeil startet eine Szene.
 - Hinweis-Banner mit passenden Symbolen (Info/Warnung statt Fingerabdruck), Monitor-Anzeige unten
@@ -1785,12 +1794,12 @@ Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (sie
   Verbindungen werden nach 60 s getrennt.
 
 ### Neu in dieser Version (0.12.0)
-- **AluCast – eigener Handy-Empfang ohne App** (Kachel „Handy“ – Klick): QR-Code auf Monitor 2
+- **AluCast – eigener Handy-Empfang ohne App** (Kachel „Handy“ – Klick): QR-Code auf dem Bildschirm
   scannen, dann vom iPhone oder Android **Fotos (auch direkt fotografieren), Videos, Links (YouTube im
-  Vollbild) und Text** senden und Monitor 2 **fernsteuern** (Szenen, Schwarz, Standbild, Video,
+  Vollbild) und Text** senden und Bildschirm **fernsteuern** (Szenen, Schwarz, Standbild, Video,
   Lautstärke). Geschützt mit 6-stelligem Code, Sperre nach Fehlversuchen.
 - **Miracast (Windows)**: AluPC startet Windows' eigenen Empfänger „Drahtlose Anzeige“ (installiert ihn
-  bei Bedarf nach) und legt ihn im Vollbild auf Monitor 2 – z. B. für Samsung „Smart View“ oder
+  bei Bedarf nach) und legt ihn im Vollbild auf dem Bildschirm – z. B. für Samsung „Smart View“ oder
   Laptops mit Windows+K.
 - **Kamera-Optionen**: Kamera-Leiste mit Zoom 1–5×, Ausschnitt verschieben, Spiegeln, Drehen,
   Helligkeit; pro Kamera gespeichert; schärferes Kamerabild (bis Full HD). Tastenkürzel/Befehle
@@ -1803,12 +1812,12 @@ Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (sie
   Webserver mit echten Anfragen.
 
 ### Neu in dieser Version (0.11.0)
-- **Handy → Monitor 2** (neue Kachel „Handy“, auch im Taskleisten-Menü):
+- **Handy → Bildschirm** (neue Kachel „Handy“, auch im Taskleisten-Menü):
   - **iPhone/iPad per AirPlay** über das freie UxPlay: am iPhone Kontrollzentrum →
     Bildschirmsynchronisierung → „AluPC“. Mit UxPlay ab 1.73 erscheint das Bild direkt als AluPC-Quelle
     (auch in eigenen Szenen, mit Standbild und Zeichnen); ältere Versionen im eigenen Vollbild-Fenster
-    auf Monitor 2. Name und Code (keiner / fest / neu pro Gerät) einstellbar.
-  - **Android per scrcpy** (USB-Debugging) im Vollbild auf Monitor 2; Windows zusätzlich Knopf für
+    auf dem Bildschirm. Name und Code (keiner / fest / neu pro Gerät) einstellbar.
+  - **Android per scrcpy** (USB-Debugging) im Vollbild auf dem Bildschirm; Windows zusätzlich Knopf für
     „Projizieren auf diesen PC“ (Miracast).
   - „Einrichten …“ findet die Programme, installiert sie unter Kubuntu per Klick (Passwort) und zeigt
     Schritt-für-Schritt-Anleitungen.
@@ -1864,7 +1873,7 @@ Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (sie
   Treiber gibt, wenn kein Sensor gefunden wird.
 
 ### Neu in dieser Version (0.8.1)
-- **Flüssigere Vorschau**: „Zeigen & Zeichnen“ zeigt Monitor 2 jetzt mit 30 Bilder/s (wählbar 10–60,
+- **Flüssigere Vorschau**: „Zeigen & Zeichnen“ zeigt Bildschirm jetzt mit 30 Bilder/s (wählbar 10–60,
   daneben steht, wie viele wirklich erreicht werden). Bild-in-Bild: bis 60 Bilder/s (Setup), Standard 20.
   Die Vorschau wird direkt in kleiner Größe gezeichnet statt in voller Auflösung – spart Rechenzeit.
   Spiegeln unter KDE/Wayland (KWin): bis 30 statt 20 Bilder/s.
@@ -1876,9 +1885,9 @@ Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (sie
 - Behoben: Die Uhr-Quelle hielt ihren Takt nach dem Beenden nicht an.
 
 ### Neu in dieser Version (0.8.0)
-- **Zeigen & Zeichnen**: eigenes Fenster auf Monitor 1 mit Live-Bild von Monitor 2. Darin zeigt man mit
+- **Zeigen & Zeichnen**: eigenes Fenster auf Monitor 1 mit Live-Bild vom Bildschirm. Darin zeigt man mit
   dem Laserpointer oder kritzelt mit Stift und Textmarker (8 Farben + eigene, Stärke einstellbar),
-  Radierer, Rückgängig (Strg+Z), Alles löschen – alles erscheint sofort auf Monitor 2, auch über einem
+  Radierer, Rückgängig (Strg+Z), Alles löschen – alles erscheint sofort auf dem Bildschirm, auch über einem
   Standbild. Öffnen: Kachel „Zeigen & Zeichnen“, Pfeil an der Laserpointer-Kachel, Taskleisten-Menü,
   `Strg+Alt+K`. Zeichnungen verschwinden beim Inhaltswechsel/Schließen (abschaltbar). Funktioniert
   auch unter Wayland ohne KDE (die Maus bleibt ja im eigenen Fenster).
@@ -1888,12 +1897,12 @@ Windows-Rechner (GitHub), randloses Platzieren eines Fensters unter Windows (sie
 ### Neu in dieser Version (0.7.0)
 - **Mauszeiger beim Spiegeln sichtbar**: Die Aufnahme unter Windows/X11 enthält den Zeiger nicht –
   AluPC zeichnet ihn jetzt selbst ein (mit seiner echten Form, z. B. Hand oder Textcursor).
-- **Maus bleibt auf Monitor 1**, außer bei „Erweitern“ (abschaltbar: Setup → Monitor 2). Geht unter
+- **Maus bleibt auf Monitor 1**, außer bei „Erweitern“ (abschaltbar: Setup → Bildschirm). Geht unter
   Windows und X11; unter Wayland erlaubt das System es nicht.
-- **Laserpointer** (Kachel, Taskleisten-Menü, `Strg+Alt+Z`): roter Leuchtpunkt mit Spur auf Monitor 2,
+- **Laserpointer** (Kachel, Taskleisten-Menü, `Strg+Alt+Z`): roter Leuchtpunkt mit Spur auf dem Bildschirm,
   gesteuert mit der Maus auf Monitor 1. Farbe, Größe und Spur im Setup. Unter Wayland nur mit KDE.
 - Neue Standard-Kacheln erscheinen nach einem Update jetzt auch, wenn die Startseite schon angepasst war.
-- Korrigiert: Hinweis im Setup behauptete, Monitor 2 zeige beim Sperren weiter etwas – stimmt nicht.
+- Korrigiert: Hinweis im Setup behauptete, Bildschirm zeige beim Sperren weiter etwas – stimmt nicht.
 
 ### Bekannte Grenzen
 Die automatischen Tests laufen ohne echte Monitore, Kameras und Fingerabdrucksensoren. Bitte Fehler

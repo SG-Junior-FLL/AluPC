@@ -123,7 +123,7 @@ class DuelWindow(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 14, 18, 14)
         head = QHBoxLayout()
-        head.addWidget(page_header("Schiffe versenken", "Du = Spieler 1 hier · Spieler 2: Handy als Steuerung, Felder auf Monitor 2",
+        head.addWidget(page_header("Schiffe versenken", "Du = Spieler 1 hier · Spieler 2: Handy als Steuerung, Felder auf dem Bildschirm",
                                    "gamepad"), 1)
         root.addLayout(head)
         self.status = QLabel()
@@ -150,7 +150,7 @@ class DuelWindow(QWidget):
         self.phone_btn = button("Handy abmelden", "phone")
         self.phone_btn.setToolTip("Spieler 2 spielt dann mit der Tastatur oder einem anderen Handy")
         self.phone_btn.clicked.connect(lambda: self._act(lambda d: d.release_phone()))
-        self.show_btn = button("Monitor 2 zeigen", "extend")
+        self.show_btn = button("Bildschirm zeigen", "extend")
         self.show_btn.clicked.connect(lambda: self.controller.start_duel(open_window=False))
         self.close_btn = button("Beenden", "x")
         self.close_btn.clicked.connect(self.close)

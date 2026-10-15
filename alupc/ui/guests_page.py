@@ -67,7 +67,7 @@ class GuestsPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(14)
-        root.addWidget(page_header("Gäste", "Chat und Foto-Wand übers AluPC-WLAN – erscheint direkt auf Monitor 2",
+        root.addWidget(page_header("Gäste", "Chat und Foto-Wand übers AluPC-WLAN – erscheint direkt auf dem Bildschirm",
                                    "users"))
         root.addWidget(self._wlan_card())
         grid = QGridLayout()
@@ -99,8 +99,8 @@ class GuestsPage(QWidget):
         row = QHBoxLayout()
         self.wlan_btn = button("WLAN starten", "play", primary=True)
         self.wlan_btn.clicked.connect(self.controller.ensure_wlan)
-        codes = button("Codes auf Monitor 2", "qr")
-        codes.setToolTip("WLAN-Code + Seiten-Code groß auf Monitor 2")
+        codes = button("Codes auf dem Bildschirm", "qr")
+        codes.setToolTip("WLAN-Code + Seiten-Code groß auf dem Bildschirm")
         codes.clicked.connect(lambda: self.controller.run_command("qr"))
         window = button("Hotspot-Fenster", "sliders")
         window.clicked.connect(self._open_hotspot)
@@ -124,13 +124,13 @@ class GuestsPage(QWidget):
         self.chat_toggle.clicked.connect(self._toggle_chat)
         head.addWidget(self.chat_toggle)
         row = QHBoxLayout()
-        self.chat_overlay = QCheckBox("Als Overlay auf Monitor 2")
-        self.chat_overlay.setToolTip("Nachrichten erscheinen direkt über allem, was Monitor 2 zeigt")
+        self.chat_overlay = QCheckBox("Als Overlay auf dem Bildschirm")
+        self.chat_overlay.setToolTip("Nachrichten erscheinen direkt über allem, was der Bildschirm zeigt")
         self.chat_overlay.toggled.connect(lambda on: self.controller.set_chat_overlay(on))
         row.addWidget(self.chat_overlay)
         row.addStretch(1)
         wall = button("Chat-Wand", "monitor")
-        wall.setToolTip("Chat groß auf Monitor 2 (mit den Codes zum Mitschreiben)")
+        wall.setToolTip("Chat groß auf dem Bildschirm (mit den Codes zum Mitschreiben)")
         wall.clicked.connect(lambda: self.controller.run_command("chat_wand"))
         row.addWidget(wall)
         lay.addLayout(row)
@@ -306,7 +306,7 @@ class GuestsPage(QWidget):
         self.wall_codes.toggled.connect(lambda on: self._wall_set(codes=on))
         row.addWidget(self.wall_codes)
         row.addStretch(1)
-        show = button("Auf Monitor 2", "monitor")
+        show = button("Auf dem Bildschirm", "monitor")
         show.clicked.connect(lambda: self.controller.start_wall(show=True))
         row.addWidget(show)
         lay.addLayout(row)
@@ -414,8 +414,8 @@ class GuestsPage(QWidget):
         on = hotspot.running
         _pill(self.wlan_pill, on)
         self.wlan_btn.setVisible(not on)
-        self.wlan_text.setText(f"„{hotspot.ssid}“ · Handys: WLAN-Code scannen, dann den Seiten-Code auf "
-                               "Monitor 2." if on else
+        self.wlan_text.setText(f"„{hotspot.ssid}“ · Handys: WLAN-Code scannen, dann den Seiten-Code auf dem "
+                               "Bildschirm." if on else
                                (hotspot.message or "Aus – Chat und Foto-Wand starten das WLAN automatisch."))
         chat = c.cast.chat
         _pill(self.chat_pill, chat is not None)
@@ -443,7 +443,7 @@ class GuestsPage(QWidget):
                     self.chat_list.setCurrentItem(item)
             if not self.chat_list.count():
                 self.chat_list.addItem("Noch keine Nachrichten." if chat is not None else
-                                       "Chat ist aus – „Chat starten“: Handys schreiben über den Chat-Code auf Monitor 2.")
+                                       "Chat ist aus – „Chat starten“: Handys schreiben über den Chat-Code auf dem Bildschirm.")
             if at_end:
                 self.chat_list.scrollToBottom()
         wall = c.cast.wall

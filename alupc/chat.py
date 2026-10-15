@@ -224,7 +224,7 @@ button:disabled { opacity: .45; }
          padding: 10px; background: rgba(15,23,42,.85); box-shadow: 0 14px 40px rgba(0,0,0,.35); }
 }
 </style></head><body>
-<header><div class="logo">💬</div><div><b>Chat</b><small>Erscheint groß auf Monitor 2 · bitte freundlich</small></div>
+<header><div class="logo">💬</div><div><b>Chat</b><small>Erscheint groß auf dem Bildschirm · bitte freundlich</small></div>
 </header>
 <div id="who"><input id="name" maxlength="20" placeholder="Dein Name" autocomplete="off"></div>
 <div id="list"><div class="empty" id="empty">Noch keine Nachrichten – schreib die erste!</div></div>

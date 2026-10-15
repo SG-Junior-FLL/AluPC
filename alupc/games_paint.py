@@ -199,8 +199,8 @@ class PaintGame(Game):
             return {"ui": "msg", "big": "🎨", "status": ""}
         if pid == self.drawer:
             return {"ui": "draw", "rid": self.round, "word": self.word, "colors": COLORS,
-                    "status": "Du malst – keine Buchstaben! Alle sehen es auf Monitor 2"}
+                    "status": "Du malst – keine Buchstaben! Alle sehen es auf dem Bildschirm"}
         if pid in self.guessed:
             return {"ui": "msg", "big": "✅", "tone": "good", "status": f"Richtig! {self.score[pid]} Punkte"}
         return {"ui": "guess", "rid": self.round, "hint": self.hint(now),
-                "status": "Was wird gemalt? Schau auf Monitor 2 und tippe es ein"}
+                "status": "Was wird gemalt? Schau auf den Bildschirm und tippe es ein"}
