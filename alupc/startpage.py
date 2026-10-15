@@ -14,6 +14,7 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "media": ("image", "Bild / Video", "Mediathek", "#10b981", "anzeigen"),
     "text": ("text", "Text", "Schnell zeigen", "#14b8a6", "anzeigen"),
     "nowplaying": ("music", "Läuft gerade", "Musik am PC", "#1db954", "anzeigen"),
+    "senden": ("cast", "An Fernseher", "Chromecast · AirPlay", "#2563eb", "anzeigen"),
     "scenes": ("scenes", "Meine Szenen", "Eigene Szenen", "#ec4899", "anzeigen"),
     # Handy → Monitor 2: jeder Weg mit eigener Kachel
     "airplay": ("phone", "AirPlay", "iPhone & iPad", "#0ea5e9", "handy"),
@@ -138,6 +139,8 @@ COMMANDS = {
     "fotowand": "Foto-Wand zeigen",
     "fotowand_aus": "Foto-Wand beenden",
     "vcam": "Virtuelle Kamera (Bildschirm) an/aus",
+    "senden": "An Fernseher senden (Chromecast, AirPlay) …",
+    "senden_aus": "Senden an Fernseher stoppen",
     "alupc_oeffnen": "AluPC-Hauptfenster öffnen",
 }
 

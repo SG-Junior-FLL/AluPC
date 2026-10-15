@@ -9,14 +9,11 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in dieser Version (0.139.0)
-- **Einheitlicher Name: „Bildschirm“.** Überall, wo man es sieht (App, Handy-Seiten, Meldungen, Sprachantworten,
-  Installer, README, Handbuch), heißt der Anzeige-Bildschirm jetzt einfach **„Bildschirm“** statt „Monitor 2“.
-- Virtuelle Kamera unter Linux heißt jetzt **„AluPC Bildschirm“**. Ein schon eingerichtetes Gerät mit altem Namen
-  („AluPC Monitor 2“) wird weiter erkannt; der neue Name erscheint nach dem nächsten Einrichten bzw. Neustart.
-- Rechtsklick im Dateimanager: **„Auf dem Bildschirm zeigen“** – wird beim nächsten Start von AluPC automatisch
-  umbenannt.
-- Nicht geändert: „Monitor 1“ (dein eigener Monitor) und das Sprach-Startwort „Monitor“.
+### Neu in 0.140.0
+- **An Fernseher senden:** Bildschirm zusätzlich an Chromecast, Google TV, Apple TV oder AirPlay-Fernseher
+  (Kachel „An Fernseher“). Live-Video, einige Sekunden verzögert, ohne Ton. Apple TV: einmal PIN.
+- Release-Text gekürzt, ältere Neuerungen stehen im CHANGELOG.
+- **Nicht mit echten Geräten getestet** – nur mit nachgebautem Chromecast und AirPlay-Empfänger.
 
 ### Frühere Versionen
 [CHANGELOG](https://github.com/SG-Junior-FLL/AluPC/blob/main/docs/CHANGELOG.md)

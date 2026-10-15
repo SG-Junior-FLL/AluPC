@@ -75,6 +75,7 @@ SHOW: list[tuple[tuple[str, ...], str, str]] = [
     (("gluecksrad", "zufallsrad", "rad"), "gluecksrad", "Glücksrad"),
     (("schiffe", "schiffeversenken", "versenken", "schlachtschiff"), "schiffe", "Schiffe versenken"),
     (("kahoot", "kahut", "kahu"), "kahoot", "Kahoot"),
+    (("chromecast", "streamen", "casten"), "senden", "An Fernseher senden"),
     (("minispiele", "spiele", "spielen"), "spiele", "Minispiele"),
     (("abstimmung", "umfrage"), "umfrage_zeigen", "Abstimmung"),
     (("bestenliste", "rangliste", "punktestand"), "spiel_bestenliste", "Bestenliste"),

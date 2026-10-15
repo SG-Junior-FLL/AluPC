@@ -35,6 +35,7 @@ und X11) – gleiche Oberfläche, Einstellungen per Dual-Boot-Abgleich auf beide
 | 📶 **AluPC-WLAN** | Der PC macht ein (unsichtbares) WLAN – jede Seite zeigt auf dem Bildschirm zwei QR-Codes (1. WLAN, 2. direkt die Seite: Spiel, Abstimmung, Chat, Foto-Wand, Whiteboard, Schiffe versenken). Der **einzige** Weg fürs Handy; der Steuer-Code steht nur am PC. Hat der PC Internet, haben es die Handys auch |
 | 💬 **Chat & 📷 Foto-Wand** | Handys schreiben übers AluPC-WLAN, Nachrichten erscheinen **direkt als Overlay** auf dem Bildschirm – als Liste oder als **Pop-up** (kurz, ohne QR) – oder als Chat-Wand – mit Wortfilter, Link-Sperre, Tempo-Grenze, Löschen und Handy sperren. Fotos vom Handy als Collage oder Diashow, neue Fotos erst groß. Verwalten auf der Seite **„Gäste“** |
 | 🎚️ **Mischpult für den ganzen PC** | Seite **„Audio & Kamera“**: Kanalzüge für jeden Ausgang, jedes Mikro und jedes Programm (Regler, Pegel, Stumm, ★ Standard), **virtuelle Geräte hinzufügen/entfernen** (Linux beliebig viele, Windows über VB-CABLE), Ton weiterleiten (Mikro → virtuelles Mikro, Mithören) |
+| 📺 **An Fernseher senden** | Bildschirm zusätzlich an Chromecast, Google TV, Apple TV oder AirPlay-Fernseher im selben Netz – als Live-Video (einige Sekunden verzögert, ohne Ton). Geräte werden gesucht oder per IP eingetragen; Apple TV fragt einmal nach einer PIN |
 | 🎥 **Bildschirm als Webcam** | Virtuelle Kamera mit allem, was der Bildschirm zeigt (inkl. Overlays/Zeichnungen) – für Zoom, Teams, Discord, OBS. Treiber richtet der Installer ein (Linux v4l2loopback, Windows OBS-Kamera) |
 | 🎨 **Design fürs ganze System** | AluPC-Akzentfarbe, Hell/Dunkel und ein passendes Hintergrundbild (Aurora in den Design-Farben) auf Windows, KDE oder GNOME übertragen – zieht bei Änderungen mit, „Zurück“ stellt alles wieder her |
 | 🔁 **Dual-Boot-Abgleich** | Windows ↔ Linux: Einstellungen, Szenen, Bilder/Videos zusammenführen, Bereiche wählbar, Prüfen, Sicherungen |
@@ -458,6 +459,11 @@ und kopiert das Ergebnis in die Zwischenablage. **„Ersteinrichtung starten“*
 - **Nicht auf echter Hardware getestet.** Die automatischen Tests laufen auf GitHub unter Linux und
   Windows (inkl. Start der fertigen Programme und der installierten Pakete) – aber ohne echte Monitore,
   Kameras und Fingerabdrucksensoren. Bitte Fehler mit Screenshot oder Meldungstext melden.
+- **An Fernseher senden:** nur mit nachgebauten Geräten getestet (echtes Chromecast- bzw. AirPlay-Protokoll, das Bild
+  kommt dort an) – nicht mit echtem Chromecast, Apple TV oder Fernseher. Es ist kein Spiegeln wie vom Mac (dafür
+  braucht es Apples Verschlüsselung), sondern ein Live-Video (HLS): einige Sekunden Verzögerung (nicht gemessen), kein Ton. Ob AirPlay-
+  Fernseher anderer Hersteller oder andere AluPCs (UxPlay) dieses „AirPlay-Video“ annehmen, ist nicht geprüft.
+  Windows: die Firewall-Freigabe „AluPC WLAN“ wird gebraucht, sonst erreicht der Fernseher den Stream nicht.
 - **Whiteboard für Gäste:** Gäste schreiben nur, solange die Tafel auf dem Bildschirm zu sehen ist; ein Strich erscheint
   in Stücken (etwa alle ⅓ Sekunde) – nicht ganz so flüssig wie am PC. Radieren, Seiten und Rückgängig bleiben beim PC.
   „Nur nach Erlaubnis“ merkt sich die Erlaubnis je Browser bis zum Umschalten – wer den Browser-Speicher löscht,

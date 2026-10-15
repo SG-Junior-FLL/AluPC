@@ -37,6 +37,7 @@ class Controller(QObject):
     video_resume = Signal(str, int)  # Video schon mal geschaut: (Titel, Position ms) → „Weiterschauen?“
     board_requested = Signal()  # Whiteboard-Fenster am PC öffnen (macht die Oberfläche)
     browser_control_requested = Signal()  # Fenster „Browser steuern“ öffnen (z. B. für Kahoot)
+    sender_requested = Signal()  # Fenster „An Fernseher senden“ (Chromecast/AirPlay) öffnen
     board_guest_requested = Signal(str, str)  # Gast möchte aufs Whiteboard schreiben: (Geräte-ID, Name)
     duel_requested = Signal()  # Schiffe versenken: Fenster für Spieler 1 öffnen (macht das Hauptfenster)
     presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
@@ -130,6 +131,10 @@ class Controller(QObject):
 
         self.monitor_feed = MonitorFeed(self, self)  # echtes Bild von Monitor 2 bei „Erweitern“ (Handy, Kamera, Live)
         self.vcam = VirtualCam(self, self)  # Monitor 2 als virtuelle Kamera
+        from .sender import ScreenSender
+
+        self.sender = ScreenSender(self, self)  # Monitor 2 an Chromecast / AirPlay senden
+        self.sender.changed.connect(self.changed)
         self.overlay_window = OverlayWindow(self)
         # Reihenfolge: Ausgabe → Overlays → Zeichnungen/Laser ganz oben
         self.output.after_raise.insert(0, self.overlay_window.raise_above)
@@ -1604,6 +1609,8 @@ class Controller(QObject):
             "vcam": self._toggle_vcam,
             "vcam_an": lambda: self._toggle_vcam(True),
             "vcam_aus": lambda: self._toggle_vcam(False),
+            "senden": self.sender_requested.emit,  # Fenster „An Fernseher senden“
+            "senden_aus": self.sender.stop,
         }
         action = actions.get(command)
         if action:
@@ -2478,6 +2485,7 @@ class Controller(QObject):
         self.overlay_window.shutdown()
         self.audio_routing.shutdown()
         self.vcam.stop(remember=False)
+        self.sender.stop()
         self.cursor_guard.shutdown()
         from .cursor import tracker
 

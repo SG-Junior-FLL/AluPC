@@ -278,6 +278,22 @@ dialog("timer", "Timer einstellen", "Fenster", "Countdown oder Stoppuhr mit Warn
 dialog("abstimmung", "Abstimmung", "Fenster", "Frage und Antworten – abgestimmt wird per Handy (QR-Code).",
        window.open_poll_dialog)
 dialog("gluecksrad", "Glücksrad", "Fenster", "Namen eintragen und auf dem Bildschirm drehen.", window.open_wheel_dialog)
+
+
+def _sender_demo():
+    from alupc.sender import AIRPLAY, CHROMECAST, Device
+
+    s = controller.sender
+    s.scan = lambda: None  # im Rundgang nicht im Netz suchen – Beispielgeräte
+    s.devices = [Device(CHROMECAST, "Wohnzimmer", "192.168.1.40", 8009, "a", "Chromecast"),
+                 Device(AIRPLAY, "Apple TV Küche", "192.168.1.41", 7000, "b", "AppleTV11,1")]
+    window.open_sender()
+    window.sender_dialog._fill(s.devices)
+
+
+dialog("senden", "An Fernseher senden", "Fenster",
+       "Bildschirm an Chromecast, Google TV, Apple TV oder AirPlay-Fernseher schicken (einige Sekunden verzögert).",
+       _sender_demo)
 dialog("overlays", "Overlays", "Fenster", "Einblendungen über dem Bildschirm (Uhr, Logo, Laufschrift …), frei verschiebbar.",
        window.open_overlays)
 dialog("mediathek", "Mediathek", "Fenster", "Bilder und Videos sammeln und mit einem Klick zeigen.",

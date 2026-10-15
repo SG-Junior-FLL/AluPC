@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alupc"
-version = "0.139.0"
+version = "0.140.0"
 description = "AluPC – zweiten Monitor steuern: Spiegeln, Erweitern, Kamera, Programme, Websites, eigene Szenen, Standbild, Bild-in-Bild, Fingerabdruck"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,6 +30,11 @@ dependencies = [
     # Monitor 2 als virtuelle Kamera (Linux v4l2loopback, Windows OBS-Kamera)
     "pyvirtualcam>=0.12",
     "numpy>=1.24",
+    # An Fernseher senden: Video-Kodierer (HLS), Chromecast, AirPlay, Gerätesuche (mDNS)
+    "av>=12",
+    "pychromecast>=14",
+    "pyatv>=0.16",
+    "zeroconf>=0.130",
 ]
 
 [project.optional-dependencies]

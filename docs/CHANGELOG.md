@@ -4,6 +4,10 @@ Die aktuellen Neuerungen stehen in den [Release-Notizen](../packaging/RELEASE_NO
 [Release-Seite](https://github.com/SG-Junior-FLL/AluPC/releases).
 
 
+## 0.139.0
+- Überall sichtbar „Bildschirm“ statt „Monitor 2“ (App, Handy-Seiten, Meldungen, Installer, Doku). Virtuelle Kamera
+  unter Linux heißt „AluPC Bildschirm“ (altes Gerät „AluPC Monitor 2“ wird weiter erkannt).
+
 ## 0.138.0
 - **Schiffe versenken: Handy = nur Steuerung.** Spieler 2 hat am Handy ein Steuerkreuz, OK (setzen bzw. schießen,
   auf einem Schiff: aufnehmen), Drehen, Zufällig, Zurück, Bereit – die Felder gibt es nur auf den Bildschirmen

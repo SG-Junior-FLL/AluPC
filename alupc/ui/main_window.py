@@ -312,6 +312,8 @@ class MainWindow(QMainWindow):
         controller.presenter_requested.connect(self.open_presenter)
         controller.board_requested.connect(self.open_board)
         controller.browser_control_requested.connect(self.open_browser_control)
+        controller.sender_requested.connect(self.open_sender)
+        controller.sender.pin_needed.connect(self._ask_sender_pin)
         controller.duel_requested.connect(self.open_duel_window)
         controller.board_guest_requested.connect(self.ask_board_guest)
         controller.window_requested.connect(self.open_front)
@@ -578,6 +580,12 @@ class MainWindow(QMainWindow):
             slot = c.show_now_playing if action is None else (lambda _=False, a=action: c.media_control(a))
             music_menu.addAction(icons.icon(icon_name, theme.current().text, 18), text, slot)
         self.t_music.set_menu(music_menu, split=True)
+        # An Fernseher senden: Klick = Fenster (suchen, senden), Pfeil = letztes Gerät / stoppen
+        self.t_send = self.tiles["senden"]
+        self.t_send.activated.connect(self.open_sender)
+        send_menu = QMenu(self)
+        send_menu.aboutToShow.connect(lambda: self._fill_send_menu(send_menu))
+        self.t_send.set_menu(send_menu, split=True)
         # Overlays: Klick = an/aus (beim ersten Mal gleich der Editor), Pfeil = einzelne Overlays + Bearbeiten
         self.t_overlays = self.tiles["overlays"]
         self.t_overlays.activated.connect(self._overlays_clicked)
@@ -1309,6 +1317,40 @@ class MainWindow(QMainWindow):
         win.raise_()
         win.activateWindow()
 
+    def open_sender(self):
+        from .sender_dialog import SenderDialog
+
+        if getattr(self, "sender_dialog", None) is None:
+            self.sender_dialog = SenderDialog(self.controller, self)
+        self.sender_dialog.show()
+        self.sender_dialog.raise_()
+        self.sender_dialog.activateWindow()
+
+    def _ask_sender_pin(self, name: str):
+        from PySide6.QtWidgets import QInputDialog
+
+        dlg = getattr(self, "sender_dialog", None)
+        parent = dlg if dlg is not None and dlg.isVisible() else self
+        pin, ok = QInputDialog.getText(parent, "PIN eingeben", f"{name} zeigt jetzt eine PIN – hier eintippen:")
+        if ok and pin.strip():
+            ok, why = self.controller.sender.submit_pin(pin)
+            if not ok:
+                self.show_message(why, "warn")
+        else:
+            self.controller.sender.cancel_pin()
+
+    def _fill_send_menu(self, menu):
+        t = theme.current()
+        menu.clear()
+        s = self.controller.sender
+        menu.addAction(icons.icon("cast", t.text, 18), "Gerät wählen …", self.open_sender)
+        last = s.cfg().get("last", "")
+        dev = next((d for d in s.devices + s.manual_devices() if d.key == last), None)
+        if dev is not None and not s.running:
+            menu.addAction(icons.icon("play", t.text, 18), f"Wieder an {dev.name}", lambda: s.start(dev))
+        if s.running:
+            menu.addAction(icons.icon("x", t.text, 18), f"Stoppen ({s.describe()})", s.stop)
+
     def open_browser_control(self):
         from .browser_control import BrowserControl
 
@@ -1942,6 +1984,8 @@ class MainWindow(QMainWindow):
 
         on = hotspot.running and hotspot.kind == "normal"
         self.t_hotspot.set_state(on, badge="AN" if on else "")
+        send = self.controller.sender
+        self.t_send.set_state(send.running, alert=send.state == "fehler", badge="AN" if send.state == "läuft" else "")
         hub = c.cast.games
         self.t_games.set_state(hub is not None,
                                badge="" if hub is None else {"lobby": "LOBBY", "running": "LÄUFT",

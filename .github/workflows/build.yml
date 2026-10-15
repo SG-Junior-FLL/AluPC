@@ -162,6 +162,10 @@ jobs:
           --collect-all piper
           --collect-all faster_whisper
           --collect-all ctranslate2
+          --collect-all pyatv
+          --collect-submodules pychromecast
+          --collect-submodules zeroconf
+          --collect-all av
           --collect-data alupc
           packaging/pyinstaller_entry.py
       - name: Fertiges Programm starten (Selbsttest)
@@ -410,6 +414,10 @@ jobs:
           --collect-all piper
           --collect-all faster_whisper
           --collect-all ctranslate2
+          --collect-all pyatv
+          --collect-submodules pychromecast
+          --collect-submodules zeroconf
+          --collect-all av
           --collect-all winrt
           --collect-submodules comtypes
           --collect-data alupc

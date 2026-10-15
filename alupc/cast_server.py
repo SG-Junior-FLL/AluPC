@@ -193,6 +193,7 @@ class CastServer(QObject):
         self.board_info = None  # () → (Modus „aus“/„alle“/„frage“, Tafel gerade auf Monitor 2?) – vom Controller
         self.duel = None  # Schiffe versenken (duel.Battleship) – Spieler 2 am Handy, nur mit dem Stichwort
         self.access: dict[str, dict] = {}  # Freigabe-Anfragen: id → {name, ip, state, key, t}
+        self.screen_stream = None  # Bildschirm an Fernseher senden (sender.HlsStream) – nur mit Zufallsschlüssel
 
     # ------------------------------------------------------------ Einstellungen
     def settings(self) -> dict:
@@ -543,12 +544,43 @@ def _make_handler(server: CastServer):
             return data
 
         def do_HEAD(self):
+            if urlparse(self.path).path.startswith("/bildschirm/"):
+                self._screen_stream(urlparse(self.path).path)
+                return
             self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def _screen_stream(self, path: str) -> None:
+            """Bildschirm als HLS für Chromecast/AirPlay: aus jedem Netz, aber nur mit dem Schlüssel des Streams."""
+            parts = path.split("/")
+            stream = server.screen_stream
+            got = None
+            if stream is not None and len(parts) == 4 and secrets.compare_digest(parts[2], stream.token):
+                got = stream.file(parts[3])
+            body, ctype = got or (b"", "text/plain")
+            self.send_response(200 if got else 404)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Access-Control-Allow-Origin", "*")  # Chromecast holt per XHR
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+
+        def do_OPTIONS(self):
+            self.send_response(204 if urlparse(self.path).path.startswith("/bildschirm/") else 405)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "*")
             self.send_header("Content-Length", "0")
             self.end_headers()
 
         def do_GET(self):
             path = urlparse(self.path).path
+            if path.startswith("/bildschirm/"):
+                self._screen_stream(path)
+                return
             if self._blocked(path):
                 return
             if path in ("/", "/index.html"):

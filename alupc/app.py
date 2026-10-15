@@ -409,6 +409,28 @@ def self_test(log_path: str) -> int:
         controller.sounds.play("builtin:ding")  # Ton-Wiedergabe (FFmpeg/Multimedia im Paket vorhanden?)
         window.open_browser_control()
         window.browser_control.close()
+        # An Fernseher senden: Video-Kodierer (PyAV/libx264, HLS), Chromecast (pychromecast), AirPlay (pyatv)
+        import time as _time
+
+        import pyatv  # noqa: F401
+        import pychromecast  # noqa: F401
+        import zeroconf  # noqa: F401
+
+        from .sender import HlsStream
+
+        hls = HlsStream(320, 180, 10)
+        hls.start()
+        end = _time.monotonic() + 15
+        while not hls.ready() and not hls.error and _time.monotonic() < end:
+            _time.sleep(0.1)
+        ready, why = hls.ready(), hls.error
+        hls.stop()
+        if not ready:
+            raise RuntimeError(f"Senden: Video-Kodierer liefert keinen Stream ({why})")
+        controller.sender.scan = lambda: None  # im Selbsttest nicht im Netz suchen
+        window.open_sender()
+        window.sender_dialog.close()
+        lines.append("An Fernseher senden: HLS-Kodierer, pychromecast, pyatv ok")
         controller.run_command("timer_start_pause")
         controller.run_command("timer_start_pause")
         if controller.windows.can_list:  # Fensterliste (Windows: Win32-Aufrufe) einmal wirklich ausführen
