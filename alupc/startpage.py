@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import uuid
 
 # id: (Symbol, Titel, Untertitel, Farbe oder None = Akzentfarbe, Bereich)
@@ -18,6 +19,9 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "scenes": ("scenes", "Meine Szenen", "Eigene Szenen", "#ec4899", "anzeigen"),
     # Handy → Monitor 2: jeder Weg mit eigener Kachel
     "airplay": ("phone", "AirPlay", "iPhone & iPad", "#0ea5e9", "handy"),
+    # Miracast: Windows empfängt und sendet, Linux kann nur senden (kein gepflegter Empfänger)
+    "miracast": ("cast", "Miracast", "Empfangen · Senden" if sys.platform.startswith("win") else "An Fernseher senden",
+                 "#7c3aed", "handy"),
     "handy_remote": ("qr", "Handy-Steuerung", "Übers AluPC-WLAN", "#8b5cf6", "handy"),
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),
     "black": ("eye_off", "Schwarz", "Sichtschutz", "#64748b", "schnell"),
@@ -139,6 +143,8 @@ COMMANDS = {
     "fotowand": "Foto-Wand zeigen",
     "fotowand_aus": "Foto-Wand beenden",
     "vcam": "Virtuelle Kamera (Bildschirm) an/aus",
+    "miracast": "Miracast empfangen (Windows: Handy/Laptop → Bildschirm)",
+    "miracast_senden": "An Miracast-Fernseher senden",
     "senden": "An Fernseher senden (Chromecast, AirPlay) …",
     "senden_aus": "Senden an Fernseher stoppen",
     "alupc_oeffnen": "AluPC-Hauptfenster öffnen",

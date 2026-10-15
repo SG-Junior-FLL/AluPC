@@ -1831,7 +1831,8 @@ def test_handy_page_airplay_simple(env, tmp_path):
     page = window.handy_page
     assert not hasattr(page, "pin_mode") and not hasattr(page, "name")
     assert {"airplay", "handy_remote"} <= set(window.tiles)
-    assert not {"handy_stream", "miracast"} & set(window.tiles)  # Android-Stream und Miracast gibt es nicht mehr
+    assert "handy_stream" not in set(window.tiles)  # Android-Stream gibt es nicht mehr
+    assert "miracast" in window.tiles  # Miracast seit 0.141 wieder (empfangen Windows, senden Windows/Linux)
     controller.start_airplay()  # UxPlay fehlt → nur Hinweis, nichts kaputt
     pump()
 
@@ -2100,7 +2101,7 @@ def test_handy_page_cards_and_auto_setup(env, tmp_path, monkeypatch):
     window._fill_handy_menu(menu, "handy_remote")
     texts = [a.text() for a in menu.actions()]
     assert texts[0] == "QR-Code zeigen" and texts[-1].startswith("Einrichten")
-    assert not hasattr(controller, "start_miracast") and not hasattr(controller, "start_android")
+    assert not hasattr(controller, "start_android")
 
 
 # ---------------------------------------------------------------- 0.12.1: Statuskarte mit Vorschau, Bedienung
@@ -2395,7 +2396,7 @@ def test_diagnose_report(env):
 
     controller, window, _ = env
     text = diagnose.report(controller, probe=False)
-    assert "Android" not in text and "Miracast" not in text
+    assert "Android" not in text
     for part in ("== Monitore ==", "Bildschirm = Zweit", "== AirPlay",
                  "== RGB und Lüfter =="):
         assert part in text, part

@@ -4,6 +4,12 @@ Die aktuellen Neuerungen stehen in den [Release-Notizen](../packaging/RELEASE_NO
 [Release-Seite](https://github.com/SG-Junior-FLL/AluPC/releases).
 
 
+## 0.140.0
+- **An Fernseher senden:** Bildschirm zusätzlich an Chromecast, Google TV, Apple TV oder AirPlay-Fernseher
+  (Kachel „An Fernseher“). Live-Video, einige Sekunden verzögert, ohne Ton. Apple TV: einmal PIN.
+- Release-Text gekürzt, ältere Neuerungen stehen im CHANGELOG.
+- **Nicht mit echten Geräten getestet** – nur mit nachgebautem Chromecast und AirPlay-Empfänger.
+
 ## 0.139.0
 - Überall sichtbar „Bildschirm“ statt „Monitor 2“ (App, Handy-Seiten, Meldungen, Installer, Doku). Virtuelle Kamera
   unter Linux heißt „AluPC Bildschirm“ (altes Gerät „AluPC Monitor 2“ wird weiter erkannt).

@@ -53,7 +53,7 @@ class SenderDialog(QDialog):
         self.setWindowTitle("An Fernseher senden")
         self.setMinimumSize(520, 460)
         lay = QVBoxLayout(self)
-        lay.addWidget(page_header("An Fernseher senden", "Chromecast · AirPlay", "cast"))
+        lay.addWidget(page_header("An Fernseher senden", "Chromecast · AirPlay · Miracast", "cast"))
         note = QLabel("Zeigt den Bildschirm zusätzlich auf einem Chromecast, Google TV, Apple TV oder "
                       "AirPlay-Fernseher im selben Netz – einige Sekunden verzögert, ohne Ton.")
         note.setWordWrap(True)
@@ -86,7 +86,10 @@ class SenderDialog(QDialog):
         self.b_add.clicked.connect(self._add)
         self.b_send.clicked.connect(self._send)
         self.b_stop.clicked.connect(self.sender.stop)
-        for b in (self.b_scan, self.b_add):
+        self.b_miracast = button("Miracast …", "cast")
+        self.b_miracast.setToolTip("Miracast-Fernseher: Windows „Verbinden“ (Win+K) bzw. GNOME Network Displays")
+        self.b_miracast.clicked.connect(controller.send_miracast)
+        for b in (self.b_scan, self.b_add, self.b_miracast):
             row.addWidget(b)
         row.addStretch(1)
         row.addWidget(self.b_stop)

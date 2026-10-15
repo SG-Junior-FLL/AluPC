@@ -14,7 +14,7 @@ from .scenes import describe_source
 from .sources import create_source, media_sources, window_settings
 
 
-HANDY_NOTES = ("iPhone/iPad",)  # Monitor 2 zeigt ein Handy-Fenster (AirPlay)
+HANDY_NOTES = ("iPhone/iPad", "Miracast")  # Monitor 2 zeigt ein Handy-Fenster (AirPlay, Miracast)
 
 
 def evening_key() -> str:
@@ -539,6 +539,72 @@ class Controller(QObject):
         name = self.airplay.settings()["airplay_name"]
         code = f" · Code {self.airplay.pin_code}" if self.airplay.pin_code else ""
         self.message.emit(f"AirPlay bereit · „{name}“ wählen{code}")
+
+    def start_miracast(self) -> None:
+        """Miracast empfangen (nur Windows): eingebaute „Drahtlose Anzeige“ starten und ihr Fenster auf Monitor 2."""
+        from .platform import miracast
+        from .ui.util import run_async
+
+        if not miracast.IS_WINDOWS:
+            self.message.emit("Miracast empfangen geht nur unter Windows (Linux hat keinen gepflegten "
+                              "Miracast-Empfänger) – hier: AirPlay oder Handy-Steuerung.")
+            return
+        if self.output_screen() is None:
+            self.message.emit("Kein Bildschirm gefunden.")
+            return
+
+        def checked(result):
+            app, support = result
+            if not support:
+                why = ("Kein WLAN-Adapter gefunden" if support is None else
+                       "WLAN-Adapter oder Grafiktreiber können „Drahtlose Anzeige“ nicht")
+                self.message.emit(f"Miracast geht auf diesem PC nicht: {why} (braucht WLAN mit Wi-Fi Direct).")
+                return
+            if app is None:
+                self.message.emit("Miracast: Windows-App „Drahtlose Anzeige“ fehlt – Pfeil an der Kachel "
+                                  "„Miracast“ → „Empfänger installieren“.")
+                return
+            self._stop_handy_window()
+            self.ensure_extended()
+            miracast.launch(app)
+            self._handy_window = "miracast"
+            self._set_desktop("Miracast (Windows „Drahtlose Anzeige“)")
+            self.message.emit("Miracast bereit: am Handy/Laptop „Bildschirm übertragen“ bzw. „Smart View“ → "
+                              "diesen PC wählen.")
+            self._place_handy_window(app["name"], "Drahtlose Anzeige", "Wireless Display")
+
+        run_async(lambda: (miracast.find_app(), miracast.wireless_display_support()), checked,
+                  lambda text: self.message.emit(f"Miracast: {text}"))
+
+    def install_miracast(self) -> None:
+        """Windows: „Drahtlose Anzeige“ nachinstallieren · Linux: GNOME Network Displays (zum Senden)."""
+        import subprocess
+
+        from .platform import miracast
+        from .ui.util import run_async
+
+        def work():
+            if miracast.IS_WINDOWS:
+                miracast.install()
+                return "Miracast-Empfänger installiert."
+            cmd = miracast.linux_install_command()
+            if not cmd:
+                raise RuntimeError("Paketverwaltung unbekannt – bitte gnome-network-displays selbst installieren")
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+            if proc.returncode != 0 or not miracast.linux_sender_command():
+                raise RuntimeError(((proc.stderr or proc.stdout or "abgebrochen").strip().splitlines()
+                                    or ["abgebrochen"])[-1])
+            return "GNOME Network Displays installiert – jetzt „Miracast senden“."
+
+        self.message.emit("Miracast: wird installiert (Administrator-Frage) …")
+        run_async(work, self.message.emit, lambda text: self.message.emit(f"Miracast: {text}"))
+
+    def send_miracast(self) -> None:
+        """Bildschirm an einen Miracast-Fernseher (Windows „Verbinden“, Linux GNOME Network Displays)."""
+        from .platform import miracast
+
+        note = miracast.start_sending()
+        self.message.emit(note.lstrip("!"))
 
     def _follow_airplay_window(self) -> None:
         """UxPlay zeigt das Bild im eigenen Fenster → dieses Fenster dauerhaft auf Monitor 2 legen."""
@@ -1611,6 +1677,8 @@ class Controller(QObject):
             "vcam_aus": lambda: self._toggle_vcam(False),
             "senden": self.sender_requested.emit,  # Fenster „An Fernseher senden“
             "senden_aus": self.sender.stop,
+            "miracast": self.start_miracast,  # empfangen (Windows)
+            "miracast_senden": self.send_miracast,
         }
         action = actions.get(command)
         if action:

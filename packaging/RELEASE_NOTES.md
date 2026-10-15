@@ -9,11 +9,11 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 0.140.0
-- **An Fernseher senden:** Bildschirm zusätzlich an Chromecast, Google TV, Apple TV oder AirPlay-Fernseher
-  (Kachel „An Fernseher“). Live-Video, einige Sekunden verzögert, ohne Ton. Apple TV: einmal PIN.
-- Release-Text gekürzt, ältere Neuerungen stehen im CHANGELOG.
-- **Nicht mit echten Geräten getestet** – nur mit nachgebautem Chromecast und AirPlay-Empfänger.
+### Neu in 0.141.0
+- **Miracast:** empfangen unter Windows (Handy/Laptop → Bildschirm), senden an Miracast-Fernseher unter
+  Windows (Win+K) und Linux (GNOME Network Displays). Kachel „Miracast“.
+- Empfangen unter Linux geht nicht (kein gepflegter Miracast-Empfänger).
+- **Nicht mit echten Miracast-Geräten getestet.**
 
 ### Frühere Versionen
 [CHANGELOG](https://github.com/SG-Junior-FLL/AluPC/blob/main/docs/CHANGELOG.md)

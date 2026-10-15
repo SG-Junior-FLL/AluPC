@@ -580,6 +580,14 @@ class MainWindow(QMainWindow):
             slot = c.show_now_playing if action is None else (lambda _=False, a=action: c.media_control(a))
             music_menu.addAction(icons.icon(icon_name, theme.current().text, 18), text, slot)
         self.t_music.set_menu(music_menu, split=True)
+        # Miracast: Klick = empfangen (Windows) bzw. senden (Linux), Pfeil = beides + Installieren
+        self.t_miracast = self.tiles["miracast"]
+        from ..platform.miracast import IS_WINDOWS as _MC_WIN
+
+        self.t_miracast.activated.connect(c.start_miracast if _MC_WIN else c.send_miracast)
+        mc_menu = QMenu(self)
+        mc_menu.aboutToShow.connect(lambda: self._fill_miracast_menu(mc_menu))
+        self.t_miracast.set_menu(mc_menu, split=True)
         # An Fernseher senden: Klick = Fenster (suchen, senden), Pfeil = letztes Gerät / stoppen
         self.t_send = self.tiles["senden"]
         self.t_send.activated.connect(self.open_sender)
@@ -1338,6 +1346,25 @@ class MainWindow(QMainWindow):
                 self.show_message(why, "warn")
         else:
             self.controller.sender.cancel_pin()
+
+    def _fill_miracast_menu(self, menu):
+        from ..platform import miracast
+
+        t = theme.current()
+        c = self.controller
+        menu.clear()
+        recv = menu.addAction(icons.icon("phone", t.text, 18), "Empfangen: Handy/Laptop → Bildschirm", c.start_miracast)
+        if not miracast.IS_WINDOWS:
+            recv.setEnabled(False)
+            recv.setText("Empfangen: nur unter Windows")
+        menu.addAction(icons.icon("cast", t.text, 18), "Senden: an Miracast-Fernseher", c.send_miracast)
+        menu.addSeparator()
+        menu.addAction(icons.icon("download", t.text, 18),
+                       "Empfänger installieren (Drahtlose Anzeige)" if miracast.IS_WINDOWS
+                       else "Sender installieren (GNOME Network Displays)", c.install_miracast)
+        if miracast.IS_WINDOWS:
+            menu.addAction(icons.icon("sliders", t.text, 18), "Windows: „Projizieren auf diesen PC“ …",
+                           miracast.open_receive_settings)
 
     def _fill_send_menu(self, menu):
         t = theme.current()
