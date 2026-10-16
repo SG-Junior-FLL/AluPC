@@ -19,18 +19,21 @@ def test_fast_preview_and_frame_numbers(env):  # noqa: F811
     hdr = {"X-AluPC-Code": "123456"}
     status, _ = _http("GET", base + "/api/preview?fast=1", headers=hdr)
     seq0 = controller.cast.preview_seq
-    end = time.time() + 3
-    while time.time() < end:  # schneller Takt (~110 ms) statt alle 0,9 s
+    end, ask = time.time() + 3, time.time() + 0.5
+    while time.time() < end:  # schneller Takt (~110 ms) statt alle 0,9 s – das iPad fragt dabei laufend nach
         pump()
         time.sleep(0.02)
+        if time.time() > ask:
+            controller.cast.preview_fast, ask = time.monotonic(), time.time() + 0.5
     assert controller.cast.preview_seq - seq0 >= 15
     assert controller.cast.preview.startswith(b"\xff\xd8")  # JPEG
     from PySide6.QtGui import QImage
 
     img = QImage.fromData(controller.cast.preview)
     assert img.width() == 960  # beim Zeichnen schärfer
+    before = controller.cast.preview_seq
     status, body = _http("POST", base + "/api/draw", json.dumps({"phase": "up"}).encode(), headers=hdr)
-    assert status == 200 and json.loads(body)["seq"] == controller.cast.preview_seq
+    assert status == 200 and before <= json.loads(body)["seq"] <= controller.cast.preview_seq  # Bildnummer beim Ankommen
     st = controller.board_state()
     assert st["page_h"] > 0 and st["zoom_f"] == 1.0
     # ohne „fast“ wieder nur langsam
