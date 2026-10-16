@@ -405,10 +405,15 @@ jobs:
         if: failure()
         shell: pwsh
         run: |
-          if (Test-Path gui.log) { Get-Content gui.log -Tail 30 | Where-Object { $_.Trim() } |
-            ForEach-Object { Write-Output ("::warning title=gui.log::" + $_.Trim()) } }
-          if (Test-Path gui-haenger.txt) { Get-Content gui-haenger.txt -TotalCount 40 | Where-Object { $_.Trim() } |
-            ForEach-Object { Write-Output ("::warning title=Hänger::" + $_.Trim()) } }
+          # GitHub zeigt nur ~10 Meldungen je Schritt → alles Wichtige in EINE Meldung (Zeilen mit %0A getrennt)
+          $lines = @()
+          if (Test-Path gui-haenger.txt) { $lines += Get-Content gui-haenger.txt | Where-Object { $_ -match 'Test hängt|alupc|tests\\|Thread' } | Select-Object -First 60 }
+          if (Test-Path gui.log) {
+            $log = Get-Content gui.log
+            $lines += $log | Where-Object { $_ -match '^tests/test_gui\.py::' } | Select-Object -Last 3
+            $lines += $log | Where-Object { $_ -match 'Timeout|Thread 0x|Current thread|alupc\\|tests\\' } | Select-Object -Last 60
+          }
+          if ($lines.Count) { Write-Output ("::warning title=Hänger (Oberflächentests)::" + (($lines | ForEach-Object { $_.Trim() }) -join '%0A')) }
       - name: Sprache echt – Piper spricht, Vosk/Whisper hören, AluPC versteht
         run: python tests/voice_real_check.py
       - name: AluPC.exe bauen (PyInstaller)
