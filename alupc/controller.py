@@ -178,6 +178,9 @@ class Controller(QObject):
         self._cast_timer = _QTimer(self, interval=900)  # Live-Bild/Status fürs Handy
         self._cast_timer.timeout.connect(self._cast_tick)
         self._cast_timer.start()
+        self._fast_timer = _QTimer(self, interval=110)  # Zeichnen am iPad: Live-Bild ~9× pro Sekunde, schärfer
+        self._fast_timer.timeout.connect(self._fast_preview)
+        self._fast_timer.start()
         self.changed.connect(self.update_cursor_guard)
         self.changed.connect(self._cast_snapshot)
         self.changed.connect(self._overlays_visibility)
@@ -950,6 +953,7 @@ class Controller(QObject):
         b = self.board
         cfg = b.settings()
         return {"page": b.doc["page"] + 1, "pages": len(b.doc["pages"]), "zoom": round(b.zoom * 100),
+                "zoom_f": b.zoom, "page_h": b.page_size()[1],  # iPad: Strichbreite wie auf dem Bildschirm
                 "bg": b.page["bg"], "undo": b.can_undo(), "redo": b.can_redo(), "sel": len(b.sel),
                 "name": b.doc["name"], "colors": cfg["colors"], "pencil_only": bool(cfg["pencil_only"]),
                 "width": cfg["width"], "marker_width": cfg["marker_width"], "guests": cfg["guests"],
@@ -1084,16 +1088,27 @@ class Controller(QObject):
         if not self.cast.running() or time.monotonic() - self.cast.preview_wanted > 5:
             return
         self._cast_snapshot()
-        self.cast.preview = self._preview_jpeg()
+        if not self._fast_wanted():
+            self.cast.set_preview(self._preview_jpeg())
 
-    def _preview_jpeg(self) -> bytes:
+    def _fast_wanted(self) -> bool:
+        import time
+
+        return self.cast.running() and time.monotonic() - getattr(self.cast, "preview_fast", 0.0) < 2.5
+
+    def _fast_preview(self) -> None:
+        """Solange am iPad gezeichnet wird: Live-Bild schnell und in höherer Auflösung (Striche, Zoom kommen flott)."""
+        if self._fast_wanted():
+            self.cast.set_preview(self._preview_jpeg(960, 540))
+
+    def _preview_jpeg(self, w: int = 640, h: int = 360) -> bytes:
         from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QSize
 
         from .output_window import grab_scaled
 
         out = self.output
         if out.isVisible() and out.width() > 0:
-            img = grab_scaled(out, QSize(640, 360))
+            img = grab_scaled(out, QSize(w, h))
             from .laser import draw_overlay
 
             draw_overlay(self, img)
@@ -1101,11 +1116,11 @@ class Controller(QObject):
             from .monitor_feed import fit_into, waiting_image
 
             live = self.monitor_feed.image()
-            img = fit_into(live, 640, 360) if live is not None else waiting_image(640, 360, self.monitor_feed.problem())
+            img = fit_into(live, w, h) if live is not None else waiting_image(w, h, self.monitor_feed.problem())
         data = QByteArray()
         buf = QBuffer(data)
         buf.open(QIODevice.WriteOnly)
-        img.save(buf, "JPEG", 70)
+        img.save(buf, "JPEG", 70 if w <= 640 else 75)
         buf.close()
         return bytes(data)
 
@@ -2567,6 +2582,7 @@ class Controller(QObject):
         self.airplay.shutdown()
         self.cast.stop()
         self._cast_timer.stop()
+        self._fast_timer.stop()
         if self._airplay_bg_timer is not None:
             self._airplay_bg_timer.stop()
         for sig, slot in ((self.airplay.failed, self._airplay_failed), (self.airplay.notice, self._airplay_notice),

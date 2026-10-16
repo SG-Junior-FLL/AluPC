@@ -367,6 +367,7 @@ jobs:
           }
       - name: Tests (Oberfläche)
         shell: pwsh
+        timeout-minutes: 20
         run: |
           $env:ALUPC_TEST_HANG_EXIT = "300"  # hängt ein Test 5 Minuten: Stapel in gui-haenger.txt, Abbruch
           python -X faulthandler -m pytest -v -rf tests/test_gui.py 2>&1 | Tee-Object -FilePath gui.log
@@ -400,6 +401,14 @@ jobs:
               Select-Object -Last 25 | ForEach-Object { Write-Output ("::warning::" + $_.Trim()) }
             exit 1
           }
+      - name: Oberflächentests – letzte Zeilen (nur bei Fehler)
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path gui.log) { Get-Content gui.log -Tail 30 | Where-Object { $_.Trim() } |
+            ForEach-Object { Write-Output ("::warning title=gui.log::" + $_.Trim()) } }
+          if (Test-Path gui-haenger.txt) { Get-Content gui-haenger.txt -TotalCount 40 | Where-Object { $_.Trim() } |
+            ForEach-Object { Write-Output ("::warning title=Hänger::" + $_.Trim()) } }
       - name: Sprache echt – Piper spricht, Vosk/Whisper hören, AluPC versteht
         run: python tests/voice_real_check.py
       - name: AluPC.exe bauen (PyInstaller)

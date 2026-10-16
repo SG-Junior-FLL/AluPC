@@ -286,6 +286,7 @@ class Board(QObject):
                 self.live["p"][1] = [round(x, 1), round(y, 1)]
             else:
                 k = {0: 1.0, 1: 0.55, 2: 0.33}.get(int(cfg["smooth"]), 0.55)  # Glätten: zum neuen Punkt hin
+                self._raw = [round(x, 1), round(y, 1), round(pressure, 2)]  # wo der Stift wirklich ist
                 last = self._last or p
                 q = QPointF(last.x() + (p.x() - last.x()) * k, last.y() + (p.y() - last.y()) * k)
                 if math.hypot(q.x() - last.x(), q.y() - last.y()) < 0.6 / max(0.5, self.zoom):
@@ -296,6 +297,9 @@ class Board(QObject):
             return
         if phase == "up":
             stroke, self.live = self.live, None
+            raw, self._raw = getattr(self, "_raw", None), None
+            if stroke["t"] not in SHAPES and raw and stroke["p"][-1][:2] != raw[:2]:
+                stroke["p"].append(raw)  # Glätten hinkt hinterher: Strich endet genau, wo der Stift aufhört
             if stroke["t"] in SHAPES and stroke["p"][0] == stroke["p"][1]:
                 self.changed.emit()
                 return

@@ -179,6 +179,8 @@ class CastServer(QObject):
         self.snapshot = {"now": "", "scenes": [], "volume": 100, "video": False}
         self.preview = b""  # JPEG von Monitor 2 (vom Qt-Hauptthread erneuert, solange ein Handy zuschaut)
         self.preview_wanted = 0.0
+        self.preview_seq = 0  # Nummer des Live-Bilds (das iPad weiß so, ob sein Strich/Zoom schon drin ist)
+        self.preview_fast = 0.0  # zuletzt „schnell“ angefragt (Zeichnen am iPad): öfter und schärfer
         self.board_thumbs: list[bytes] = []  # Whiteboard-Seiten als kleine JPEGs (Controller füllt sie)
         self.thumbs_wanted = 0.0
         self._fails: dict[str, list[float]] = {}
@@ -194,6 +196,10 @@ class CastServer(QObject):
         self.duel = None  # Schiffe versenken (duel.Battleship) – Spieler 2 am Handy, nur mit dem Stichwort
         self.access: dict[str, dict] = {}  # Freigabe-Anfragen: id → {name, ip, state, key, t}
         self.screen_stream = None  # Bildschirm an Fernseher senden (sender.HlsStream) – nur mit Zufallsschlüssel
+
+    def set_preview(self, data: bytes) -> None:
+        self.preview = data
+        self.preview_seq += 1
 
     # ------------------------------------------------------------ Einstellungen
     def settings(self) -> dict:
@@ -477,9 +483,12 @@ def _make_handler(server: CastServer):
         def log_message(self, *_args):  # nichts in die Konsole schreiben
             pass
 
-        def _send(self, status: int, body: bytes, ctype: str = "application/json; charset=utf-8"):
+        def _send(self, status: int, body: bytes, ctype: str = "application/json; charset=utf-8",
+                  headers: dict | None = None):
             self.send_response(status)
             self.send_header("Content-Type", ctype)
+            for k, v in (headers or {}).items():
+                self.send_header(k, v)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
@@ -703,8 +712,10 @@ def _make_handler(server: CastServer):
             elif path == "/api/preview":
                 if self._auth() and self._may("live"):
                     server.preview_wanted = time.monotonic()
+                    if parse_qs(urlparse(self.path).query).get("fast"):
+                        server.preview_fast = server.preview_wanted
                     if server.preview:
-                        self._send(200, server.preview, "image/jpeg")
+                        self._send(200, server.preview, "image/jpeg", {"X-AluPC-Frame": str(server.preview_seq)})
                     else:
                         self._send(204, b"", "image/jpeg")
             elif path in ("/icon.png", "/apple-touch-icon.png", "/favicon.ico"):
@@ -1081,7 +1092,7 @@ def _make_handler(server: CastServer):
                 else:
                     self._json(404, {"error": "Nicht gefunden"})
                     return
-                self._json(200, {"ok": True})
+                self._json(200, {"ok": True, "seq": server.preview_seq})  # seq: Live-Bild-Nummer jetzt
             except (ValueError, TypeError, json.JSONDecodeError):
                 self._json(400, {"error": "Ungültige Anfrage"})
 

@@ -9,11 +9,14 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 0.141.0
-- **Miracast:** empfangen unter Windows (Handy/Laptop → Bildschirm), senden an Miracast-Fernseher unter
-  Windows (Win+K) und Linux (GNOME Network Displays). Kachel „Miracast“.
-- Empfangen unter Linux geht nicht (kein gepflegter Miracast-Empfänger).
-- **Nicht mit echten Miracast-Geräten getestet.**
+### Neu in 0.142.0
+- **iPad-Whiteboard wie eine Zeichen-App:** Striche erscheinen sofort und bleiben, bis das Bild vom PC sie zeigt.
+  Zoomen und Verschieben mit zwei Fingern folgen sofort. Beim Zeichnen kommt das Bild vom PC ~9× pro Sekunde
+  (vorher ~1×) und schärfer. „Vergrößern“ behält die Werkzeugleiste.
+- Striche enden genau dort, wo der Stift aufhört (Glätten hinkte nach).
+- **Miracast** (aus 0.141, die nicht erschienen ist): empfangen unter Windows, senden an Miracast-Fernseher unter
+  Windows (Win+K) und Linux (GNOME Network Displays). Empfangen unter Linux geht nicht.
+- **Nicht getestet:** mit echtem iPad und echten Miracast-Geräten (nur Browser-Test mit iPad-Größe).
 
 ### Frühere Versionen
 [CHANGELOG](https://github.com/SG-Junior-FLL/AluPC/blob/main/docs/CHANGELOG.md)

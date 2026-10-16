@@ -22,6 +22,8 @@ IS_WINDOWS = sys.platform.startswith("win")
 CAPABILITY = "App.WirelessDisplay.Connect~~~~0.0.1.0"
 FLATPAK_ID = "org.gnome.NetworkDisplays"
 _NO_WINDOW = 0x08000000
+# Gestartete Programme hängen nicht an AluPCs Ein-/Ausgabe (sonst wartet z. B. ein Protokoll-Leser auf sie)
+_DETACH = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
 
 FIND_SCRIPT = (
     "Get-StartApps | Where-Object { $_.AppID -like '*WirelessDisplay*' -or $_.AppID -like '*PPIProjection*' "
@@ -63,7 +65,7 @@ def find_app() -> dict | None:
 
 
 def launch(app: dict) -> None:
-    subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{app['app_id']}"], creationflags=_flags())
+    subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{app['app_id']}"], creationflags=_flags(), **_DETACH)
 
 
 def install_command() -> list[str]:
@@ -114,7 +116,7 @@ def wireless_display_support() -> bool | None:
 
 def open_receive_settings() -> None:
     """Windows-Einstellung „Projizieren auf diesen PC“ (dort „Überall verfügbar“ wählen)."""
-    subprocess.Popen(["cmd", "/c", "start", "", "ms-settings:project"], creationflags=_flags())
+    subprocess.Popen(["cmd", "/c", "start", "", "ms-settings:project"], creationflags=_flags(), **_DETACH)
 
 
 # --------------------------------------------------------------------------- Senden
@@ -167,7 +169,7 @@ def start_sending(popen=subprocess.Popen) -> str:
     if not cmd:
         return "!GNOME Network Displays fehlt – „Installieren“ drücken (Paket gnome-network-displays)."
     try:
-        popen(cmd, start_new_session=True)
+        popen(cmd, start_new_session=True, **_DETACH)
     except OSError as exc:
         return f"!GNOME Network Displays startet nicht: {exc}"
     return "GNOME Network Displays ist offen: Fernseher wählen, dann den Monitor „Bildschirm“ zum Senden wählen."

@@ -68,7 +68,8 @@ def test_pressure_and_smoothing(board):
     board.set_settings(pressure=False, smooth=2)
     _stroke(board, pts=((0, 100), (100, 100)), pressure=0.9)
     last = board.strokes[-1]["p"]
-    assert last[-1][2] == 0.5 and last[-1][0] < 100  # ohne Druck = mittel, geglättet = hinkt nach
+    assert last[-1][2] == 0.5 and last[-2][0] < 100  # ohne Druck = mittel, geglättet = hinkt nach …
+    assert last[-1][:2] == [100.0, 100.0]  # … aber der Strich endet genau, wo der Stift aufhört
 
 
 def test_lasso_select_move_delete(board):

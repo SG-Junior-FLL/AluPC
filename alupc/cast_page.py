@@ -319,7 +319,7 @@ body.heftmode nav, body.heftmode header { display:none; }
          box-shadow:0 20px 60px rgba(0,0,0,.45); }
 .hname { display:flex; gap:8px; margin:4px 0 8px; } .hname input { flex:1; min-width:0; font-size:16px; padding:10px 12px;
          border-radius:12px; border:2px solid var(--line); background:var(--card); color:var(--text); }
-#heft.max .hbar, #heft.max .hpages, #heft.max .hstatus { display:none; }
+#heft.max .hpages, #heft.max .hstatus { display:none; }
 #heft.max .hbody { padding:6px; }
 .hhead { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
 .hhead b { font-size:17px; }
@@ -1013,28 +1013,33 @@ async function refresh() {
 }
 
 // ---- Live-Bild (nur, solange ein Reiter mit Bild offen und die Seite sichtbar ist)
-let prevUrl = null, prevBusy = false;
+let prevUrl = null, prevBusy = false, fastTimer = 0;
+function fastPreview() { return current === "zeichnen"; }  // beim Zeichnen: Live-Bild ~9× pro Sekunde
 async function loadPreview() {
   if (!code || prevBusy || !allow.live || current === "senden" || current === "folien" || document.hidden) return;
   prevBusy = true;
+  const fast = fastPreview(), t0 = Date.now();
   try {
-    const r = await fetch("/api/preview", { headers: { "X-AluPC-Code": code } });
-    if (r.ok && r.status === 200) {
+    const r = await fetch("/api/preview" + (fast ? "?fast=1" : ""), { headers: { "X-AluPC-Code": code } });
+    const seq = +(r.headers.get("X-AluPC-Frame") || 0);
+    if (r.ok && r.status === 200 && !(viewHold && seq < viewHold)) {  // während Zoom-Geste: altes Bild behalten
       const url = URL.createObjectURL(await r.blob());
-      $("prev").src = url; $("dprev").src = url;
-      $("dprev").onload = () => {  // Seitenverhältnis vom Bildschirm übernehmen
-        const ar = $("dprev").naturalWidth / $("dprev").naturalHeight;
-        if (ar > 0.2 && ar < 5 && Math.abs(ar - (window._ar || 0)) > 0.01) {
-          window._ar = ar; document.documentElement.style.setProperty("--ar", ar);
-          for (const pv of [$("preview"), $("dpreview")]) pv.style.aspectRatio = String(ar);
-          sizeInk(); sizeHeft();
-        }
-      };
+      $("prev").src = url;
+      const im = $("dprev"); im.src = url;
+      try { await im.decode(); } catch (e) {}
+      const ar = im.naturalWidth / im.naturalHeight;  // Seitenverhältnis vom Bildschirm übernehmen
+      if (ar > 0.2 && ar < 5 && Math.abs(ar - (window._ar || 0)) > 0.01) {
+        window._ar = ar; document.documentElement.style.setProperty("--ar", ar);
+        for (const pv of [$("preview"), $("dpreview")]) pv.style.aspectRatio = String(ar);
+        sizeInk(); sizeHeft();
+      }
+      frameArrived(seq);
       if (prevUrl) URL.revokeObjectURL(prevUrl);
       prevUrl = url;
     }
   } catch (e) {}
   prevBusy = false;
+  if (fast && !fastTimer) fastTimer = setTimeout(() => { fastTimer = 0; loadPreview(); }, Math.max(30, 110 - (Date.now() - t0)));
 }
 
 // ---- Senden mit „immer nur das Neueste“ (Laser, Zeichnen, Maus): nie einen Rückstau aufbauen
@@ -1050,11 +1055,12 @@ function sender(path, merge) {
     chain = chain.then(() => post(body)).then(() => new Promise(r => setTimeout(r, 15)))
                  .then(() => { busy = false; pump(); });
   }
-  return function (obj, force) {
+  return function (obj, force, done) {
     if (force) {  // Anfang/Ende eines Strichs, Klicks: nie verschmelzen oder verlieren
       if (pending) { const p = JSON.stringify(pending); pending = null; chain = chain.then(() => post(p)); }
       const body = JSON.stringify(obj);
-      chain = chain.then(() => post(body));
+      chain = chain.then(() => post(body)).then(r => {  // done(seq): Nummer des Live-Bilds, als es ankam
+        if (done) r && r.ok ? r.json().then(j => done(j.seq)).catch(() => done(null)) : done(null); });
       return;
     }
     pending = merge && pending ? merge(pending, obj) : obj;
@@ -1133,9 +1139,15 @@ function boardWidth() {
   if (!board) return undefined;
   return (tool === "marker" ? board.marker_width : board.width) * widthF;
 }
-const sendBoard = sender("/api/board", (a, b) => (a.op === "view" && b.op === "view")
-  ? { op: "view", zoom: (a.zoom || 1) * (b.zoom || 1), dx: (a.dx || 0) + (b.dx || 0), dy: (a.dy || 0) + (b.dy || 0),
-      ax: b.ax, ay: b.ay } : b);
+function viewAffine(o) {  // Ansicht-Nachricht → x' = s·x + t (je Achse, 0…1 vom Bildschirm)
+  const z = o.zoom || 1, ax = o.ax === undefined ? .5 : o.ax, ay = o.ay === undefined ? .5 : o.ay;
+  return { s: z, tx: (1 - z) * ax + (o.dx || 0), ty: (1 - z) * ay + (o.dy || 0) };
+}
+function mergeView(a, b) {  // erst a, dann b – genau zusammengefasst
+  const A = viewAffine(a), B = viewAffine(b), z = A.s * B.s;
+  return { op: "view", zoom: z, ax: .5, ay: .5, dx: B.s * A.tx + B.tx - (1 - z) * .5, dy: B.s * A.ty + B.ty - (1 - z) * .5 };
+}
+const sendBoard = sender("/api/board", (a, b) => (a.op === "view" && b.op === "view") ? mergeView(a, b) : b);
 function boardOp(op, arg) { buzz(); sendBoard({ op, arg: arg || "" }, true); setTimeout(refresh, 250); setTimeout(refresh, 1200); }
 function undoAny() { if (board) boardOp("rueckgaengig"); else cmd("zeichnung_zurueck"); }
 function redoAny() { if (board) boardOp("wiederholen"); }
@@ -1183,7 +1195,7 @@ function heft(on, byUser) {
     document.body.classList.remove("heftmode"); hMenu(); setTimeout(sizeInk, 30);
   }
 }
-// Vergrößern in der Heft-Ansicht: nur noch die Tafel (Leiste, Seiten, Status weg) – nochmal tippen holt sie zurück
+// Vergrößern in der Heft-Ansicht: Tafel so groß wie möglich (Seitenliste und Status weg, Werkzeuge bleiben)
 function heftMax(on) {
   const h = $("heft"); h.classList.toggle("max", on === undefined ? !h.classList.contains("max") : on);
   hMenu(); setTimeout(sizeHeft, 30);
@@ -1328,15 +1340,89 @@ const ink = $("ink"), dpv = $("dpreview");
 function sizeInk() {
   const box = dpv.getBoundingClientRect();
   ink.width = Math.round(box.width * devicePixelRatio); ink.height = Math.round(box.height * devicePixelRatio);
+  redrawInk();
 }
 window.addEventListener("resize", sizeInk);
-let last = null, fadeTimer = null;
-function inkLine(a, b, pr) {
-  const g = ink.getContext("2d"); g.lineCap = "round"; g.lineJoin = "round";
-  g.strokeStyle = color; g.globalAlpha = tool === "marker" ? .4 : 1;
+// Eigene Striche sofort zeigen (wie in einer Zeichen-App) – sie bleiben, bis das Live-Bild vom PC sie enthält
+// (Bildnummer ≥ Nummer beim Ankommen + 2). Zoomen/Verschieben ebenso: das Bild bewegt sich sofort mit den Fingern,
+// erst ein Live-Bild mit der neuen Ansicht ersetzt es.
+let last = null, strokes = [], cur = null, inkQueued = false;
+let vt = { s: 1, tx: 0, ty: 0 }, viewHold = 0, frameSeq = 0;
+function applyView() {
+  const im = $("dprev");
+  im.style.transformOrigin = "0 0";
+  im.style.transform = (vt.s === 1 && !vt.tx && !vt.ty) ? "" : "translate(" + vt.tx + "px," + vt.ty + "px) scale(" + vt.s + ")";
+  redrawInk();
+}
+function inkWidth(pr) {  // Strichbreite in Pixeln wie auf dem Bildschirm
   const press = board && board.settings && board.settings.pressure && pr !== undefined && pr !== 0.5 ? 0.35 + pr * 1.3 : 1;
-  g.lineWidth = (tool === "marker" ? 14 : 4) * (board ? widthF : 1) * press * devicePixelRatio;
-  g.beginPath(); g.moveTo(a.x * ink.width, a.y * ink.height); g.lineTo(b.x * ink.width, b.y * ink.height); g.stroke();
+  const h = dpv.getBoundingClientRect().height;
+  const px = board && board.page_h ? boardWidth() * (board.zoom_f || 1) * h / board.page_h
+                                   : (tool === "marker" ? 14 : 4) * (board ? widthF : 1);
+  return Math.max(1.2, px * press);
+}
+function redrawInk() {
+  if (inkQueued) return; inkQueued = true;
+  requestAnimationFrame(() => {
+    inkQueued = false;
+    const g = ink.getContext("2d"), W = ink.width, H = ink.height, d = devicePixelRatio;
+    g.clearRect(0, 0, W, H); g.lineCap = "round"; g.lineJoin = "round";
+    for (const st of strokes.concat(cur ? [cur] : [])) {
+      if (!st.pts.length) continue;
+      // Strich von vor einer Zoom-Geste: mit der Geste mitbewegen
+      const k = vt.s / st.v.s, ox = vt.tx - st.v.tx * k, oy = vt.ty - st.v.ty * k;
+      const X = q => (q.x * W / d * k + ox) * d, Y = q => (q.y * H / d * k + oy) * d;
+      g.strokeStyle = st.color; g.globalAlpha = st.tool === "marker" ? .4 : 1;
+      const p0 = st.pts[0], pn = st.pts[st.pts.length - 1];
+      g.beginPath();
+      if (st.shape) {
+        g.lineWidth = st.pts[0].w * k * d;
+        const x0 = X(p0), y0 = Y(p0), x1 = X(pn), y1 = Y(pn);
+        if (st.shape === "rect") g.rect(x0, y0, x1 - x0, y1 - y0);
+        else if (st.shape === "ellipse") g.ellipse((x0 + x1) / 2, (y0 + y1) / 2, Math.abs(x1 - x0) / 2, Math.abs(y1 - y0) / 2, 0, 0, 7);
+        else { g.moveTo(x0, y0); g.lineTo(x1, y1);
+          if (st.shape === "arrow") { const a = Math.atan2(y1 - y0, x1 - x0), L = Math.max(10 * d, g.lineWidth * 3);
+            for (const s2 of [-1, 1]) { g.moveTo(x1, y1); g.lineTo(x1 - L * Math.cos(a + s2 * .45), y1 - L * Math.sin(a + s2 * .45)); } } }
+        g.stroke(); continue;
+      }
+      if (st.tool === "marker" || st.pts.length < 2) {  // Marker: ein Pfad (keine dunklen Überlappungen)
+        g.lineWidth = p0.w * k * d; g.moveTo(X(p0), Y(p0));
+        for (const q of st.pts) g.lineTo(X(q), Y(q));
+        if (st.pts.length < 2) g.lineTo(X(p0) + .1, Y(p0));
+        g.stroke(); continue;
+      }
+      for (let i = 1; i < st.pts.length; i++) {  // Stift: Breite folgt dem Druck
+        const a1 = st.pts[i - 1], b1 = st.pts[i];
+        g.beginPath(); g.lineWidth = b1.w * k * d; g.moveTo(X(a1), Y(a1)); g.lineTo(X(b1), Y(b1)); g.stroke();
+      }
+    }
+    g.globalAlpha = 1;
+  });
+}
+function inkStart(p, e) {
+  const local = ["stift", "marker", "form"].includes(tool) || (!board && tool !== "laser" && tool !== "radierer");
+  cur = local ? { pts: [{ x: p.x, y: p.y, w: inkWidth(pressureOf(e)) }], color, tool, shape: tool === "form" ? shape : "",
+                  v: { ...vt }, clearAt: Infinity } : null;
+  redrawInk();
+}
+function inkAdd(p, e) { if (cur) { cur.pts.push({ x: p.x, y: p.y, w: inkWidth(pressureOf(e)) }); redrawInk(); } }
+function inkEnd() {
+  if (!cur) return; const st = cur; cur = null; strokes.push(st);
+  sendDraw({ phase: "up" }, true, seq => { st.clearAt = seq === null ? 0 : seq + 2; if (seq === null) dropInk(frameSeq); });
+}
+function dropInk(seq) {  // Live-Bild Nr. seq ist da: Striche, die es schon zeigt, weg
+  const n = strokes.length; strokes = strokes.filter(st => st.clearAt > seq);
+  if (strokes.length !== n) redrawInk();
+}
+function frameArrived(seq) {  // neues Live-Bild angezeigt
+  frameSeq = seq;
+  if (viewHold && seq >= viewHold) {
+    viewHold = 0; vt = { s: 1, tx: 0, ty: 0 };
+    for (const st of strokes) st.v = { ...vt };
+    if (cur) cur.v = { ...vt };
+    applyView();
+  }
+  dropInk(seq);
 }
 // Tafel: zwei Finger = zoomen/verschieben; „Nur Stift“: ein Finger verschiebt, nur Apple Pencil/Maus zeichnet
 const bpts = new Map(); let bgest = null, touchStart = null;
@@ -1345,7 +1431,23 @@ function pinchOf() {
   return { d: Math.hypot((p[0].x - p[1].x) * box.width, (p[0].y - p[1].y) * box.height),
            m: { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 } };
 }
-function pressureOf(e) { return e.pointerType === "pen" && e.pressure > 0 ? e.pressure : 0.5; }
+function gestureStart(m, d) { viewHold = Infinity; bgest = { two: d !== undefined, m0: m, d0: d || 1, g0: { ...vt }, prev: { m, d: d || 1 } }; }
+function gestureMove(m, d) {  // sofort am iPad (CSS) und als Ansicht-Nachricht an den PC
+  const box = dpv.getBoundingClientRect(), rel = (d || bgest.d0) / bgest.d0;
+  vt = { s: bgest.g0.s * rel, tx: m.x * box.width + rel * (bgest.g0.tx - bgest.m0.x * box.width),
+         ty: m.y * box.height + rel * (bgest.g0.ty - bgest.m0.y * box.height) };
+  applyView();
+  const pr = bgest.prev, r = d ? d / Math.max(1, pr.d) : 1;
+  sendBoard(r !== 1 ? { op: "view", zoom: r, ax: pr.m.x, ay: pr.m.y, dx: m.x - pr.m.x, dy: m.y - pr.m.y }
+                    : { op: "view", dx: m.x - pr.m.x, dy: m.y - pr.m.y });
+  bgest.prev = { m, d: d || 1 };
+}
+function gestureEnd() {  // erst ein Live-Bild mit der neuen Ansicht ersetzt das mitbewegte Bild
+  bgest = null;
+  sendBoard({ op: "view", dx: 0, dy: 0 }, true, seq => { viewHold = seq === null ? frameSeq : seq + 2;
+    if (seq === null) frameArrived(frameSeq); });
+}
+function pressureOf(e) { return e && e.pointerType === "pen" && e.pressure > 0 ? e.pressure : 0.5; }
 function drawMsg(phase, p, e) {
   const m = { phase, x: p.x, y: p.y, tool: board ? boardTool() : tool, color };
   if (board) { m.pressure = pressureOf(e); const w = boardWidth(); if (w) m.width = w; }
@@ -1359,50 +1461,45 @@ dpv.addEventListener("pointerdown", e => {
     if (bpts.size >= 2) {  // zweiter Finger: ab jetzt zoomen/verschieben (der erste hat noch nicht gezeichnet)
       if (touchStart) touchStart = null;
       else if (last) sendDraw({ phase: "up" }, true);
-      last = null;
-      bgest = { two: true, prev: pinchOf() }; return;
+      last = null; cur = null; redrawInk();
+      const pc = pinchOf(); gestureStart(pc.m, pc.d); return;
     }
-    if (pencilOnly && e.pointerType === "touch") { bgest = { pan: true, prev: p }; return; }
+    if (pencilOnly && e.pointerType === "touch") { gestureStart(p); return; }
     if (tool === "text") {
       const t = prompt("Text für die Tafel:"); bpts.delete(e.pointerId);
       if (t && t.trim()) { buzz(); sendBoard({ op: "text", x: p.x, y: p.y, text: t.slice(0, 500), color }, true); }
       return;
     }
   }
-  last = p; clearTimeout(fadeTimer);
+  last = p;
   if (tool === "laser" && !board) { sendLaser(p); dotAt(p); return; }
+  inkStart(p, e);
   if (board && e.pointerType === "touch") { touchStart = drawMsg("down", p, e); return; }  // erst bei Bewegung
   sendDraw(drawMsg("down", p, e), true);
 });
 dpv.addEventListener("pointermove", e => {
   if (board && bpts.has(e.pointerId)) {
     bpts.set(e.pointerId, norm(dpv, e));
-    if (bgest && bgest.two && bpts.size >= 2) {
-      const cur = pinchOf();
-      sendBoard({ op: "view", zoom: cur.d / Math.max(1, bgest.prev.d), ax: cur.m.x, ay: cur.m.y,
-                  dx: cur.m.x - bgest.prev.m.x, dy: cur.m.y - bgest.prev.m.y });
-      bgest.prev = cur; return;
-    }
-    if (bgest && bgest.pan) {
-      const p = norm(dpv, e); sendBoard({ op: "view", dx: p.x - bgest.prev.x, dy: p.y - bgest.prev.y });
-      bgest.prev = p; return;
-    }
+    if (bgest && bgest.two && bpts.size >= 2) { const pc = pinchOf(); gestureMove(pc.m, pc.d); return; }
+    if (bgest && !bgest.two) { gestureMove(norm(dpv, e)); return; }
   }
   if (!last || pinching) return;
-  const p = norm(dpv, e);
-  if (tool === "laser" && !board) { sendLaser(p); dotAt(p); return; }
+  const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];  // Apple Pencil: alle Zwischenpunkte
+  if (tool === "laser" && !board) { const p = norm(dpv, e); sendLaser(p); dotAt(p); return; }
   if (touchStart) { sendDraw(touchStart, true); touchStart = null; }
-  if (["stift", "marker"].includes(tool)) inkLine(last, p, pressureOf(e));
-  last = p; sendDraw(drawMsg("move", p, e));
+  for (const ev of evs.length ? evs : [e]) { const p = norm(dpv, ev); inkAdd(p, ev); last = p; }
+  sendDraw(drawMsg("move", last, e));
 });
 function penUp(e) {
-  if (e && bpts.has(e.pointerId)) { bpts.delete(e.pointerId); if (!bpts.size) bgest = null; }
+  if (e && bpts.has(e.pointerId)) {
+    bpts.delete(e.pointerId);
+    if (bgest && (!bgest.two || bpts.size < 2)) gestureEnd();
+    if (!bpts.size) bgest = null;
+  }
   if (!last) return; last = null;
   if (tool === "laser" && !board) { $("dlaser").style.display = "none"; sendLaser({ up: true }, true); return; }
   if (touchStart) { sendDraw(touchStart, true); touchStart = null; }  // nur getippt: ein Punkt
-  sendDraw({ phase: "up" }, true);
-  // eigener Strich verschwindet, sobald das Live-Bild ihn zeigt
-  fadeTimer = setTimeout(() => ink.getContext("2d").clearRect(0, 0, ink.width, ink.height), 1600);
+  if (cur) inkEnd(); else sendDraw({ phase: "up" }, true);
   if (board) setTimeout(refresh, 300);
 }
 dpv.addEventListener("pointerup", penUp);
