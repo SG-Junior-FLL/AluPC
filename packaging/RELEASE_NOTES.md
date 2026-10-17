@@ -9,14 +9,12 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 0.142.0
-- **iPad-Whiteboard wie eine Zeichen-App:** Striche erscheinen sofort und bleiben, bis das Bild vom PC sie zeigt.
-  Zoomen und Verschieben mit zwei Fingern folgen sofort. Beim Zeichnen kommt das Bild vom PC ~9× pro Sekunde
-  (vorher ~1×) und schärfer. „Vergrößern“ behält die Werkzeugleiste.
-- Striche enden genau dort, wo der Stift aufhört (Glätten hinkte nach).
-- **Miracast** (aus 0.141, die nicht erschienen ist): empfangen unter Windows, senden an Miracast-Fernseher unter
-  Windows (Win+K) und Linux (GNOME Network Displays). Empfangen unter Linux geht nicht.
-- **Nicht getestet:** mit echtem iPad und echten Miracast-Geräten (nur Browser-Test mit iPad-Größe).
+### Neu in 0.143.0
+- **Design überarbeitet:** Minispiele-Fenster mit Spiel-Karten (nichts mehr abgeschnitten), Farbwahl als kompakter
+  Knopf mit Farbprobe, Mischpult mit gedrehter Beschriftung und klarer Anzeige, wenn keine Geräte da sind,
+  einheitliche Fensterköpfe (Timer, Daten löschen), Apple TV im Sende-Fenster mit Fernseher-Symbol.
+- „Läuft gerade“ zeigt einen verständlichen Satz statt einer technischen Fehlermeldung.
+- **Nicht getestet** auf echter Hardware (wie immer: nur automatische Tests ohne echte Monitore).
 
 ### Frühere Versionen
 [CHANGELOG](https://github.com/SG-Junior-FLL/AluPC/blob/main/docs/CHANGELOG.md)

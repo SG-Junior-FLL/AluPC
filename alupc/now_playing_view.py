@@ -19,6 +19,16 @@ from .now_playing import Track, fmt_time
 from .ui.icons import draw_note
 
 
+
+def friendly_problem(exc: Exception) -> str:
+    """Technische Fehler (z. B. KeyError 'DBUS_SESSION_BUS_ADDRESS') als verständlicher Satz für den Bildschirm."""
+    text = str(exc).strip("'\" ")
+    if isinstance(exc, KeyError) or "DBUS" in text.upper() or "dbus" in type(exc).__module__.lower():
+        return "Keine Verbindung zum Mediendienst des Systems (D-Bus) – läuft AluPC in einer normalen Sitzung?"
+    if isinstance(exc, (PermissionError, TimeoutError)):
+        return "Der Player antwortet nicht."
+    return (text or type(exc).__name__)[:120]
+
 class NowPlayingFeed(QObject):
     changed = Signal(object)  # Track oder None
     failed = Signal(str)
@@ -64,7 +74,7 @@ class NowPlayingFeed(QObject):
         try:
             reader = now_playing.reader()
         except Exception as exc:  # noqa: BLE001
-            self.problem = str(exc)
+            self.problem = friendly_problem(exc)
             self.failed.emit(self.problem)
             return
         last_key = None
@@ -82,7 +92,7 @@ class NowPlayingFeed(QObject):
                     self.problem = ""
                 except Exception as exc:  # noqa: BLE001
                     track = None
-                    self.problem = str(exc) or type(exc).__name__
+                    self.problem = friendly_problem(exc)
                 key = None if track is None else (track.title, track.artist, track.player, track.playing,
                                                   round(track.position), track.length, track.art_key)
                 if key != last_key:  # nur melden, wenn sich etwas geändert hat

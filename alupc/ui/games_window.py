@@ -17,6 +17,50 @@ from .widgets import button, page_header
 KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
 
 
+class GameCard(QPushButton):
+    """Karte für ein Spiel: Symbol, fetter Titel (+ Taste), Untertitel – zu lang wird mit „…“ gekürzt."""
+
+    def __init__(self, emoji: str, title: str, sub: str, key: str = "", parent=None):
+        super().__init__(parent)
+        self._sub = sub
+        self.setToolTip(sub + (f" · Taste {key}" if key else ""))
+        self.setMinimumHeight(60)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(12, 8, 12, 8)
+        lay.setSpacing(10)
+        ic = QLabel(emoji)
+        ic.setStyleSheet("font-size: 20px; background: transparent;")
+        col = QVBoxLayout()
+        col.setSpacing(1)
+        self.t = QLabel(title)
+        self.t.setStyleSheet("font-weight: 700; background: transparent;")
+        self.s = QLabel(sub)
+        self.s.setObjectName("Muted")
+        self.s.setStyleSheet("font-size: 12px; background: transparent;")
+        col.addWidget(self.t)
+        col.addWidget(self.s)
+        lay.addWidget(ic)
+        lay.addLayout(col, 1)
+        if key:
+            k = QLabel(key)
+            k.setObjectName("Muted")
+            k.setStyleSheet("font-weight: 700; background: transparent;")
+            lay.addWidget(k, 0, Qt.AlignTop)
+        for w in self.findChildren(QLabel):
+            w.setAttribute(Qt.WA_TransparentForMouseEvents)
+
+    def text(self) -> str:  # für Tests/Barrierefreiheit: Titel und Untertitel
+        return f"{self.t.text()}\n{self._sub}"
+
+    def resizeEvent(self, e):  # Untertitel passend kürzen
+        super().resizeEvent(e)
+        w = max(40, self.s.width())
+        self.s.setText(self.s.fontMetrics().elidedText(self._sub, Qt.ElideRight, w))
+
+    def sizeHint(self):
+        return QSize(160, 60)
+
+
 class GamesWindow(QWidget):
     def __init__(self, controller, parent=None):
         super().__init__(parent, Qt.Window)
@@ -48,14 +92,10 @@ class GamesWindow(QWidget):
         from ..games import GAMES, ICONS
 
         for i, (key, spec) in enumerate(GAMES.items()):
-            num = f"   {KEYS[i]}" if i < len(KEYS) else ""
-            b = QPushButton(f"{ICONS.get(key, '🎮')}  {spec.title.replace('&', '&&')}{num}\n"
-                            f"{spec.short.replace('&', '&&')}")
+            b = GameCard(ICONS.get(key, '🎮'), spec.title, spec.short, KEYS[i] if i < len(KEYS) else "")
             b.setCheckable(True)
             b.setFocusPolicy(Qt.NoFocus)
             b.setCursor(Qt.PointingHandCursor)
-            b.setMinimumHeight(64)
-            b.setToolTip(f"{spec.short}" + (f" · Taste {KEYS[i]}" if i < len(KEYS) else ""))
             b.setStyleSheet(self._card_css(t))
             b.clicked.connect(lambda _=False, k=key: self.choose(k))
             cols = 3 if len(GAMES) > 10 else 2
@@ -63,20 +103,18 @@ class GamesWindow(QWidget):
             self.cards[key] = b
         left.addLayout(grid)
         # Zwei Bildschirme statt Handys: Spieler 1 am PC, Spieler 2 auf Monitor 2
-        self.b_duel = QPushButton("🚢  Schiffe versenken – zu zweit\nSpieler 1 hier am PC · Spieler 2 auf dem Bildschirm "
-                                  "(Handy als Steuerung)")
+        self.b_duel = GameCard("🚢", "Schiffe versenken – zu zweit",
+                               "Spieler 1 hier am PC · Spieler 2 auf dem Bildschirm (Handy als Steuerung)")
         self.b_duel.setFocusPolicy(Qt.NoFocus)
         self.b_duel.setCursor(Qt.PointingHandCursor)
-        self.b_duel.setMinimumHeight(64)
         self.b_duel.setStyleSheet(self._card_css(t))
         self.b_duel.clicked.connect(lambda: self.controller.start_duel())
         left.addWidget(self.b_duel)
         # Das echte Kahoot: Gastgeber-Seite auf Monitor 2, hier am PC über „Browser steuern“ bedienen
-        self.b_kahoot = QPushButton("🟪  Kahoot – das echte\nQuiz auf dem Bildschirm · am PC anmelden und starten · "
-                                    "Mitspieler über kahoot.it")
+        self.b_kahoot = GameCard("🟪", "Kahoot – das echte",
+                                 "Quiz auf dem Bildschirm · am PC anmelden und starten · Mitspieler über kahoot.it")
         self.b_kahoot.setFocusPolicy(Qt.NoFocus)
         self.b_kahoot.setCursor(Qt.PointingHandCursor)
-        self.b_kahoot.setMinimumHeight(64)
         self.b_kahoot.setStyleSheet(self._card_css(t))
         self.b_kahoot.clicked.connect(self.open_kahoot)
         left.addWidget(self.b_kahoot)

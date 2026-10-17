@@ -20,7 +20,7 @@ class ResetDialog(QDialog):
         self.setWindowTitle("Alle Daten löschen")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
-        lay.addWidget(page_header("Alle Daten löschen", "AluPC wird wie frisch installiert."))
+        lay.addWidget(page_header("Alle Daten löschen", "AluPC wird wie frisch installiert.", "trash"))
         what = QLabel("Gelöscht wird: " + WHAT + ".\n\nDas Programm selbst bleibt installiert. "
                       "Danach startet AluPC neu mit der Ersteinrichtung.")
         what.setWordWrap(True)

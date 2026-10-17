@@ -112,7 +112,7 @@ class SenderDialog(QDialog):
         self.list.clear()
         col = theme.current().text
         for dev in devices:
-            item = QListWidgetItem(icons.icon("cast" if dev.kind == CHROMECAST else "phone", col, 20), dev.label())
+            item = QListWidgetItem(icons.icon("cast" if dev.kind == CHROMECAST else "monitor", col, 20), dev.label())
             item.setData(Qt.UserRole, dev)
             item.setToolTip(f"{dev.host}:{dev.port}")
             self.list.addItem(item)

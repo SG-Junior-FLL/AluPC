@@ -89,18 +89,34 @@ def error_box(parent, text: str, title: str = "AluPC") -> None:
 
 
 class ColorButton(QPushButton):
+    """Farbe wählen: kompakter Knopf mit runder Farbprobe und Farbcode (statt eines großen bunten Balkens)."""
+
     changed = Signal(str)
 
     def __init__(self, color: str = "#000000", parent=None):
         super().__init__(parent)
         self.clicked.connect(self._pick)
+        self.setMaximumWidth(190)
+        self.setToolTip("Farbe wählen …")
         self.set_color(color)
 
     def set_color(self, color: str) -> None:
+        from PySide6.QtCore import QSize, Qt
+        from PySide6.QtGui import QIcon, QPainter, QPen, QPixmap
+
         self._color = QColor(color).name()
-        fg = "#000000" if QColor(self._color).lightness() > 128 else "#ffffff"
-        self.setText(self._color)
-        self.setStyleSheet(f"background:{self._color}; color:{fg};")
+        pm = QPixmap(40, 40)
+        pm.fill(Qt.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(QPen(QColor(127, 127, 127, 160), 2))
+        p.setBrush(QColor(self._color))
+        p.drawEllipse(3, 3, 34, 34)
+        p.end()
+        self.setIcon(QIcon(pm))
+        self.setIconSize(QSize(20, 20))
+        self.setText(self._color.upper())
+        self.setStyleSheet("text-align:left; padding-left:10px; font-family:monospace;")
 
     def color(self) -> str:
         return self._color

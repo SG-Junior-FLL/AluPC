@@ -627,15 +627,9 @@ class AudioPage(QWidget):
                         strip.update_values(d)
         self._fill_virtual()
 
-    def _section(self, title: str, color: str) -> QLabel:
-        t = theme.current()
-        lab = QLabel("<br>".join(title))  # senkrecht
-        lab.setToolTip(title)
-        lab.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        lab.setFixedWidth(22)
-        lab.setStyleSheet(f"color:{color}; font-weight:800; font-size:10.5px; background:{t.soft(color, 0.10)};"
-                          "border-radius:8px; padding-top:10px;")
-        return lab
+    def _section(self, title: str, color: str) -> QWidget:
+        """Senkrechter Gruppen-Streifen wie am Mischpult – Schrift gedreht statt Buchstaben untereinander."""
+        return _GroupStrip(title, color)
 
     def _build(self, outs: list[dict], ins: list[dict], apps: list[dict], vdevs: set[str]) -> None:
         while self.desk.count():
@@ -646,6 +640,13 @@ class AudioPage(QWidget):
         specs = []
         groups = [("AUSGÄNGE", COLORS["out"], "out", outs, False), ("EINGÄNGE", COLORS["in"], "in", ins, False),
                   ("PROGRAMME", COLORS["app"], "out", apps, True)]
+        if not (outs or ins or apps):  # gar nichts da (kein Audio-Dienst): eine klare Leer-Anzeige statt 3 leerer Streifen
+            self.desk.addStretch(1)
+            self.desk.addWidget(_empty_state("sound", "Keine Audio-Geräte gefunden",
+                                             self.note.text() or "Sobald Lautsprecher, Mikros oder Programme mit Ton "
+                                             "da sind, erscheinen sie hier als Regler."))
+            self.desk.addStretch(1)
+            return
         for title, color, kind, items, stream in groups:
             self.desk.addWidget(self._section(title, color))
             if not items:
@@ -696,3 +697,52 @@ class AudioPage(QWidget):
         self._cam_timer.stop()
         self._meter_timer.stop()
         self.meters.stop()
+
+
+class _GroupStrip(QWidget):
+    def __init__(self, title: str, color: str, parent=None):
+        super().__init__(parent)
+        self.title, self.color = title, color
+        self.setFixedWidth(24)
+        self.setToolTip(title)
+
+    def paintEvent(self, _e):
+        from PySide6.QtGui import QColor, QFont, QPainter
+
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(t.soft(self.color, 0.12)))
+        p.drawRoundedRect(self.rect(), 8, 8)
+        f = QFont(self.font())
+        f.setPointSizeF(8.5)
+        f.setWeight(QFont.ExtraBold)
+        f.setLetterSpacing(QFont.AbsoluteSpacing, 1.5)
+        p.setFont(f)
+        p.setPen(QColor(self.color))
+        p.translate(self.width() / 2 + 4, 12)
+        p.rotate(90)
+        p.drawText(0, 0, self.title)
+        p.end()
+
+
+def _empty_state(icon_name: str, title: str, text: str) -> QWidget:
+    w = QWidget()
+    lay = QVBoxLayout(w)
+    lay.setAlignment(Qt.AlignCenter)
+    t = theme.current()
+    ic = QLabel()
+    ic.setPixmap(icons.pixmap(icon_name, t.muted, 40))
+    ic.setAlignment(Qt.AlignCenter)
+    head = QLabel(title)
+    head.setAlignment(Qt.AlignCenter)
+    head.setStyleSheet("font-size:16px; font-weight:700;")
+    body = QLabel(text)
+    body.setObjectName("Muted")
+    body.setWordWrap(True)
+    body.setAlignment(Qt.AlignCenter)
+    body.setMaximumWidth(460)
+    for x in (ic, head, body):
+        lay.addWidget(x, 0, Qt.AlignHCenter)
+    return w

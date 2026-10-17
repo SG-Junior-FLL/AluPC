@@ -61,7 +61,7 @@ class TimerDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Timer", f"Aktuell: {clock.status()}"))
+        lay.addWidget(page_header("Timer", f"Aktuell: {clock.status()}", "timer"))
         lay.addLayout(form)
         lay.addWidget(buttons)
 

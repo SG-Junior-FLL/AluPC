@@ -434,6 +434,8 @@ def games():
          "Spiele-WLAN läuft.")
     monitor2("spiele-lobby", "Minispiele – Lobby", "Wer dabei ist, QR-Code zum Mitmachen, Bestenliste des Abends.")
     for key in GAMES:
+        for p in players:  # Handys melden sich laufend (sonst fallen sie nach 25 s aus der Lobby)
+            hub.seen(p.pid)
         controller.start_games(key)
         controller.game_action("start")
         hub.intro_until = hub.clock()

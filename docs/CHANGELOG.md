@@ -4,6 +4,15 @@ Die aktuellen Neuerungen stehen in den [Release-Notizen](../packaging/RELEASE_NO
 [Release-Seite](https://github.com/SG-Junior-FLL/AluPC/releases).
 
 
+## 0.142.0
+- **iPad-Whiteboard wie eine Zeichen-App:** Striche erscheinen sofort und bleiben, bis das Bild vom PC sie zeigt.
+  Zoomen und Verschieben mit zwei Fingern folgen sofort. Beim Zeichnen kommt das Bild vom PC ~9× pro Sekunde
+  (vorher ~1×) und schärfer. „Vergrößern“ behält die Werkzeugleiste.
+- Striche enden genau dort, wo der Stift aufhört (Glätten hinkte nach).
+- **Miracast** (aus 0.141, die nicht erschienen ist): empfangen unter Windows, senden an Miracast-Fernseher unter
+  Windows (Win+K) und Linux (GNOME Network Displays). Empfangen unter Linux geht nicht.
+- **Nicht getestet:** mit echtem iPad und echten Miracast-Geräten (nur Browser-Test mit iPad-Größe).
+
 ## 0.140.0
 - **An Fernseher senden:** Bildschirm zusätzlich an Chromecast, Google TV, Apple TV oder AirPlay-Fernseher
   (Kachel „An Fernseher“). Live-Video, einige Sekunden verzögert, ohne Ton. Apple TV: einmal PIN.
