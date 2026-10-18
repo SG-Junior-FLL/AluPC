@@ -143,6 +143,7 @@ def sync_group(page) -> QGroupBox:
     texts.setSpacing(2)
     title = QLabel()
     title.setStyleSheet("font-size: 17px; font-weight: 800;")
+    title.setWordWrap(True)
     sub = QLabel()
     sub.setObjectName("Muted")
     sub.setWordWrap(True)

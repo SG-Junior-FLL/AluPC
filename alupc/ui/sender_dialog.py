@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QProgressBar,
     QVBoxLayout,
 )
 
@@ -55,7 +56,7 @@ class SenderDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.addWidget(page_header("An Fernseher senden", "Chromecast · AirPlay · Miracast", "cast"))
         note = QLabel("Zeigt den Bildschirm zusätzlich auf einem Chromecast, Google TV, Apple TV oder "
-                      "AirPlay-Fernseher im selben Netz – einige Sekunden verzögert, ohne Ton.")
+                      "AirPlay-Fernseher im selben Netz – kurz verzögert, ohne Ton.")
         note.setWordWrap(True)
         note.setObjectName("Muted")
         lay.addWidget(note)
@@ -66,6 +67,12 @@ class SenderDialog(QDialog):
         self.status = QLabel()
         self.status.setWordWrap(True)
         lay.addWidget(self.status)
+        self.busy = QProgressBar()  # läuft, solange verbunden wird (Schritt steht im Text darüber)
+        self.busy.setRange(0, 0)
+        self.busy.setTextVisible(False)
+        self.busy.setFixedHeight(6)
+        self.busy.hide()
+        lay.addWidget(self.busy)
         opts = QHBoxLayout()
         self.size = QComboBox()
         for key in SIZES:
@@ -137,6 +144,7 @@ class SenderDialog(QDialog):
         elif s.state == "aus":
             text = "Gerät wählen und „Senden“."
         self.status.setText(text)
+        self.busy.setVisible(s.state in ("verbinde", "suche"))
         self.b_scan.setEnabled(s.state != "suche")
         self.b_send.setEnabled(self._selected() is not None and s.state != "verbinde")
         self.b_send.setText("An dieses Gerät" if s.running else "Senden")

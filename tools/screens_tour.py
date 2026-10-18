@@ -28,6 +28,8 @@ for _stream in (sys.stdout, sys.stderr):  # Windows schreibt sonst in cp1252 –
 sys.path.insert(0, str(ROOT))
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "screens").resolve()
 MODE = sys.argv[2] if len(sys.argv) > 2 else "dunkel"
+# Fenstergröße, z. B. ALUPC_TOUR_SIZE=1024x640 – prüft das Aussehen im kleinen (nicht Vollbild-)Fenster
+SIZE = tuple(int(v) for v in os.environ.get("ALUPC_TOUR_SIZE", "1440x900").lower().split("x"))
 OUT.mkdir(parents=True, exist_ok=True)
 TMP = Path(tempfile.mkdtemp(prefix="alupc-tour-"))
 _screens_cfg = ROOT / "tests" / "offscreen_two_screens.json"
@@ -184,7 +186,7 @@ config["wheel"] = {**config["wheel"], "names": ["Lena", "Noah", "Mia", "Ben", "E
 controller = Controller(config)
 controller.display.available = lambda: False
 window = MainWindow(controller, HotkeyManager())
-window.resize(1440, 900)
+window.resize(*SIZE)
 window.show()
 pump(1.0)
 out = controller.output
@@ -397,7 +399,7 @@ def whiteboard_tour():
                                          "genau die Ansicht vom PC bzw. Handy.")
     win = getattr(window, "board_window", None)
     if win is not None:
-        win.resize(1440, 900)
+        win.resize(*SIZE)
         pump(0.5)
         save(win, "whiteboard-fenster", "Whiteboard am PC", "Fenster",
              "Wie ein Notizbuch: Werkzeuge, Farben, Stärken, Seiten links, Strg+Mausrad oder zwei Finger zoomen, "

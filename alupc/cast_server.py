@@ -164,6 +164,70 @@ def cleanup(folder: Path, keep: int = KEEP_FILES) -> None:
             pass
 
 
+
+def live_request(path: str, data: dict) -> dict:
+    """Laser, Zeichnen, Whiteboard vom Handy/iPad: prüfen und als Anfrage für den Controller bauen (HTTP und WebSocket).
+    ValueError/TypeError bei ungültigen Werten."""
+    if path == "/api/laser":
+        if data.get("up"):
+            return {"kind": "laser", "x": None, "y": None}
+        x, y = float(data.get("x")), float(data.get("y"))
+        if not (0 <= x <= 1 and 0 <= y <= 1):
+            raise ValueError("außerhalb")
+        return {"kind": "laser", "x": x, "y": y}
+    elif path == "/api/draw":  # mit dem Finger auf Monitor 2 zeichnen
+        phase = str(data.get("phase", ""))
+        if phase not in ("down", "move", "up"):
+            raise ValueError("phase")
+        req = {"kind": "draw", "phase": phase}
+        if phase != "up":
+            x, y = float(data.get("x")), float(data.get("y"))
+            if not (0 <= x <= 1 and 0 <= y <= 1):
+                raise ValueError("außerhalb")
+            tool = str(data.get("tool", "stift"))
+            color = str(data.get("color", "#ef4444"))
+            if tool not in DRAW_TOOLS or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+                raise ValueError("Werkzeug")
+            req.update(x=x, y=y, tool=tool, color=color,
+                       pressure=max(0.0, min(1.0, float(data.get("pressure", 0.5)))))
+            if data.get("width") is not None:
+                req["width"] = max(0.5, min(200.0, float(data["width"])))
+        return req
+    elif path == "/api/board":  # Whiteboard: zoomen/verschieben oder Seiten, Rückgängig …
+        op = str(data.get("op", ""))
+        if op == "view":
+            req = {"kind": "board", "op": "view",
+                   "zoom": max(0.2, min(5.0, float(data.get("zoom") or 1))) if data.get("zoom") else 0,
+                   "dx": max(-2.0, min(2.0, float(data.get("dx", 0)))),
+                   "dy": max(-2.0, min(2.0, float(data.get("dy", 0)))),
+                   "ax": max(0.0, min(1.0, float(data.get("ax", 0.5)))),
+                   "ay": max(0.0, min(1.0, float(data.get("ay", 0.5))))}
+        elif op == "text":  # Text auf die Tafel (Stelle 0…1 im sichtbaren Ausschnitt)
+            x, y = float(data.get("x")), float(data.get("y"))
+            color = str(data.get("color", "#111827"))
+            if not (0 <= x <= 1 and 0 <= y <= 1) or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+                raise ValueError("Text")
+            req = {"kind": "board", "op": "text", "x": x, "y": y, "color": color,
+                   "text": str(data.get("text", ""))[:500]}
+        elif op == "einstellung":  # wie „Einstellungen“ im Whiteboard-Fenster am PC
+            key = str(data.get("key", ""))
+            req = {"kind": "board", "op": "einstellung", "key": key,
+                   "value": board_setting(key, data.get("value"))}
+        elif op in BOARD_OPS:
+            arg = str(data.get("arg", ""))
+            if op == "hintergrund" and not re.fullmatch(r"[a-z]{2,20}", arg):
+                raise ValueError("Hintergrund")
+            if op == "seite" and not re.fullmatch(r"\d{1,3}", arg):
+                raise ValueError("Seite")
+            if op.startswith("tafel_") and (len(arg) > 60 or "/" in arg or "\\" in arg):
+                raise ValueError("Name")
+            req = {"kind": "board", "op": op, "arg": arg}
+        else:
+            raise ValueError("op")
+        return req
+    raise ValueError("Pfad")
+
+
 class CastServer(QObject):
     """Webserver in einem eigenen Thread; Anfragen kommen als Signal im Qt-Hauptthread an."""
 
@@ -179,7 +243,12 @@ class CastServer(QObject):
         self.snapshot = {"now": "", "scenes": [], "volume": 100, "video": False}
         self.preview = b""  # JPEG von Monitor 2 (vom Qt-Hauptthread erneuert, solange ein Handy zuschaut)
         self.preview_wanted = 0.0
-        self.preview_seq = 0  # Nummer des Live-Bilds (das iPad weiß so, ob sein Strich/Zoom schon drin ist)
+        self.preview_seq = 0  # Nummer des Live-Bilds
+        # Eingaben vom iPad (Striche, Zoom …) werden durchnummeriert; jedes Live-Bild weiß, bis zu welcher Nummer es
+        # alles enthält – so ersetzt das iPad seine eigene Vorschau genau im richtigen Moment
+        self.live_no = 0  # zuletzt vergebene Nummer (Webserver-Threads)
+        self.applied = 0  # zuletzt vom Controller ausgeführte Nummer (Qt-Hauptthread)
+        self.preview_applied = 0  # im aktuellen Live-Bild enthalten bis Nummer
         self.preview_fast = 0.0  # zuletzt „schnell“ angefragt (Zeichnen am iPad): öfter und schärfer
         self.board_thumbs: list[bytes] = []  # Whiteboard-Seiten als kleine JPEGs (Controller füllt sie)
         self.thumbs_wanted = 0.0
@@ -197,9 +266,18 @@ class CastServer(QObject):
         self.access: dict[str, dict] = {}  # Freigabe-Anfragen: id → {name, ip, state, key, t}
         self.screen_stream = None  # Bildschirm an Fernseher senden (sender.HlsStream) – nur mit Zufallsschlüssel
 
-    def set_preview(self, data: bytes) -> None:
+    def set_preview(self, data: bytes, applied: int | None = None) -> None:
         self.preview = data
+        self.preview_applied = self.applied if applied is None else applied
         self.preview_seq += 1
+
+    def emit_live(self, req: dict) -> int:
+        """Eingabe vom iPad weitergeben; Rückgabe: ihre Nummer (ein Live-Bild mit preview_applied ≥ Nummer zeigt sie)."""
+        with self._lock:
+            self.live_no += 1
+            req["_no"] = self.live_no
+        self.request.emit(req)
+        return req["_no"]
 
     # ------------------------------------------------------------ Einstellungen
     def settings(self) -> dict:
@@ -678,6 +756,8 @@ def _make_handler(server: CastServer):
                 from .game_page import GAME_PAGE
 
                 self._send(200, GAME_PAGE.encode(), "text/html; charset=utf-8")
+            elif path == "/ws/live":  # iPad/Handy zeichnet: Live-Bild sofort + Striche ohne neue Anfragen
+                self._live_ws(parse_qs(urlparse(self.path).query))
             elif path == "/ws/spiel":  # schnelle Verbindung fürs Spielen
                 self._game_ws(parse_qs(urlparse(self.path).query))
             elif path == "/api/spiel":
@@ -715,7 +795,7 @@ def _make_handler(server: CastServer):
                     if parse_qs(urlparse(self.path).query).get("fast"):
                         server.preview_fast = server.preview_wanted
                     if server.preview:
-                        self._send(200, server.preview, "image/jpeg", {"X-AluPC-Frame": str(server.preview_seq)})
+                        self._send(200, server.preview, "image/jpeg", {"X-AluPC-Frame": str(server.preview_applied)})
                     else:
                         self._send(204, b"", "image/jpeg")
             elif path in ("/icon.png", "/apple-touch-icon.png", "/favicon.ico"):
@@ -812,6 +892,32 @@ def _make_handler(server: CastServer):
                 self._json(404, {"error": "Kein Schiffe-versenken-Spiel"})
                 return None
             return duel
+
+        def _live_ws(self, q):
+            from . import ws
+
+            if not server.running() or not server.check(self.client_address[0], q.get("c", [""])[0]) \
+                    or not server.allowed("live"):
+                self._json(403, {"error": "Falscher Code"})
+                return
+            key = self.headers.get("Sec-WebSocket-Key", "")
+            if "websocket" not in self.headers.get("Upgrade", "").lower() or not key:
+                self._json(400, {"error": "WebSocket erwartet"})
+                return
+            self.send_response(101, "Switching Protocols")
+            self.send_header("Upgrade", "websocket")
+            self.send_header("Connection", "Upgrade")
+            self.send_header("Sec-WebSocket-Accept", ws.accept_key(key))
+            self.end_headers()
+            self.wfile.flush()
+            self.close_connection = True
+
+            def handle(path: str, data: dict) -> int:
+                if not server.allowed("laser"):
+                    raise ValueError("nicht erlaubt")
+                return server.emit_live(live_request(path, data))
+
+            ws.serve_live(self.connection, self.rfile, server, handle, server.running)
 
         def _game_ws(self, q):
             from . import ws
@@ -998,64 +1104,9 @@ def _make_handler(server: CastServer):
                         self._json(400, {"error": "Kein Text"})
                         return
                     server.request.emit({"kind": "text", "text": text, "live": live})
-                elif u.path == "/api/laser":
-                    if data.get("up"):
-                        server.request.emit({"kind": "laser", "x": None, "y": None})
-                    else:
-                        x, y = float(data.get("x")), float(data.get("y"))
-                        if not (0 <= x <= 1 and 0 <= y <= 1):
-                            raise ValueError("außerhalb")
-                        server.request.emit({"kind": "laser", "x": x, "y": y})
-                elif u.path == "/api/draw":  # mit dem Finger auf Monitor 2 zeichnen
-                    phase = str(data.get("phase", ""))
-                    if phase not in ("down", "move", "up"):
-                        raise ValueError("phase")
-                    req = {"kind": "draw", "phase": phase}
-                    if phase != "up":
-                        x, y = float(data.get("x")), float(data.get("y"))
-                        if not (0 <= x <= 1 and 0 <= y <= 1):
-                            raise ValueError("außerhalb")
-                        tool = str(data.get("tool", "stift"))
-                        color = str(data.get("color", "#ef4444"))
-                        if tool not in DRAW_TOOLS or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
-                            raise ValueError("Werkzeug")
-                        req.update(x=x, y=y, tool=tool, color=color,
-                                   pressure=max(0.0, min(1.0, float(data.get("pressure", 0.5)))))
-                        if data.get("width") is not None:
-                            req["width"] = max(0.5, min(200.0, float(data["width"])))
-                    server.request.emit(req)
-                elif u.path == "/api/board":  # Whiteboard: zoomen/verschieben oder Seiten, Rückgängig …
-                    op = str(data.get("op", ""))
-                    if op == "view":
-                        req = {"kind": "board", "op": "view",
-                               "zoom": max(0.2, min(5.0, float(data.get("zoom") or 1))) if data.get("zoom") else 0,
-                               "dx": max(-2.0, min(2.0, float(data.get("dx", 0)))),
-                               "dy": max(-2.0, min(2.0, float(data.get("dy", 0)))),
-                               "ax": max(0.0, min(1.0, float(data.get("ax", 0.5)))),
-                               "ay": max(0.0, min(1.0, float(data.get("ay", 0.5))))}
-                    elif op == "text":  # Text auf die Tafel (Stelle 0…1 im sichtbaren Ausschnitt)
-                        x, y = float(data.get("x")), float(data.get("y"))
-                        color = str(data.get("color", "#111827"))
-                        if not (0 <= x <= 1 and 0 <= y <= 1) or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
-                            raise ValueError("Text")
-                        req = {"kind": "board", "op": "text", "x": x, "y": y, "color": color,
-                               "text": str(data.get("text", ""))[:500]}
-                    elif op == "einstellung":  # wie „Einstellungen“ im Whiteboard-Fenster am PC
-                        key = str(data.get("key", ""))
-                        req = {"kind": "board", "op": "einstellung", "key": key,
-                               "value": board_setting(key, data.get("value"))}
-                    elif op in BOARD_OPS:
-                        arg = str(data.get("arg", ""))
-                        if op == "hintergrund" and not re.fullmatch(r"[a-z]{2,20}", arg):
-                            raise ValueError("Hintergrund")
-                        if op == "seite" and not re.fullmatch(r"\d{1,3}", arg):
-                            raise ValueError("Seite")
-                        if op.startswith("tafel_") and (len(arg) > 60 or "/" in arg or "\\" in arg):
-                            raise ValueError("Name")
-                        req = {"kind": "board", "op": op, "arg": arg}
-                    else:
-                        raise ValueError("op")
-                    server.request.emit(req)
+                elif u.path in ("/api/laser", "/api/draw", "/api/board"):
+                    self._json(200, {"ok": True, "seq": server.emit_live(live_request(u.path, data))})
+                    return
                 elif u.path == "/api/mouse":  # Handy als Touchpad
                     if "click" in data:
                         button = str(data["click"])
@@ -1092,7 +1143,7 @@ def _make_handler(server: CastServer):
                 else:
                     self._json(404, {"error": "Nicht gefunden"})
                     return
-                self._json(200, {"ok": True, "seq": server.preview_seq})  # seq: Live-Bild-Nummer jetzt
+                self._json(200, {"ok": True})
             except (ValueError, TypeError, json.JSONDecodeError):
                 self._json(400, {"error": "Ungültige Anfrage"})
 

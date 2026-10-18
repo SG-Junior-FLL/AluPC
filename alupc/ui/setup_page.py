@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -37,7 +37,7 @@ from .util import error_box, run_async
 from .hotkey_edit import HotkeyButton
 from .reset_page import reset_group
 from .sync_page import backup_group, sync_group
-from .widgets import button, flow_row, font, rounded
+from .widgets import FlowLayout, button, flow_row, font, rounded
 
 SIDES = [("right", "rechts vom Hauptmonitor"), ("left", "links vom Hauptmonitor"),
          ("above", "über dem Hauptmonitor"), ("below", "unter dem Hauptmonitor"),
@@ -291,9 +291,36 @@ class SetupPage(QWidget):
             lay.addWidget(build())
         for combo in inner.findChildren(QComboBox):  # lange Einträge dürfen das Fenster nicht verbreitern
             combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-            combo.setMinimumContentsLength(10)
+            combo.setMinimumContentsLength(8)
         lay.addStretch(1)
         self._areas[i].setWidget(inner)
+        self.__dict__.setdefault("_area_of", {})[inner] = self._areas[i]
+        inner.installEventFilter(self)
+        self._fit_forms()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._fit_forms()
+
+    def _fit_forms(self) -> None:
+        """Schmales Fenster: Beschriftung über das Feld statt daneben – sonst wird rechts abgeschnitten."""
+        policy = QFormLayout.WrapAllRows if self.stack.width() < 620 else QFormLayout.DontWrapRows
+        for area in self._areas:
+            inner = area.widget()
+            if inner is None:
+                continue
+            for form in inner.findChildren(QFormLayout):
+                if form.rowWrapPolicy() != policy:
+                    form.setRowWrapPolicy(policy)
+
+    def eventFilter(self, obj, event):
+        # Inhalt wurde schmaler (Beschriftungen umgebrochen o. Ä.): QScrollArea passt ihn von selbst erst bei der
+        # nächsten Größenänderung an – bis dahin bliebe er rechts abgeschnitten. Darum hier neu einpassen.
+        if event.type() == QEvent.LayoutRequest:
+            area = self.__dict__.get("_area_of", {}).get(obj)  # nicht über __getattr__ (baut sonst alle Bereiche)
+            if area is not None:
+                area.setWidgetResizable(True)
+        return super().eventFilter(obj, event)
 
     def build_all(self) -> None:
         for i in list(self.__dict__.get("_pending", {})):
@@ -350,6 +377,7 @@ class SetupPage(QWidget):
         lay = QVBoxLayout(box)
         backend = self.controller.display
         self.backend_label = QLabel(f"System: {session_info()} – Steuerung über: {backend.name}")
+        self.backend_label.setWordWrap(True)
         lay.addWidget(self.backend_label)
         if not backend.available():
             hint = QLabel("Nicht verfügbar – braucht „kscreen-doctor“ (Paket kscreen)")
@@ -395,34 +423,24 @@ class SetupPage(QWidget):
         lay.addLayout(form)
 
 
-        row = QHBoxLayout()
         apply_btn = button("Übernehmen", "check", primary=True)
         apply_btn.clicked.connect(self._apply)
         reload_btn = button("Neu laden", "refresh")
         reload_btn.clicked.connect(self.reload_outputs)
         ident_btn = button("Monitore identifizieren", "monitor")
         ident_btn.clicked.connect(self.identify)
-        row.addWidget(apply_btn)
-        row.addWidget(reload_btn)
-        row.addWidget(ident_btn)
-        row.addStretch(1)
-        lay.addLayout(row)
+        lay.addWidget(flow_row(apply_btn, reload_btn, ident_btn))  # bricht im kleinen Fenster um
 
-        row2 = QHBoxLayout()
         mirror_btn = button("System-Spiegeln", "mirror")
         mirror_btn.setToolTip("Das Betriebssystem spiegelt Monitor 1 (ohne AluPC). "
                               "Standbild und Sichtschutz gehen dann nicht.")
         mirror_btn.clicked.connect(self._system_mirror)
         extend_btn = button("System-Erweitern", "extend")
         extend_btn.clicked.connect(self._system_extend)
-        row2.addWidget(mirror_btn)
-        row2.addWidget(extend_btn)
         open_btn = button("Anzeige-Einstellungen", "sliders")
         open_btn.setToolTip("Bildschirm-Einstellungen des Systems (Windows bzw. KDE/GNOME)")
         open_btn.clicked.connect(self._open_display_settings)
-        row2.addWidget(open_btn)
-        row2.addStretch(1)
-        lay.addLayout(row2)
+        lay.addWidget(flow_row(mirror_btn, extend_btn, open_btn))
         for w in (apply_btn, mirror_btn, extend_btn, self.output_combo):
             w.setEnabled(backend.available())
         return box
@@ -630,7 +648,7 @@ class SetupPage(QWidget):
         self.transition_combo = QComboBox()
         # lange Einträge („Zoom (altes Bild …)“) dürfen die Karte nicht breiter machen
         self.transition_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-        self.transition_combo.setMinimumContentsLength(12)
+        self.transition_combo.setMinimumContentsLength(10)
         for key, label in TRANSITIONS.items():
             self.transition_combo.addItem(label, key)
         current = "schnitt" if not a.get("fade", True) else tr.get("type", "blende")
@@ -643,8 +661,8 @@ class SetupPage(QWidget):
         try_btn = button("Ausprobieren", "play")
         try_btn.setToolTip("Zeigt den Übergang einmal auf dem Bildschirm (der aktuelle Inhalt bleibt)")
         try_btn.clicked.connect(self._try_transition)
-        tr_row = QHBoxLayout()
-        tr_row.addWidget(self.transition_combo, 1)
+        tr_row = FlowLayout()  # bricht im kleinen Fenster um
+        tr_row.addWidget(self.transition_combo)
         tr_row.addWidget(self.transition_ms)
         tr_row.addWidget(try_btn)
 
@@ -937,7 +955,7 @@ class SetupPage(QWidget):
         minimized.toggled.connect(lambda v: self.config.__setitem__("start_minimized", v))
         form.addRow("Bildschirm:", self.screen_combo)
         form.addRow("Beim Start zeigen:", self.start_combo)
-        integ = QCheckBox("Im System (Rechtsklick „Auf dem Bildschirm zeigen“, alupc://-Links)")
+        integ = QCheckBox("Ins System einbinden (Rechtsklick, Links)")
         integ.setToolTip("Rechtsklick auf Bild, Video, PDF oder Ordner im Dateimanager → Bildschirm.\n"
                          "Links wie alupc://standbild oder alupc://szene/Pause steuern AluPC.")
         integ.setChecked(bool(self.config["system_integration"]))
@@ -1219,14 +1237,13 @@ class SetupPage(QWidget):
             mic.addItem(dev.description(), bytes(dev.id()).decode(errors="replace"))
         mic.setCurrentIndex(max(0, mic.findData(cfg.get("device", ""))))
         form.addRow("Mikrofon:", mic)
-        wake_row = QHBoxLayout()
+        wake_row = FlowLayout(spacing=12)  # bricht im kleinen Fenster um
         self.wake_boxes = {}
         for key, label in voice.WAKES.items():
             cb = QCheckBox(f"„{label} …“")
             cb.setChecked(key in (cfg.get("wake") or list(voice.WAKES)))
             wake_row.addWidget(cb)
             self.wake_boxes[key] = cb
-        wake_row.addStretch(1)
         form.addRow("Startwort:", wake_row)
         lay.addLayout(form)
         self.voice_state = QLabel()
@@ -1258,7 +1275,7 @@ class SetupPage(QWidget):
 
         talk = QGroupBox("Erkennung && Stimme")
         tf = QFormLayout(talk)
-        stt_row = QHBoxLayout()
+        stt_row = FlowLayout()  # bricht im kleinen Fenster um
         stt_box = QComboBox()
         stt_box.addItem("Standard (Vosk, schnell)", "vosk")
         for key, (_repo, label, size) in stt.MODELS.items():
@@ -1268,7 +1285,7 @@ class SetupPage(QWidget):
         stt_bar = QProgressBar()
         stt_bar.setMaximumWidth(160)
         stt_bar.hide()
-        stt_row.addWidget(stt_box, 1)
+        stt_row.addWidget(stt_box)
         stt_row.addWidget(stt_bar)
         stt_row.addWidget(stt_dl)
         tf.addRow("Erkennung:", stt_row)
@@ -1276,7 +1293,7 @@ class SetupPage(QWidget):
         stt_note.setObjectName("Muted")
         stt_note.setWordWrap(True)
         tf.addRow("", stt_note)
-        tts_row = QHBoxLayout()
+        tts_row = FlowLayout()  # bricht im kleinen Fenster um
         tts_box = QComboBox()
         for key, (_file, label, size) in speech.PIPER_VOICES.items():
             tts_box.addItem(f"{label} – ca. {size} MB", key)
@@ -1286,7 +1303,7 @@ class SetupPage(QWidget):
         tts_bar = QProgressBar()
         tts_bar.setMaximumWidth(160)
         tts_bar.hide()
-        tts_row.addWidget(tts_box, 1)
+        tts_row.addWidget(tts_box)
         tts_row.addWidget(tts_bar)
         tts_row.addWidget(tts_dl)
         tf.addRow("Stimme:", tts_row)
@@ -1303,9 +1320,8 @@ class SetupPage(QWidget):
             rate_box.addItem(key.capitalize(), key)
         rate_box.setCurrentIndex(max(0, rate_box.findData(cfg.get("speak_rate", "normal"))))
         test_say = button("Probehören", "sound")
-        rate_row = QHBoxLayout()
+        rate_row = FlowLayout()  # bricht im kleinen Fenster um
         rate_row.addWidget(rate_box)
-        rate_row.addStretch(1)
         rate_row.addWidget(test_say)
         tf.addRow("Tempo:", rate_row)
         tts_note = QLabel()
@@ -1315,8 +1331,9 @@ class SetupPage(QWidget):
         self.speak_on = QCheckBox("Antworten per Stimme")
         self.speak_on.setChecked(bool(cfg.get("speak", True)))
         tf.addRow("", self.speak_on)
-        follow = QCheckBox(f"Nach jeder Antwort {voice.FOLLOW_SECONDS} s ohne Startwort weiterhören")
-        follow.setToolTip("Aus (empfohlen): AluPC reagiert nur, wenn ein Satz mit dem Startwort beginnt. Nur das "
+        follow = QCheckBox(f"Nach Antwort {voice.FOLLOW_SECONDS} s weiterhören")
+        follow.setToolTip(f"Nach jeder Antwort {voice.FOLLOW_SECONDS} s ohne Startwort weiterhören.\n"
+                          "Aus (empfohlen): AluPC reagiert nur, wenn ein Satz mit dem Startwort beginnt. Nur das "
                           "Startwort sagen („Computer?“ → „Ja?“) geht immer.")
         follow.setChecked(bool(cfg.get("follow_all", False)))
         tf.addRow("", follow)
@@ -1419,12 +1436,11 @@ class SetupPage(QWidget):
         self.custom_list = QListWidget()
         self.custom_list.setMaximumHeight(120)
         cl.addWidget(self.custom_list)
-        crow = QHBoxLayout()
+        crow = FlowLayout()
         custom_add = button("Befehl hinzufügen …", "plus")
         custom_del = button("Entfernen", "trash")
         crow.addWidget(custom_add)
         crow.addWidget(custom_del)
-        crow.addStretch(1)
         cl.addLayout(crow)
         lay.addWidget(custom_box)
 
@@ -1462,13 +1478,13 @@ class SetupPage(QWidget):
         # ---- nur bestimmte Stimmen
         voices_box = QGroupBox("Nur auf bestimmte Stimmen hören")
         vl = QVBoxLayout(voices_box)
-        self.only_voices = QCheckBox("Befehle nur von angelernten Stimmen annehmen")
+        self.only_voices = QCheckBox("Nur angelernte Stimmen annehmen")
         self.only_voices.setChecked(bool(cfg.get("only_voices")))
         vl.addWidget(self.only_voices)
         self.voice_list = QListWidget()
         self.voice_list.setMaximumHeight(110)
         vl.addWidget(self.voice_list)
-        vrow = QHBoxLayout()
+        vrow = FlowLayout()  # bricht im kleinen Fenster um
         self.voice_add = button("Stimme anlernen …", "plus")
         self.voice_del = button("Entfernen", "trash")
         strict = QComboBox()
@@ -1477,7 +1493,6 @@ class SetupPage(QWidget):
         strict.setCurrentIndex(max(0, strict.findData(cfg.get("strict", "normal"))))
         vrow.addWidget(self.voice_add)
         vrow.addWidget(self.voice_del)
-        vrow.addStretch(1)
         vrow.addWidget(strict)
         vl.addLayout(vrow)
         spk_row = QHBoxLayout()
@@ -1704,7 +1719,8 @@ class SetupPage(QWidget):
         box = QGroupBox("Bildschirm")
         lay = QVBoxLayout(box)
         cfg = self.config["output"]
-        taskbar = QCheckBox("Taskleiste auf dem Bildschirm ausblenden (Windows)")
+        taskbar = QCheckBox("Taskleiste dort ausblenden (Windows)")
+        taskbar.setToolTip("Windows-Taskleiste auf dem Bildschirm (Monitor 2) ausblenden")
         taskbar.setChecked(bool(cfg.get("hide_taskbar", True)))
         taskbar.setEnabled(IS_WINDOWS)
         badge = QCheckBox("Standbild-Symbol zeigen")

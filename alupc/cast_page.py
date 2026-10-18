@@ -106,6 +106,9 @@ input[type=range] { width:100%; accent-color:#8b5cf6; height:30px; }
 .bar > div { height:100%; width:0; background:var(--on); transition:width .15s; }
 .scenes { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; margin-top:8px; }
 #recent { grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); }
+.card.empty { text-align:center; padding:28px 18px; }
+.card.empty .big { width:44px; height:44px; opacity:.55; margin-bottom:8px; }
+.card.empty h3 { margin:4px 0 8px; font-size:17px; }
 .preview { position:relative; border-radius:16px; overflow:hidden; background:#000; aspect-ratio:16/9; touch-action:none;
            box-shadow:0 10px 30px rgba(0,0,0,.35); }
 .preview img, .preview canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block;
@@ -722,8 +725,16 @@ body.heftmode nav, body.heftmode header { display:none; }
       </div>
     </div>
   </div>
-  <div class="card hide" id="c-nokeys"><div class="hint" style="margin:0">Tasten und Maus per Handy gehen unter Wayland nicht –
-    am PC die Sitzung „Plasma (X11)“ wählen. Laserpointer, Zeichnen und alles andere funktionieren trotzdem.</div></div>
+  <div class="card hide empty" id="c-nokeys">
+    <svg class="i big"><use href="#i-slides"/></svg>
+    <h3>Folien weiterschalten geht hier nicht</h3>
+    <div class="hint">Tasten und Maus per Handy erlaubt Wayland nicht – am PC beim Anmelden die Sitzung
+      „Plasma (X11)“ wählen. Laserpointer und Zeichnen gehen trotzdem:</div>
+    <div class="row" style="margin-top:10px">
+      <button onclick="tab('start')"><svg class="i"><use href="#i-dot"/></svg>Laserpointer</button>
+      <button class="primary" onclick="tab('zeichnen')"><svg class="i"><use href="#i-pen"/></svg>Zeichnen</button>
+    </div>
+  </div>
 </div>
 
 <!-- ============================================================ Senden -->
@@ -738,9 +749,6 @@ body.heftmode nav, body.heftmode header { display:none; }
     <input type="file" id="gal" accept="image/*,video/*">
     <div class="bar" id="bar"><div></div></div>
     <div class="hint" id="upinfo">Wird sofort auf dem Bildschirm gezeigt.</div>
-    <div class="hint" id="cna-hint">Knopf tut nichts? Im Anmelde­fenster erlauben manche Handys keine Fotos. Dann oben
-      „Abbrechen“ → <b>„Ohne Internet verwenden“</b> (iPhone) bzw. „Netzwerk so verwenden“ (Android) und im Browser
-      <b id="here"></b> öffnen – du bist dort schon erlaubt.</div>
   </div>
   <div class="card">
     <h2>Link</h2>
@@ -1014,32 +1022,71 @@ async function refresh() {
 
 // ---- Live-Bild (nur, solange ein Reiter mit Bild offen und die Seite sichtbar ist)
 let prevUrl = null, prevBusy = false, fastTimer = 0;
-function fastPreview() { return current === "zeichnen"; }  // beim Zeichnen: Live-Bild ~9× pro Sekunde
+function fastPreview() { return current === "zeichnen"; }  // beim Zeichnen: Live-Bild sofort (WebSocket) bzw. ~9×/s
+async function showFrame(blob, seq) {
+  if (viewHold && seq < viewHold) return;  // während Zoom-Geste: altes Bild behalten
+  const url = URL.createObjectURL(blob);
+  $("prev").src = url;
+  const im = $("dprev"); im.src = url;
+  try { await im.decode(); } catch (e) {}
+  const ar = im.naturalWidth / im.naturalHeight;  // Seitenverhältnis vom Bildschirm übernehmen
+  if (ar > 0.2 && ar < 5 && Math.abs(ar - (window._ar || 0)) > 0.01) {
+    window._ar = ar; document.documentElement.style.setProperty("--ar", ar);
+    for (const pv of [$("preview"), $("dpreview")]) pv.style.aspectRatio = String(ar);
+    sizeInk(); sizeHeft();
+  }
+  frameArrived(seq);
+  if (prevUrl) URL.revokeObjectURL(prevUrl);
+  prevUrl = url;
+}
 async function loadPreview() {
   if (!code || prevBusy || !allow.live || current === "senden" || current === "folien" || document.hidden) return;
+  if (liveOpen()) return;  // Bilder kommen schon über die Live-Verbindung
+  if (fastPreview() && allow.live) liveConnect();
   prevBusy = true;
   const fast = fastPreview(), t0 = Date.now();
   try {
     const r = await fetch("/api/preview" + (fast ? "?fast=1" : ""), { headers: { "X-AluPC-Code": code } });
-    const seq = +(r.headers.get("X-AluPC-Frame") || 0);
-    if (r.ok && r.status === 200 && !(viewHold && seq < viewHold)) {  // während Zoom-Geste: altes Bild behalten
-      const url = URL.createObjectURL(await r.blob());
-      $("prev").src = url;
-      const im = $("dprev"); im.src = url;
-      try { await im.decode(); } catch (e) {}
-      const ar = im.naturalWidth / im.naturalHeight;  // Seitenverhältnis vom Bildschirm übernehmen
-      if (ar > 0.2 && ar < 5 && Math.abs(ar - (window._ar || 0)) > 0.01) {
-        window._ar = ar; document.documentElement.style.setProperty("--ar", ar);
-        for (const pv of [$("preview"), $("dpreview")]) pv.style.aspectRatio = String(ar);
-        sizeInk(); sizeHeft();
-      }
-      frameArrived(seq);
-      if (prevUrl) URL.revokeObjectURL(prevUrl);
-      prevUrl = url;
-    }
+    if (r.ok && r.status === 200) await showFrame(await r.blob(), +(r.headers.get("X-AluPC-Frame") || 0));
   } catch (e) {}
   prevBusy = false;
-  if (fast && !fastTimer) fastTimer = setTimeout(() => { fastTimer = 0; loadPreview(); }, Math.max(30, 110 - (Date.now() - t0)));
+  if (fast && !fastTimer && !liveOpen())
+    fastTimer = setTimeout(() => { fastTimer = 0; loadPreview(); }, Math.max(30, 110 - (Date.now() - t0)));
+}
+// ---- Live-Verbindung (WebSocket): jedes neue Bild kommt sofort, Striche/Zoom/Laser gehen ohne neue Anfragen raus
+let live = null, liveTries = 0, liveAcks = new Map(), liveId = 0;
+function liveOpen() { return live && live.readyState === 1; }
+function liveConnect() {
+  if (live || !code || !window.WebSocket || liveTries > 5) return;
+  try { live = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/live?c=" + encodeURIComponent(code)); }
+  catch (e) { live = null; liveTries++; return; }
+  live.binaryType = "blob";
+  live.onopen = () => { liveTries = 0; };
+  live.onmessage = ev => {
+    if (typeof ev.data === "string") {
+      try { const m = JSON.parse(ev.data); const cb = liveAcks.get(m.ack); if (cb) { liveAcks.delete(m.ack); cb(m.seq); } } catch (e) {}
+      return;
+    }
+    ev.data.slice(0, 4).arrayBuffer().then(b => showFrame(ev.data.slice(4, ev.data.size, "image/jpeg"),
+                                                         new DataView(b).getUint32(0)));
+  };
+  live.onclose = () => {
+    live = null; liveTries++;
+    for (const cb of liveAcks.values()) cb(null); liveAcks.clear();
+    if (fastPreview()) setTimeout(() => { liveConnect(); loadPreview(); }, 800);
+  };
+}
+setInterval(() => { if (liveOpen()) { if (!fastPreview()) live.close(); else live.send('{"ping":1}'); } }, 4000);
+const LIVE_P = { "/api/draw": "draw", "/api/board": "board", "/api/laser": "laser" };
+function liveSend(path, body, wantAck) {  // null = geht nicht (dann HTTP)
+  if (!liveOpen() || !LIVE_P[path]) return null;
+  if (!wantAck) { live.send('{"p":"' + LIVE_P[path] + '","b":' + body + '}'); return Promise.resolve({ ok: true, json: async () => ({}) }); }
+  const id = ++liveId;
+  return new Promise(res => {
+    const t = setTimeout(() => { liveAcks.delete(id); res(null); }, 3000);
+    liveAcks.set(id, seq => { clearTimeout(t); res(seq === null ? null : { ok: true, json: async () => ({ seq }) }); });
+    live.send('{"p":"' + LIVE_P[path] + '","b":' + body + ',"id":' + id + '}');
+  });
 }
 
 // ---- Senden mit „immer nur das Neueste“ (Laser, Zeichnen, Maus): nie einen Rückstau aufbauen
@@ -1047,19 +1094,19 @@ function sender(path, merge) {
   // Alles läuft nacheinander über eine Kette: „Anfang“, „weiter“, „Ende“ kommen am PC garantiert in dieser
   // Reihenfolge an (sonst könnte „Ende“ vor „Anfang“ eintreffen und ein Strich bliebe hängen).
   let pending = null, busy = false, chain = Promise.resolve();
-  const post = body => fetch(path, { method: "POST", headers: { "X-AluPC-Code": code,
+  const post = (body, ack) => liveSend(path, body, ack) || fetch(path, { method: "POST", headers: { "X-AluPC-Code": code,
     "Content-Type": "application/json" }, body }).catch(() => {});
   function pump() {
     if (busy || !pending) return;
     busy = true; const body = JSON.stringify(pending); pending = null;
-    chain = chain.then(() => post(body)).then(() => new Promise(r => setTimeout(r, 15)))
+    chain = chain.then(() => post(body)).then(() => new Promise(r => setTimeout(r, liveOpen() ? 0 : 15)))
                  .then(() => { busy = false; pump(); });
   }
   return function (obj, force, done) {
     if (force) {  // Anfang/Ende eines Strichs, Klicks: nie verschmelzen oder verlieren
       if (pending) { const p = JSON.stringify(pending); pending = null; chain = chain.then(() => post(p)); }
       const body = JSON.stringify(obj);
-      chain = chain.then(() => post(body)).then(r => {  // done(seq): Nummer des Live-Bilds, als es ankam
+      chain = chain.then(() => post(body, !!done)).then(r => {  // done(seq): Nummer des Live-Bilds, als es ankam
         if (done) r && r.ok ? r.json().then(j => done(j.seq)).catch(() => done(null)) : done(null); });
       return;
     }
@@ -1408,9 +1455,9 @@ function inkStart(p, e) {
 function inkAdd(p, e) { if (cur) { cur.pts.push({ x: p.x, y: p.y, w: inkWidth(pressureOf(e)) }); redrawInk(); } }
 function inkEnd() {
   if (!cur) return; const st = cur; cur = null; strokes.push(st);
-  sendDraw({ phase: "up" }, true, seq => { st.clearAt = seq === null ? 0 : seq + 2; if (seq === null) dropInk(frameSeq); });
+  sendDraw({ phase: "up" }, true, seq => { st.clearAt = seq === null ? 0 : seq; if (seq === null) dropInk(frameSeq); });
 }
-function dropInk(seq) {  // Live-Bild Nr. seq ist da: Striche, die es schon zeigt, weg
+function dropInk(seq) {  // Live-Bild enthält alle Eingaben bis Nr. seq: Striche, die es schon zeigt, weg
   const n = strokes.length; strokes = strokes.filter(st => st.clearAt > seq);
   if (strokes.length !== n) redrawInk();
 }
@@ -1444,7 +1491,7 @@ function gestureMove(m, d) {  // sofort am iPad (CSS) und als Ansicht-Nachricht 
 }
 function gestureEnd() {  // erst ein Live-Bild mit der neuen Ansicht ersetzt das mitbewegte Bild
   bgest = null;
-  sendBoard({ op: "view", dx: 0, dy: 0 }, true, seq => { viewHold = seq === null ? frameSeq : seq + 2;
+  sendBoard({ op: "view", dx: 0, dy: 0 }, true, seq => { viewHold = seq === null ? frameSeq : seq;
     if (seq === null) frameArrived(frameSeq); });
 }
 function pressureOf(e) { return e && e.pointerType === "pen" && e.pressure > 0 ? e.pressure : 0.5; }
@@ -1632,7 +1679,6 @@ async function upload(input) {
   xhr.onerror = () => { bar.style.display = "none"; toast("Verbindung abgebrochen", true); };
   xhr.send(file);
 }
-$("here").textContent = location.host;
 $("cam").onchange = e => upload(e.target);
 $("gal").onchange = e => upload(e.target);
 tab(current);

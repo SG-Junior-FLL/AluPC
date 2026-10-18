@@ -133,7 +133,7 @@ def route_ip(host: str) -> str:
 
 # --------------------------------------------------------------------------- HLS
 class HlsStream:
-    """Kodiert das jeweils neueste Bild in festem Takt als HLS (1-s-Stücke) in einen Ordner."""
+    """Kodiert das jeweils neueste Bild in festem Takt als HLS (0,5-s-Stücke) in einen Ordner."""
 
     def __init__(self, width: int, height: int, fps: int):
         self.width, self.height, self.fps = width, height, max(5, min(30, fps))
@@ -184,12 +184,12 @@ class HlsStream:
 
         try:
             out = av.open(str(self.dir / "stream.m3u8"), "w", format="hls", options={
-                "hls_time": "1", "hls_list_size": "6", "hls_segment_type": "mpegts",
+                "hls_time": "0.5", "hls_list_size": "4", "hls_segment_type": "mpegts",  # kurze Stücke = wenig Verzögerung
                 "hls_flags": "delete_segments+independent_segments+omit_endlist+temp_file"})
             st = out.add_stream("libx264", rate=self.fps)
             st.width, st.height, st.pix_fmt = self.width, self.height, "yuv420p"
             st.options = {"preset": "veryfast", "tune": "zerolatency", "profile": "main", "crf": "23",
-                          "g": str(self.fps), "keyint_min": str(self.fps), "sc_threshold": "0"}
+                          "g": str(max(1, self.fps // 2)), "keyint_min": str(max(1, self.fps // 2)), "sc_threshold": "0"}
         except Exception as exc:  # noqa: BLE001 – PyAV/libx264 fehlt
             self.error = f"Video-Kodierer ging nicht: {exc}"
             self._running = False
@@ -226,12 +226,16 @@ class HlsStream:
 
 
 # --------------------------------------------------------------------------- Ziele
+DEFAULT_MEDIA_RECEIVER = "CC1AD845"
+
+
 class ChromecastTarget:
     def __init__(self, dev: Device):
         self.dev = dev
         self.cast = None
 
-    def play(self, url: str, stop: threading.Event) -> str:
+    def prepare(self, stop: threading.Event, phase=lambda _t: None) -> None:
+        """Verbinden und den Mediaplayer auf dem Fernseher starten – läuft parallel zum Anlaufen des Streams."""
         import uuid
 
         import pychromecast
@@ -243,6 +247,14 @@ class ChromecastTarget:
         self.cast = pychromecast.get_chromecast_from_host(
             (self.dev.host, self.dev.port, ident, self.dev.model or None, self.dev.name), tries=2, timeout=10)
         self.cast.wait(timeout=15)
+        if stop.is_set():
+            return
+        phase("Starte Player auf dem Fernseher …")
+        self.cast.start_app(DEFAULT_MEDIA_RECEIVER, timeout=20)
+
+    def play(self, url: str, stop: threading.Event) -> str:
+        if self.cast is None:
+            self.prepare(stop)
         mc = self.cast.media_controller
         mc.play_media(url, "application/x-mpegURL", title="AluPC – Bildschirm", stream_type="LIVE")
         mc.block_until_active(timeout=20)
@@ -389,6 +401,7 @@ class ScreenSender(QObject):
     _done = Signal(str, str)  # (Gerät-Schlüssel, Fehler)
     _found = Signal(list)
     _pair_failed = Signal(str)
+    _phase = Signal(str, str)  # Gerät, Schritt beim Verbinden
 
     def __init__(self, controller, parent=None):
         super().__init__(parent)
@@ -407,6 +420,8 @@ class ScreenSender(QObject):
         self._watch.setInterval(2000)
         self._watch.timeout.connect(self._check)
         self._done.connect(self._connected)
+        self._phase.connect(self._on_phase)
+        self.phase = ""
         self._found.connect(self._on_found)
         self._pair_failed.connect(self._fail)
 
@@ -424,7 +439,7 @@ class ScreenSender(QObject):
         if self.state == "läuft" and self.target_dev:
             return f"Sendet an {self.target_dev.name}"
         if self.state == "verbinde" and self.target_dev:
-            return f"Verbinde mit {self.target_dev.name} …"
+            return f"{self.target_dev.name}: {self.phase}" if self.phase else f"Verbinde mit {self.target_dev.name} …"
         if self.state == "suche":
             return "Suche Geräte …"
         return self.error or "Aus"
@@ -496,7 +511,7 @@ class ScreenSender(QObject):
         self.stream.start()
         self._timer.start(int(1000 / self.stream.fps))
         self._grab()  # gleich ein Bild, nicht erst schwarz
-        self.target_dev, self.error, self.state = dev, "", "verbinde"
+        self.target_dev, self.error, self.state, self.phase = dev, "", "verbinde", ""
         self._stop.clear()
         self.changed.emit()
         from .cast_server import active_port
@@ -509,23 +524,42 @@ class ScreenSender(QObject):
         def work():
             from .hotspot import ensure_firewall_rule
 
-            note = ensure_firewall_rule()  # Windows: Fernseher muss AluPCs Port erreichen (einmal „Ja“)
-            end = time.monotonic() + 8
-            while not self.stream.ready() and time.monotonic() < end and not self._stop.is_set():
-                time.sleep(0.1)
-            if self.stream.error:
-                why = self.stream.error
-            else:
-                try:
+            # Firewall, Verbindung + Player-Start und das erste Stück des Streams laufen gleichzeitig an
+            fw: dict = {}
+            fw_thread = threading.Thread(target=lambda: fw.update(note=ensure_firewall_rule()),
+                                         name="alupc-senden-firewall", daemon=True)
+            fw_thread.start()
+            try:
+                prepare = getattr(target, "prepare", None)
+                if prepare is not None:
+                    prepare(self._stop, lambda text: self._phase.emit(dev.key, text))
+                end = time.monotonic() + 8
+                if not self.stream.ready():
+                    self._phase.emit(dev.key, "Warte auf das erste Bild …")
+                while not self.stream.ready() and time.monotonic() < end and not self._stop.is_set():
+                    time.sleep(0.05)
+                fw_thread.join(timeout=200)  # Windows: der Fernseher braucht die Freigabe, bevor er den Stream holt
+                if self._stop.is_set():
+                    return
+                if self.stream.error:
+                    why = self.stream.error
+                else:
+                    self._phase.emit(dev.key, "Fernseher puffert …")
                     why = target.play(url, self._stop)
-                except Exception as exc:  # noqa: BLE001
-                    why = f"{LABEL[dev.kind]} ging nicht: {exc}"
+            except Exception as exc:  # noqa: BLE001
+                why = f"{LABEL[dev.kind]} ging nicht: {exc}"
+            note = fw.get("note", "")
             if why and note:
                 why += " · " + note
             self._done.emit(dev.key, why)
 
         threading.Thread(target=work, name="alupc-senden", daemon=True).start()
         return True, ""
+
+    def _on_phase(self, key: str, text: str) -> None:
+        if self.state == "verbinde" and self.target_dev is not None and self.target_dev.key == key:
+            self.phase = text
+            self.changed.emit()
 
     def _connected(self, key: str, why: str) -> None:
         if self.target_dev is None or self.target_dev.key != key or self.state != "verbinde":
@@ -545,7 +579,7 @@ class ScreenSender(QObject):
         self._save(last=key)
         self._watch.start()
         self.changed.emit()
-        self.controller.message.emit(f"Bildschirm wird an {self.target_dev.name} gesendet (einige Sekunden verzögert).")
+        self.controller.message.emit(f"Bildschirm wird an {self.target_dev.name} gesendet (kurz verzögert).")
 
     def _check(self) -> None:
         if self.state != "läuft":

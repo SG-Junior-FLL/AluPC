@@ -116,6 +116,7 @@ class Controller(QObject):
         from . import board as board_mod
 
         self.board = board_mod.shared(config)  # die Tafel (Whiteboard): Seiten, Zoom, Striche – Monitor 2 zeigt sie
+        self.board.changed.connect(self._mark_preview_dirty)
         self.output.after_raise.append(self.laser.raise_above)
         self.laser.changed_cb = self.save_drawings
         from .overlays import OverlayWindow
@@ -178,7 +179,9 @@ class Controller(QObject):
         self._cast_timer = _QTimer(self, interval=900)  # Live-Bild/Status fürs Handy
         self._cast_timer.timeout.connect(self._cast_tick)
         self._cast_timer.start()
-        self._fast_timer = _QTimer(self, interval=110)  # Zeichnen am iPad: Live-Bild ~9× pro Sekunde, schärfer
+        self._preview_dirty, self._preview_at = True, 0.0
+        # Zeichnen am iPad: neues Live-Bild, sobald sich etwas ändert (höchstens 25×/s), sonst ~9×/s
+        self._fast_timer = _QTimer(self, interval=40)
         self._fast_timer.timeout.connect(self._fast_preview)
         self._fast_timer.start()
         self.changed.connect(self.update_cursor_guard)
@@ -1097,9 +1100,19 @@ class Controller(QObject):
         return self.cast.running() and time.monotonic() - getattr(self.cast, "preview_fast", 0.0) < 2.5
 
     def _fast_preview(self) -> None:
-        """Solange am iPad gezeichnet wird: Live-Bild schnell und in höherer Auflösung (Striche, Zoom kommen flott)."""
-        if self._fast_wanted():
+        """Solange am iPad gezeichnet wird: Live-Bild schnell und in höherer Auflösung – sofort nach jeder Änderung
+        (Strich, Zoom, Seite), sonst alle ~110 ms (Videos, Uhr …)."""
+        import time
+
+        if not self._fast_wanted():
+            return
+        now = time.monotonic()
+        if self._preview_dirty or now - self._preview_at >= 0.11:
+            self._preview_dirty, self._preview_at = False, now
             self.cast.set_preview(self._preview_jpeg(960, 540))
+
+    def _mark_preview_dirty(self, *_a) -> None:
+        self._preview_dirty = True
 
     def _preview_jpeg(self, w: int = 640, h: int = 360) -> bytes:
         from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QSize
@@ -1127,6 +1140,9 @@ class Controller(QObject):
     def _cast_request(self, req: dict) -> None:
         """Anfrage vom Handy (kommt aus dem Webserver-Thread, läuft hier im Qt-Hauptthread)."""
         kind = req.get("kind")
+        if kind in ("draw", "board", "laser"):
+            self._preview_dirty = True  # Live-Bild fürs iPad gleich neu
+            self.cast.applied = max(self.cast.applied, int(req.get("_no") or 0))  # ab jetzt in jedem Live-Bild
         if kind == "freigabe":  # Handy möchte steuern (ohne Code) → am PC fragen (Hauptfenster zeigt die Frage)
             self.access_requested.emit(req["id"], req.get("name", "Handy"), req.get("ip", ""))
             return

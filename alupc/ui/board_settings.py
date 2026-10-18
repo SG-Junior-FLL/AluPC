@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QFormLayout,
-    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -21,7 +20,7 @@ from PySide6.QtWidgets import (
 from ..board import FORMATS, PALETTE, boards_dir
 from ..whiteboard import BACKGROUNDS
 from .util import ColorButton
-from .widgets import button
+from .widgets import FlowLayout, button
 
 
 def _slider(lo: int, hi: int, value: float, on_change, suffix: str = "") -> QWidget:
@@ -79,11 +78,13 @@ def board_settings_widget(board) -> QWidget:
     smooth.setCurrentIndex(max(0, smooth.findData(int(cfg["smooth"]))))
     smooth.currentIndexChanged.connect(lambda _i: board.set_settings(smooth=smooth.currentData()))
     f.addRow("Glätten:", smooth)
-    pressure = QCheckBox("Druckempfindlich (Apple Pencil, Grafiktablett, Stift)")
+    pressure = QCheckBox("Druckempfindlich (Stift, Tablet)")
+    pressure.setToolTip("Apple Pencil, Grafiktablett oder Stift: fester drücken = dickerer Strich")
     pressure.setChecked(bool(cfg["pressure"]))
     pressure.toggled.connect(lambda on: board.set_settings(pressure=on))
     f.addRow(pressure)
-    pencil = QCheckBox("Nur der Stift zeichnet – Finger verschieben und zoomen (Handballen-Schutz)")
+    pencil = QCheckBox("Nur der Stift zeichnet (Handballen-Schutz)")
+    pencil.setToolTip("Finger verschieben und zoomen nur – gezeichnet wird mit dem Stift")
     pencil.setChecked(bool(cfg["pencil_only"]))
     pencil.toggled.connect(lambda on: board.set_settings(pencil_only=on))
     f.addRow(pencil)
@@ -95,7 +96,9 @@ def board_settings_widget(board) -> QWidget:
     lay.addWidget(pen)
 
     colors = QGroupBox("Eigene Farben (Werkzeugleiste und Handy)")
-    g = QGridLayout(colors)
+    cl = QVBoxLayout(colors)
+    g = FlowLayout(spacing=8)  # im kleinen Fenster in mehr Zeilen statt rechts abgeschnitten
+    cl.addLayout(g)
     buttons = []
 
     def save_colors(*_):
@@ -106,10 +109,10 @@ def board_settings_widget(board) -> QWidget:
         b.setMinimumHeight(30)
         b.changed.connect(save_colors)
         buttons.append(b)
-        g.addWidget(b, i // 4, i % 4)
+        g.addWidget(b)
     reset = button("Standardfarben", "refresh")
     reset.clicked.connect(lambda: ([b.set_color(c) for b, c in zip(buttons, PALETTE)], save_colors()))
-    g.addWidget(reset, 2, 0, 1, 4)
+    cl.addWidget(reset, 0, Qt.AlignLeft)
     root.controls["colors"] = buttons
     lay.addWidget(colors)
 

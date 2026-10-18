@@ -9,6 +9,7 @@ import shutil
 from PySide6.QtCore import QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
+    QBoxLayout,
     QCheckBox,
     QComboBox,
     QFrame,
@@ -282,7 +283,7 @@ class AudioPage(QWidget):
         self.fix_btn.clicked.connect(self._install_pactl)
         note_row.addWidget(self.fix_btn, 0, Qt.AlignTop)
         root.addLayout(note_row)
-        top = QHBoxLayout()
+        self._top = top = QBoxLayout(QBoxLayout.LeftToRight)  # schmales Fenster: Karten untereinander
         top.setSpacing(14)
         top.addWidget(self._virtual_card(), 3)
         top.addWidget(self._cam_card(), 2)
@@ -296,6 +297,20 @@ class AudioPage(QWidget):
         self._meter_timer.timeout.connect(self._read_meters)
         self._cam_timer = QTimer(self, interval=1000)
         self._cam_timer.timeout.connect(self._fill_cam)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        want = QBoxLayout.TopToBottom if self.width() < 1000 else QBoxLayout.LeftToRight
+        if self._top.direction() != want:
+            self._top.setDirection(want)
+
+    def minimumSizeHint(self):
+        # Nebeneinander verlangt mehr Breite – die darf das Verkleinern nicht blockieren (dann untereinander)
+        hint = super().minimumSizeHint()
+        if self._top.direction() == QBoxLayout.LeftToRight:
+            hint.setWidth(min(hint.width(), max(self._top.itemAt(i).minimumSize().width()
+                                                 for i in range(self._top.count()))))
+        return hint
 
     # ---------------------------------------------------------------- Karten
     def _card(self, title: str, icon_name: str, sub: str = "") -> tuple[QFrame, QVBoxLayout]:

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
     QFrame,
+    QFormLayout,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -26,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import icons, theme
-from .widgets import button, font, page_header
+from .widgets import FlowLayout, button, flow_row, font, page_header
 
 CHAT_POSITIONS = {"unten links": (0.0, 1.0), "unten rechts": (1.0, 1.0), "oben links": (0.0, 0.0),
                   "oben rechts": (1.0, 0.0), "links Mitte": (0.0, 0.5), "rechts Mitte": (1.0, 0.5)}
@@ -96,7 +97,7 @@ class GuestsPage(QWidget):
         self.wlan_text.setObjectName("Muted")
         self.wlan_text.setWordWrap(True)
         lay.addWidget(self.wlan_text)
-        row = QHBoxLayout()
+        row = FlowLayout()  # bricht im kleinen Fenster um
         self.wlan_btn = button("WLAN starten", "play", primary=True)
         self.wlan_btn.clicked.connect(self.controller.ensure_wlan)
         codes = button("Codes auf dem Bildschirm", "qr")
@@ -106,7 +107,6 @@ class GuestsPage(QWidget):
         window.clicked.connect(self._open_hotspot)
         for b in (self.wlan_btn, codes, window):
             row.addWidget(b)
-        row.addStretch(1)
         lay.addLayout(row)
         return card
 
@@ -123,12 +123,11 @@ class GuestsPage(QWidget):
         self.chat_toggle = button("Chat starten", "play", primary=True)
         self.chat_toggle.clicked.connect(self._toggle_chat)
         head.addWidget(self.chat_toggle)
-        row = QHBoxLayout()
+        row = FlowLayout()  # bricht im kleinen Fenster um
         self.chat_overlay = QCheckBox("Als Overlay auf dem Bildschirm")
         self.chat_overlay.setToolTip("Nachrichten erscheinen direkt über allem, was der Bildschirm zeigt")
         self.chat_overlay.toggled.connect(lambda on: self.controller.set_chat_overlay(on))
         row.addWidget(self.chat_overlay)
-        row.addStretch(1)
         wall = button("Chat-Wand", "monitor")
         wall.setToolTip("Chat groß auf dem Bildschirm (mit den Codes zum Mitschreiben)")
         wall.clicked.connect(lambda: self.controller.run_command("chat_wand"))
@@ -151,7 +150,7 @@ class GuestsPage(QWidget):
         say.addWidget(self.chat_say, 1)
         say.addWidget(send)
         lay.addLayout(say)
-        tools = QHBoxLayout()
+        tools = FlowLayout()
         delete = button("Löschen", "trash")
         delete.setToolTip("Markierte Nachricht löschen")
         delete.clicked.connect(self._delete_selected)
@@ -164,13 +163,9 @@ class GuestsPage(QWidget):
         self.unblock.clicked.connect(lambda: self.controller.cast.chat and self.controller.cast.chat.unblock_all())
         for b in (delete, block, clear, self.unblock):
             tools.addWidget(b)
-        tools.addStretch(1)
         lay.addLayout(tools)
         # Einstellungen
         cfg = self.controller.config["chat"]
-        opts = QGridLayout()
-        opts.setHorizontalSpacing(10)
-        opts.addWidget(QLabel("Overlay:"), 0, 0)
         self.chat_pos = QComboBox()
         for name, xy in CHAT_POSITIONS.items():
             self.chat_pos.addItem(name, xy)
@@ -180,48 +175,43 @@ class GuestsPage(QWidget):
         self.chat_pos.currentIndexChanged.connect(
             lambda _i: self.controller.update_chat_settings(x=self.chat_pos.currentData()[0],
                                                             y=self.chat_pos.currentData()[1]))
-        opts.addWidget(self.chat_pos, 0, 1)
-        opts.addWidget(QLabel("Anzeige:"), 1, 0)
         self.chat_mode = QComboBox()
         self.chat_mode.addItem("Liste (mit QR-Code)", "liste")
         self.chat_mode.addItem("Pop-up (kurz, ohne QR)", "popup")
         self.chat_mode.setToolTip("Pop-up: jede neue Nachricht ploppt kurz auf und verschwindet wieder")
         self.chat_mode.setCurrentIndex(1 if cfg.get("mode") == "popup" else 0)
         self.chat_mode.currentIndexChanged.connect(self._chat_mode)
-        opts.addWidget(self.chat_mode, 1, 1)
         self.chat_count = QSpinBox()
         self.chat_count.setRange(1, 12)
         self.chat_count.setSuffix(" Nachrichten")
         self.chat_count.setValue(int(cfg.get("count", 5)))
         self.chat_count.valueChanged.connect(lambda v: self.controller.update_chat_settings(count=v))
-        opts.addWidget(self.chat_count, 2, 1)
         self.chat_secs = QSpinBox()
         self.chat_secs.setRange(0, 600)
         self.chat_secs.setSuffix(" s sichtbar")
         self.chat_secs.setSpecialValueText("bleiben stehen")
         self.chat_secs.setValue(int(cfg.get("seconds", 0)))
         self.chat_secs.valueChanged.connect(lambda v: self.controller.update_chat_settings(seconds=v))
-        opts.addWidget(self.chat_secs, 2, 2)
         self.chat_qr = QCheckBox("QR-Code im Overlay")
         self.chat_qr.setChecked(bool(cfg.get("qr", True)))
         self.chat_qr.toggled.connect(lambda on: self.controller.update_chat_settings(qr=on))
-        opts.addWidget(self.chat_qr, 0, 2)
         self._chat_mode_ui()
         self.chat_links = QCheckBox("Links ausblenden")
         self.chat_links.setChecked(bool(cfg.get("hide_links", True)))
         self.chat_links.toggled.connect(lambda on: self.controller.update_chat_settings(hide_links=on))
-        opts.addWidget(self.chat_links, 3, 1)
         self.chat_builtin = QCheckBox("Schimpfwörter-Filter")
         self.chat_builtin.setChecked(bool(cfg.get("builtin", True)))
         self.chat_builtin.toggled.connect(lambda on: self.controller.update_chat_settings(builtin=on))
-        opts.addWidget(self.chat_builtin, 3, 2)
-        opts.addWidget(QLabel("Eigene Wörter:"), 4, 0)
         self.chat_words = QLineEdit(", ".join(cfg.get("words") or []))
         self.chat_words.setPlaceholderText("werden zu *** (mit Komma trennen)")
         self.chat_words.editingFinished.connect(
             lambda: self.controller.update_chat_settings(
                 words=[w.strip() for w in self.chat_words.text().split(",") if w.strip()]))
-        opts.addWidget(self.chat_words, 4, 1, 1, 2)
+        opts = QFormLayout()  # Zeilen brechen im kleinen Fenster um (vorher Raster – rechts abgeschnitten)
+        opts.addRow("Overlay:", flow_row(self.chat_pos, self.chat_qr))
+        opts.addRow("Anzeige:", flow_row(self.chat_mode, self.chat_count, self.chat_secs))
+        opts.addRow("", flow_row(self.chat_links, self.chat_builtin))
+        opts.addRow("Eigene Wörter:", self.chat_words)
         lay.addLayout(opts)
         return card
 
@@ -288,7 +278,7 @@ class GuestsPage(QWidget):
         self.wall_toggle.clicked.connect(self._toggle_wall)
         head.addWidget(self.wall_toggle)
         cfg = self.controller.config["photowall"]
-        row = QHBoxLayout()
+        row = FlowLayout()  # bricht im kleinen Fenster um
         self.wall_mode = QComboBox()
         self.wall_mode.addItem("Collage", "collage")
         self.wall_mode.addItem("Diashow", "diashow")
@@ -305,7 +295,6 @@ class GuestsPage(QWidget):
         self.wall_codes.setChecked(bool(cfg.get("codes", True)))
         self.wall_codes.toggled.connect(lambda on: self._wall_set(codes=on))
         row.addWidget(self.wall_codes)
-        row.addStretch(1)
         show = button("Auf dem Bildschirm", "monitor")
         show.clicked.connect(lambda: self.controller.start_wall(show=True))
         row.addWidget(show)
@@ -323,7 +312,7 @@ class GuestsPage(QWidget):
         self.wall_list.itemDoubleClicked.connect(
             lambda it: QDesktopServices.openUrl(QUrl.fromLocalFile(it.data(Qt.UserRole)["path"])))
         lay.addWidget(self.wall_list, 1)
-        tools = QHBoxLayout()
+        tools = FlowLayout()
         delete = button("Entfernen", "trash")
         delete.setToolTip("Markiertes Foto von der Wand nehmen und die Datei löschen")
         delete.clicked.connect(self._delete_photo)
@@ -339,7 +328,6 @@ class GuestsPage(QWidget):
         folder.customContextMenuRequested.connect(lambda _p: self._pick_folder())
         for b in (delete, block, clear, folder):
             tools.addWidget(b)
-        tools.addStretch(1)
         lay.addLayout(tools)
         self.wall_folder = QLabel()
         self.wall_folder.setObjectName("Muted")

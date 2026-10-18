@@ -117,3 +117,79 @@ def serve_game(sock, rfile, hub, pid: str, alive) -> None:
     finally:
         stop.set()
         pusher.join(1.0)
+
+
+LIVE_PATHS = {"draw": "/api/draw", "board": "/api/board", "laser": "/api/laser"}
+
+
+def serve_live(sock, rfile, server, handle, alive) -> None:
+    """Live-Verbindung fürs Zeichnen am iPad/Handy: jedes neue Bild von Monitor 2 sofort schicken (binär: 4 Byte
+    „enthält alle Eingaben bis Nummer …“ + JPEG). Striche/Zoom/Laser kommen als Text ({"p": "draw", "b": {…}, "id": n})
+    und werden – falls eine id dabei ist – mit {"ack": id, "seq": Nummer der Eingabe} bestätigt."""
+    try:
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    except OSError:
+        pass
+    sock.settimeout(READ_TIMEOUT)
+    send_lock = threading.Lock()
+    stop = threading.Event()
+
+    def send(op, payload):
+        with send_lock:
+            sock.sendall(frame(op, payload))
+
+    def push():
+        last = -1
+        try:
+            while not stop.is_set() and alive():
+                now = time.monotonic()
+                server.preview_wanted = server.preview_fast = now  # solange verbunden: schnell und scharf
+                seq, data, applied = server.preview_seq, server.preview, server.preview_applied
+                if seq != last and data:
+                    send(0x2, struct.pack(">I", applied & 0xFFFFFFFF) + data)
+                    last = seq
+                stop.wait(0.012)
+        except OSError:
+            pass
+        finally:
+            stop.set()
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+    pusher = threading.Thread(target=push, name="AluCast-Live", daemon=True)
+    pusher.start()
+    try:
+        while not stop.is_set():
+            got = read_frame(rfile)
+            if got is None:
+                break
+            op, data = got
+            if op == 0x8:
+                try:
+                    send(0x8, data[:2])
+                except OSError:
+                    pass
+                break
+            if op == 0x9:
+                send(0xA, data)
+            elif op == 0x1:
+                try:
+                    msg = json.loads(data.decode("utf-8"))
+                except (ValueError, UnicodeDecodeError):
+                    continue
+                if not isinstance(msg, dict) or msg.get("ping"):
+                    continue
+                path = LIVE_PATHS.get(str(msg.get("p", "")))
+                try:
+                    seq = handle(path, msg.get("b") or {}) if path else None
+                except (ValueError, TypeError):
+                    seq = None
+                if msg.get("id") is not None:
+                    send(0x1, json.dumps({"ack": msg["id"], "seq": seq}).encode())
+    except (OSError, ValueError, struct.error):
+        pass
+    finally:
+        stop.set()
+        pusher.join(1.0)

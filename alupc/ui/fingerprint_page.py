@@ -24,7 +24,7 @@ from ..platform.base import FINGERS
 from . import icons, theme
 from .util import error_box, run_async
 from .hand_picker import HandPicker, finger_keys_from
-from .widgets import Banner, ProgressRing, button, font
+from .widgets import Banner, FlowLayout, ProgressRing, button, font
 
 
 class ScanDialog(QDialog):
@@ -142,6 +142,7 @@ class FingerprintPage(QWidget):
         fl.addWidget(self.person_row)
         self.account_hint = QLabel()  # Personen ≠ Benutzerkonten
         self.account_hint.setObjectName("Muted")
+        self.account_hint.setWordWrap(True)
         fl.addWidget(self.account_hint)
         hint = QLabel("Finger wählen · grün = angelernt")
         hint.setObjectName("Muted")
@@ -156,18 +157,18 @@ class FingerprintPage(QWidget):
         fl.addWidget(caption)
         fl.addWidget(self.enrolled)
 
-        enroll_row = QHBoxLayout()
+        enroll_row = FlowLayout()  # langer Knopftext („Rechter Zeigefinger anlernen …“) bricht im kleinen Fenster um
         self.finger_combo = QComboBox()
         for key, label in FINGERS:
             self.finger_combo.addItem(label, key)
         self.finger_combo.currentIndexChanged.connect(self._combo_changed)
         self.enroll_btn = button("Finger anlernen …", "fingerprint", primary=True)
         self.enroll_btn.clicked.connect(self.enroll)
-        enroll_row.addWidget(self.finger_combo, 1)
+        enroll_row.addWidget(self.finger_combo)
         enroll_row.addWidget(self.enroll_btn)
         fl.addLayout(enroll_row)
 
-        act_row = QHBoxLayout()
+        act_row = FlowLayout()  # bricht im kleinen Fenster um
         self.test_btn = button("Test-Scan", "check")
         self.test_btn.clicked.connect(self.verify)
         self.delete_btn = button("Ausgewählten Finger löschen", "trash", danger=True)
@@ -177,7 +178,6 @@ class FingerprintPage(QWidget):
         act_row.addWidget(self.test_btn)
         act_row.addWidget(self.delete_btn)
         act_row.addWidget(self.delete_all_btn)
-        act_row.addStretch(1)
         fl.addLayout(act_row)
         self.hello_note = QLabel("Anlernen/Löschen nur über Windows Hello")
         self.hello_note.setWordWrap(True)

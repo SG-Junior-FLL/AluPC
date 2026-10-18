@@ -4,6 +4,13 @@ Die aktuellen Neuerungen stehen in den [Release-Notizen](../packaging/RELEASE_NO
 [Release-Seite](https://github.com/SG-Junior-FLL/AluPC/releases).
 
 
+## 0.143.0
+- **Design überarbeitet:** Minispiele-Fenster mit Spiel-Karten (nichts mehr abgeschnitten), Farbwahl als kompakter
+  Knopf mit Farbprobe, Mischpult mit gedrehter Beschriftung und klarer Anzeige, wenn keine Geräte da sind,
+  einheitliche Fensterköpfe (Timer, Daten löschen), Apple TV im Sende-Fenster mit Fernseher-Symbol.
+- „Läuft gerade“ zeigt einen verständlichen Satz statt einer technischen Fehlermeldung.
+- **Nicht getestet** auf echter Hardware (wie immer: nur automatische Tests ohne echte Monitore).
+
 ## 0.142.0
 - **iPad-Whiteboard wie eine Zeichen-App:** Striche erscheinen sofort und bleiben, bis das Bild vom PC sie zeigt.
   Zoomen und Verschieben mit zwei Fingern folgen sofort. Beim Zeichnen kommt das Bild vom PC ~9× pro Sekunde

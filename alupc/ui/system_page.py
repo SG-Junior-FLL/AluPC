@@ -705,6 +705,12 @@ class SystemPage(QWidget):
         self._relayout(4 if w >= 700 else (2 if w >= 330 else 1))
         super().resizeEvent(e)
 
+    def minimumSizeHint(self):
+        # Nicht die Breite der aktuellen Spaltenzahl verlangen – sonst bleibt die Seite beim Verkleinern 4-spaltig
+        # (und rechts abgeschnitten); resizeEvent wählt die Spaltenzahl passend zur Breite.
+        hint = super().minimumSizeHint()
+        return QSize(min(hint.width(), 320), hint.height())
+
     def showEvent(self, e):
         self.mon.acquire(self)
         if hasattr(self, "vol"):

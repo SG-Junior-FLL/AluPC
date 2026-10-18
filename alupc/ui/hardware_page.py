@@ -154,6 +154,16 @@ class HardwarePage(QWidget):
         self.rgb.status.connect(lambda *_: self.refresh_rgb())
         self.refresh_rgb()
 
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self.orb.setVisible(self.width() >= 520)  # schmales Fenster: Platz für die Knöpfe statt der Farbkugel
+
+    def minimumSizeHint(self):
+        hint = super().minimumSizeHint()
+        if self.orb.isVisible():  # die Kugel darf das Verkleinern nicht blockieren (sie verschwindet dann)
+            hint.setWidth(hint.width() - self.orb.width() - 22)
+        return hint
+
     # ================================================================ RGB
     def _rgb_box(self) -> QGroupBox:
         box = QGroupBox("RGB-Beleuchtung")
@@ -165,7 +175,7 @@ class HardwarePage(QWidget):
         col.setSpacing(10)
         self.rgb_status = Banner("", "info")
         col.addWidget(self.rgb_status)
-        row = QHBoxLayout()
+        row = FlowLayout(spacing=8)  # Knöpfe brechen im kleinen Fenster um
         self.connect_btn = button("Verbinden", "refresh", primary=True)
         self.connect_btn.clicked.connect(lambda: self.rgb.connect_async(start_if_needed=True))
         self.start_btn = button("OpenRGB starten", "play")
@@ -177,7 +187,6 @@ class HardwarePage(QWidget):
         row.addWidget(self.connect_btn)
         row.addWidget(self.start_btn)
         row.addWidget(self.install_btn)
-        row.addStretch(1)
         col.addLayout(row)
         col.addWidget(self.auto)  # eigene Zeile – in einer Reihe mit den Knöpfen wurde die Karte rechts abgeschnitten
 

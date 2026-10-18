@@ -271,7 +271,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{APP_NAME} – Bildschirm steuern")
         self.setWindowIcon(app_icon())
         self.resize(1080, 720)
-        self.setMinimumSize(480, 460)
+        self.setMinimumSize(600, 460)  # darunter passen Setup-Formulare nicht mehr nebeneinander
         self.compact = False
 
         central = AuroraBackdrop()
