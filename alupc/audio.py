@@ -180,7 +180,12 @@ def _on_com(fn, *args, timeout: float = 8.0):
                 try:
                     box["value"] = func(*a)
                 except BaseException as exc:  # noqa: BLE001 - an den Aufrufer weitergeben
-                    box["error"] = exc
+                    # Nur Text weitergeben, NICHT die Ausnahme selbst: ihr Traceback hält COM-Objekte fest, die dann
+                    # in einem anderen Thread freigegeben würden – unter Windows ein zufälliger Absturz („access
+                    # violation“, z. B. ohne Audiogerät bei jedem Lesen der Lautstärke)
+                    box["error"] = RuntimeError(f"{type(exc).__name__}: {exc}")
+                    exc.__traceback__ = None
+                func = a = job = None  # auch hier keine Verweise bis zum nächsten Auftrag halten
                 done.set()
 
         _COM["queue"] = q

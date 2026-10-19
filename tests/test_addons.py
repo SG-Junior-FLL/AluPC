@@ -82,3 +82,30 @@ def test_apt_script_marks_only_new_packages_auto():
 def test_self_command_runs_alupc():
     cmd = addons.self_command("--zusatz", "entfernen")
     assert cmd[-2:] == ["--zusatz", "entfernen"] and ("-m" in cmd or cmd[0].lower().endswith(".exe"))
+
+
+def test_com_errors_do_not_carry_objects_to_other_threads():
+    """Windows-Ton (COM): Fehler kommen nur als Text an – Objekte aus dem Ton-Thread werden dort freigegeben,
+    nicht später zufällig im Hauptthread (das war ein Absturz unter Windows ohne Audiogerät)."""
+    import threading
+    import weakref
+
+    from alupc import audio
+
+    freed_in = []
+
+    class ComLike:
+        def __del__(self):
+            freed_in.append(threading.current_thread().name)
+
+    refs = []
+
+    def boom():
+        obj = ComLike()
+        refs.append(weakref.ref(obj))
+        raise OSError("kein Audiogerät")
+
+    with pytest.raises(RuntimeError, match="OSError: kein Audiogerät"):
+        audio._on_com(boom)
+    assert refs[0]() is None
+    assert freed_in == ["alupc-ton"]
