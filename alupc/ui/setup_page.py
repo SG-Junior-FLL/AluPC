@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 
-from PySide6.QtCore import QEvent, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter, QPen
+from PySide6.QtCore import QEvent, QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -25,6 +26,9 @@ from PySide6.QtWidgets import (
     QSlider,
     QSpinBox,
     QStackedWidget,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QVBoxLayout,
     QWidget,
 )
@@ -130,6 +134,195 @@ class Swatch(QAbstractButton):
         p.end()
 
 
+class StyleCard(QAbstractButton):
+    """Auswahl des Stils (Normal / Technisch / Holz): kleine Skizze der Startseite im jeweiligen Stil."""
+
+    def __init__(self, style: str, config, parent=None):
+        super().__init__(parent)
+        self.style_key = style
+        self.config = config
+        self.setCheckable(True)
+        self.setAutoExclusive(True)
+        self.setFixedSize(200, 168)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip(theme.STYLE_INFO[style])
+        self.setAccessibleName(f"Stil {theme.STYLES[style]}")
+
+    def paintEvent(self, _e):
+        from .widgets import paint_led
+
+        cur = theme.current()
+        accent = self.config["appearance"].get("accent", "alupc")
+        a = self.config["appearance"]
+        t = theme.make_theme("dunkel" if cur.dark else "hell", accent, self.style_key,
+                             a.get("wood", theme.DEFAULT_WOOD))
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        outer = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        p.setPen(QPen(QColor(cur.accent) if self.isChecked() else QColor(cur.border), 2 if self.isChecked() else 1))
+        p.setBrush(QColor(cur.surface))
+        p.drawRoundedRect(outer, 8, 8)
+        win = QRectF(outer.left() + 9, outer.top() + 9, outer.width() - 18, 100)
+        p.save()
+        clip = QPainterPath()
+        clip.addRoundedRect(win, 4, 4)
+        p.setClipPath(clip)
+        theme.paint_backdrop(p, win, t)
+        # Seitenleiste
+        side = QRectF(win.left(), win.top(), 26, win.height())
+        if t.wood:
+            p.fillRect(side, QColor(0, 0, 0, 70))
+        else:
+            p.fillRect(side, QColor(t.surface if t.technical else t.mix(t.bg, "#000000", 0.18 if t.dark else 0.04)))
+        mark = QRectF(side.left() + 4, side.top() + 14, 18, 10)
+        if t.wood:
+            theme.paint_panel(p, _round(mark, 2), mark, t)
+        else:
+            tint = QColor(t.accent)
+            tint.setAlphaF(0.35)
+            p.fillPath(_round(mark, t.radii[1] / 3), tint)
+        # Bild von Monitor 2 und zwei Regler
+        prev = QRectF(win.left() + 34, win.top() + 8, 70, 40)
+        if t.wood:
+            p.fillPath(_round(prev, 3), QColor("#1a1a1b"))
+            prev = prev.adjusted(3, 3, -3, -3)
+        p.fillPath(_round(prev, t.radii[0] / 3), QColor("#000000"))
+        p.setPen(QPen(QColor(t.live), 1.4))
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(_round(prev, t.radii[0] / 3))
+        for i in range(2):
+            fx = win.right() - 30 + i * 13
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor("#151515" if t.wood else t.surface2))
+            p.drawRect(QRectF(fx, win.top() + 10, 3, 38))
+            p.setBrush(QColor(t.accent))
+            if t.wood:
+                cap = QRectF(fx - 5, win.top() + 22 + i * 8, 13, 7)
+                theme.paint_plate(p, _round(cap, 1.5), cap, t)
+            else:
+                p.drawRect(QRectF(fx, win.top() + 26 + i * 8, 3, 22 - i * 8))
+        # drei Kacheln, die mittlere läuft
+        colors = ["#e5484d", "#30a46c", "#f5a623"]
+        for i, col in enumerate(colors):
+            r = QRectF(win.left() + 34 + i * 49, win.top() + (60 if not t.technical else 62), 44,
+                       32 if not t.technical else 26)
+            on = i == 1
+            path = _round(r, t.radii[0] / 3)
+            if t.wood:
+                theme.paint_panel(p, path, r, t)
+                paint_led(p, QPointF(r.left() + 7, r.top() + 7), on, t.live, 2.6)
+            else:
+                p.fillPath(path, QColor(t.surface))
+                p.setPen(QPen(QColor(t.live) if on else QColor(t.border), 1.2 if on else 1))
+                p.setBrush(Qt.NoBrush)
+                p.drawPath(path)
+                if t.technical and on:
+                    p.fillRect(QRectF(r.left(), r.top(), 2, r.height()), QColor(t.live))
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(col))
+            if t.technical:
+                p.drawRect(QRectF(r.left() + 6, r.center().y() - 3, 6, 6))
+            elif t.wood:
+                p.drawRect(QRectF(r.left() + 14, r.top() + 4, 6, 6))
+            else:
+                p.drawEllipse(QRectF(r.left() + 5, r.top() + 5, 10, 10))
+            p.setBrush(QColor(t.text))
+            tx = r.left() + (16 if t.technical else 6)
+            ty = r.center().y() - 2 if t.technical else r.bottom() - 10
+            p.drawRect(QRectF(tx, ty, 20, 2.5))
+            p.setBrush(QColor(t.live if on else t.muted))
+            p.drawRect(QRectF(tx, ty + 5, 12, 2))
+        p.restore()
+        p.setPen(QPen(QColor(cur.border), 1))
+        p.setBrush(Qt.NoBrush)
+        p.drawRoundedRect(win, 4, 4)
+        p.setPen(QColor(cur.text))
+        p.setFont(font(10.5, QFont.DemiBold))
+        p.drawText(QRectF(outer.left() + 12, win.bottom() + 10, outer.width() - 24, 18), Qt.AlignLeft | Qt.AlignVCenter,
+                   theme.STYLES[self.style_key])
+        p.setPen(QColor(cur.muted))
+        p.setFont(font(8.8))
+        p.drawText(QRectF(outer.left() + 12, win.bottom() + 28, outer.width() - 24, 16), Qt.AlignLeft | Qt.AlignVCenter,
+                   QFontMetrics(font(8.8)).elidedText(theme.STYLE_INFO[self.style_key], Qt.ElideRight,
+                                                     int(outer.width() - 24)))
+        p.end()
+
+
+class WoodSwatch(QAbstractButton):
+    """Holzart zum Anklicken: echtes Stück Furnier mit Namen darunter."""
+
+    def __init__(self, key: str, parent=None):
+        super().__init__(parent)
+        self.key = key
+        self.setCheckable(True)
+        self.setAutoExclusive(True)
+        self.setFixedSize(96, 78)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip(theme.WOODS[key][0])
+        self.setAccessibleName(f"Holzart {theme.WOODS[key][0]}")
+
+    def paintEvent(self, _e):
+        from PySide6.QtGui import QPixmap
+
+        cur = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(3, 3, self.width() - 6, 50)
+        path = _round(r, 6)
+        p.save()
+        p.setClipPath(path)
+        offset = QPointF(sum(map(ord, self.key)) % 300, 40)
+        p.drawTiledPixmap(r, QPixmap.fromImage(theme.wood_image(self.key, "panel")), offset)
+        p.restore()
+        p.setBrush(Qt.NoBrush)
+        if self.isChecked():
+            p.setPen(QPen(QColor(cur.accent), 2.5))
+            p.drawRoundedRect(QRectF(1.5, 1.5, self.width() - 3, 53), 7, 7)
+        else:
+            p.setPen(QPen(QColor(0, 0, 0, 120), 1))
+            p.drawPath(path)
+        p.setPen(QColor(cur.text if self.isChecked() else cur.muted))
+        p.setFont(font(9, QFont.DemiBold if self.isChecked() else QFont.Normal))
+        p.drawText(QRectF(0, 56, self.width(), 20), Qt.AlignCenter, theme.WOODS[self.key][0])
+        p.end()
+
+
+def _round(rect: QRectF, radius: float):
+    path = QPainterPath()
+    path.addRoundedRect(rect, radius, radius)
+    return path
+
+
+class NavDelegate(QStyledItemDelegate):
+    """Setup-Liste: Bereichsname in Textfarbe, darunter kleiner und leiser, was drin ist."""
+
+    def paint(self, p, option, index):
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        text = index.data(Qt.DisplayRole) or ""
+        opt.text = ""
+        style = opt.widget.style() if opt.widget else QApplication.style()
+        style.drawControl(QStyle.CE_ItemViewItem, opt, p, opt.widget)
+        if not text:
+            return
+        title, _, sub = text.partition("\n")
+        t = theme.current()
+        r = QRectF(opt.rect).adjusted(opt.decorationSize.width() + 22, 0, -8, 0)
+        p.save()
+        f = font(10, QFont.DemiBold if opt.state & QStyle.State_Selected else QFont.Medium)
+        p.setFont(f)
+        p.setPen(QColor(t.text))
+        mid = r.center().y()
+        p.drawText(QRectF(r.left(), mid - 18, r.width(), 18), Qt.AlignLeft | Qt.AlignBottom,
+                   QFontMetrics(f).elidedText(title, Qt.ElideRight, int(r.width())))
+        f2 = font(8.5)
+        p.setFont(f2)
+        p.setPen(QColor(t.muted))
+        p.drawText(QRectF(r.left(), mid + 1, r.width(), 16), Qt.AlignLeft | Qt.AlignTop,
+                   QFontMetrics(f2).elidedText(sub, Qt.ElideRight, int(r.width())))
+        p.restore()
+
+
 class MonitorArrangement(QWidget):
     """Zeichnet die Monitore so, wie sie angeordnet sind; Klick wählt einen Monitor aus."""
 
@@ -211,19 +404,19 @@ class SetupPage(QWidget):
     hotkeys_changed = Signal()
 
     SECTIONS = [
-        ("monitor", "Monitore", "Auflösung · Anordnung"),
-        ("pip", "Bildschirm", "Maus · Sichtschutz · PiP"),
-        ("palette", "Darstellung", "Design · Farbe"),
-        ("moon", "Bildschirmschoner", "Stil · Zeit"),
-        ("timer", "Timer", "Dauer · Warnfarben"),
-        ("board", "Whiteboard", "Stift · Seiten · Farben"),
-        ("sound", "Töne", "Bei Aktionen"),
+        ("monitor", "Monitore", "Auflösung und Anordnung"),
+        ("pip", "Bildschirm", "Maus, Sichtschutz, Bild im Bild"),
+        ("palette", "Darstellung", "Stil, Farbe, Übergänge"),
+        ("moon", "Bildschirmschoner", "Wann und wie"),
+        ("timer", "Timer", "Dauer und Warnfarben"),
+        ("board", "Whiteboard", "Stift, Seiten, Farben"),
+        ("sound", "Töne", "Klänge bei Aktionen"),
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
-        ("mic", "Sprache", "Sprechen · Stimme · Test"),
-        ("sync", "Sichern & Sync", "Export · Dual-Boot"),
-        ("fan", "RGB & Lüfter", "OpenRGB · Temperaturen"),
-        ("phone", "Handy & Kamera", "Rechte · Kamera"),
-        ("sliders", "Allgemein", "Start · Autostart · Hilfe"),
+        ("mic", "Sprache", "Sprachbefehle und Stimme"),
+        ("sync", "Sichern & Sync", "Sichern, Windows/Linux"),
+        ("fan", "RGB & Lüfter", "Licht und Temperaturen"),
+        ("phone", "Handy & Kamera", "Was das Handy darf"),
+        ("sliders", "Allgemein", "Start, Autostart, Hilfe"),
     ]
 
     def __init__(self, controller, hotkeys, parent=None):
@@ -249,6 +442,7 @@ class SetupPage(QWidget):
         }
         self.nav = QListWidget()
         self.nav.setObjectName("SetupNav")
+        self.nav.setItemDelegate(NavDelegate(self.nav))
         self.nav.setFixedWidth(230)
         self.nav.setIconSize(QSize(20, 20))
         self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -488,7 +682,7 @@ class SetupPage(QWidget):
                 if logical and o.scale:
                     w, h = round(w / o.scale), round(h / o.scale)
                 m = o.mode()
-                label = f"{m.width}×{m.height} · {m.refresh:.0f} Hz" if m else ""
+                label = f"{m.width}×{m.height}, {m.refresh:.0f} Hz" if m else ""
                 items.append({"name": o.name, "x": o.x, "y": o.y, "w": max(w, 1), "h": max(h, 1),
                               "primary": o.primary, "label": label})
         else:  # ohne Systemzugriff: Qt-Sicht der Monitore zeigen
@@ -497,7 +691,7 @@ class SetupPage(QWidget):
                 g = s.geometry()
                 items.append({"name": s.name(), "x": g.x(), "y": g.y(), "w": g.width(), "h": g.height(),
                               "primary": s is primary,
-                              "label": f"{g.width()}×{g.height()} · {s.refreshRate():.0f} Hz"})
+                              "label": f"{g.width()}×{g.height()}, {s.refreshRate():.0f} Hz"})
         self.arrangement.set_items(items, out.name() if out else "")
         self.arrangement.set_current(self.output_combo.currentData() or "")
 
@@ -680,9 +874,32 @@ class SetupPage(QWidget):
             self._save_appearance(mode=mode.currentData())
 
         mode.currentIndexChanged.connect(save_mode)
-        form.addRow("Design:", mode)
+        styles = FlowLayout(spacing=12)  # bricht im kleinen Fenster um
+        self._style_cards = {}
+        for key in theme.STYLES:
+            card = StyleCard(key, self.config)
+            card.setChecked(a.get("style", "normal") == key)
+            card.clicked.connect(lambda _=False, k=key: self._save_appearance(style=k))
+            self._style_cards[key] = card
+            styles.addWidget(card)
+        form.addRow("Stil:", styles)
+        woods = FlowLayout(spacing=8)
+        self._wood_swatches = {}
+        for key in theme.WOODS:
+            sw = WoodSwatch(key)
+            sw.setChecked(a.get("wood", theme.DEFAULT_WOOD) == key)
+            sw.clicked.connect(lambda _=False, k=key: self._save_appearance(wood=k))
+            self._wood_swatches[key] = sw
+            woods.addWidget(sw)
+        self._wood_row = QWidget()
+        self._wood_row.setLayout(woods)
+        self._mode_combo = mode
+        self._appearance_form = form
+        form.addRow("Holzart:", self._wood_row)
+        form.addRow("Hell/Dunkel:", mode)
         form.addRow("Akzentfarbe:", swatches)
         form.addRow("Desktop:", self._desktop_theme_row())
+        self._sync_style_rows()
         from .. import perf
 
         power = QComboBox()
@@ -702,7 +919,7 @@ class SetupPage(QWidget):
         power.currentIndexChanged.connect(save_power)
         form.addRow("Leistung:", power)
         form.addRow("Szenenwechsel:", tr_row)
-        hint = QLabel("Beim Wechsel auf dem Bildschirm · je Szene änderbar")
+        hint = QLabel("Gilt beim Wechsel auf dem Bildschirm. Jede Szene kann einen eigenen haben.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         form.addRow("", hint)
@@ -791,6 +1008,16 @@ class SetupPage(QWidget):
     def _set_accent(self, key: str):
         self._save_appearance(accent=key)
 
+    def _sync_style_rows(self) -> None:
+        """Holzart nur im Holz-Stil zeigen; dort bestimmt das Holz hell/dunkel (Auswahl gesperrt)."""
+        form = self.__dict__.get("_appearance_form")
+        if form is None:
+            return
+        wood = self.config["appearance"].get("style") == "holz"
+        form.setRowVisible(self._wood_row, wood)
+        self._mode_combo.setEnabled(not wood)
+        self._mode_combo.setToolTip("Im Holz-Stil bestimmt die Holzart, ob hell oder dunkel" if wood else "")
+
     def _save_appearance(self, emit: bool = True, **changes):
         a = dict(self.config["appearance"])
         a.update(changes)
@@ -798,6 +1025,9 @@ class SetupPage(QWidget):
         if emit:
             self.theme_changed.emit()
             self._style_swatches(a.get("accent", "alupc"))
+            for card in getattr(self, "_style_cards", {}).values():
+                card.update()
+            self._sync_style_rows()
             from .. import desktop_theme as dt
 
             if dt.active() and ({"accent", "mode"} & set(changes)):  # Desktop-Design zieht mit
@@ -882,7 +1112,7 @@ class SetupPage(QWidget):
         fit.currentIndexChanged.connect(lambda _i: self.config.__setitem__("camera_fit", fit.currentData()))
         form.addRow("Standard-Kamera:", self.camera_combo)
         form.addRow("Anzeige:", fit)
-        hint = QLabel("Startet per Klick auf „Kamera“ · Pfeil: andere wählen")
+        hint = QLabel("Startet per Klick auf „Kamera“. Über den Pfeil wählst du eine andere.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         form.addRow(hint)
@@ -1116,7 +1346,7 @@ class SetupPage(QWidget):
         seconds.setSuffix(" s")
         seconds.setValue(int(cfg.get("seconds", 0)))
         text = QLineEdit(cfg.get("finished_text", "Zeit ist um!"))
-        warn = QCheckBox("Warnfarben (orange · rot · blinken)")
+        warn = QCheckBox("Warnfarben (erst orange, dann rot, am Ende blinken)")
         warn.setChecked(bool(cfg.get("warn_colors", True)))
         size = QSpinBox()
         size.setRange(5, 80)
@@ -1141,7 +1371,7 @@ class SetupPage(QWidget):
         form.addRow("Text am Ende:", text)
         form.addRow("Schriftgröße:", size)
         form.addRow("", warn)
-        hint = QLabel("Für die Timer-Kachel · Töne unter „Töne“")
+        hint = QLabel("Für die Timer-Kachel. Die Töne stellst du unter „Töne“ ein.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         form.addRow(hint)
@@ -1662,7 +1892,7 @@ class SetupPage(QWidget):
             btn.changed.connect(lambda seq, a=action: self._save_hotkey(a, seq))
             form.addRow(label.replace("&", "&&") + ":", btn)
             self.hotkey_edits[action] = btn
-        more = QLabel("Szenen: im Szenen-Editor · Eigene Kacheln: „Startseite anpassen“")
+        more = QLabel("Kürzel für Szenen setzt du im Szenen-Editor, für eigene Kacheln unter „Startseite anpassen“.")
         more.setWordWrap(True)
         form.addRow(more)
         if self.hotkeys is not None and getattr(self.hotkeys, "system_wide", False):

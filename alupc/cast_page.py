@@ -338,66 +338,104 @@ body.heftmode nav, body.heftmode header { display:none; }
 .hlist button.on { background:var(--on); color:#fff; }
 .hpapers { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
 @media (prefers-reduced-motion: reduce) { *, *::before { animation:none !important; transition:none !important; } }
-/* ===== Regiepult (docs/DESIGN.md): Graphit/Alu, Pultschrift, Rot nur für „läuft“ – überschreibt die Grundwerte oben */
-@font-face { font-family:"Pult"; src:url("/schrift/pult-600.ttf") format("truetype"); font-weight:600; font-display:swap; }
-@font-face { font-family:"Pult"; src:url("/schrift/pult-700.ttf") format("truetype"); font-weight:700; font-display:swap; }
-:root { --bg:#111316; --card:#191c20; --card2:#23272c; --text:#eceef1; --muted:#979ea9; --line:#30353c;
-        --accent:#5b8def; --on:#5b8def; --live:#e5484d; --bad:#e5484d; --ok:#30a46c; --nav:#191c20;
-        --keytop:rgba(255,255,255,.07); --pult:"Pult","Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif; }
-/* immer dunkel (Regiepult) – auch wenn das Handy hell eingestellt ist */
-:root { color-scheme:dark; }
+/* ===== Gestaltung wie am PC (docs/DESIGN.md) – überschreibt die Grundwerte oben. Farben, Rundungen und Holzart
+   setzt der PC beim Ausliefern (<style id="alupc-theme">); hier stehen nur Ersatzwerte und die Formen je Stil.
+   Rot heißt in allen Stilen: läuft auf dem Bildschirm. */
+:root { --bg:#1b1d21; --card:#24272c; --card2:#2e3238; --text:#eef0f3; --muted:#9ca3ad; --line:#383d44;
+        --accent:#4c8dff; --on:#4c8dff; --on-text:#fff; --live:#ff4f45; --bad:#ff5f57; --ok:#30d158;
+        --nav:rgba(36,39,44,.95); --r-card:14px; --r-btn:9px; --r-tile:12px; color-scheme:dark;
+        --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
+body { font-family:Inter,-apple-system,system-ui,"Segoe UI",Roboto,sans-serif; background:var(--bg); }
 body::before { display:none; }
-header { background:var(--bg); border-bottom:1px solid var(--line); margin:0 -14px 12px; padding-left:16px; padding-right:16px; }
-header h1, .card h2, nav button, .tile, .clicker button { font-family:var(--pult); }
-header h1 { font-size:22px; font-weight:700; letter-spacing:0; }
-.logo { background:var(--accent); border-radius:8px; animation:none; box-shadow:none; }
-.card { background:var(--card); border:1px solid var(--line); border-radius:10px; box-shadow:none; }
-.card h2 { font-size:16px; font-weight:600; letter-spacing:0; text-transform:none; color:var(--text); }
+header { background:var(--bg); }
+header h1 { font-size:20px; font-weight:700; letter-spacing:-.2px; }
+.logo { background:var(--accent); color:var(--on-text); border-radius:10px; animation:none; box-shadow:none; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:var(--r-card); box-shadow:none;
+        backdrop-filter:none; -webkit-backdrop-filter:none; }
+.page.sel > .card, .page.sel #control > .card { animation:none; }
+.card h2 { font-size:15px; font-weight:650; letter-spacing:0; text-transform:none; color:var(--text); }
 #c-live { background:var(--card); border-color:var(--line); }
-button, .btn { border-radius:6px; background:var(--card2); border:1px solid var(--line); box-shadow:inset 0 1px 0 var(--keytop);
-               font-weight:600; transition:background .15s, color .15s; }
-button:active, .btn:active { transform:none; box-shadow:none; filter:brightness(.92); }
 .ripple { display:none; }
-.tile { font-size:15px; font-weight:600; align-items:flex-start; text-align:left; padding:12px; position:relative; }
-.tile svg.i { color:var(--accent); }
-/* Taste an = rote Leuchte + Sendungsbalken oben (statt leuchtender Fläche) */
-.tile.on { background:var(--card2); color:var(--text); animation:none; box-shadow:inset 0 3px 0 var(--live); }
-.tile.on::after { content:""; position:absolute; right:10px; top:12px; width:9px; height:9px; border-radius:50%;
-                  background:var(--live); box-shadow:0 0 0 4px rgba(229,72,77,.25); }
-button.on:not(.tile) { background:var(--accent); color:#fff; border-color:var(--accent); animation:none; box-shadow:none; }
-button.primary, .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
-.dot.on { background:var(--live); animation:none; box-shadow:0 0 0 3px rgba(229,72,77,.25); }
+button, .btn { border-radius:var(--r-btn); background:var(--card2); border:1px solid var(--line); box-shadow:none;
+               font-weight:600; color:var(--text); transition:background .15s, color .15s; }
+button:active, .btn:active { transform:none; filter:brightness(.9); }
+/* Kacheln: Symbol links, Name daneben; läuft = roter Rand und roter Punkt */
+.tile { background:var(--card2); color:var(--text); flex-direction:column; align-items:flex-start;
+        justify-content:space-between; text-align:left; gap:8px; padding:12px; font-size:14px; font-weight:600;
+        border-radius:var(--r-tile); min-height:78px; animation:none; hyphens:auto; -webkit-hyphens:auto; }
+.tile svg.i { color:var(--accent); width:24px; height:24px; }
+.tile.on { background:var(--card2); color:var(--text); animation:none; box-shadow:inset 0 0 0 1.5px var(--live);
+           border-color:var(--live); }
+.tile.on svg.i { color:var(--live); animation:none; }
+.tile.on::after { content:""; position:absolute; right:10px; top:10px; width:8px; height:8px; border-radius:50%;
+                  background:var(--live); }
+button.on:not(.tile) { background:var(--on); color:var(--on-text); border-color:var(--on); animation:none; box-shadow:none; }
+button.primary, .btn.primary { background:var(--on); color:var(--on-text); border-color:var(--on); }
+.dot.on { background:var(--live); animation:none; box-shadow:none; }
+.badge { border-radius:var(--r-btn); }
 .badge i { background:var(--live); animation:none; }
-input[type=text], input[type=url], textarea, select { border-radius:6px; background:var(--card2); border:1px solid var(--line); }
-input[type=range] { accent-color:var(--accent); }
-/* Schieberegler wie Fader: dunkler Schlitz, Kappe mit Griffrille */
-input[type=range] { -webkit-appearance:none; appearance:none; background:transparent; height:34px; }
-input[type=range]::-webkit-slider-runnable-track { height:6px; background:#08090b; border:1px solid var(--line); border-radius:3px; }
-input[type=range]::-moz-range-track { height:6px; background:#08090b; border:1px solid var(--line); border-radius:3px; }
+input[type=text], input[type=url], textarea, select { border-radius:var(--r-btn); background:var(--card2);
+  border:1px solid var(--line); color:var(--text); }
+input:focus, textarea:focus, select:focus { outline:2px solid var(--accent); outline-offset:1px; }
+button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+input[type=range] { -webkit-appearance:none; appearance:none; background:transparent; height:34px; accent-color:var(--accent); }
+input[type=range]::-webkit-slider-runnable-track { height:6px; background:var(--card2); border:1px solid var(--line); border-radius:3px; }
+input[type=range]::-moz-range-track { height:6px; background:var(--card2); border-radius:3px; }
 input[type=range]::-moz-range-progress { height:6px; background:var(--accent); border-radius:3px; }
-input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:30px; margin-top:-13px; border-radius:3px;
-  border:1px solid #4a5059; background:linear-gradient(transparent 44%, #eceef1 44%, #eceef1 56%, transparent 56%), #3a3f47; }
-input[type=range]::-moz-range-thumb { width:18px; height:30px; border-radius:3px; border:1px solid #4a5059; background:#3a3f47; }
-.pad { border-radius:8px; } .pad.active { border-color:var(--accent); }
-.preview { border-radius:6px; }
-nav { background:var(--nav); border:1px solid var(--line); border-radius:10px; box-shadow:none;
-      backdrop-filter:none; -webkit-backdrop-filter:none; }
-nav button { background:transparent; border:0; box-shadow:none; border-radius:6px; font-size:13px; font-weight:600; }
-nav button.sel { color:var(--text); }
-#nav-pill { background:var(--card2); border:1px solid var(--line); border-radius:6px; box-shadow:inset 0 -3px 0 var(--accent); }
-.toast { border-radius:6px; background:#2b2f36; box-shadow:none; }
-.chips button { border-radius:6px; }
-.quick button { border-radius:6px; box-shadow:none; }
-.quick button.on { background:var(--accent); }
-#widths button.on, #guests button.on { background:var(--accent); color:#fff; }
-.page.sel .side > .card, .page.sel #control > .card { animation:none; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:24px; height:24px; margin-top:-10px; border-radius:50%;
+  background:#fff; border:0; box-shadow:0 1px 4px rgba(0,0,0,.4); }
+input[type=range]::-moz-range-thumb { width:24px; height:24px; border-radius:50%; background:#fff; border:0; }
+.pad { border-radius:var(--r-card); } .pad.active { border-color:var(--accent); }
+.preview { border-radius:var(--r-btn); box-shadow:none; border:1px solid var(--line); }
+nav { background:var(--nav); border:1px solid var(--line); border-radius:16px; box-shadow:0 6px 20px rgba(0,0,0,.35);
+      backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+nav button { background:transparent; border:0; box-shadow:none; border-radius:12px; font-size:12px; font-weight:600; }
+nav button.sel { color:var(--on-text); }
+#nav-pill { background:var(--accent); border:0; border-radius:12px; box-shadow:none; }
+.toast { border-radius:var(--r-btn); background:#232427; border:1px solid #3a3c40; color:#f1f1ef;
+         box-shadow:0 6px 20px rgba(0,0,0,.35); }
+.chips button { border-radius:var(--r-btn); }
+.quick button { border-radius:var(--r-btn); box-shadow:none; background:var(--card2); }
+.quick button.on, #widths button.on, #guests button.on, .hlist button.on { background:var(--on); color:var(--on-text); }
+.bar > div { background:var(--accent); }
+.live-row input { accent-color:var(--live); } .live-row b { color:var(--live); }
+.reply { background:var(--card2); }
+.timer { font-variant-numeric:tabular-nums; }
+/* Technisch: dichter, eckiger, Zahlen in Mono, laufende Kachel mit roter Leiste links */
+html[data-style=technisch] .tile { min-height:64px; padding:10px; }
+html[data-style=technisch] .tile.on { box-shadow:inset 3px 0 0 var(--live), inset 0 0 0 1px var(--live); }
+html[data-style=technisch] .tile.on::after { display:none; }
+html[data-style=technisch] .timer, html[data-style=technisch] .big { font-family:var(--mono); font-weight:600; }
+html[data-style=technisch] nav, html[data-style=technisch] #nav-pill,
+html[data-style=technisch] nav button { border-radius:var(--r-btn); }
+html[data-style=technisch] nav { box-shadow:none; }
+/* Holz: Furnier der gewählten Holzart; Karten und Kacheln als Platten mit Kante, Lampe statt Punkt */
+html[data-style=holz] body, html[data-style=holz] header { background:var(--bg) var(--wood-bg) repeat; }
+html[data-style=holz] .card, html[data-style=holz] #c-live, html[data-style=holz] nav {
+  background:var(--card) var(--wood-panel) repeat; border-color:rgba(0,0,0,.45);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 2px 4px rgba(0,0,0,.3); }
+html[data-style=holz] button:not(.on):not(.primary), html[data-style=holz] .tile {
+  background:var(--card2) var(--wood-hi) repeat; border-color:rgba(0,0,0,.4);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 1px 2px rgba(0,0,0,.35); }
+html[data-style=holz] nav button { background:transparent !important; box-shadow:none !important; }
+html[data-style=holz] .tile.on { box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 1px 2px rgba(0,0,0,.35); border-color:rgba(0,0,0,.4); }
+html[data-style=holz] .tile.on svg.i { color:var(--accent); }
+html[data-style=holz] .tile::after { content:""; position:absolute; right:10px; top:10px; width:9px; height:9px;
+  border-radius:50%; background:radial-gradient(circle at 35% 35%, #5a5650, #26241f); box-shadow:0 0 0 1.5px rgba(0,0,0,.35); }
+html[data-style=holz] .tile.on::after { background:radial-gradient(circle at 35% 35%, #ffb3a8, var(--live));
+  box-shadow:0 0 0 1.5px rgba(0,0,0,.35), 0 0 10px 2px var(--live); }
+html[data-style=holz] header h1, html[data-style=holz] .card h2, html[data-style=holz] .tile {
+  font-family:"Barlow Semi Condensed",Inter,system-ui,sans-serif; letter-spacing:.2px; }
+html[data-style=holz] .tile { font-size:16px; }
 @media (min-width: 740px) {
-  header { margin:0 0 16px; }
-  nav { border-radius:10px; } nav button { border-radius:6px; } #nav-pill { border-radius:6px;
-        box-shadow:inset 3px 0 0 var(--accent); }
-  .card { border-radius:10px; } button, .btn { border-radius:6px; }
-  .clicker button { border-radius:10px; } .pad { border-radius:10px; }
+  .tile { min-height:84px; font-size:15px; }
 }
+/* Normal: weich und rund – Flächen ohne harte Ränder, Knöpfe als Pillen */
+html[data-style=normal] .card, html[data-style=normal] #c-live { border-color:transparent; }
+html[data-style=normal] button, html[data-style=normal] .btn { border-color:transparent; }
+html[data-style=normal] .chips button, html[data-style=normal] .quick button { border-radius:999px; }
+html[data-style=normal] nav { border-radius:999px; } html[data-style=normal] #nav-pill,
+html[data-style=normal] nav button { border-radius:999px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
 </style>
 </head>
@@ -1750,3 +1788,40 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) { re
 </body>
 </html>
 """
+
+
+def themed_page(appearance: dict) -> str:
+    """Handy-Seite im Stil der PC-App: gleiche Farben, Rundungen und (Holz-Stil) dieselbe Holzart."""
+    from .ui import theme
+
+    style = appearance.get("style", "normal")
+    style = style if style in theme.STYLES else "normal"
+    accent, mode = appearance.get("accent", "alupc"), appearance.get("mode", "dunkel")
+    wood = appearance.get("wood", theme.DEFAULT_WOOD)
+
+    def tokens(t) -> str:
+        r_card, r_btn = t.radii[0], t.radii[1]
+        nav = theme.QColor(t.surface)
+        return (f"--bg:{t.bg};--card:{t.surface};--card2:{t.surface2};--text:{t.text};--muted:{t.muted};"
+                f"--line:{t.border};--accent:{t.accent};--on:{t.accent};--on-text:{t.on_accent};--live:{t.live};"
+                f"--bad:{t.danger};--ok:{t.ready};--nav:rgba({nav.red()},{nav.green()},{nav.blue()},.95);"
+                f"--r-card:{r_card + 2}px;--r-btn:{r_btn}px;--r-tile:{r_card}px;"
+                f"color-scheme:{'dark' if t.dark else 'light'};")
+
+    if style != "holz" and mode == "system":  # Handy entscheidet selbst hell/dunkel
+        css = (f":root{{{tokens(theme.make_theme('dunkel', accent, style))}}}"
+               f"@media (prefers-color-scheme: light){{:root{{{tokens(theme.make_theme('hell', accent, style))}}}}}")
+    else:
+        css = f":root{{{tokens(theme.make_theme(mode, accent, style, wood))}}}"
+    if style == "holz":
+        css += (f":root{{--wood-bg:url(/holz/{wood}/bg.jpg);--wood-panel:url(/holz/{wood}/panel.jpg);"
+                f"--wood-hi:url(/holz/{wood}/panel_hi.jpg)}}")
+    faces = [("Inter", "Inter-Regular", 400), ("Inter", "Inter-SemiBold", 600), ("Inter", "Inter-Bold", 700),
+             ("JetBrains Mono", "JetBrainsMono-Regular", 400)]
+    if style == "holz":
+        faces += [("Barlow Semi Condensed", "BarlowSemiCondensed-SemiBold", 600),
+                  ("Barlow Semi Condensed", "BarlowSemiCondensed-Bold", 700)]
+    css = "".join(f"@font-face{{font-family:'{fam}';src:url(/fonts/{file}.ttf);font-weight:{w};font-display:swap}}"
+                  for fam, file, w in faces) + css
+    page = PAGE.replace('<html lang="de">', f'<html lang="de" data-style="{style}">', 1)
+    return page.replace("</head>", f'<style id="alupc-theme">{css}</style>\n</head>', 1)

@@ -102,6 +102,7 @@ EXPECTED_BACK = {
     ("Sichern & Sync", "„An“", "sync.declined"): "„Aus“ geklickt = bewusst abgelehnt (vorher: nie gefragt)",
 }
 NO_CONFIG.update({"Darstellung: Swatch „AluPC“": "ist schon gewählt",
+                  "Darstellung: StyleCard „Modern, weich und rund“": "Stil Normal ist schon gewählt",
                   "Töne: QComboBox": "„Eigener Ton …“ öffnet die Dateiauswahl (hier abgebrochen)",
                   "Allgemein: QCheckBox „Autostart“": "Autostart steht im System, nicht in der Konfiguration "
                                                       "(Wirkung unten geprüft)"})
@@ -143,7 +144,7 @@ def change(w: QWidget):
     if isinstance(w, (QCheckBox, QRadioButton)) or (isinstance(w, QAbstractButton) and w.isCheckable()):
         if isinstance(w, QRadioButton) and w.isChecked():
             return None
-        group = [b for b in w.parentWidget().findChildren(QAbstractButton) if b.isCheckable()] \
+        group = [b for b in w.parentWidget().findChildren(QAbstractButton) if b.isCheckable() and type(b) is type(w)] \
             if w.parentWidget() is not None else [w]
         was = next((b for b in group if b.isChecked() and b is not w), None)
         before = w.isChecked()
@@ -283,7 +284,18 @@ pump(0.2)
 ok(theme.current().accent == theme.ACCENTS["gruen"][1], "Akzentfarbe Grün → App sofort grün")
 setup._set_accent("alupc")
 pump(0.2)
-ok(theme.current().accent in ("#2f6fdb", "#5b8def"), "AluPC-Theme (Regiepult) → AluPC-Blau")
+ok(theme.current().accent in ("#2f62e9", "#5b8cff"), "AluPC-Theme (Normal) → AluPC-Blau")
+setup._save_appearance(style="technisch")
+pump(0.2)
+ok(theme.current().technical, "Stil Technisch → App technisch")
+setup._save_appearance(style="holz", wood="eiche")
+pump(0.2)
+ok(theme.current().wood and theme.current().wood_kind == "eiche" and not theme.current().dark,
+   "Stil Holz + Eiche → helles Holz, dunkle Schrift")
+ok(not setup._mode_combo.isEnabled(), "Holz: Hell/Dunkel bestimmt die Holzart (Auswahl gesperrt)")
+setup._save_appearance(style="normal", wood="nussbaum")
+pump(0.2)
+ok(theme.current().style == "normal" and setup._mode_combo.isEnabled(), "Zurück zu Normal")
 mode_box = next(c for c in setup._areas[2].widget().findChildren(QComboBox) if c.findData("dunkel") >= 0)
 mode_box.setCurrentIndex(mode_box.findData("dunkel"))
 pump(0.2)

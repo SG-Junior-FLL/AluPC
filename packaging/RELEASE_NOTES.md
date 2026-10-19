@@ -9,14 +9,21 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 1.2.0 – mehr Regiepult
-- **Regler wie am Mischpult:** Auf der Startseite steht neben dem Programmbild ein Regler-Pult mit senkrechten
-  Fadern: „PC“ (Lautstärke des Computers) und „Medien“ (Ton von Video/Website auf dem Bildschirm, nur wenn etwas
-  mit Ton läuft). Alle anderen Schieberegler sehen jetzt ebenfalls wie Fader aus (auch auf der Handy-Seite).
-- **Mehr Dunkelmodus:** dunklere Graphit-Töne; Dunkel ist Standard. Wer bisher „Wie das System“ hatte (die alte
-  Voreinstellung), bekommt einmal Dunkel – „Hell“ bleibt wählbar. Die Handy-/iPad-Seite ist immer dunkel.
-- **Nicht getestet** auf echten Geräten. Der PC-Fader braucht einen Audio-Dienst (Windows: Core Audio,
-  Linux: PipeWire/PulseAudio); ohne ist er ausgegraut.
+### Neu in 2.0.0 – drei Designs zum Umschalten
+- **Setup → Darstellung → Stil:** drei Designs für die ganze App (Hauptfenster, Setup, Dialoge, Handy-/iPad-Seite).
+  Umschalten wirkt sofort.
+  - **Normal** (Standard): modern, weich und rund – schwebende Seitenleiste, große runde Kacheln, Knöpfe als Pillen,
+    dicke runde Lautstärke-Regler.
+  - **Technisch:** dicht und eckig, Kacheln als Zeilen, echte Messwerte in Ziffernschrift (Ausgang, Auflösung, Hz,
+    „läuft seit 0:12:34“), Regler mit Skala 0–100.
+  - **Holz:** echtes Furnier als Grund und Kacheln, **7 Holzarten** (Nussbaum, Kirsche, Wenge, Räuchereiche, Eiche,
+    Kiefer, Ahorn), gravierte Schrift, rote Lampe zeigt, was läuft. Helles Holz → dunkle Schrift, dunkles Holz →
+    helle Schrift (alle Kombinationen auf Lesbarkeit geprüft).
+- **Nur echte Angaben:** keine Fachkürzel wie „CH 07“, „PGM“ oder „STBY“ mehr – Zustände heißen „Läuft“, „An“,
+  „Aktiv“ oder zeigen die Zeit.
+- **Setup übersichtlicher:** Bereiche mit kurzer Beschreibung darunter, Stil-Auswahl mit Vorschaubildern.
+- **Handy-/iPad-Seite** übernimmt Stil, Farben, Holzart und Schrift vom PC.
+- **Nicht getestet** auf echten Monitoren, Handys und iPads – nur automatische Tests und Bildschirmfotos.
 
 ### Frühere Versionen
 [CHANGELOG](https://github.com/SG-Junior-FLL/AluPC/blob/main/docs/CHANGELOG.md)

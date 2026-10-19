@@ -15,12 +15,12 @@ BUILTIN_TILES: dict[str, tuple[str, str, str, str | None, str]] = {
     "media": ("image", "Bild / Video", "Mediathek", "#10b981", "anzeigen"),
     "text": ("text", "Text", "Schnell zeigen", "#14b8a6", "anzeigen"),
     "nowplaying": ("music", "Läuft gerade", "Musik am PC", "#1db954", "anzeigen"),
-    "senden": ("cast", "An Fernseher", "Chromecast · AirPlay", "#2563eb", "anzeigen"),
+    "senden": ("cast", "An Fernseher", "Chromecast, AirPlay", "#2563eb", "anzeigen"),
     "scenes": ("scenes", "Meine Szenen", "Eigene Szenen", "#ec4899", "anzeigen"),
     # Handy → Monitor 2: jeder Weg mit eigener Kachel
     "airplay": ("phone", "AirPlay", "iPhone & iPad", "#0ea5e9", "handy"),
     # Miracast: Windows empfängt und sendet, Linux kann nur senden (kein gepflegter Empfänger)
-    "miracast": ("cast", "Miracast", "Empfangen · Senden" if sys.platform.startswith("win") else "An Fernseher senden",
+    "miracast": ("cast", "Miracast", "Empfangen, Senden" if sys.platform.startswith("win") else "An Fernseher senden",
                  "#7c3aed", "handy"),
     "handy_remote": ("qr", "Handy-Steuerung", "Übers AluPC-WLAN", "#8b5cf6", "handy"),
     "freeze": ("snowflake", "Standbild", "Bild einfrieren", "#0ea5e9", "schnell"),

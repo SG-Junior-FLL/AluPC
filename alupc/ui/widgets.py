@@ -37,8 +37,8 @@ from . import icons, theme
 
 
 def font(size_pt: float | None = None, weight: QFont.Weight = QFont.Normal, head: bool = False) -> QFont:
-    """Schrift der Oberfläche (Inter); head=True: Pult-Beschriftung (Barlow Semi Condensed) für Titel und Tasten."""
-    f = QFont(theme.HEAD_FONT) if head else QFont()
+    """Schrift der Oberfläche (Inter); head=True: Schrift für Titel und Kachelnamen (im Holz-Stil Barlow)."""
+    f = QFont(theme.current().head_font) if head else QFont()
     if size_pt:
         f.setPointSizeF(size_pt)
     f.setWeight(weight)
@@ -64,7 +64,7 @@ def button(text: str, icon_name: str | None = None, primary: bool = False, dange
     if icon_name:
         b.setProperty("iconName", icon_name)  # zum Neu-Einfärben beim Wechsel des Designs
         t = theme.current()
-        color = "#ffffff" if primary else (t.danger if danger else t.text)
+        color = t.on_accent if primary else (t.danger if danger else t.text)
         b.setIcon(icons.icon(icon_name, color, 18))
         b.setIconSize(QSize(18, 18))
     b.setCursor(Qt.PointingHandCursor)
@@ -106,9 +106,11 @@ def page_header(title: str, subtitle: str = "", icon_name: str | None = None) ->
     if icon_name:
         chip = QLabel()
         chip.setObjectName("PageIcon")
-        chip.setFixedSize(42, 42)
+        t_ = theme.current()
+        chip.setFixedSize(40, 40)
         chip.setAlignment(Qt.AlignCenter)
-        chip.setPixmap(icons.pixmap(icon_name, theme.current().accent, 22))
+        color = t_.accent if t_.technical else (t_.text if t_.wood else t_.on_accent)
+        chip.setPixmap(icons.pixmap(icon_name, color, 20))
         row.addWidget(chip, 0, Qt.AlignTop)
     col = QVBoxLayout()
     col.setSpacing(2)
@@ -171,7 +173,9 @@ def _partner(color: QColor) -> QColor:
 
 
 class Tile(HoverMixin, QAbstractButton):
-    """Große Kachel: Symbol im farbigen Kreis, Titel, Untertitel, Zustand (aktiv/Warnung).
+    """Kachel der Startseite: Symbol, Name, Untertitel – läuft sie, steht statt des Untertitels der Zustand
+    („Läuft“, „An“, „04:12“) in Rot. Form je Stil: Normal = Karte, Technisch = dichte Zeile, Holz = Alu-Platte
+    mit Lampe.
 
     Mit `set_menu(menu, split=True)` öffnet nur der Pfeil oben rechts das Menü; ein Klick auf
     den Rest der Kachel löst `activated` aus.
@@ -190,7 +194,6 @@ class Tile(HoverMixin, QAbstractButton):
         self.split = False
         self._press_pos = None
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumSize(QSize(160, 118))
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setToolTip(subtitle)
         self._init_hover()
@@ -226,94 +229,186 @@ class Tile(HoverMixin, QAbstractButton):
             self.update()
 
     def sizeHint(self):
-        return QSize(190, 118)
+        return QSize(200, {"technisch": 58, "holz": 106}.get(theme.current().style, 112))
+
+    def minimumSizeHint(self):
+        return QSize(160, self.sizeHint().height())
 
     def paintEvent(self, _e):
-        """Pulttaste: Leuchte oben links (rot = läuft auf dem Bildschirm), Symbol in der Kachelfarbe, Name unten.
-        Aktiv: Leuchte an und roter Balken an der Oberkante – die Fläche bleibt ruhig."""
+        style = theme.current().style
+        {"technisch": self._paint_row, "holz": self._paint_plate}.get(style, self._paint_card)()
+
+    def _state(self) -> tuple[bool, QColor, str]:
+        """(läuft?, Lampenfarbe, Zustand in Worten)."""
+        t = theme.current()
+        on = self.active or self.alert
+        text = display_label(self.badge) if self.badge else ("Fehler" if self.alert else "Läuft")
+        return on, QColor(t.warning if self.alert else t.live), text
+
+    @staticmethod
+    def _chevron(p: QPainter, cx: float, cy: float, color: QColor) -> None:
+        p.setPen(QPen(color, 1.8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        p.drawPolyline([QPointF(cx - 4, cy - 2), QPointF(cx, cy + 2), QPointF(cx + 4, cy - 2)])
+
+    def _texts(self, p: QPainter, x: float, right: float, base: float, title_font: QFont, sub_size: float,
+               dot: bool = True) -> None:
+        """Name (Unterkante bei `base`) und darunter Untertitel – oder, wenn es läuft, der Zustand in Rot."""
+        t = theme.current()
+        on, lamp, state = self._state()
+        width = max(10.0, right - x)
+        p.setFont(title_font)
+        name_rect = QRectF(x, base - 22, width, 22)
+        name = QFontMetrics(title_font).elidedText(self.title, Qt.ElideRight, int(width))
+        if t.wood:  # Gravur: Lichtkante unter (helles Holz) bzw. Schatten über der Schrift (dunkles Holz)
+            p.setPen(QColor(0, 0, 0, 150) if t.dark else QColor(255, 255, 255, 140))
+            p.drawText(name_rect.translated(0, -1 if t.dark else 1), Qt.AlignLeft | Qt.AlignBottom, name)
+        p.setPen(QColor(t.text))
+        p.drawText(name_rect, Qt.AlignLeft | Qt.AlignBottom, name)
+        line = QRectF(x, base + 1, width, 18)
+        if on:
+            sf = font(sub_size, QFont.DemiBold)
+            if t.technical and any(ch.isdigit() for ch in state):  # Zeiten/Zahlen als Messwert
+                sf = QFont(theme.MONO_FONT)
+                sf.setPointSizeF(sub_size - 0.4)
+                sf.setBold(True)
+            if dot:
+                p.setPen(Qt.NoPen)
+                p.setBrush(lamp)
+                p.drawEllipse(QPointF(x + 3.5, line.center().y()), 3.5, 3.5)
+                line = line.adjusted(12, 0, 0, 0)
+            p.setFont(sf)
+            p.setPen(lamp)
+            p.drawText(line, Qt.AlignLeft | Qt.AlignVCenter,
+                       QFontMetrics(sf).elidedText(state, Qt.ElideRight, int(line.width())))
+        elif self.subtitle:
+            sf = font(sub_size)
+            p.setFont(sf)
+            p.setPen(QColor(t.muted))
+            p.drawText(line, Qt.AlignLeft | Qt.AlignVCenter,
+                       QFontMetrics(sf).elidedText(self.subtitle, Qt.ElideRight, int(line.width())))
+
+    def _glyph_color(self) -> QColor:
+        t = theme.current()
+        c = QColor(self.color or t.accent)
+        return c.lighter(135) if t.dark else tile_color(c.name())
+
+    def _paint_card(self):
+        """Normal: weiche, stark gerundete Karte ohne Rand; oben links das Symbol im getönten Kreis, oben rechts der
+        Menüknopf als kleiner runder Knopf, unten Name und Untertitel. Läuft sie: roter Ring."""
         t = theme.current()
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
-        radius = 6
-        on = self.active or self.alert
-        lamp = QColor(t.warning if self.alert else t.live)
-        down = self.isDown()
-        face = t.mix(t.surface2, t.text, 0.10 if down else 0.045 * self._hover)
+        r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        on, lamp, _state = self._state()
+        radius = t.radii[0]
+        face = t.mix(t.surface, t.surface2, 0.75 * self._hover + (0.8 if self.isDown() else 0))
         p.fillPath(rounded(r, radius), face)
-        border = QColor(t.mix(t.border, t.text, 0.18 * self._hover))
-        p.setPen(QPen(border, 1.0))
+        if on:
+            p.setPen(QPen(lamp, 2.2))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(rounded(r.adjusted(1.1, 1.1, -1.1, -1.1), radius - 1))
+        circle = QRectF(r.left() + 14, r.top() + 14, 40, 40)
+        tint = QColor(self.color or t.accent)
+        tint.setAlphaF(0.22 if t.dark else 0.14)
+        p.setPen(Qt.NoPen)
+        p.setBrush(tint)
+        p.drawEllipse(circle)
+        icons.paint(p, self.icon_name, circle.adjusted(10, 10, -10, -10), self._glyph_color().name(), 2.0)
+        if self.menu is not None:
+            knob = QRectF(r.right() - 14 - 28, r.top() + 14 + 6, 28, 28)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(t.mix(t.surface2, t.text, 0.06 + 0.06 * self._hover)))
+            p.drawEllipse(knob)
+            self._chevron(p, knob.center().x(), knob.center().y(), QColor(t.mix(t.muted, t.text, self._hover)))
+        self._texts(p, r.left() + 16, r.right() - 14, r.bottom() - 30, font(11.5, QFont.DemiBold), 9.2)
+        p.end()
+
+    def _paint_row(self):
+        """Technisch: dichte Zeile mit feinem Rand; läuft sie, leuchtet links eine rote Leiste."""
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        on, lamp, _state = self._state()
+        radius = t.radii[0]
+        p.fillPath(rounded(r, radius), t.mix(t.surface, t.surface2, 0.7 * self._hover + (0.7 if self.isDown() else 0)))
+        p.setPen(QPen(lamp if on else QColor(t.mix(t.border, t.text, 0.15 * self._hover)), 1))
         p.setBrush(Qt.NoBrush)
         p.drawPath(rounded(r, radius))
-        if not down:  # Oberkante heller (dunkel) bzw. Unterkante dunkler (hell): Tiefe ohne Schatten
-            edge = QColor("#ffffff" if t.dark else "#000000")
-            edge.setAlphaF(0.07 if t.dark else 0.06)
-            p.setPen(QPen(edge, 1.0))
-            y = r.top() + 1.5 if t.dark else r.bottom() - 1.5
-            p.drawLine(QPointF(r.left() + radius, y), QPointF(r.right() - radius, y))
-        if on:  # Sendungsbalken oben
-            p.save()
-            p.setClipPath(rounded(r, radius))
-            p.fillRect(QRectF(r.left(), r.top(), r.width(), 3), lamp)
-            p.restore()
-
-        pad = 14
-        # Leuchte oben links
-        lc = QPointF(r.left() + pad + 4, r.top() + pad + 5)
-        p.setPen(Qt.NoPen)
         if on:
-            halo = QColor(lamp)
-            halo.setAlphaF(0.28)
-            p.setBrush(halo)
-            p.drawEllipse(lc, 7.5, 7.5)
-            p.setBrush(lamp)
-        else:
-            p.setBrush(QColor(t.mix(t.border, t.bg, 0.2)))
-        p.drawEllipse(lc, 4, 4)
-
-        # Symbol in der Kachelfarbe (wie farbige Tastenkappen), rechts neben der Leuchte
-        icon_col = QColor(self.color or t.accent)
-        if not t.dark:
-            icon_col = icon_col.darker(112)
-        icons.paint(p, self.icon_name, QRectF(lc.x() + 14, lc.y() - 11, 22, 22), icon_col.name(), 2.0)
-
-        # Pfeil oben rechts (öffnet das Menü); geteilte Taste: feine Fuge vor dem Pfeil
-        top_right = r.right() - pad + 4
+            p.fillRect(QRectF(r.left(), r.top(), 3, r.height()), lamp)
+        icons.paint(p, self.icon_name, QRectF(r.left() + 14, r.center().y() - 10, 20, 20),
+                    self._glyph_color().name(), 1.9)
+        right = r.right() - 10
         if self.menu is not None:
-            cx, cy = r.right() - 22, lc.y()
-            if self.split:
-                p.setPen(QPen(QColor(t.border), 1.0))
-                p.drawLine(QPointF(cx - 18, r.top() + 10), QPointF(cx - 18, cy + 14))
-            p.setPen(QPen(QColor(t.mix(t.muted, t.text, self._hover)), 1.8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-            p.drawPolyline([QPointF(cx - 4, cy - 2), QPointF(cx, cy + 2), QPointF(cx + 4, cy - 2)])
-            top_right = cx - 24
-        # Zustand (z. B. „Läuft“) als Schrift in der Leuchtfarbe neben dem Pfeil
-        if self.badge:
-            f = font(10, QFont.DemiBold, head=True)
-            p.setFont(f)
-            label = display_label(self.badge)
-            bw = QFontMetrics(f).horizontalAdvance(label)
-            box = QRectF(top_right - bw, lc.y() - 10, bw, 20)
-            if box.left() > lc.x() + 42:
-                p.setPen(lamp if on else QColor(t.muted))
-                p.drawText(box, Qt.AlignRight | Qt.AlignVCenter, label)
-
-        # Name und Untertitel unten links
-        width = r.width() - 2 * pad
-        tf = font(12.5, QFont.DemiBold, head=True)
-        p.setFont(tf)
-        p.setPen(QColor(t.text))
-        has_sub = bool(self.subtitle)
-        title_y = r.bottom() - pad - (38 if has_sub else 22)
-        title = QFontMetrics(tf).elidedText(self.title, Qt.ElideRight, int(width))
-        p.drawText(QRectF(r.left() + pad, title_y, width, 22), Qt.AlignLeft | Qt.AlignVCenter, title)
-        if has_sub:
-            sf = font(8.8)
-            p.setFont(sf)
-            p.setPen(QColor(t.muted))
-            sub = QFontMetrics(sf).elidedText(self.subtitle, Qt.ElideRight, int(width))
-            p.drawText(QRectF(r.left() + pad, title_y + 20, width, 18), Qt.AlignLeft | Qt.AlignVCenter, sub)
+            p.setPen(QPen(QColor(t.border), 1))
+            p.drawLine(QPointF(right - 22, r.top() + 10), QPointF(right - 22, r.bottom() - 10))
+            self._chevron(p, right - 9, r.center().y(), QColor(t.mix(t.muted, t.text, self._hover)))
+            right -= 30
+        self._texts(p, r.left() + 46, right, r.center().y() + 1, font(10.3, QFont.DemiBold), 8.8, dot=False)
         p.end()
+
+    def _paint_plate(self):
+        """Holz: Furnierplatte der gewählten Holzart, Lampe oben links (aus = dunkel, läuft = leuchtet rot),
+        Symbol in der Kachelfarbe, Name graviert."""
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(1, 1, -1, -3)
+        on, lamp, _state = self._state()
+        radius = t.radii[0]
+        p.fillPath(rounded(r.translated(0, 2), radius), QColor(0, 0, 0, 80))  # Schatten aufs Holz
+        theme.paint_panel(p, rounded(r, radius), r, t, pressed=self.isDown(), hover=self._hover)
+        paint_led(p, QPointF(r.left() + 17, r.top() + 17), on, lamp)
+        right = r.right() - 12
+        if self.menu is not None:
+            self._chevron(p, right - 5, r.top() + 17, QColor(t.mix(t.muted, t.text, self._hover)))
+        icons.paint(p, self.icon_name, QRectF(r.left() + 32, r.top() + 7, 20, 20), self._glyph_color().name(), 2.0)
+        tf = font(13, QFont.DemiBold, head=True)
+        self._texts(p, r.left() + 14, r.right() - 12, r.bottom() - 26, tf, 9.2, dot=False)
+        p.end()
+
+
+def paint_led(p: QPainter, c: QPointF, on: bool, color: QColor | str, radius: float = 5.0) -> None:
+    """Kleine Kontrolllampe: aus = dunkles Glas, an = leuchtet in `color` mit weichem Schein."""
+    from PySide6.QtGui import QRadialGradient
+
+    color = QColor(color)
+    p.save()
+    p.setPen(Qt.NoPen)
+    if on:
+        glow = QRadialGradient(c, radius * 2.6)
+        g0 = QColor(color)
+        g0.setAlphaF(0.45)
+        g1 = QColor(color)
+        g1.setAlphaF(0.0)
+        glow.setColorAt(0, g0)
+        glow.setColorAt(1, g1)
+        p.setBrush(glow)
+        p.drawEllipse(c, radius * 2.6, radius * 2.6)
+        core = QRadialGradient(QPointF(c.x() - radius * 0.3, c.y() - radius * 0.3), radius * 1.2)
+        core.setColorAt(0, color.lighter(170))
+        core.setColorAt(1, color)
+    else:
+        core = QRadialGradient(QPointF(c.x() - radius * 0.3, c.y() - radius * 0.3), radius * 1.2)
+        core.setColorAt(0, QColor("#5a5650"))
+        core.setColorAt(1, QColor("#26241f"))
+    p.setBrush(QColor(0, 0, 0, 90))
+    p.drawEllipse(c, radius + 1.2, radius + 1.2)  # Fassung
+    p.setBrush(core)
+    p.drawEllipse(c, radius, radius)
+    p.restore()
+
+
+def tile_color(color: str) -> QColor:
+    """Kachelfarbe, die weiße Schrift gut lesbar trägt (zu helle Farben wie Gelb werden abgedunkelt)."""
+    c = QColor(color)
+    for _ in range(8):
+        lum = 0.2126 * c.redF() + 0.7152 * c.greenF() + 0.0722 * c.blueF()
+        if lum <= 0.42:
+            break
+        c = c.darker(112)
+    return c
 
 
 # --------------------------------------------------------------------------- Navigation
@@ -344,20 +439,19 @@ class NavButton(HoverMixin, QAbstractButton):
         if self.isChecked() and self.external_indicator:
             pass
         elif self.isChecked():
-            p.fillPath(rounded(r, 6), QColor(t.surface2))
-            p.fillRect(QRectF(0, r.center().y() - 11, 3, 22), QColor(t.accent))
+            paint_nav_mark(p, r, t)
         elif self._hover > 0:
             h = QColor(t.text)
             h.setAlphaF(0.05 * self._hover)
-            p.fillPath(rounded(r, 6), h)
-        col = t.accent if self.isChecked() else t.muted
+            p.fillPath(rounded(r, 3), h)
+        col = (t.text if t.wood else t.accent) if self.isChecked() else t.muted
         if self.compact:
             icons.paint(p, self.icon_name, QRectF(r.center().x() - 10, r.center().y() - 10, 20, 20), col, 2.0)
             p.end()
             return
         icons.paint(p, self.icon_name, QRectF(r.left() + 14, r.center().y() - 10, 20, 20), col, 2.0)
         p.setPen(QColor(t.text if self.isChecked() else t.mix(t.text, t.muted, 0.35)))
-        p.setFont(font(12, QFont.DemiBold if self.isChecked() else QFont.Medium, head=True))
+        p.setFont(font(10.2, QFont.DemiBold if self.isChecked() else QFont.Medium))
         p.drawText(r.adjusted(46, 0, 0, 0), Qt.AlignLeft | Qt.AlignVCenter, self.text_)
         p.end()
 
@@ -424,13 +518,16 @@ class MonitorCard(QWidget):
             p.drawEllipse(QPointF(thumb.right() - 4, thumb.top() + 4), 4, 4)
             p.end()
             return
-        # schlichte Karte mit feinem Rand
-        p.fillPath(rounded(r, 8), QColor(t.surface))
-        p.setPen(QPen(QColor(t.border), 1.0))
-        p.drawPath(rounded(r.adjusted(0.5, 0.5, -0.5, -0.5), 8))
+        # Karte: flach mit feinem Rand bzw. Alu-Platte (Holz)
+        if t.wood:
+            theme.paint_panel(p, rounded(r, t.radii[0]), r, t)
+        else:
+            p.fillPath(rounded(r, t.radii[0]), QColor(t.surface))
+            p.setPen(QPen(QColor(t.border), 1))
+            p.drawPath(rounded(r.adjusted(0.5, 0.5, -0.5, -0.5), t.radii[0]))
         thumb = QRectF(r.left() + 8, r.top() + 8, r.width() - 16, (r.width() - 16) * 9 / 16)
-        path = rounded(thumb, 4)
-        p.fillPath(path, QColor("#000000" if self.image is not None else t.bg))
+        path = rounded(thumb, 2)
+        p.fillPath(path, QColor("#000000" if self.image is not None else ("#0d0e10" if t.wood else t.bg)))
         if self.image is not None:
             p.save()
             p.setClipPath(path)
@@ -486,9 +583,16 @@ class Pill(QWidget):
         self.updateGeometry()
         self.update()
 
+    @staticmethod
+    def _font() -> QFont:
+        return font(9.5 if theme.current().wood else 8.8, QFont.DemiBold, head=True)
+
+    def _label(self) -> str:
+        return display_label(self.text_)
+
     def sizeHint(self):
-        fm = QFontMetrics(font(10, QFont.DemiBold, head=True))
-        return QSize(fm.horizontalAdvance(display_label(self.text_)) + (30 if self.dot else 18), 24)
+        fm = QFontMetrics(self._font())
+        return QSize(fm.horizontalAdvance(self._label()) + (28 if self.dot else 16), 22)
 
     def paintEvent(self, _e):
         p = QPainter(self)
@@ -497,16 +601,20 @@ class Pill(QWidget):
         bg = QColor(c)
         bg.setAlphaF(0.16)
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        p.fillPath(rounded(r, r.height() / 2), bg)
+        t = theme.current()
+        p.fillPath(rounded(r, 2 if t.technical else r.height() / 2), bg)
         x = 9
         if self.dot:
-            p.setPen(Qt.NoPen)
-            p.setBrush(c)
-            p.drawEllipse(QPointF(x + 3, r.center().y()), 3.5, 3.5)
+            if t.wood:
+                paint_led(p, QPointF(x + 3, r.center().y()), True, c, 3.2)
+            else:
+                p.setPen(Qt.NoPen)
+                p.setBrush(c)
+                p.drawEllipse(QPointF(x + 3, r.center().y()), 3.5, 3.5)
             x += 12
         p.setPen(c)
-        p.setFont(font(10, QFont.DemiBold, head=True))
-        p.drawText(r.adjusted(x, 0, 0, 0), Qt.AlignLeft | Qt.AlignVCenter, display_label(self.text_))
+        p.setFont(self._font())
+        p.drawText(r.adjusted(x, 0, 0, 0), Qt.AlignLeft | Qt.AlignVCenter, self._label())
         p.end()
 
 
@@ -534,12 +642,22 @@ class PreviewThumb(QWidget):
             self.clicked.emit()
 
     def paintEvent(self, _e):
+        """Bild von Monitor 2. Normal: runde Ecken; Technisch: eckig mit feinem Rand; Holz: dunkler Rahmen wie
+        ein kleiner Fernseher. Läuft etwas, ist der Rand rot."""
         t = theme.current()
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
-        r = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
-        path = rounded(r, 6)
+        r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        radius = {"technisch": 2, "holz": 8}.get(t.style, 16)
+        if t.wood:  # Gehäuse
+            bezel = QLinearGradient(r.topLeft(), r.bottomLeft())
+            bezel.setColorAt(0, QColor("#2c2c2e"))
+            bezel.setColorAt(1, QColor("#141415"))
+            p.fillPath(rounded(r, radius), bezel)
+            r = r.adjusted(7, 7, -7, -7)
+            radius = 3
+        path = rounded(r, radius)
         if self.image is not None:
             p.fillPath(path, QColor("#000000"))
             p.save()
@@ -551,14 +669,14 @@ class PreviewThumb(QWidget):
             p.drawImage(target, self.image)
             p.restore()
         else:
-            soft = QColor(t.accent)
-            soft.setAlphaF(0.14 if t.dark else 0.10)
-            p.fillPath(path, QColor(t.surface2))
-            p.fillPath(path, soft)
-            s = 46
-            icons.paint(p, self.icon_name, QRectF(r.center().x() - s / 2, r.center().y() - s / 2, s, s), t.accent, 1.9)
-        p.setPen(QPen(QColor(t.live if self.live else t.border), 3 if self.live else 1))
-        p.drawPath(path)
+            p.fillPath(path, QColor("#0d0e10" if (t.wood or t.dark) else t.surface2))
+            s_ = 46
+            icons.paint(p, self.icon_name, QRectF(r.center().x() - s_ / 2, r.center().y() - s_ / 2, s_, s_),
+                        t.mix(t.muted, t.text, 0.3).name() if not t.wood else "#8d8a84", 1.9)
+        width = 2.5 if self.live else 1
+        p.setPen(QPen(QColor(t.live) if self.live else QColor(t.border if not t.wood else "#000000"), width))
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(rounded(r.adjusted(width / 2 - 0.5, width / 2 - 0.5, 0.5 - width / 2, 0.5 - width / 2), radius))
         p.end()
 
 
@@ -577,15 +695,19 @@ class StatusCard(QWidget):
         text.setSpacing(4)
         self.caption = QLabel()
         self.caption.setObjectName("Muted")
-        self.caption.setFont(font(9.5))
         self.title = QLabel()
-        self.title.setFont(font(19, QFont.Bold, head=True))
         self.title.setWordWrap(True)
         self.pills = QHBoxLayout()
         self.pills.setSpacing(6)
+        self.since = QLabel()  # Technisch: wie lange der Inhalt schon läuft (echte Zeit seit dem Umschalten)
+        self.since.setObjectName("Muted")
+        self._since_t0 = 0.0
+        self._since_timer = QTimer(self, interval=1000)
+        self._since_timer.timeout.connect(self._tick_since)
         pill_row = QHBoxLayout()
-        pill_row.setSpacing(0)
+        pill_row.setSpacing(10)
         pill_row.addLayout(self.pills)
+        pill_row.addWidget(self.since)
         pill_row.addStretch(1)
         self.chips = QHBoxLayout()  # Schnellschalter (werden vom Hauptfenster eingesetzt)
         self.chips.setSpacing(8)
@@ -607,6 +729,38 @@ class StatusCard(QWidget):
         self._lay = lay
         self._narrow = False  # vom Hauptfenster: sehr schmales Fenster
         self._mode = ""
+        self.apply_style()
+
+    def apply_style(self) -> None:
+        """Schriften je Stil: Technisch zeigt Ausgang/Auflösung/Hz und die Laufzeit als Messwerte (Mono)."""
+        t = theme.current()
+        if t.technical:
+            mono = QFont(theme.MONO_FONT)
+            mono.setPointSizeF(8.6)
+            self.caption.setFont(mono)
+            self.since.setFont(mono)
+            self._since_timer.start()
+        else:
+            self.caption.setFont(font(9.5))
+            self._since_timer.stop()
+        self.since.setVisible(t.technical)
+        self.title.setFont(self._title_font(self._mode == "schmal"))
+        self._tick_since()
+
+    @staticmethod
+    def _title_font(narrow: bool) -> QFont:
+        t = theme.current()
+        size = {"technisch": 15, "holz": 21}.get(t.style, 17)
+        return font(size - (2 if narrow else 0), QFont.DemiBold, head=True)
+
+    def _tick_since(self) -> None:
+        import time as _time
+
+        if not self._since_t0:
+            self.since.setText("")
+            return
+        secs = int(_time.monotonic() - self._since_t0)
+        self.since.setText(f"läuft seit {secs // 3600:d}:{secs // 60 % 60:02d}:{secs % 60:02d}")
 
     def set_compact(self, on: bool) -> None:
         """Sehr schmales Fenster: Vorschau oben, Text darunter. Sonst wählt die Karte ihre Form selbst."""
@@ -670,7 +824,7 @@ class StatusCard(QWidget):
         self._lay.setDirection(QBoxLayout.TopToBottom if narrow else QBoxLayout.LeftToRight)
         self._lay.setAlignment(self.preview, Qt.AlignHCenter if narrow else Qt.Alignment())
         self.preview.setFixedSize(QSize(240, 135) if narrow else QSize(320, 180))
-        self.title.setFont(font(16 if narrow else 19, QFont.Bold, head=True))
+        self.title.setFont(self._title_font(narrow))
         for chip in self._chips():  # Schnellschalter: knapp nur Symbol (Name als Tooltip)
             chip.setText(chip.property("full_text") if mode == "voll" else "")
             chip.setToolTip(chip.property("full_text"))
@@ -699,6 +853,11 @@ class StatusCard(QWidget):
         self.caption.setText(caption)
         self.preview.live = any(text == "LIVE" for text, _c in pills)
         self.preview.update()
+        if title != self.title.text():
+            import time as _time
+
+            self._since_t0 = _time.monotonic()
+            self._tick_since()
         self.title.setText(title)
         # Etiketten wiederverwenden statt neu anlegen (kein Flackern, keine Reste)
         while self.pills.count() < len(pills):
@@ -741,22 +900,29 @@ def _chip_pixmap(icon_name: str, color: str, size: int):
     return px
 
 
-# --------------------------------------------------------------------------- Fader (Pultregler)
+# --------------------------------------------------------------------------- Fader (Schieberegler)
 class Fader(QSlider):
-    """Senkrechter Schieberegler wie am Mischpult: dunkle Schiene mit Skala, Kappe mit Griffrille, Wert oben,
-    Name unten. Volle QSlider-Schnittstelle (value, valueChanged, isSliderDown …); Maus, Rad und Pfeiltasten."""
+    """Senkrechter Regler: Wert oben, Name unten. Normal: runde Säule mit Knopf; Technisch: schmale Schiene mit
+    Skala 0–100 und Wert in Mono; Holz: Schlitz in der Platte mit Alu-Kappe und gravierter Skala.
+    Volle QSlider-Schnittstelle (value, valueChanged …)."""
 
-    def __init__(self, name: str = "", parent=None):
+    def __init__(self, name: str = "", parent=None, icon_name: str = "sound"):
         super().__init__(Qt.Vertical, parent)
         self.name = name
+        self.icon_name = icon_name
         self.setRange(0, 100)
-        self.setFixedSize(64, 168)
+        self.setFixedSize(66, 178)
         self.setCursor(Qt.PointingHandCursor)
         self.setFocusPolicy(Qt.StrongFocus)
         self.valueChanged.connect(lambda _v: self.update())
 
     def _track(self) -> QRectF:
-        return QRectF(self.width() / 2 + 6 - 3, 30, 6, self.height() - 30 - 34)
+        t = theme.current()
+        if t.technical:
+            return QRectF(self.width() / 2 + 8 - 2, 26, 4, self.height() - 26 - 32)
+        if t.wood:
+            return QRectF(self.width() / 2 + 7 - 3, 30, 6, self.height() - 30 - 36)
+        return QRectF(self.width() / 2 - 19, 28, 38, self.height() - 28 - 30)
 
     def _value_at(self, y: float) -> int:
         tr = self._track()
@@ -787,42 +953,78 @@ class Fader(QSlider):
         on = self.isEnabled()
         tr = self._track()
         span = max(1, self.maximum() - self.minimum())
-        frac = (self.value() - self.minimum()) / span
-        cap_y = tr.bottom() - frac * tr.height()
-        # Wert oben
+        frac = (self.value() - self.minimum()) / span if on else 0.0
+        y = tr.bottom() - frac * tr.height()
+        active = self.hasFocus() or self.isSliderDown()
+        # Wert oben (ohne Ablesung: Strich statt erfundener Zahl)
+        if t.technical:
+            vf = QFont(theme.MONO_FONT)
+            vf.setPointSizeF(8.6)
+            vf.setBold(True)
+        else:
+            vf = font(10.5 if t.wood else 9.5, QFont.DemiBold, head=True)
+        p.setFont(vf)
         p.setPen(QColor(t.text if on else t.muted))
-        p.setFont(font(10.5, QFont.DemiBold, head=True))
-        p.drawText(QRectF(0, 0, self.width(), 24), Qt.AlignCenter, f"{self.value()} %" if on else "–")
-        # Skala links neben der Schiene: alle 10 %, lang bei 0/50/100
-        p.setPen(QPen(QColor(t.muted), 1))
-        for i in range(11):
-            y = tr.bottom() - i / 10 * tr.height()
-            length = 10 if i in (0, 5, 10) else 5
-            p.drawLine(QPointF(tr.left() - 6 - length, y), QPointF(tr.left() - 6, y))
-        # Schiene (Schlitz im Pult) + Füllung bis zur Kappe
-        slot = QColor("#0b0c0e" if t.dark else "#9aa1ab")
-        p.setPen(QPen(QColor(t.border), 1))
-        p.setBrush(slot)
-        p.drawRoundedRect(tr, 3, 3)
-        if on and frac > 0:
-            fill = QColor(t.accent)
-            fill.setAlphaF(0.85)
+        p.drawText(QRectF(0, 0, self.width(), 22), Qt.AlignCenter, f"{self.value()} %" if on else "–")
+        if t.technical or t.wood:  # Skala links neben der Schiene
+            sf = QFont(theme.MONO_FONT) if t.technical else font(7.5, QFont.DemiBold, head=True)
+            if t.technical:
+                sf.setPointSizeF(6.6)
+            p.setFont(sf)
+            tick = QColor(t.mix(t.border, t.text, 0.35)) if t.technical else QColor(t.muted)
+            for i in range(11):
+                ty = tr.bottom() - i / 10 * tr.height()
+                long_ = i in (0, 5, 10)
+                p.setPen(QPen(tick, 1))
+                p.drawLine(QPointF(tr.left() - 5 - (7 if long_ else 3), ty), QPointF(tr.left() - 5, ty))
+                if long_:
+                    p.setPen(QColor(t.muted))
+                    label = str(i * 10) if t.technical else str(i)
+                    p.drawText(QRectF(0, ty - 6, tr.left() - 14, 12), Qt.AlignRight | Qt.AlignVCenter, label)
+        p.setPen(Qt.NoPen)
+        if t.wood:  # Schlitz in der Platte
+            p.setBrush(QColor("#151515"))
+            p.drawRoundedRect(tr, 3, 3)
+            p.setPen(QPen(QColor(255, 255, 255, 60), 1))
+            p.drawLine(QPointF(tr.left(), tr.bottom() + 1), QPointF(tr.right(), tr.bottom() + 1))
+            cap = QRectF(tr.center().x() - 14, y - 10, 28, 20)
             p.setPen(Qt.NoPen)
-            p.setBrush(fill)
-            p.drawRoundedRect(QRectF(tr.left() + 1.5, cap_y, tr.width() - 3, tr.bottom() - cap_y - 1), 1.5, 1.5)
-        # Kappe mit Griffrille
-        cap = QRectF(tr.center().x() - 17, cap_y - 10, 34, 20)
-        face = QColor(t.mix(t.surface2, "#ffffff", 0.16 if t.dark else 0.0) if on else QColor(t.surface2))
-        p.setPen(QPen(QColor(t.accent) if (self.hasFocus() or self.isSliderDown()) else
-                      QColor(t.mix(t.border, t.text, 0.35)), 1))
-        p.setBrush(face)
-        p.drawRoundedRect(cap, 3, 3)
-        p.setPen(QPen(QColor(t.text if on else t.muted), 2))
-        p.drawLine(QPointF(cap.left() + 6, cap.center().y()), QPointF(cap.right() - 6, cap.center().y()))
-        # Name unten
+            p.setBrush(QColor(0, 0, 0, 90))
+            p.drawRoundedRect(cap.translated(0, 2), 3, 3)
+            theme.paint_plate(p, rounded(cap, 3), cap, t, pressed=self.isSliderDown())
+            p.setPen(QPen(QColor(t.accent) if active else QColor("#1a1a1a"), 1.6))
+            p.drawLine(QPointF(cap.left() + 4, cap.center().y()), QPointF(cap.right() - 4, cap.center().y()))
+        elif t.technical:
+            p.setBrush(QColor(t.border))
+            p.drawRect(tr)
+            if frac > 0:
+                p.setBrush(QColor(t.accent))
+                p.drawRect(QRectF(tr.left(), y, tr.width(), tr.bottom() - y))
+            cap = QRectF(tr.center().x() - 12, y - 6, 24, 12)
+            p.setPen(QPen(QColor(t.accent) if active else QColor(t.mix(t.border, t.text, 0.35)), 1))
+            p.setBrush(QColor(t.surface2))
+            p.drawRect(cap)
+            p.setPen(QPen(QColor(t.text if on else t.muted), 1.4))
+            p.drawLine(QPointF(cap.left() + 4, cap.center().y()), QPointF(cap.right() - 4, cap.center().y()))
+        else:  # dicke, runde Säule, füllt sich von unten; Symbol unten in der Säule
+            pill = rounded(tr, tr.width() / 2)
+            p.fillPath(pill, QColor(t.surface2))
+            if frac > 0:
+                p.save()
+                p.setClipPath(pill)
+                p.fillRect(QRectF(tr.left(), y, tr.width(), tr.bottom() - y), QColor(t.accent))
+                p.restore()
+            if active:
+                p.setPen(QPen(QColor(t.accent), 1.5))
+                p.setBrush(Qt.NoBrush)
+                p.drawPath(pill)
+            s_ = 18
+            icon_rect = QRectF(tr.center().x() - s_ / 2, tr.bottom() - s_ - 10, s_, s_)
+            covered = frac > 0 and y < icon_rect.center().y()
+            icons.paint(p, self.icon_name, icon_rect, t.on_accent if covered else t.muted, 2.0)
         p.setPen(QColor(t.text if on else t.muted))
-        p.setFont(font(11, QFont.DemiBold, head=True))
-        p.drawText(QRectF(0, self.height() - 26, self.width(), 24), Qt.AlignCenter, self.name)
+        p.setFont(font(10 if t.wood else 9, QFont.DemiBold, head=True))
+        p.drawText(QRectF(0, self.height() - 24, self.width(), 22), Qt.AlignCenter, self.name)
         p.end()
 
 
@@ -879,10 +1081,12 @@ class Toast(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
-        p.fillPath(rounded(r, 6), QColor("#2b2f36" if t.dark else "#1f2328"))
+        p.fillPath(rounded(r, t.radii[1]), QColor("#232427"))
+        p.setPen(QPen(QColor("#3a3c40"), 1))
+        p.drawPath(rounded(r, t.radii[1]))
         color = {"info": t.accent, "warn": t.warning, "error": t.danger, "ok": t.success}.get(self.kind, t.accent)
         p.fillPath(rounded(QRectF(r.left() + 12, r.center().y() - 5, 10, 10), 5), QColor(color))
-        p.setPen(QColor("#f3f5f9"))
+        p.setPen(QColor("#f1f1ef"))
         p.setFont(font(10, QFont.Medium))
         p.drawText(r.adjusted(34, 0, -14, 0), Qt.AlignVCenter | Qt.TextWordWrap, self.text_)
         p.end()
@@ -930,18 +1134,31 @@ class NavIndicator(QWidget):
         r = QRectF(self.rect()).adjusted(8, 2, -8, -2)
         if self.compact:
             r = QRectF(self.rect().center().x() - 22, 2, 44, self.height() - 4)
-        p.fillPath(rounded(r, 6), QColor(t.surface2))
-        p.fillRect(QRectF(0, r.center().y() - 11, 3, 22), QColor(t.accent))
+        paint_nav_mark(p, r, t)
         p.end()
 
 
+def paint_nav_mark(p: QPainter, r: QRectF, t) -> None:
+    """Markierung der gewählten Seite: Normal getönte Fläche, Technisch zusätzlich Leiste am Rand,
+    Holz eine kleine Alu-Platte auf dem Holz."""
+    if t.wood:
+        p.fillPath(rounded(r.translated(0, 1.5), t.radii[1]), QColor(0, 0, 0, 70))
+        theme.paint_panel(p, rounded(r, t.radii[1]), r, t)
+        return
+    tint = QColor(t.accent)
+    tint.setAlphaF(0.16 if t.dark else 0.11)
+    p.fillPath(rounded(r, t.radii[1]), tint)
+    if t.technical:
+        p.fillRect(QRectF(0, r.top() + 6, 3, r.height() - 12), QColor(t.accent))
+
+
 class AuroraBackdrop(QWidget):
-    """Hintergrund des Hauptfensters – im Regiepult-Design eine ruhige, einfarbige Fläche (Graphit bzw. Alu).
+    """Hintergrund des Hauptfensters: Grundfarbe bzw. Holzmaserung (Holz-Stil).
     Name bleibt, damit vorhandene Fenster ihn weiter nutzen."""
 
     def paintEvent(self, _e):
         p = QPainter(self)
-        p.fillRect(self.rect(), QColor(theme.current().bg))
+        theme.paint_backdrop(p, QRectF(self.rect()))
         p.end()
 
 
@@ -1073,7 +1290,9 @@ def paint_scene_thumb(p: QPainter, rect: QRectF, scene: dict | None, layout: str
     # ruhiger Rahmen statt hartem Schwarz: Szenen-Hintergrund leicht in die Kartenfarbe gemischt
     bg = QColor((scene or {}).get("background", "#000000")) if scene else QColor(t.surface2)
     bg = t.mix(bg.name(), t.surface2, 0.35 if scene else 0.5)
-    p.fillPath(rounded(rect, 4), bg)
+    outer = {"normal": 12, "holz": 4}.get(t.style, 2)
+    inner = {"normal": 8, "holz": 3}.get(t.style, 2)
+    p.fillPath(rounded(rect, outer), bg)
     slots = (scene or {}).get("slots", [])
     lay = layout or (scene or {}).get("layout", "vollbild")
     for i, (x, y, w, h, _name) in enumerate(layout_slots(lay)):
@@ -1082,7 +1301,7 @@ def paint_scene_thumb(p: QPainter, rect: QRectF, scene: dict | None, layout: str
         slot = slots[i] if i < len(slots) else None
         if slot:
             color = QColor(theme.SOURCE_COLORS.get(slot.get("type"), t.muted))
-            p.fillPath(rounded(cell, 3), color)
+            p.fillPath(rounded(cell, inner), color)
             side = min(cell.width(), cell.height()) * 0.45
             if side >= 8:
                 icons.paint(p, icons.SOURCE_ICONS.get(slot.get("type"), "monitor"),
@@ -1128,14 +1347,18 @@ class SceneCard(HoverMixin, QAbstractButton):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
-        p.fillPath(rounded(r, 8), t.mix(t.surface, t.surface2, 0.6 * self._hover))
-        border = QColor(t.accent) if self.isChecked() else t.mix(t.border, t.text, 0.2 * self._hover)
-        p.setPen(QPen(border, 2 if self.isChecked() else 1))
-        p.drawPath(rounded(r, 8))
+        rad = t.radii[0]
+        if t.wood:
+            theme.paint_panel(p, rounded(r, rad), r, t, hover=self._hover)
+        else:
+            p.fillPath(rounded(r, rad), t.mix(t.surface, t.surface2, 0.7 * self._hover))
+        line = QColor(t.accent) if self.isChecked() else QColor("transparent" if t.style == "normal" else t.border)
+        p.setPen(QPen(line, 2 if self.isChecked() else 1))
+        p.drawPath(rounded(r, rad))
         thumb = QRectF(r.left() + 12, r.top() + 12, r.width() - 24, (r.width() - 24) * 9 / 16)
         paint_scene_thumb(p, thumb, self.scene)
         p.setPen(QColor(t.text))
-        p.setFont(font(12.5, QFont.DemiBold, head=True))
+        p.setFont(font(11, QFont.DemiBold))
         fm = QFontMetrics(p.font())
         name = fm.elidedText(self.scene["name"], Qt.ElideRight, int(r.width() - 24))
         p.drawText(QRectF(r.left() + 12, thumb.bottom() + 8, r.width() - 24, 22), Qt.AlignLeft | Qt.AlignVCenter,
@@ -1251,7 +1474,9 @@ class SectionHeader(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         h = self.height()
         if self._hover:
-            p.fillPath(rounded(QRectF(self.rect()).adjusted(0, 2, 0, -2), 6), QColor(t.surface2))
+            hov = QColor(t.text)
+            hov.setAlphaF(0.07)
+            p.fillPath(rounded(QRectF(self.rect()).adjusted(0, 2, 0, -2), t.radii[1]), hov)
         # Pfeil: ▾ offen, ▸ eingeklappt
         cx, cy, s = 14.0, h / 2, 4.5
         pen = QPen(QColor(t.accent if self._hover else t.muted), 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
@@ -1260,7 +1485,8 @@ class SectionHeader(QWidget):
             p.drawPolyline([QPointF(cx - s / 2, cy - s), QPointF(cx + s / 2, cy), QPointF(cx - s / 2, cy + s)])
         else:
             p.drawPolyline([QPointF(cx - s, cy - s / 2), QPointF(cx, cy + s / 2), QPointF(cx + s, cy - s / 2)])
-        f = font(12.5, QFont.DemiBold, head=True)
+        f = font({"holz": 13, "normal": 12.5}.get(t.style, 11), QFont.Bold if t.style == "normal" else QFont.DemiBold,
+                 head=True)
         p.setFont(f)
         p.setPen(QColor(t.text))
         x = 30
@@ -1268,10 +1494,10 @@ class SectionHeader(QWidget):
         width = QFontMetrics(f).horizontalAdvance(label)
         p.drawText(QRectF(x, 0, width + 2, h), Qt.AlignVCenter | Qt.AlignLeft, label)
         x += width + 8
-        cf = font(8.5)
+        cf = font(9)
+        count = str(self.count)
         p.setFont(cf)
         p.setPen(QColor(t.muted))
-        count = str(self.count)
         cw = QFontMetrics(cf).horizontalAdvance(count)
         p.drawText(QRectF(x, 0, cw + 2, h), Qt.AlignVCenter | Qt.AlignLeft, count)
         pill = QRectF(x, h / 2 - 9, cw, 18)

@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QGuiApplication, QPalette
 
 ACCENTS = {
-    "alupc": ("AluPC", "#5b8def"),  # eigenes Theme „Regiepult“ (docs/DESIGN.md) – Windows und Linux gleich
+    "alupc": ("AluPC", "#0a84ff"),  # eigenes Theme (docs/DESIGN.md) – Windows und Linux gleich
     "system": ("Wie das System", "#3b82f6"),  # Farbe kommt aus Windows/KDE (system_accent)
     "blau": ("Blau", "#3b82f6"),
     "violett": ("Violett", "#8b5cf6"),
@@ -17,9 +17,14 @@ ACCENTS = {
     "rosa": ("Rosa", "#ec4899"),
 }
 MODES = {"system": "Wie das System", "dunkel": "Dunkel", "hell": "Hell"}
-# Anzeigen auf Monitor 2 (Abstimmung, Glücksrad, Codes …): ruhiger Graphit-Grund wie im Regiepult
-STAGE_BG = "#0e1013"
-STAGE_PANEL = "#191c20"
+# Drei Gestaltungen (docs/DESIGN.md), frei umschaltbar unter Setup → Darstellung
+STYLES = {"normal": "Normal", "technisch": "Technisch", "holz": "Holz"}
+STYLE_INFO = {"normal": "Modern, weich und rund",
+              "technisch": "Dicht, mit Messwerten",
+              "holz": "Echtes Furnier, 7 Holzarten"}
+# Anzeigen auf Monitor 2 (Abstimmung, Glücksrad, Codes …): ruhiger, dunkler Grund
+STAGE_BG = "#121315"
+STAGE_PANEL = "#1c1d20"
 
 
 @dataclass
@@ -32,12 +37,43 @@ class Theme:
     border: str
     text: str
     muted: str
-    accent2: str = "#8b5cf6"  # Partnerfarbe für Verläufe
+    accent2: str = ""  # zweite Farbe für Verläufe (z. B. Begrüßung); leer = wie accent
     danger: str = "#ef4444"
     warning: str = "#f59e0b"
     success: str = "#22c55e"
-    live: str = "#e5484d"  # Sendung: „läuft auf dem Bildschirm“ (Tally-Leuchte) – nur dafür
+    live: str = "#e5484d"  # „läuft auf dem Bildschirm“ – nur dafür
     ready: str = "#30a46c"  # bereit / verbunden
+    style: str = "normal"  # siehe STYLES
+    wood_kind: str = "nussbaum"  # Holzart im Holz-Stil (siehe WOODS)
+
+    def __post_init__(self):
+        if not self.accent2:
+            self.accent2 = self.accent
+
+    @property
+    def technical(self) -> bool:
+        return self.style == "technisch"
+
+    @property
+    def wood(self) -> bool:
+        return self.style == "holz"
+
+    @property
+    def on_accent(self) -> str:
+        """Schrift/Symbol auf Akzentflächen: auf Signalgelb und Messing dunkel, sonst weiß."""
+        c = QColor(self.accent)
+        lum = 0.2126 * c.redF() + 0.7152 * c.greenF() + 0.0722 * c.blueF()
+        return "#16171a" if lum > 0.45 else "#ffffff"
+
+    @property
+    def head_font(self) -> str:
+        """Schrift für Titel und Kachelnamen: Holz wie Gravur auf Geräten (Barlow), sonst Inter."""
+        return WOOD_FONT if self.wood else UI_FONT
+
+    @property
+    def radii(self) -> tuple[int, int, int, int]:
+        """Rundung: Karte, Knopf, Eingabefeld, Listenzeile."""
+        return {"technisch": (3, 3, 2, 2), "holz": (6, 5, 4, 4)}.get(self.style, (20, 17, 12, 10))
 
     def c(self, name: str) -> QColor:
         return QColor(getattr(self, name))
@@ -191,24 +227,277 @@ def system_accent() -> str:
     return c.name()
 
 
-def make_theme(mode: str = "system", accent: str = "blau") -> Theme:
-    """Regiepult (docs/DESIGN.md): Graphit (dunkel) bzw. Alu (hell), neutrale Flächen; der Akzent ist die
-    Bedienfarbe, Rot (live) zeigt nur, was gerade auf dem Bildschirm läuft."""
-    dark = system_prefers_dark() if mode == "system" else mode == "dunkel"
+def make_theme(mode: str = "system", accent: str = "blau", style: str = "normal", wood: str = "nussbaum") -> Theme:
+    """Drei Gestaltungen (docs/DESIGN.md), jede hell und dunkel:
+    normal – ruhiges Grau, runde Ecken; technisch – Mittelgrau, Signalgelb, dichte Zeilen, Messwerte;
+    holz – Furnier der gewählten Holzart, Messing als Akzent; ob hell oder dunkel, bestimmt das Holz
+    (dunkles Holz → helle Schrift). Rot (live) zeigt in allen dreien, was gerade auf dem Bildschirm läuft."""
+    style = style if style in STYLES else "normal"
+    wood = wood if wood in WOODS else DEFAULT_WOOD
+    dark = WOODS[wood][5] if style == "holz" else (system_prefers_dark() if mode == "system" else mode == "dunkel")
     key = accent if accent in ACCENTS else "alupc"
+    own = {"normal": ("#5b8cff", "#2f62e9"), "technisch": ("#f5c400", "#c99a00"),
+           "holz": ("#e0b354", "#8a5a12")}[style]
     if key == "alupc":
-        accent_hex = "#5b8def" if dark else "#2f6fdb"
+        accent_hex = own[0] if dark else own[1]
     elif key == "system":
         accent_hex = system_accent()
     else:
         accent_hex = ACCENTS[key][1]
+    if style == "technisch":
+        if dark:
+            return Theme(True, accent_hex, bg="#18191b", surface="#202124", surface2="#292a2e", border="#36383d",
+                         text="#e8e8e5", muted="#969a9f", danger="#ff5c4d", live="#ff4433", ready="#3ecf6e",
+                         style=style)
+        return Theme(False, accent_hex, bg="#e6e6e2", surface="#f7f7f5", surface2="#ededea", border="#c8c9c4",
+                     text="#17181a", muted="#5b5e63", danger="#d62f1f", live="#e0291a", ready="#178a3e", style=style)
+    if style == "holz":
+        bg, panel, panel_hi = wood_color(wood, "bg"), wood_color(wood, "panel"), wood_color(wood, "panel_hi")
+        if dark:
+            return Theme(True, accent_hex, bg=bg, surface=panel, surface2=panel_hi, border="#120b06",
+                         text="#f4ede2", muted="#d3c7b6", danger="#ff6a55", live="#ff3b2f", ready="#57d163",
+                         style=style, wood_kind=wood)
+        return Theme(False, accent_hex, bg=bg, surface=panel, surface2=panel_hi, border="#5e4026",
+                     text="#1c150e", muted="#3f3328", danger="#b3200f", live="#e3261b", ready="#1f7a34",
+                     style=style, wood_kind=wood)
     if dark:
-        return Theme(True, accent_hex, bg="#111316", surface="#191c20", surface2="#23272c", border="#30353c",
-                     text="#eceef1", muted="#979ea9", accent2=accent_hex, danger="#f2555a", live="#e5484d",
-                     ready="#30a46c")
-    return Theme(False, accent_hex, bg="#e6e8eb", surface="#f6f7f8", surface2="#ffffff", border="#c9ced5",
-                 text="#15181c", muted="#59616c", accent2=accent_hex, danger="#d93a40", live="#d93a40",
-                 ready="#218358")
+        return Theme(True, accent_hex, bg="#131417", surface="#1e2024", surface2="#2a2d33", border="#30333a",
+                     text="#f2f3f5", muted="#9aa0aa", danger="#ff5f57", live="#ff4f45", ready="#30d158", style=style)
+    return Theme(False, accent_hex, bg="#eceef2", surface="#ffffff", surface2="#f1f2f5", border="#e1e4e9",
+                 text="#16181c", muted="#5f6670", danger="#dc3226", live="#e0352b", ready="#248a3d", style=style)
+
+
+# ------------------------------------------------------------------ Holz: Maserung und Aluminiumplatten
+# Holzarten: Name, Grundfarbe, dunkle Fasern, helle Fasern, Maserung, dunkles Holz (→ helle Schrift)
+WOODS = {
+    "nussbaum": ("Nussbaum", "#5b3b26", "#2c1a0e", "#7d5435", "fluss", True),
+    "kirsche": ("Kirsche", "#8e4a2c", "#5c2914", "#ad6542", "flamme", True),
+    "wenge": ("Wenge", "#3b2b21", "#120c08", "#5f4838", "streifen", True),
+    "raeuchereiche": ("Räuchereiche", "#5c4838", "#30241a", "#7a634e", "poren", True),
+    "eiche": ("Eiche", "#bd8f58", "#8a5d30", "#d6ab72", "poren", False),
+    "kiefer": ("Kiefer", "#d4a468", "#a46c34", "#e6bf88", "jahresringe", False),
+    "ahorn": ("Ahorn", "#dcc29a", "#b8976a", "#efdcbc", "fein", False),
+}
+DEFAULT_WOOD = "nussbaum"
+_wood: dict = {}
+
+
+def _wood_raw(species: str):
+    """Rohes Furnierbild einer Holzart (nahtlos kachelbar, längs gemasert, immer gleich)."""
+    key = ("raw", species)
+    if key in _wood:
+        return _wood[key]
+    import math
+    import random
+
+    from PySide6.QtCore import QPointF, QRectF
+    from PySide6.QtGui import QImage, QPainter, QPainterPath, QPen
+
+    _name, base, deep, light, figure, _dark = WOODS.get(species, WOODS[DEFAULT_WOOD])
+    w, h = 720, 480
+    img = QImage(w, h, QImage.Format_RGB32)
+    img.fill(QColor(base))
+    p = QPainter(img)
+    p.setRenderHint(QPainter.Antialiasing)
+    rnd = random.Random(sum(map(ord, species)) * 31 + 7)
+    band_min, band_max, band_alpha = {"streifen": (2, 7, (0.25, 0.5)), "jahresringe": (6, 22, (0.15, 0.35)),
+                                      "fein": (8, 34, (0.04, 0.10))}.get(figure, (5, 30, (0.06, 0.2)))
+    y = 0.0
+    while y < h:  # Jahresringe als Bänder
+        band = rnd.uniform(band_min, band_max)
+        c = QColor(deep if rnd.random() < 0.55 else light)
+        c.setAlphaF(rnd.uniform(*band_alpha))
+        p.fillRect(QRectF(0, y, w, band), c)
+        y += band
+    amp_max = {"flamme": 9.0, "fluss": 5.0, "jahresringe": 3.0, "fein": 1.5, "streifen": 1.2}.get(figure, 3.0)
+    count = {"fein": 140, "streifen": 320, "flamme": 220}.get(figure, 260)
+    for _ in range(count):  # Fasern: Wellen, die über die Bildbreite genau aufgehen (nahtlos)
+        y0 = rnd.uniform(0, h)
+        amp = rnd.uniform(0.3, amp_max)
+        k = rnd.choice((1, 1, 2, 3))
+        phase = rnd.uniform(0, math.tau)
+        c = QColor(deep if rnd.random() < 0.7 else light)
+        c.setAlphaF(rnd.uniform(0.10, 0.38 if figure != "fein" else 0.22))
+        p.setPen(QPen(c, rnd.uniform(0.35, 1.4)))
+        for off in (-h, 0, h):
+            path = QPainterPath(QPointF(0, y0 + off + amp * math.sin(phase)))
+            for x in range(8, w + 8, 8):
+                path.lineTo(x, y0 + off + amp * math.sin(math.tau * k * x / w + phase))
+            p.drawPath(path)
+    if figure == "poren":  # Eiche: kurze, dunkle Porenstriche
+        for _ in range(2200):
+            x, y_ = rnd.uniform(0, w), rnd.uniform(0, h)
+            c = QColor(deep)
+            c.setAlphaF(rnd.uniform(0.2, 0.5))
+            p.setPen(QPen(c, rnd.uniform(0.6, 1.1)))
+            ln = rnd.uniform(2, 11)
+            p.drawLine(QPointF(x, y_), QPointF(x + ln, y_))
+            if x + ln > w:
+                p.drawLine(QPointF(x - w, y_), QPointF(x - w + ln, y_))
+    p.end()
+    _wood[key] = img
+    return img
+
+
+def _luminance(c: QColor) -> float:
+    return 0.2126 * c.redF() + 0.7152 * c.greenF() + 0.0722 * c.blueF()
+
+
+def _average(img) -> QColor:
+    from PySide6.QtCore import Qt as _Qt
+
+    return QColor(img.scaled(1, 1, _Qt.IgnoreAspectRatio, _Qt.SmoothTransformation).pixel(0, 0))
+
+
+# Helligkeit (Luminanz), die jede Fläche erreicht – so bleibt Schrift auf jeder Holzart lesbar
+_WOOD_TARGETS = {True: {"bg": 0.075, "side": 0.05, "panel": 0.13, "panel_hi": 0.16, "panel_lo": 0.095},
+                 False: {"bg": 0.64, "side": 0.70, "panel": 0.80, "panel_hi": 0.84, "panel_lo": 0.72}}
+
+
+def wood_image(species: str = DEFAULT_WOOD, part: str = "bg"):
+    """Holzfläche: bg (Fenstergrund), side (Seitenleiste), panel/panel_hi/panel_lo (Furnierplatte normal/
+    Maus darüber/gedrückt). Aufgehellt oder abgedunkelt, bis die Fläche die Ziel-Helligkeit hat."""
+    species = species if species in WOODS else DEFAULT_WOOD
+    key = (species, part)
+    if key in _wood:
+        return _wood[key]
+    from PySide6.QtGui import QPainter
+
+    raw = _wood_raw(species)
+    dark = WOODS[species][5]
+    target = _WOOD_TARGETS[dark][part]
+    lum = _luminance(_average(raw))
+    img = raw.copy()
+    if abs(lum - target) > 0.005:
+        p = QPainter(img)
+        if target < lum:
+            p.fillRect(img.rect(), QColor(0, 0, 0, int(255 * min(0.92, 1 - target / max(lum, 0.001)))))
+        else:
+            p.fillRect(img.rect(), QColor(255, 255, 255, int(255 * min(0.9, (target - lum) / max(1 - lum, 0.001)))))
+        p.end()
+    _wood[key] = img
+    return img
+
+
+def wood_file(species: str = DEFAULT_WOOD, part: str = "bg") -> str:
+    """Holzfläche als Datei (für das Stylesheet), im Temp-Ordner zwischengespeichert."""
+    import tempfile
+    from pathlib import Path
+
+    path = Path(tempfile.gettempdir()) / f"alupc-holz-v4-{species}-{part}.png"
+    try:
+        if not path.exists():
+            wood_image(species, part).save(str(path))
+        return path.as_posix()
+    except OSError:
+        return ""
+
+
+def wood_jpeg(species: str = DEFAULT_WOOD, part: str = "bg") -> bytes:
+    """Holzfläche als JPEG-Bytes (Handy-Seite)."""
+    from PySide6.QtCore import QBuffer, QIODevice
+
+    buf = QBuffer()
+    buf.open(QIODevice.WriteOnly)
+    wood_image(species, part).save(buf, "JPG", 82)
+    return bytes(buf.data())
+
+
+def wood_color(species: str, part: str = "bg") -> str:
+    return _average(wood_image(species, part)).name()
+
+
+def brushed_image():
+    """Feine Längsstriche wie gebürstetes Aluminium (halbdurchsichtig, kachelbar) – für Reglerkappen."""
+    if "brushed" in _wood:
+        return _wood["brushed"]
+    import random
+
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QImage, QPainter, QPen
+
+    w, h = 240, 80
+    img = QImage(w, h, QImage.Format_ARGB32_Premultiplied)
+    img.fill(Qt.transparent)
+    p = QPainter(img)
+    rnd = random.Random(42)
+    for _ in range(300):
+        y = rnd.uniform(0, h)
+        x = rnd.uniform(0, w)
+        length = rnd.uniform(30, 200)
+        c = QColor(255, 255, 255) if rnd.random() < 0.5 else QColor(0, 0, 0)
+        c.setAlphaF(rnd.uniform(0.01, 0.035))
+        p.setPen(QPen(c, 0.6))
+        for off in (-w, 0):
+            p.drawLine(QPointF(x + off, y), QPointF(x + off + length, y))
+    p.end()
+    _wood["brushed"] = img
+    return img
+
+
+def plate_colors(t: Theme) -> tuple[str, str, str, str]:
+    """Aluminiumplatte: oben, unten, Lichtkante oben, Schattenkante unten."""
+    if t.dark:
+        return "#4a4d52", "#393c40", "#5d6166", "#1c1d1f"
+    return "#f1f2f3", "#d9dbdd", "#ffffff", "#8e9195"
+
+
+def paint_backdrop(p, rect, t: Theme | None = None, part: str = "bg") -> None:
+    """Fenstergrund: im Holz-Stil die Maserung (part „side“ = dunklere Seitenleiste), sonst die Grundfarbe."""
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QPixmap
+
+    t = t or current()
+    if t.wood:
+        p.drawTiledPixmap(rect, QPixmap.fromImage(wood_image(t.wood_kind, part)), QPointF(rect.left(), rect.top()))
+    else:
+        p.fillRect(rect, QColor(t.bg))
+
+
+def paint_panel(p, path, rect, t: Theme | None = None, pressed: bool = False, hover: float = 0.0) -> None:
+    """Furnierplatte (Holz-Stil): Maserung der Holzart, helle Kante oben, dunkle Fuge rundherum."""
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QPen, QPixmap
+
+    t = t or current()
+    part = "panel_lo" if pressed else ("panel_hi" if hover > 0.5 else "panel")
+    p.save()
+    p.setClipPath(path)
+    p.drawTiledPixmap(rect, QPixmap.fromImage(wood_image(t.wood_kind, part)), QPointF(rect.left() * 0.7, rect.top()))
+    hi = QColor(255, 255, 255, 46 if t.dark else 120)
+    p.setPen(QPen(hi, 1))
+    p.drawLine(QPointF(rect.left() + 2, rect.top() + 0.5), QPointF(rect.right() - 2, rect.top() + 0.5))
+    p.restore()
+    p.setPen(QPen(QColor(0, 0, 0, 150 if t.dark else 90), 1))
+    p.setBrush(Qt.NoBrush)
+    p.drawPath(path)
+
+
+def paint_plate(p, path, rect, t: Theme | None = None, pressed: bool = False, hover: float = 0.0) -> None:
+    """Gebürstetes Aluminium (Holz-Stil: Reglerkappen): senkrechter Verlauf, helle Kante oben, dunkle unten."""
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QLinearGradient, QPen
+
+    t = t or current()
+    top, bottom, hi, lo = plate_colors(t)
+    if pressed:
+        top, bottom = bottom, top
+    g = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+    g.setColorAt(0, t.mix(top, "#ffffff", 0.06 * hover))
+    g.setColorAt(1, t.mix(bottom, "#ffffff", 0.06 * hover))
+    p.fillPath(path, g)
+    p.save()
+    p.setClipPath(path)
+    from PySide6.QtGui import QPixmap
+
+    p.drawTiledPixmap(rect, QPixmap.fromImage(brushed_image()))
+    p.setBrush(Qt.NoBrush)
+    p.setPen(QPen(QColor(hi), 1))
+    p.drawLine(QPointF(rect.left() + 2, rect.top() + 0.5), QPointF(rect.right() - 2, rect.top() + 0.5))
+    p.restore()
+    p.setPen(QPen(QColor(lo), 1))
+    p.setBrush(Qt.NoBrush)
+    p.drawPath(path)
 
 
 def current() -> Theme:
@@ -220,12 +509,13 @@ def current() -> Theme:
 
 _fonts_loaded = False
 UI_FONT = "Inter"
-HEAD_FONT = "Barlow Semi Condensed"  # Titel, Kacheln, Tasten – schmal und technisch wie Pultbeschriftung
-MONO_FONT = "JetBrains Mono"
+HEAD_FONT = "Inter"  # Anzeigen auf Monitor 2 (Abstimmung, Glücksrad …)
+WOOD_FONT = "Barlow Semi Condensed"  # Holz-Stil: Titel und Kachelnamen
+MONO_FONT = "JetBrains Mono"  # nur Zahlen/Messwerte im technischen Stil
 
 
 def load_fonts(app) -> bool:
-    """Mitgelieferte Schriften laden (Inter, Barlow Semi Condensed, JetBrains Mono) – damit AluPC unter Windows und Linux gleich aussieht.
+    """Mitgelieferte Schriften laden (Inter, Barlow, JetBrains Mono) – damit AluPC unter Windows und Linux gleich aussieht.
     False = Schriftdateien fehlen (dann nimmt Qt die Systemschrift)."""
     global _fonts_loaded
     if _fonts_loaded:
@@ -250,14 +540,14 @@ def load_fonts(app) -> bool:
     return ok
 
 
-def apply(app, mode: str = "system", accent: str = "blau") -> Theme:
+def apply(app, mode: str = "system", accent: str = "blau", style: str = "normal", wood: str = "nussbaum") -> Theme:
     """Farbschema auf die ganze Anwendung anwenden (auch nachträglich)."""
     global _current, _sys_highlight, _sys_window
     load_fonts(app)
     if not _sys_highlight:
         _sys_highlight = app.palette().color(QPalette.Highlight).name()
         _sys_window = app.palette().color(QPalette.Window).name()
-    t = _current = make_theme(mode, accent)
+    t = _current = make_theme(mode, accent, style, wood)
     if app.style().name().lower() != "fusion":
         app.setStyle("Fusion")
     pal = QPalette()
@@ -401,173 +691,200 @@ def _check_image() -> str:
         return ""
 
 
-def _fader_image(t: Theme) -> str:
-    """Griffrille der Fader-Kappe (waagerechter Strich) als kleines Bild für das Stylesheet."""
-    import tempfile
-    from pathlib import Path
-
-    from PySide6.QtGui import QImage, QPainter, QPen
-
-    path = Path(tempfile.gettempdir()) / f"alupc-fader-{'d' if t.dark else 'h'}.png"
-    try:
-        if not path.exists():
-            img = QImage(28, 44, QImage.Format_ARGB32)
-            img.fill(Qt.transparent)
-            p = QPainter(img)
-            p.setRenderHint(QPainter.Antialiasing)
-            p.setPen(QPen(QColor(t.text), 3))
-            p.drawLine(5, 22, 23, 22)
-            p.end()
-            img.setDevicePixelRatio(2)
-            img.save(str(path))
-        return path.as_posix()
-    except OSError:
-        return ""
-
-
 def stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
-    """Regiepult (docs/DESIGN.md): flache Flächen, Fugen statt Schatten, Rundung nach Rang (Pult 10, Taste 6),
-    Tasten mit hellerer Oberkante. Keine Verläufe, kein Glas."""
+    """Stylesheet für alle drei Gestaltungen (docs/DESIGN.md). Gemeinsam: feine Ränder statt Schatten,
+    Fokus/Auswahl in der Akzentfarbe. Unterschiede: Rundungen, Flächen (flach / Alu-Platten auf Holz), Schrift."""
     a1 = t.accent
-    head = HEAD_FONT
+    rc, rb, rf, rs = t.radii
+    on_accent = t.on_accent
+    head = f'font-family: "{t.head_font}";'
     hover = t.mix(t.surface2, t.text, 0.06).name()
     pressed = t.mix(t.surface2, t.text, 0.12).name()
-    # Taste: Oberkante heller (dunkel) bzw. Unterkante dunkler (hell) – wie eine echte Pulttaste
-    key_top = t.mix(t.border, "#ffffff", 0.14).name() if t.dark else t.border
-    key_bottom = t.border if t.dark else t.mix(t.border, "#000000", 0.12).name()
-    a1_hover = t.mix(a1, "#ffffff", 0.10).name()
-    a1_down = t.mix(a1, "#000000", 0.12).name()
-    sel = t.soft(a1, 0.20 if t.dark else 0.13)
-    side = t.mix(t.bg, "#000000", 0.18).name() if t.dark else t.surface
+    line = t.border
+    line_hi = t.mix(line, t.text, 0.22).name()
+    sel = t.soft(a1, 0.18 if t.dark else 0.12)
     field = t.mix(t.bg, t.surface, 0.5).name() if t.dark else "#ffffff"
-    slot = "#08090b" if t.dark else "#aab1ba"  # Schlitz im Pult
-    cap = t.mix(t.surface2, "#ffffff", 0.16).name() if t.dark else "#ffffff"  # Fader-Kappe
-    fader_image = _fader_image(t)
+    number_font = f'font-family: "{MONO_FONT}";' if t.technical else ""
+    title_pt, title_w = {"technisch": (19, 600), "holz": (25, 600)}.get(t.style, (22, 700))
+    group_pt = 13.5 if t.wood else 11.5
+    window_bg = t.bg
+    side = t.mix(t.bg, "#000000", 0.18).name() if t.dark else t.mix(t.bg, "#ffffff", 0.5).name()
+    card = f"background: {t.surface};"
+    btn = f"background: {t.surface2};"
+    btn_hover = f"background: {hover};"
+    btn_down = f"background: {pressed};"
+    page_icon = f"background: {a1}; border: none;"
+    card_line = line  # Rand von Karten/Gruppen
+    btn_line = line   # Rand von Knöpfen
+    extra = ""
+    if t.style == "normal":  # modern: weiche Flächen ohne harte Ränder, Knöpfe als Pillen, Seitenleiste schwebt
+        card_line = btn_line = "transparent"
+        side = t.surface
+        hover = t.mix(t.surface2, t.text, 0.08).name()
+        pressed = t.mix(t.surface2, t.text, 0.14).name()
+        btn_hover = f"background: {hover};"
+        btn_down = f"background: {pressed};"
+        extra = f"""
+#Sidebar {{ margin: 12px 0 12px 12px; border-radius: 22px; border: none; }}
+QPushButton {{ padding: 7px 16px; }}
+QPushButton#Chip {{ border-radius: 16px; padding: 6px 14px; }}
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{ background: {t.surface2}; border-color: transparent; }}
+QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border-color: {line_hi}; }}
+QGroupBox {{ padding: 20px 18px 16px 18px; }}
+QMenu {{ border-radius: 14px; padding: 6px; }}
+QMenu::item {{ border-radius: 9px; }}
+QListWidget {{ border-color: transparent; }}
+QListWidget#SetupNav {{ border-color: transparent; padding: 6px; }}
+QListWidget#SetupNav::item {{ border-left: none; border-radius: 12px; }}
+QListWidget#SetupNav::item:selected {{ border-left: none; }}
+"""
+    if t.technical:
+        side = t.surface
+        page_icon = f"background: transparent; border: 1px solid {line_hi};"
+    if t.wood:
+        def img(part: str) -> str:
+            f = wood_file(t.wood_kind, part)
+            return f'background-image: url("{f}");' if f else ""
+        hi = "rgba(255,255,255,0.18)" if t.dark else "rgba(255,255,255,0.55)"
+        card = f"background-color: {t.surface}; {img('panel')}"
+        btn = card
+        btn_hover = f"background-color: {t.surface2}; {img('panel_hi')}"
+        btn_down = f"background-color: {t.surface}; {img('panel_lo')}"
+        page_icon = f"background-color: {t.surface}; {img('panel')} border: 1px solid {t.border};"
+        line, line_hi = t.border, t.mix(t.border, t.text, 0.35).name()
+        field = t.mix(t.bg, "#000000", 0.35).name() if t.dark else t.mix(t.surface, "#ffffff", 0.6).name()
+        window_bg = f"{t.bg}; {img('bg')}"
+        side = f"{t.bg}; {img('side')}"
+        brass_hi = t.mix(a1, "#ffffff", 0.25).name()
+        brass_lo = t.mix(a1, "#000000", 0.18).name()
+        extra = f"""
+QPushButton[primary="true"] {{ background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {brass_hi}, stop:1 {a1});
+    border: 1px solid {brass_lo}; }}
+QPushButton[primary="true"]:pressed {{ background: {brass_lo}; }}
+QListWidget, QMenu, QComboBox QAbstractItemView, QComboBoxPrivateContainer {{ background-color: {t.surface}; }}
+#Card, QGroupBox, #Hero, QPushButton {{ border-top-color: {hi}; }}
+"""
     return f"""
 * {{ outline: none; }}
 QWidget {{ color: {t.text}; }}
-QMainWindow, QDialog {{ background: {t.bg}; }}
-QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {t.border}; border-radius: 6px; padding: 6px 9px; }}
+QMainWindow, QDialog {{ background: {window_bg}; }}
+QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {line_hi}; border-radius: {rb}px; padding: 5px 8px; }}
 
-#Sidebar {{ background: {side}; border-right: 1px solid {t.border}; }}
+#Sidebar {{ background: {side}; border-right: 1px solid {line}; }}
 #Content {{ background: transparent; }}
-#PageIcon {{ background: {t.surface2}; border: 1px solid {t.border}; border-radius: 8px; }}
-#Brand {{ font-family: "{head}"; font-size: 16pt; font-weight: 700; }}
-#BrandSub, #Muted, QLabel[muted="true"] {{ color: {t.muted}; }}
-#PageTitle {{ font-family: "{head}"; font-size: 22pt; font-weight: 700; }}
-#PageSubtitle {{ color: {t.muted}; font-size: 10pt; }}
-#SectionTitle {{ font-family: "{head}"; font-size: 12.5pt; font-weight: 600; }}
-#StartSection {{ font-family: "{head}"; font-size: 12pt; font-weight: 600; color: {t.text};
-                 padding: 10px 0 4px 0; border-bottom: 1px solid {t.border}; }}
+#PageIcon {{ {page_icon} border-radius: {rb}px; }}
+#Brand {{ {head} font-size: 13.5pt; font-weight: 700; }}
+#BrandSub {{ color: {t.muted}; font-size: 8.5pt; }}
+#Muted, QLabel[muted="true"] {{ color: {t.muted}; }}
+#PageTitle {{ {head} font-size: {title_pt}pt; font-weight: {title_w}; }}
+#PageSubtitle {{ color: {t.muted}; font-size: 9.5pt; }}
+#SectionTitle {{ {head} font-size: {group_pt}pt; font-weight: 600; }}
+#StartSection {{ font-size: 11pt; font-weight: 600; color: {t.text}; padding: 10px 0 4px 0; border-bottom: 1px solid {line}; }}
 
-#Card, QGroupBox {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; }}
-#Hero {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; }}
-QPushButton#Chip {{ border-radius: 13px; padding: 5px 12px; background: {t.surface2}; font-weight: 600; }}
-QPushButton#Chip:checked {{ background: {a1}; border-color: {a1}; color: #ffffff; }}
-QGroupBox {{ margin-top: 30px; padding: 18px 16px 14px 16px; }}
-QGroupBox::title {{ subcontrol-origin: margin; left: 2px; top: 4px; padding: 0 2px; color: {t.text};
-                   font-family: "{head}"; font-size: 12.5pt; font-weight: 600; }}
+#Card, QGroupBox, #Hero {{ {card} border: 1px solid {card_line}; border-radius: {rc}px; }}
+QPushButton#Chip {{ border-radius: {rb}px; padding: 5px 11px; {btn} border: 1px solid {line}; font-weight: 600; }}
+QPushButton#Chip:hover {{ border-color: {line_hi}; }}
+QPushButton#Chip:checked {{ background: {sel}; border-color: {a1}; color: {t.text}; }}
+QGroupBox {{ margin-top: 30px; padding: 16px 14px 12px 14px; }}
+QGroupBox::title {{ subcontrol-origin: margin; left: 0px; top: 6px; padding: 0 2px; color: {t.text};
+                   {head} font-size: {group_pt}pt; font-weight: 600; }}
 
 QPushButton, QToolButton#Plain {{
-    background: {t.surface2}; border: 1px solid {t.border}; border-top-color: {key_top};
-    border-bottom-color: {key_bottom}; border-radius: 6px; padding: 6px 14px; min-height: 20px;
-    font-family: "{head}"; font-size: 11pt; font-weight: 600; }}
-QPushButton:hover, QToolButton#Plain:hover {{ background: {hover}; }}
-QPushButton:pressed {{ background: {pressed}; border-top-color: {key_bottom}; }}
-QPushButton:disabled {{ color: {t.muted}; background: {t.surface}; border-color: {t.border}; }}
-QPushButton[primary="true"] {{ background: {a1}; border: 1px solid {a1_down}; border-top-color: {a1_hover};
-    color: #ffffff; }}
-QPushButton[primary="true"]:hover {{ background: {a1_hover}; }}
-QPushButton[primary="true"]:pressed {{ background: {a1_down}; }}
-QPushButton[primary="true"]:disabled {{ background: {t.surface2}; border-color: {t.border}; color: {t.muted}; }}
+    {btn} border: 1px solid {btn_line}; border-radius: {rb}px; padding: 6px 13px; min-height: 20px;
+    font-weight: 600; }}
+QPushButton:hover, QToolButton#Plain:hover {{ {btn_hover} border-color: {line_hi}; }}
+QPushButton:pressed {{ {btn_down} }}
+QPushButton:disabled {{ color: {t.muted}; background: {t.surface}; }}
+QPushButton[primary="true"] {{ background: {a1}; border: 1px solid {a1}; color: {on_accent}; font-weight: 700; }}
+QPushButton[primary="true"]:hover {{ background: {t.mix(a1, "#ffffff", 0.12).name()}; }}
+QPushButton[primary="true"]:pressed {{ background: {t.mix(a1, "#000000", 0.12).name()}; }}
+QPushButton[primary="true"]:disabled {{ background: {t.surface2}; border-color: {line}; color: {t.muted}; }}
 QPushButton[danger="true"] {{ color: {t.danger}; }}
-QPushButton[danger="true"]:hover {{ background: {t.soft(t.danger, 0.12)}; border-color: {t.soft(t.danger, 0.5)}; }}
+QPushButton[danger="true"]:hover {{ border-color: {t.danger}; background: {t.soft(t.danger, 0.10)}; }}
 QPushButton:default {{ border-color: {a1}; }}
-QPushButton#Segment {{ border-radius: 6px; padding: 6px 16px; min-width: 56px; }}
-QPushButton#Segment:checked {{ background: {a1}; border-color: {a1_down}; color: #ffffff; }}
+QPushButton#Segment {{ border-radius: {rb}px; padding: 6px 15px; min-width: 56px; }}
+QPushButton#Segment:checked {{ background: {sel}; border-color: {a1}; }}
 
 QLineEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QKeySequenceEdit QLineEdit {{
-    background: {field}; border: 1px solid {t.border}; border-radius: 6px; padding: 6px 9px;
-    selection-background-color: {a1}; }}
-QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border-color: {t.mix(t.border, t.text, 0.25).name()}; }}
+    background: {field}; border: 1px solid {line}; border-radius: {rf}px; padding: 6px 8px;
+    selection-background-color: {a1}; selection-color: {on_accent}; }}
+QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border-color: {line_hi}; }}
 QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{ border-color: {a1}; }}
+QSpinBox, QDoubleSpinBox {{ {number_font} }}
 QComboBox {{ padding-right: 30px; combobox-popup: 0; }}
 QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: center right; border: none; width: 28px; }}
 QComboBox::down-arrow {{ {f'image: url("{arrow_image}");' if arrow_image else ''} width: 14px; height: 14px; }}
 QComboBox::down-arrow:on {{ top: 1px; }}
-QComboBoxPrivateContainer {{ background: {t.surface}; border: 1px solid {t.border}; }}
-QComboBox QAbstractItemView {{ background: {t.surface}; border: none; padding: 4px; outline: 0;
+QComboBoxPrivateContainer {{ background: {t.surface}; border: 1px solid {line_hi}; }}
+QComboBox QAbstractItemView {{ background: {t.surface}; border: none; padding: 3px; outline: 0;
     selection-background-color: transparent; selection-color: {t.text}; }}
-QComboBox QAbstractItemView::item {{ min-height: 30px; padding: 2px 10px; border-radius: 4px; margin: 1px 0; }}
+QComboBox QAbstractItemView::item {{ min-height: 28px; padding: 2px 9px; border-radius: {rs}px; margin: 0; }}
 QComboBox QAbstractItemView::item:hover {{ background: {hover}; }}
 QComboBox QAbstractItemView::item:selected {{ background: {sel}; color: {t.text}; }}
 QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
     width: 18px; border: none; }}
 
 QCheckBox, QRadioButton {{ spacing: 9px; }}
-QRadioButton::indicator {{ width: 16px; height: 16px; border-radius: 9px; border: 1px solid {t.border};
-    background: {field}; }}
+QRadioButton::indicator {{ width: 15px; height: 15px; border-radius: 8px; border: 1px solid {line_hi}; background: {field}; }}
 QRadioButton::indicator:checked {{ background: {a1}; border: 4px solid {field}; }}
-QCheckBox::indicator {{ width: 18px; height: 18px; border-radius: 4px; border: 1px solid {t.border};
-    background: {field}; }}
+QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: {rs}px; border: 1px solid {line_hi}; background: {field}; }}
 QCheckBox::indicator:hover {{ border-color: {a1}; }}
 QCheckBox::indicator:checked {{ background: {a1}; border-color: {a1};
     {f'image: url("{check_image}");' if check_image else ''} }}
 
-QListWidget {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 8px; padding: 4px; }}
-QListWidget::item {{ padding: 7px 8px; border-radius: 4px; }}
+QListWidget {{ background: {t.surface}; border: 1px solid {line}; border-radius: {rc}px; padding: 3px; }}
+QListWidget::item {{ padding: 7px 8px; border-radius: {rs}px; }}
 QListWidget::item:hover {{ background: {hover}; }}
 QListWidget::item:selected {{ background: {sel}; color: {t.text}; }}
-QListWidget::indicator, QTreeWidget::indicator {{ width: 17px; height: 17px; border-radius: 4px;
-    border: 1px solid {t.border}; background: {field}; }}
+QListWidget::indicator, QTreeWidget::indicator {{ width: 16px; height: 16px; border-radius: {rs}px;
+    border: 1px solid {line_hi}; background: {field}; }}
 QListWidget::indicator:checked, QTreeWidget::indicator:checked {{ background: {a1}; border-color: {a1};
     {f'image: url("{check_image}");' if check_image else ''} }}
-QListWidget#SetupNav {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; padding: 6px; }}
-QListWidget#SetupNav::item {{ padding: 8px 10px; margin: 1px 0; border-radius: 4px; border-left: 3px solid transparent; }}
-QListWidget#SetupNav::item:selected {{ background: {t.surface2}; border-left: 3px solid {a1}; font-weight: 600; }}
+QListWidget#SetupNav {{ background: {t.surface}; border: 1px solid {line}; border-radius: {rc}px; padding: 4px; }}
+QListWidget#SetupNav::item {{ padding: 8px 10px; margin: 0; border-radius: {rs}px; border-left: 2px solid transparent; }}
+QListWidget#SetupNav::item:selected {{ background: {sel}; border-left: 2px solid {a1}; font-weight: 600; }}
 
-QTabWidget::pane {{ border: 1px solid {t.border}; border-radius: 8px; top: -1px; background: {t.surface}; }}
-QTabBar::tab {{ background: transparent; padding: 8px 14px; margin-right: 2px; color: {t.muted};
-    font-family: "{head}"; font-size: 11pt; font-weight: 600; border-bottom: 2px solid transparent; }}
+QTabWidget::pane {{ border: 1px solid {line}; border-radius: {rc}px; top: -1px; background: {t.surface}; }}
+QTabBar::tab {{ background: transparent; padding: 7px 14px; margin-right: 2px; color: {t.muted}; font-weight: 600;
+    border-bottom: 2px solid transparent; }}
 QTabBar::tab:hover {{ color: {t.text}; }}
 QTabBar::tab:selected {{ color: {t.text}; border-bottom: 2px solid {a1}; }}
 
 QScrollArea {{ background: transparent; border: none; }}
 QScrollArea > QWidget > QWidget {{ background: transparent; }}
-QScrollBar:vertical {{ background: transparent; width: 9px; margin: 3px; }}
-QScrollBar::handle:vertical {{ background: {t.border}; border-radius: 3px; min-height: 30px; }}
+QScrollBar:vertical {{ background: transparent; width: 8px; margin: 2px; }}
+QScrollBar::handle:vertical {{ background: {line_hi}; border-radius: {rs}px; min-height: 30px; }}
 QScrollBar::handle:vertical:hover {{ background: {t.muted}; }}
-QScrollBar:horizontal {{ background: transparent; height: 9px; margin: 3px; }}
-QScrollBar::handle:horizontal {{ background: {t.border}; border-radius: 3px; min-width: 30px; }}
+QScrollBar:horizontal {{ background: transparent; height: 8px; margin: 2px; }}
+QScrollBar::handle:horizontal {{ background: {line_hi}; border-radius: {rs}px; min-width: 30px; }}
 QScrollBar::handle:horizontal:hover {{ background: {t.muted}; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
 
-QSlider::groove:horizontal {{ height: 6px; background: {slot}; border: 1px solid {t.border}; border-radius: 3px; }}
-QSlider::sub-page:horizontal {{ background: {a1}; border: 1px solid {t.border}; border-radius: 3px; }}
-QSlider::handle:horizontal {{ background: {cap}; border: 1px solid {t.mix(t.border, t.text, 0.35).name()};
-    width: 14px; height: 22px; margin: -9px 0; border-radius: 3px;
-    {f'image: url("{fader_image}");' if fader_image else ''} }}
+QSlider::groove:horizontal {{ height: 4px; background: {line}; border-radius: 1px; }}
+QSlider::sub-page:horizontal {{ background: {a1}; border-radius: 1px; }}
+QSlider::handle:horizontal {{ background: {t.surface2}; border: 1px solid {line_hi}; width: 10px; height: 20px;
+    margin: -9px 0; border-radius: {rs}px; }}
 QSlider::handle:horizontal:hover {{ border-color: {a1}; }}
-QSlider::groove:vertical {{ width: 6px; background: {slot}; border: 1px solid {t.border}; border-radius: 3px; }}
-QSlider::add-page:vertical {{ background: {a1}; border: 1px solid {t.border}; border-radius: 3px; }}
-QSlider::handle:vertical {{ background: {cap}; border: 1px solid {t.mix(t.border, t.text, 0.35).name()};
-    height: 14px; width: 26px; margin: 0 -11px; border-radius: 3px; }}
+QSlider::groove:vertical {{ width: 4px; background: {line}; border-radius: 1px; }}
+QSlider::add-page:vertical {{ background: {a1}; border-radius: 1px; }}
+QSlider::handle:vertical {{ background: {t.surface2}; border: 1px solid {line_hi}; height: 10px; width: 20px;
+    margin: 0 -9px; border-radius: {rs}px; }}
 
-QProgressBar {{ background: {t.border}; border: none; border-radius: 3px; height: 8px; text-align: center; }}
-QProgressBar::chunk {{ background: {a1}; border-radius: 3px; }}
+QProgressBar {{ background: {line}; border: none; border-radius: 1px; height: 6px; text-align: center; }}
+QProgressBar::chunk {{ background: {a1}; border-radius: 1px; }}
 
-QMenu {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 8px; padding: 6px; min-width: 230px; }}
-QMenu::item {{ padding: 8px 30px 8px 12px; border-radius: 4px; margin: 1px 0; }}
+QMenu {{ background: {t.surface}; border: 1px solid {line_hi}; border-radius: {rc}px; padding: 4px; min-width: 230px; }}
+QMenu::item {{ padding: 8px 28px 8px 10px; border-radius: {rs}px; margin: 0; }}
 QMenu::item:selected {{ background: {sel}; color: {t.text}; }}
 QMenu::item:disabled {{ color: {t.muted}; }}
-QMenu::icon {{ padding-left: 10px; }}
-QMenu::indicator {{ width: 16px; height: 16px; margin-left: 10px; border-radius: 4px; border: 1px solid {t.border};
+QMenu::icon {{ padding-left: 8px; }}
+QMenu::indicator {{ width: 15px; height: 15px; margin-left: 8px; border-radius: {rs}px; border: 1px solid {line_hi};
     background: {field}; }}
 QMenu::indicator:checked {{ background: {a1}; border-color: {a1};
     {f'image: url("{check_image}");' if check_image else ''} }}
-QMenu::separator {{ height: 1px; background: {t.border}; margin: 5px 8px; }}
+QMenu::separator {{ height: 1px; background: {line}; margin: 4px 6px; }}
 
 QStatusBar {{ background: transparent; color: {t.muted}; }}
-QMessageBox, QInputDialog, QColorDialog, QFileDialog {{ background: {t.bg}; }}
-"""
+QMessageBox, QInputDialog, QColorDialog, QFileDialog {{ background: {window_bg}; }}
+{extra}"""

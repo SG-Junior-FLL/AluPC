@@ -164,7 +164,7 @@ class MediaLibraryDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Mediathek", "Bilder · Videos · Diashows – Doppelklick zeigt"))
+        lay.addWidget(page_header("Mediathek", "Bilder, Videos und Diashows. Doppelklick zeigt sie an."))
         lay.addLayout(chips)
         lay.addWidget(self.grid, 1)
         lay.addWidget(self.empty, 1)

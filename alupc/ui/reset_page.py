@@ -10,8 +10,8 @@ from .. import reset
 from .util import error_box, run_async
 from .widgets import button, page_header
 
-WHAT = ("Einstellungen, Szenen, Startseite, Overlays, Tastenkürzel · vom Handy empfangene Dateien · "
-        "Namen der Fingerabdrücke · Browser-Daten (Anmeldungen auf Websites) · Autostart")
+WHAT = ("Einstellungen, Szenen, Startseite, Overlays, Tastenkürzel, vom Handy empfangene Dateien, "
+        "Namen der Fingerabdrücke, Browser-Daten (Anmeldungen auf Websites) und Autostart")
 
 
 class ResetDialog(QDialog):

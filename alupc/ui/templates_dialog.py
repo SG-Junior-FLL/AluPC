@@ -123,7 +123,7 @@ class TemplatesDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 20, 24, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Neue Szene", "Vorlage wählen · Text eintragen · anpassen", "scenes"))
+        lay.addWidget(page_header("Neue Szene", "Vorlage wählen, Text eintragen, anpassen", "scenes"))
 
         filters = QHBoxLayout()
         filters.setSpacing(6)

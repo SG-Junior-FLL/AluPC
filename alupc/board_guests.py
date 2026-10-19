@@ -132,12 +132,12 @@ GUEST_PAGE = r"""<!doctype html><html lang="de"><head><meta charset="utf-8">
 <title>AluPC – Whiteboard</title><style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overscroll-behavior:none}
-body{font-family:system-ui,-apple-system,sans-serif;background:#111316;color:#eceef1;display:flex;flex-direction:column;
+body{font-family:system-ui,-apple-system,sans-serif;background:#0e0f13;color:#eceef1;display:flex;flex-direction:column;
 gap:10px;padding:max(10px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));-webkit-user-select:none;user-select:none}
 header{display:flex;align-items:center;gap:10px}header b{font-size:18px;flex:1}
-#gname{width:min(44vw,220px);font-size:16px;padding:9px 12px;border-radius:12px;border:2px solid #30353c;
-background:#191c20;color:#fff}#gname:focus{outline:none;border-color:#5b8def}
-.msg{background:#23272c;border-radius:14px;padding:10px 14px;font-weight:700;text-align:center}
+#gname{width:min(44vw,220px);font-size:16px;padding:9px 12px;border-radius:12px;border:2px solid #2b2f39;
+background:#17191f;color:#fff}#gname:focus{outline:none;border-color:#7383fb}
+.msg{background:#21242c;border-radius:14px;padding:10px 14px;font-weight:700;text-align:center}
 .msg.ok{background:linear-gradient(135deg,#16a34a,#0d9488)}.msg.bad{background:#7f1d1d}
 #wrap{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
 #board{position:relative;aspect-ratio:16/9;width:100%;max-height:100%;background:#fff;border-radius:14px;overflow:hidden;
@@ -145,13 +145,13 @@ touch-action:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 #board img,#board canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}
 #board img{pointer-events:none}
 .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.bar button{border:0;border-radius:14px;padding:12px 14px;font-size:15px;font-weight:800;color:#fff;background:#23272c}
-.bar button.on{background:linear-gradient(135deg,#5b8def,#5b8def)}
+.bar button{border:0;border-radius:14px;padding:12px 14px;font-size:15px;font-weight:800;color:#fff;background:#21242c}
+.bar button.on{background:linear-gradient(135deg,#7383fb,#7383fb)}
 .colors{display:flex;gap:8px;flex-wrap:wrap}
 .c{width:38px;height:38px;border-radius:50%;padding:0!important;border:3px solid transparent!important;box-shadow:inset 0 0 0 2px rgba(255,255,255,.28)}
 .c.on{border-color:#fff!important;transform:scale(1.1)}
 #ask{width:100%;padding:16px;border-radius:16px;border:0;font-size:18px;font-weight:800;color:#fff;
-background:linear-gradient(135deg,#5b8def,#ec4899)}
+background:linear-gradient(135deg,#7383fb,#ec4899)}
 @media (orientation:landscape) and (min-width:900px){body{display:grid;grid-template-columns:minmax(0,1fr) 220px;
 grid-template-rows:auto auto 1fr;column-gap:12px}.bar{min-width:0}.bar button{width:100%}.bar .c{width:auto;aspect-ratio:1}
 header,.msg,#ask{grid-column:1/-1}#wrap{grid-row:3}.bar{grid-row:3;flex-direction:column;align-items:stretch;align-content:start}

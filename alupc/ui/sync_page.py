@@ -64,7 +64,7 @@ def backup_group(page) -> QGroupBox:
     config = page.config
     box = QGroupBox("Sichern && Laden")
     lay = QVBoxLayout(box)
-    info = QLabel("Alle Einstellungen als Datei · Sicherung oder zweiter PC")
+    info = QLabel("Alle Einstellungen als Datei – als Sicherung oder für einen zweiten PC")
     info.setWordWrap(True)
     info.setObjectName("Muted")
     lay.addWidget(info)

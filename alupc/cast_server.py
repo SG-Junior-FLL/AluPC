@@ -24,7 +24,6 @@ from urllib.parse import parse_qs, urlparse
 
 from PySide6.QtCore import QObject, Signal
 
-from .cast_page import PAGE
 from .config import config_dir
 
 MAX_UPLOAD = 2 * 1024 ** 3  # 2 GB
@@ -460,13 +459,10 @@ class CastServer(QObject):
 
 
 # Ohne AluPC-WLAN erreichbar: nur das App-Symbol – alles andere (auch Abstimmen) nur über das AluPC-WLAN
-# Pultschrift der Handy-Seite (Regiepult-Design) – vom PC geliefert, das AluPC-WLAN hat oft kein Internet
-FONT_FILES = {"/schrift/pult-600.ttf": "BarlowSemiCondensed-SemiBold.ttf",
-              "/schrift/pult-700.ttf": "BarlowSemiCondensed-Bold.ttf"}
-PUBLIC_PATHS = {"/icon.png", "/apple-touch-icon.png", "/favicon.ico", "/manifest.json", *FONT_FILES}
+PUBLIC_PATHS = {"/icon.png", "/apple-touch-icon.png", "/favicon.ico", "/manifest.json"}
 BLOCKED_PAGE = """<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>AluPC</title>
-<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#111316;
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0e0f13;
 color:#eceef1;font:16px system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
 b{font-size:22px;display:block;margin-bottom:10px}</style></head><body><div>
 <b>📶 Nur über das AluPC-WLAN</b>Scanne zuerst den WLAN-Code auf dem Bildschirm, dann den Code der Seite.</div></body></html>"""
@@ -674,7 +670,25 @@ def _make_handler(server: CastServer):
             if self._blocked(path):
                 return
             if path in ("/", "/index.html"):
-                self._send(200, PAGE.encode(), "text/html; charset=utf-8")
+                from .cast_page import themed_page
+
+                page = themed_page(server.config["appearance"])  # Handy sieht aus wie die PC-App
+                self._send(200, page.encode(), "text/html; charset=utf-8")
+            elif path.startswith("/fonts/") and path.endswith(".ttf"):  # gleiche Schrift wie am PC
+                name = path[len("/fonts/"):]
+                font = Path(__file__).resolve().parent / "assets" / "fonts" / name
+                if "/" not in name and font.is_file():
+                    self._send(200, font.read_bytes(), "font/ttf")
+                else:
+                    self._send(404, b"", "text/plain")
+            elif path.startswith("/holz/") and path.endswith(".jpg"):  # Holzflächen für die Handy-Seite
+                from .ui import theme
+
+                parts = path[len("/holz/"):-len(".jpg")].split("/")
+                if len(parts) == 2 and parts[0] in theme.WOODS and parts[1] in ("bg", "panel", "panel_hi"):
+                    self._send(200, theme.wood_jpeg(parts[0], parts[1]), "image/jpeg")
+                else:
+                    self._send(404, b"", "text/plain")
             elif path == "/abstimmung":
                 from .polls import POLL_PAGE
 
@@ -803,13 +817,10 @@ def _make_handler(server: CastServer):
                         self._send(204, b"", "image/jpeg")
             elif path in ("/icon.png", "/apple-touch-icon.png", "/favicon.ico"):
                 self._send(200, server.icon_png(), "image/png")
-            elif path in FONT_FILES:
-                font_file = Path(__file__).resolve().parent / "assets" / "fonts" / FONT_FILES[path]
-                self._send(200, font_file.read_bytes(), "font/ttf")
             elif path == "/manifest.json":  # „Zum Home-Bildschirm“: öffnet wie eine App (ohne Browserleiste)
                 self._send(200, json.dumps({"name": "AluPC-Fernbedienung", "short_name": "AluPC",
                                             "start_url": "/", "display": "standalone",
-                                            "background_color": "#111316", "theme_color": "#111316",
+                                            "background_color": "#0e0f13", "theme_color": "#0e0f13",
                                             "icons": [{"src": "/icon.png", "sizes": "192x192",
                                                        "type": "image/png"}]}).encode(),
                            "application/manifest+json")

@@ -167,8 +167,8 @@ DEFAULTS: dict = {
     "first_run_done": False,
     # Windows 11: AluPC-Symbol wurde für diesen Programmpfad schon direkt in die Taskleiste gelegt
     "tray": {"promoted_for": ""},
-    "appearance": {"mode": "dunkel", "accent": "alupc", "accent_v2": True, "accent_v3": True, "mode_v2": True,
-                   "fade": True},
+    "appearance": {"mode": "dunkel", "accent": "alupc", "style": "normal", "wood": "nussbaum", "accent_v2": True, "accent_v3": True,
+                   "mode_v2": True, "fade": True},
     # Übergang zwischen Inhalten/Szenen auf Monitor 2 (Art siehe transitions.py); Szenen können
     # einen eigenen Übergang haben
     "transition": {"type": "blende", "ms": 400},

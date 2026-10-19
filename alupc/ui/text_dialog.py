@@ -19,7 +19,7 @@ class TextDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Text anzeigen", "Eintippen · Anzeigen · steht groß auf dem Bildschirm", "text"))
+        lay.addWidget(page_header("Text anzeigen", "Was du eintippst, steht groß auf dem Bildschirm", "text"))
         self.text = QPlainTextEdit()
         self.text.setPlaceholderText("Text für den Bildschirm")
         current = controller.content or {}

@@ -1,71 +1,56 @@
-# AluPC – Design „Regiepult“
+# AluPC – Gestaltung (ab 2.0)
 
-AluPC entscheidet, was ein zweiter Bildschirm (Beamer, Fernseher) zeigt. Das Vorbild ist ein Bildmischer im
-TV-Regieraum: ein großes Programmbild, darunter Tasten, und eine Leuchte zeigt, was gerade auf Sendung ist.
-Aufbau und Funktionen bleiben wie bisher; das Aussehen folgt diesem Bild.
+Drei Designs, umschaltbar unter **Setup → Darstellung → Stil**. Alle drei teilen Aufbau und Funktionen; sie
+unterscheiden sich in Flächen, Rundungen, Schrift und Kachelform. Code: `alupc/ui/theme.py` (Farben, Stylesheet,
+Holz), `alupc/ui/widgets.py` (gezeichnete Teile), `alupc/cast_page.py` (Handy-/iPad-Seite).
 
-## Farben
+## Gemeinsame Regeln
 
-| Name | Dunkel | Hell | Wofür |
-|---|---|---|---|
-| Grund | `#111316` Graphit | `#E6E8EB` Alu | Fensterhintergrund |
-| Pult | `#191C20` | `#F6F7F8` | Karten, Gruppen, Seitenleiste |
-| Taste | `#23272C` | `#FFFFFF` | Knöpfe, Eingabefelder, Kacheln |
-| Fuge | `#30353C` | `#C9CED5` | Ränder, Trennlinien |
-| Schrift / leise | `#ECEEF1` / `#9AA1AC` | `#15181C` / `#59616C` | Text |
-| Akzent | wählbar (AluPC: `#5B8DEF`) | wählbar (AluPC: `#2F6FDB`) | Bedienung: Auswahl, Hauptknopf, Fokus |
-| Sendung | `#E5484D` | `#D93A40` | nur „läuft auf dem Bildschirm“ (Tally-Leuchte) |
-| Bereit | `#30A46C` | `#218358` | nur „bereit/verbunden“ |
+- **Rot heißt nur eins:** läuft gerade auf dem Bildschirm (Kachelrand, Lampe, Vorschau-Rahmen, Etikett „Live“).
+- **Nur echte Angaben:** Zustände in Worten („Läuft“, „An“, „Aktiv“) oder als echte Werte (Auflösung, Hz,
+  Lautstärke, Laufzeit). Keine Fachkürzel wie „CH 07“, „PGM“, „STBY“, kein erfundener Timecode.
+- **Lesbarkeit geprüft** (`tests/test_theme.py`): Schrift/Grund ≥ 7:1, leise Schrift/Karte ≥ 4,5:1,
+  Schrift auf Akzentfarbe ≥ 4,5:1 – für jeden Stil, hell und dunkel, und jede Holzart.
+- Keine Verläufe als Schmuck, keine Bewegung ohne Anlass; Satzschreibweise statt GROSSBUCHSTABEN.
 
-Dunkel ist Standard (Regieräume sind dunkel); Hell „Alu“ bleibt wählbar. Die Handy-Seite ist immer dunkel.
+## Normal (Standard) – modern, weich, rund
 
-Akzent = Bedienung, Rot = Sendung. Rot erscheint nirgends sonst als Schmuck (Löschen-Knöpfe nutzen
-Rot nur als Schrift).
+| Rolle | Dunkel | Hell |
+|---|---|---|
+| Grund | `#131417` | `#ECEEF2` |
+| Fläche (Karten, Seitenleiste) | `#1E2024` | `#FFFFFF` |
+| Feld (Knöpfe, Eingaben) | `#2A2D33` | `#F1F2F5` |
+| Schrift / leise | `#F2F3F5` / `#9AA0AA` | `#16181C` / `#5F6670` |
+| Akzent (AluPC) | `#5B8CFF` | `#2F62E9` |
 
-## Schrift
+- Rundungen: Karten 20, Knöpfe 17 (Pillen), Felder 12. Flächen ohne Rand – Ebenen unterscheiden sich nur in der Helligkeit.
+- Seitenleiste schwebt als runde Fläche. Kacheln: Symbol im getönten Kreis oben links, Menü als kleiner runder
+  Knopf oben rechts, Name unten. Lautstärke als dicke runde Säule.
+- Schrift: Inter.
 
-- **Barlow Semi Condensed** (SemiBold/Bold): Seitentitel, Gruppentitel, Kachel- und Tastenbeschriftung – schmal
-  und technisch wie Pultbeschriftungen.
-- **Inter**: Fließtext, Formulare, Erklärungen.
-- **JetBrains Mono**: nur echte Werte (Zeiten, Adressen, Codes).
-- Keine Großbuchstaben-Etiketten mit Sperrung; Abschnittsnamen in normaler Schreibweise.
+## Technisch – dicht, mit Messwerten
 
-Größen (pt): Seitentitel 22 · Gruppentitel 12 · Kachel 12 · Text 10 · klein 8.5.
+- Mittelgrau (`#18191B` / `#E6E6E2`), Akzent Signalgelb (`#F5C400` / `#C99A00`) mit dunkler Schrift darauf.
+- Rundungen 2–3 px, feine Ränder. Kacheln als Zeilen (Symbol, Name, Untertitel), läuft = rote Leiste links.
+- Ziffernschrift (JetBrains Mono) nur für echte Werte: Ausgang/Auflösung/Hz, „läuft seit 0:12:34“, Regler 0–100.
 
-## Aufbau
+## Holz – echtes Furnier
 
-```
-┌──────┬──────────────────────────────────────┐
-│ Logo │ Titel der Seite                       │
-│ ──── │ ┌──────────────────────────────────┐  │
-│ Navi │ │ Programmbild (Monitor 2)  ● Live │  │  ← Startseite: das Programmbild ist der Mittelpunkt
-│      │ └──────────────────────────────────┘  │
-│      │ [● Taste][  Taste ][  Taste ][ … ]    │  ← Kacheln = Tasten mit Leuchte
-│ Bild │                                       │
-└──────┴──────────────────────────────────────┘
-```
+- **7 Holzarten** (`WOODS`): Nussbaum, Kirsche, Wenge, Räuchereiche (dunkel → helle Schrift), Eiche, Kiefer,
+  Ahorn (hell → dunkle Schrift). Die Holzart bestimmt hell/dunkel; die Auswahl Hell/Dunkel ist dann gesperrt.
+- Maserung wird beim Start gerechnet (fester Zufallswert, nahtlos kachelbar): Jahresringe als Bänder, Fasern als
+  Wellen, je Holzart eigene Zeichnung (Poren bei Eiche, enge Streifen bei Wenge, Flamme bei Kirsche …).
+  Jede Fläche (Grund, Seitenleiste, Platte, Platte hell/gedrückt) wird auf eine feste Helligkeit gebracht –
+  so bleibt die Schrift auf jedem Holz lesbar.
+- Kacheln sind Furnierplatten mit Lichtkante und Schatten, Namen graviert (Barlow Semi Condensed), oben links
+  eine Kontrolllampe (aus = dunkles Glas, läuft = leuchtet rot). Akzent Messing.
+- Reglerkappen aus gebürstetem Aluminium, Vorschau in dunklem Gehäuse wie ein kleiner Fernseher.
 
-- Links ausgerichtet, keine zentrierten Inhalte (außer Anzeigen auf Monitor 2).
-- Rundungen nach Rang: Pult 10 px, Taste/Feld 6 px, Etikett ganz rund. Keine Schatten, keine Verläufe, kein Glas –
-  Tiefe nur über Fugen und eine hellere Oberkante an Tasten.
-- Aktive Kachel: rote Leuchte oben links + roter Balken an der Oberkante, Fläche bleibt ruhig.
+## Handy-/iPad-Seite
 
-## Regler
+Der PC liefert die Seite mit seinen Farben, Rundungen, Schriften und (Holz) den Holzflächen aus
+(`themed_page`, `/fonts/…`, `/holz/<art>/<fläche>.jpg`). Bei „Wie das System“ entscheidet das Handy hell/dunkel.
 
-Schieberegler sind Fader wie am Mischpult: dunkler Schlitz, Akzentfarbe bis zur Kappe, Kappe mit Griffrille.
-Auf der Startseite steht neben dem Programmbild ein kleines Regler-Pult (senkrechte Fader mit Skala):
-„PC“ (Lautstärke des Computers) und „Medien“ (Ton von Video/Website auf Monitor 2, nur wenn etwas mit Ton läuft).
+## Verworfen
 
-## Grundsätze
-
-1. Mutig nur an einer Stelle: das Programmbild mit der Sendungsleuchte. Alles andere ist ruhig.
-2. Rot bedeutet immer „läuft gerade“ – überall gleich (App, Handy-Seite, Anzeigen).
-3. Keine Deko-Bewegung; Bewegung nur als Antwort auf eine Aktion.
-4. Klare, kurze Texte in normaler Schreibweise; Knöpfe sagen, was passiert.
-
-## Abgleich mit dem Auftrag
-
-- Erster Entwurf war fast schwarz mit einer grellen Farbe – zu nah am Standard „dunkel + eine Neonfarbe“.
-  Geändert: Graphit statt Schwarz, ein ruhiger Hellmodus „Alu“ gleichwertig, Rot nur als Zustandsfarbe.
-- Großbuchstaben-Etiketten über Abschnitten (bisher z. B. „ANZEIGEN“) entfernt – reine Vorlagen-Optik.
-- Gleich runde Karten mit weichem Schatten überall (bisher) ersetzt durch Rang-Rundungen ohne Schatten.
+„Regiepult“ (1.1), „Kontrollzentrum“ (zu bunt) und „Signal“ (zu viel Fachjargon: CH/PGM/STBY, Timecode).

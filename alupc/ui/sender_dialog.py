@@ -54,7 +54,7 @@ class SenderDialog(QDialog):
         self.setWindowTitle("An Fernseher senden")
         self.setMinimumSize(520, 460)
         lay = QVBoxLayout(self)
-        lay.addWidget(page_header("An Fernseher senden", "Chromecast · AirPlay · Miracast", "cast"))
+        lay.addWidget(page_header("An Fernseher senden", "Chromecast, AirPlay oder Miracast", "cast"))
         note = QLabel("Zeigt den Bildschirm zusätzlich auf einem Chromecast, Google TV, Apple TV oder "
                       "AirPlay-Fernseher im selben Netz – kurz verzögert, ohne Ton.")
         note.setWordWrap(True)

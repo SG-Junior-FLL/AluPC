@@ -256,7 +256,7 @@ class CustomTileDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Eigene Kachel", "Anzeigen · Schoner · Timer · Befehl · Ausführen"))
+        lay.addWidget(page_header("Eigene Kachel", "Zeigt etwas, startet einen Timer oder führt einen Befehl aus"))
         lay.addLayout(form)
         lay.addWidget(buttons)
 
@@ -529,7 +529,7 @@ class StartPageDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Startseite anpassen", "Kacheln · Bereiche · Texte"))
+        lay.addWidget(page_header("Startseite anpassen", "Kacheln, Bereiche und Texte"))
         tabs = QTabWidget()
         tiles_page = QWidget()
         tiles_lay = QVBoxLayout(tiles_page)

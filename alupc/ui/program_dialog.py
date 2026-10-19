@@ -150,7 +150,7 @@ class ProgramDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
-        lay.addWidget(page_header("Programm auf dem Bildschirm", "Programm wählen · Anzeigen"))
+        lay.addWidget(page_header("Programm auf dem Bildschirm", "Ein offenes Programm auf den Bildschirm holen"))
         lay.addWidget(self._capture_tab(), 1)
 
     # ------------------------------------------------------------ Aufnahme

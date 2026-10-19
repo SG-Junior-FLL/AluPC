@@ -4,6 +4,21 @@ Die aktuellen Neuerungen stehen in den [Release-Notizen](../packaging/RELEASE_NO
 [Release-Seite](https://github.com/SG-Junior-FLL/AluPC/releases).
 
 
+## 2.0.0 – drei Designs zum Umschalten
+- Setup → Darstellung → Stil: **Normal** (modern, rund), **Technisch** (dicht, Messwerte), **Holz** (7 Holzarten).
+- Keine Fachkürzel mehr (CH/PGM/STBY); Zustände in Worten oder als Zeit.
+- Handy-/iPad-Seite folgt Stil, Farben und Holzart des PCs.
+- Nicht getestet auf echten Geräten.
+
+## 1.2.0 – Regler und mehr Dunkelmodus
+- **Regler wie am Mischpult:** Auf der Startseite steht neben dem Programmbild ein Regler-Pult mit senkrechten
+  Fadern: „PC“ (Lautstärke des Computers) und „Medien“ (Ton von Video/Website auf dem Bildschirm, nur wenn etwas
+  mit Ton läuft). Alle anderen Schieberegler sehen jetzt ebenfalls wie Fader aus (auch auf der Handy-Seite).
+- **Mehr Dunkelmodus:** dunklere Graphit-Töne; Dunkel ist Standard. Wer bisher „Wie das System“ hatte (die alte
+  Voreinstellung), bekommt einmal Dunkel – „Hell“ bleibt wählbar. Die Handy-/iPad-Seite ist immer dunkel.
+- **Nicht getestet** auf echten Geräten. Der PC-Fader braucht einen Audio-Dienst (Windows: Core Audio,
+  Linux: PipeWire/PulseAudio); ohne ist er ausgegraut.
+
 ## 1.1.0 – Design „Regiepult“
 - **Komplett neues Aussehen** nach dem Vorbild eines TV-Bildmischers: Graphit (dunkel) bzw. Alu (hell),
   keine Verläufe und Leuchteffekte mehr. Alle Funktionen und der Aufbau bleiben gleich.

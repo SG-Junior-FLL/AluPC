@@ -61,33 +61,47 @@ def test_old_defaults_migrate_to_alupc_theme(tmp_path):
 
 
 def test_alupc_theme_same_everywhere_and_branded(qapp):
-    """AluPC-Theme „Regiepult“ (docs/DESIGN.md): hängt nicht vom System ab (gleich unter Windows und Linux),
-    neutrale Graphit-/Alu-Flächen, Blau als Bedienfarbe, Rot nur für „läuft“, lesbare Kontraste."""
+    """Drei Stile (docs/DESIGN.md): hängen nicht vom System ab (gleich unter Windows und Linux), Rot für „läuft“,
+    lesbare Kontraste (WCAG) in jedem Stil, jeder Helligkeit und jeder Holzart."""
     from PySide6.QtGui import QColor
 
-    for mode in ("hell", "dunkel"):
-        t = theme.make_theme(mode, "alupc")
-        assert t == theme.make_theme(mode, "alupc")
-        assert 210 <= QColor(t.accent).hslHue() <= 225  # Bedienfarbe Blau
-        live = QColor(t.live)
-        assert live.hslHue() <= 5 or live.hslHue() >= 350  # Sendungsleuchte rot
-        for surface in (t.bg, t.surface, t.surface2):
-            c = QColor(surface)
-            assert max(c.red(), c.green(), c.blue()) - min(c.red(), c.green(), c.blue()) <= 12  # Graphit/Alu: kaum getönt
+    def lum(c):
+        def ch(v):
+            v /= 255
+            return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+        q = QColor(c)
+        return 0.2126 * ch(q.red()) + 0.7152 * ch(q.green()) + 0.0722 * ch(q.blue())
 
-        def lum(c):
-            def ch(v):
-                v /= 255
-                return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
-            q = QColor(c)
-            return 0.2126 * ch(q.red()) + 0.7152 * ch(q.green()) + 0.0722 * ch(q.blue())
+    def contrast(a, b):
+        la, lb = sorted((lum(a), lum(b)), reverse=True)
+        return (la + 0.05) / (lb + 0.05)
 
-        def contrast(a, b):
-            la, lb = sorted((lum(a), lum(b)), reverse=True)
-            return (la + 0.05) / (lb + 0.05)
+    hues = {"normal": (215, 235), "technisch": (40, 55), "holz": (30, 45)}  # Blau / Signalgelb / Messing
+    for style in theme.STYLES:
+        for mode in ("hell", "dunkel"):
+            for wood in (theme.WOODS if style == "holz" else [theme.DEFAULT_WOOD]):
+                t = theme.make_theme(mode, "alupc", style, wood)
+                assert t == theme.make_theme(mode, "alupc", style, wood)
+                lo, hi = hues[style]
+                assert lo <= QColor(t.accent).hslHue() <= hi, (style, mode, wood)
+                live = QColor(t.live)
+                assert live.hslHue() <= 8 or live.hslHue() >= 350  # Sendungsleuchte rot
+                assert contrast(t.text, t.bg) >= 7, (style, mode, wood)
+                assert contrast(t.text, t.surface) >= 7, (style, mode, wood)
+                assert contrast(t.muted, t.surface) >= 4.5, (style, mode, wood)
+                assert contrast(t.on_accent, t.accent) >= 4.5, (style, mode, wood)
+                if style == "holz":  # helles Holz → dunkle Schrift, dunkles Holz → helle
+                    assert t.dark == theme.WOODS[wood][5]
 
-        assert contrast(t.text, t.bg) >= 12 and contrast(t.muted, t.surface) >= 4.5
-        assert contrast("#ffffff", t.accent) >= 3  # weiße Schrift auf Akzent-Knöpfen
+
+def test_wood_textures_tile_and_differ(qapp):
+    """Jede Holzart hat eigene Maserung; Flächen kommen in der Ziel-Helligkeit heraus."""
+    colors = {theme.wood_color(w, "bg") for w in theme.WOODS}
+    assert len(colors) == len(theme.WOODS)
+    for w in theme.WOODS:
+        img = theme.wood_image(w, "panel")
+        assert img.width() == 720 and img.height() == 480
+        assert theme.wood_jpeg(w, "bg")[:2] == b"\xff\xd8"  # JPEG für die Handy-Seite
 
 
 def test_title_bar_only_on_windows(qapp):

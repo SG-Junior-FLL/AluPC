@@ -61,6 +61,11 @@ PRIVACY_COLOR = "#64748b"
 PIP_COLOR = "#8b5cf6"
 
 
+def tile_min_width() -> int:
+    """Mindestbreite einer Kachel je Stil – Normal/Technisch legen Symbol und Text nebeneinander."""
+    return {"technisch": 212}.get(theme.current().style, 184)
+
+
 class FlowGrid(QWidget):
     """Legt Kacheln in so vielen Spalten an, wie die Fensterbreite hergibt."""
 
@@ -723,7 +728,7 @@ class MainWindow(QMainWindow):
         self.sections_layout.setContentsMargins(0, 0, 0, 0)
         self.sections_layout.setSpacing(6)
         lay.addWidget(self.sections_host)
-        self.start_empty = QLabel("Alle Kacheln ausgeblendet · „Startseite anpassen“")
+        self.start_empty = QLabel("Alle Kacheln sind ausgeblendet. Über „Startseite anpassen“ holst du sie zurück.")
         self.start_empty.setObjectName("Muted")
         lay.addWidget(self.start_empty)
         hint = QLabel()
@@ -779,7 +784,7 @@ class MainWindow(QMainWindow):
             head.toggled.connect(lambda folded, sid=sec["id"]: self._fold_section(sid, folded))
             head.setContextMenuPolicy(Qt.CustomContextMenu)
             head.customContextMenuRequested.connect(lambda pos, h=head, sid=sec["id"]: self._section_menu(h, sid, pos))
-            grid = FlowGrid(min_width=176, max_cols=6, spacing=12)
+            grid = FlowGrid(min_width=tile_min_width(), max_cols=6, spacing=12)
             grid.set_items(items)
             grid.setVisible(not sec.get("collapsed"))
             if not sec.get("collapsed"):
@@ -1513,7 +1518,7 @@ class MainWindow(QMainWindow):
         empty_btn.clicked.connect(self.new_scene)
         self.scene_stack.addWidget(EmptyState(
             "scenes", "Noch keine Szene",
-            "Vorlage wählen · Text eintragen · fertig", empty_btn))
+            "Vorlage wählen, Text eintragen, fertig", empty_btn))
         area = QScrollArea()
         area.setWidgetResizable(True)
         self.scene_grid = FlowGrid(min_width=236, max_cols=6, fixed=True)
@@ -1643,7 +1648,7 @@ class MainWindow(QMainWindow):
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(page_header("Fingerabdruck", "Sensor · Finger · Anmelden"))
+        lay.addWidget(page_header("Fingerabdruck", "Finger speichern und damit anmelden"))
         lay.addWidget(FingerprintPage(self.controller), 1)
         return page
 
@@ -1667,7 +1672,7 @@ class MainWindow(QMainWindow):
             dlg.resize(1060, 820)
             lay = QVBoxLayout(dlg)
             lay.setContentsMargins(22, 18, 22, 18)
-            lay.addWidget(page_header("Handy auf dem Bildschirm", "AirPlay · QR-Code"))
+            lay.addWidget(page_header("Handy auf dem Bildschirm", "Per AirPlay oder QR-Code"))
             self.handy_page = HandyPage(self.controller)
             lay.addWidget(self.handy_page, 1)
             self.handy_window = dlg
@@ -1721,16 +1726,24 @@ class MainWindow(QMainWindow):
 
     def apply_theme(self):
         a = self.config["appearance"]
-        theme.apply(QApplication.instance(), a.get("mode", "system"), a.get("accent", "alupc"))
+        theme.apply(QApplication.instance(), a.get("mode", "system"), a.get("accent", "alupc"), a.get("style", "normal"),
+                    a.get("wood", theme.DEFAULT_WOOD))
         # Symbole in Knöpfen neu einfärben
         for b in self.findChildren(QPushButton):
             name = b.property("iconName")
             if name:
                 t = theme.current()
-                color = "#ffffff" if b.property("primary") else (t.danger if b.property("danger") else t.text)
+                color = t.on_accent if b.property("primary") else (t.danger if b.property("danger") else t.text)
                 b.setIcon(icons.icon(name, color, 18))
         self.media_bar.apply_theme()
         self.fader_panel.apply_theme()
+        self.status_card.apply_style()
+        for tile in list(self.tiles.values()) + list(getattr(self, "custom_tiles", {}).values()):
+            tile.updateGeometry()  # Kachelhöhe hängt vom Stil ab
+        for grid in getattr(self, "section_grids", {}).values():  # Spaltenbreite auch
+            grid.min_width = tile_min_width()
+            grid._cols = 0
+            grid._relayout()
         self.camera_bar.apply_theme()
         self.refresh()
         for w in self.findChildren(QWidget):
@@ -1941,12 +1954,12 @@ class MainWindow(QMainWindow):
         pip_on = bool(c.pip and c.pip.isVisible())
         if out is not None:
             size = out.size()
-            where = f"Bildschirm · {out.name()} · {size.width()} × {size.height()}"
+            where = f"{out.name()}, {size.width()} × {size.height()}"
             hz = out.refreshRate()
             if hz:
-                where += f" · {hz:.0f} Hz"
+                where += f", {hz:.0f} Hz"
         else:
-            where = "Bildschirm · nicht angeschlossen"
+            where = "Kein Bildschirm angeschlossen"
         typ = c.content.get("type") if c.mode == "content" and c.content else None
         is_mirror = bool(c.content and c.content.get("mirror"))
         icon_name = "mirror" if is_mirror else icons.SOURCE_ICONS.get(typ, "extend" if c.mode == "desktop" else "monitor")
@@ -1978,7 +1991,7 @@ class MainWindow(QMainWindow):
         self.camera_bar.sync()
         self._sync_tray_volume()
         state = pills[0] if pills else ("", t.success)
-        self.side_monitor.set(f"Bildschirm · {out.name()}" if out else "Kein Bildschirm",
+        self.side_monitor.set(f"Bildschirm {out.name()}" if out else "Kein Bildschirm",
                               c.describe() if out else "Anschließen – AluPC erkennt ihn selbst",
                               state if out else ("FEHLT", t.danger), icon_name)
         label = c.step_label()

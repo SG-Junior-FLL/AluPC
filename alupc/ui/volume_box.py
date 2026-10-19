@@ -21,7 +21,7 @@ class VolumeBox(QWidget):
         self.mute_btn.setIconSize(QSize(20, 20))
         self.mute_btn.setToolTip("Ton der Medien auf dem Bildschirm aus/an")
         self.mute_btn.toggled.connect(lambda on: self.controller.set_media_volume(muted=on))
-        self.slider = Fader("Medien")
+        self.slider = Fader("Medien", icon_name="play")
         self.slider.setToolTip("Lautstärke der Medien auf dem Bildschirm")
         self.label = QLabel()  # Wert steht im Fader selbst; bleibt für Bedienhilfen
         self.label.hide()
@@ -119,6 +119,7 @@ class FaderPanel(QWidget):
     def __init__(self, volume_box: VolumeBox, parent=None):
         super().__init__(parent)
         self.pc = PcVolumeFader()
+        self._volume_box = volume_box
         self.setObjectName("FaderPanel")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.apply_theme()
@@ -129,7 +130,16 @@ class FaderPanel(QWidget):
         lay.addWidget(volume_box)
 
     def apply_theme(self) -> None:
-        """Eingelassener, dunkler Pultteil (wie die Fader-Sektion eines Mischpults)."""
+        """Technisch: eigenes Feld mit feinem Rand neben dem Bild; sonst ohne Rahmen."""
         t = theme.current()
-        inset = t.mix(t.bg, "#000000", 0.25).name() if t.dark else t.mix(t.bg, "#000000", 0.04).name()
-        self.setStyleSheet(f"#FaderPanel {{ background: {inset}; border: 1px solid {t.border}; border-radius: 8px; }}")
+        if t.technical:
+            self.setStyleSheet(f"#FaderPanel {{ background: {t.mix(t.bg, t.surface, 0.5).name()}; "
+                               f"border: 1px solid {t.border}; border-radius: {t.radii[0]}px; }}")
+        else:
+            self.setStyleSheet("#FaderPanel { background: transparent; border: none; }")
+        self.slider_names("PC", "Medien")
+
+    def slider_names(self, pc: str, media: str) -> None:
+        self.pc.fader.name = pc
+        if self._volume_box is not None:
+            self._volume_box.slider.name = media

@@ -54,7 +54,9 @@ from PySide6.QtWidgets import QApplication, QDialog, QWidget  # noqa: E402
 app = QApplication([])
 from alupc.ui import theme  # noqa: E402
 
-theme.apply(app, MODE, "alupc")
+STYLE = os.environ.get("ALUPC_TOUR_STYLE", "normal")  # „normal“, „technisch“ oder „holz“
+WOOD = os.environ.get("ALUPC_TOUR_WOOD", "nussbaum")  # Holzart im Holz-Stil
+theme.apply(app, MODE, "alupc", STYLE, WOOD)
 
 screens: list[dict] = []
 errors: list[str] = []
@@ -177,6 +179,7 @@ from alupc.ui.main_window import MainWindow  # noqa: E402
 config = Config(TMP / "cfg" / "AluPC" / "config.json")
 config["handy"] = {**config["handy"], "setup_done": True}
 config["first_run_done"] = True
+config["appearance"] = {**config["appearance"], "mode": MODE, "style": STYLE, "wood": WOOD}  # Bilder im gewählten Design
 config["cast"] = {**config["cast"], "port": 18760 + random.randint(0, 200), "code": "482913"}
 config.put_scene({"name": "Begrüßung", "layout": "vollbild", "background": "#000000",
                   "slots": [{"type": "design", "design": "willkommen"}]})
