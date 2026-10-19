@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QLayout,
     QPushButton,
     QSizePolicy,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
@@ -738,6 +739,91 @@ def _chip_pixmap(icon_name: str, color: str, size: int):
     icons.paint(p, icon_name, QRectF(size * 0.24, size * 0.24, size * 0.52, size * 0.52), "#ffffff", 2.0)
     p.end()
     return px
+
+
+# --------------------------------------------------------------------------- Fader (Pultregler)
+class Fader(QSlider):
+    """Senkrechter Schieberegler wie am Mischpult: dunkle Schiene mit Skala, Kappe mit Griffrille, Wert oben,
+    Name unten. Volle QSlider-Schnittstelle (value, valueChanged, isSliderDown …); Maus, Rad und Pfeiltasten."""
+
+    def __init__(self, name: str = "", parent=None):
+        super().__init__(Qt.Vertical, parent)
+        self.name = name
+        self.setRange(0, 100)
+        self.setFixedSize(64, 168)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.valueChanged.connect(lambda _v: self.update())
+
+    def _track(self) -> QRectF:
+        return QRectF(self.width() / 2 + 6 - 3, 30, 6, self.height() - 30 - 34)
+
+    def _value_at(self, y: float) -> int:
+        tr = self._track()
+        frac = 1 - (y - tr.top()) / max(1.0, tr.height())
+        return round(self.minimum() + max(0.0, min(1.0, frac)) * (self.maximum() - self.minimum()))
+
+    def mousePressEvent(self, e):
+        if e.button() != Qt.LeftButton or not self.isEnabled():
+            return super().mousePressEvent(e)
+        self.setSliderDown(True)
+        self.setValue(self._value_at(e.position().y()))
+        e.accept()
+
+    def mouseMoveEvent(self, e):
+        if self.isSliderDown():
+            self.setValue(self._value_at(e.position().y()))
+            e.accept()
+
+    def mouseReleaseEvent(self, e):
+        if self.isSliderDown():
+            self.setSliderDown(False)
+            e.accept()
+
+    def paintEvent(self, _e):
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        on = self.isEnabled()
+        tr = self._track()
+        span = max(1, self.maximum() - self.minimum())
+        frac = (self.value() - self.minimum()) / span
+        cap_y = tr.bottom() - frac * tr.height()
+        # Wert oben
+        p.setPen(QColor(t.text if on else t.muted))
+        p.setFont(font(10.5, QFont.DemiBold, head=True))
+        p.drawText(QRectF(0, 0, self.width(), 24), Qt.AlignCenter, f"{self.value()} %" if on else "–")
+        # Skala links neben der Schiene: alle 10 %, lang bei 0/50/100
+        p.setPen(QPen(QColor(t.muted), 1))
+        for i in range(11):
+            y = tr.bottom() - i / 10 * tr.height()
+            length = 10 if i in (0, 5, 10) else 5
+            p.drawLine(QPointF(tr.left() - 6 - length, y), QPointF(tr.left() - 6, y))
+        # Schiene (Schlitz im Pult) + Füllung bis zur Kappe
+        slot = QColor("#0b0c0e" if t.dark else "#9aa1ab")
+        p.setPen(QPen(QColor(t.border), 1))
+        p.setBrush(slot)
+        p.drawRoundedRect(tr, 3, 3)
+        if on and frac > 0:
+            fill = QColor(t.accent)
+            fill.setAlphaF(0.85)
+            p.setPen(Qt.NoPen)
+            p.setBrush(fill)
+            p.drawRoundedRect(QRectF(tr.left() + 1.5, cap_y, tr.width() - 3, tr.bottom() - cap_y - 1), 1.5, 1.5)
+        # Kappe mit Griffrille
+        cap = QRectF(tr.center().x() - 17, cap_y - 10, 34, 20)
+        face = QColor(t.mix(t.surface2, "#ffffff", 0.16 if t.dark else 0.0) if on else QColor(t.surface2))
+        p.setPen(QPen(QColor(t.accent) if (self.hasFocus() or self.isSliderDown()) else
+                      QColor(t.mix(t.border, t.text, 0.35)), 1))
+        p.setBrush(face)
+        p.drawRoundedRect(cap, 3, 3)
+        p.setPen(QPen(QColor(t.text if on else t.muted), 2))
+        p.drawLine(QPointF(cap.left() + 6, cap.center().y()), QPointF(cap.right() - 6, cap.center().y()))
+        # Name unten
+        p.setPen(QColor(t.text if on else t.muted))
+        p.setFont(font(11, QFont.DemiBold, head=True))
+        p.drawText(QRectF(0, self.height() - 26, self.width(), 24), Qt.AlignCenter, self.name)
+        p.end()
 
 
 # --------------------------------------------------------------------------- Hinweis (Toast)

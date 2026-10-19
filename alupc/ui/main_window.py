@@ -44,7 +44,7 @@ from .icons import app_icon
 from .program_dialog import ProgramDialog
 from .camera_bar import CameraBar
 from .media_bar import MediaBar
-from .volume_box import VolumeBox
+from .volume_box import FaderPanel, VolumeBox
 from .scene_editor import SceneEditor
 from .setup_page import SetupPage
 from .source_picker import IMAGE_FILTER, VIDEO_FILTER
@@ -548,8 +548,8 @@ class MainWindow(QMainWindow):
         self._preview_timer.timeout.connect(self._update_preview)
         self._preview_timer.start()
         self.volume_box = VolumeBox(self.controller)
-        self.status_card.actions.addStretch(1)
-        self.status_card.actions.addWidget(self.volume_box)
+        self.fader_panel = FaderPanel(self.volume_box)  # Regler wie am Mischpult: PC + Medien
+        self.status_card.actions.addWidget(self.fader_panel)
         lay.addWidget(self.status_card)
         self.media_bar = MediaBar(self.controller)
         lay.addWidget(self.media_bar)
@@ -1730,6 +1730,7 @@ class MainWindow(QMainWindow):
                 color = "#ffffff" if b.property("primary") else (t.danger if b.property("danger") else t.text)
                 b.setIcon(icons.icon(name, color, 18))
         self.media_bar.apply_theme()
+        self.fader_panel.apply_theme()
         self.camera_bar.apply_theme()
         self.refresh()
         for w in self.findChildren(QWidget):
@@ -1972,6 +1973,7 @@ class MainWindow(QMainWindow):
         self.stop_btn.setVisible(c.mode == "content")
         QTimer.singleShot(150, self._update_preview)  # Vorschau gleich nach dem Wechsel auffrischen
         self.volume_box.sync()
+        self.fader_panel.pc.refresh()  # PC-Lautstärke kann sich außerhalb von AluPC geändert haben
         self.media_bar.sync()
         self.camera_bar.sync()
         self._sync_tray_volume()

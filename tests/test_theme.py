@@ -122,3 +122,19 @@ def test_system_swatch_in_setup(env):  # noqa: F811
     sw = window.setup._swatches
     assert list(sw)[:2] == ["alupc", "system"] and sw["system"].system and sw["alupc"].brand
     assert sw["alupc"].isChecked() and not sw["system"].isChecked()  # Voreinstellung: AluPC-Theme
+
+
+def test_dark_is_default_and_old_system_default_migrates(tmp_path):
+    """Regiepult: Dunkel ist Standard; die alte Voreinstellung „Wie das System“ wird einmal dunkel, „Hell“ bleibt."""
+    from alupc.config import Config
+
+    assert Config(tmp_path / "neu.json")["appearance"]["mode"] == "dunkel"
+    p = tmp_path / "alt.json"
+    p.write_text(json.dumps({"appearance": {"mode": "system", "accent": "alupc", "accent_v2": True,
+                                            "accent_v3": True}}), encoding="utf-8")
+    assert Config(p)["appearance"]["mode"] == "dunkel"
+    p.write_text(json.dumps({"appearance": {"mode": "hell", "accent_v2": True, "accent_v3": True}}), encoding="utf-8")
+    assert Config(p)["appearance"]["mode"] == "hell"
+    p.write_text(json.dumps({"appearance": {"mode": "system", "accent_v2": True, "accent_v3": True,
+                                            "mode_v2": True}}), encoding="utf-8")
+    assert Config(p)["appearance"]["mode"] == "system"  # danach bewusst „Wie das System“ → bleibt

@@ -9,15 +9,14 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 1.1.0 – Design „Regiepult“
-- **Komplett neues Aussehen** nach dem Vorbild eines TV-Bildmischers: Graphit (dunkel) bzw. Alu (hell),
-  keine Verläufe und Leuchteffekte mehr. Alle Funktionen und der Aufbau bleiben gleich.
-- **Kacheln sind Pulttasten:** Was auf dem Bildschirm läuft, zeigt eine rote Leuchte mit rotem Balken.
-  Rot bedeutet überall nur „läuft gerade“. Das Programmbild auf der Startseite ist größer, mit rotem Rahmen bei „Live“.
-- **Neue Überschriften-Schrift** (Barlow Semi Condensed, mitgeliefert). Keine Großbuchstaben-Etiketten mehr.
-- **Handy-/iPad-Seite und Anzeigen auf Monitor 2** (Abstimmung, Glücksrad, Codes, Spiele-Überschriften) im selben Stil.
-  Die Schrift kommt vom PC, auch ohne Internet im AluPC-WLAN.
-- **Nicht getestet** auf echten Monitoren, Handys und iPads – nur automatische Tests und Bildschirmfotos.
+### Neu in 1.2.0 – mehr Regiepult
+- **Regler wie am Mischpult:** Auf der Startseite steht neben dem Programmbild ein Regler-Pult mit senkrechten
+  Fadern: „PC“ (Lautstärke des Computers) und „Medien“ (Ton von Video/Website auf dem Bildschirm, nur wenn etwas
+  mit Ton läuft). Alle anderen Schieberegler sehen jetzt ebenfalls wie Fader aus (auch auf der Handy-Seite).
+- **Mehr Dunkelmodus:** dunklere Graphit-Töne; Dunkel ist Standard. Wer bisher „Wie das System“ hatte (die alte
+  Voreinstellung), bekommt einmal Dunkel – „Hell“ bleibt wählbar. Die Handy-/iPad-Seite ist immer dunkel.
+- **Nicht getestet** auf echten Geräten. Der PC-Fader braucht einen Audio-Dienst (Windows: Core Audio,
+  Linux: PipeWire/PulseAudio); ohne ist er ausgegraut.
 
 ### Frühere Versionen
 [CHANGELOG](https://github.com/SG-Junior-FLL/AluPC/blob/main/docs/CHANGELOG.md)

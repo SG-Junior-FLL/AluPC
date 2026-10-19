@@ -169,31 +169,31 @@ class PhotoWall:
 PHOTO_PAGE = """<!doctype html>
 <html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#16181c"><title>AluPC – Foto-Wand</title>
+<meta name="theme-color" content="#111316"><title>AluPC – Foto-Wand</title>
 <style>
 :root { color-scheme: dark; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; min-height: 100vh; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #eceef1;
-  background: radial-gradient(circle at 80% 0%, #831843 0, #16181c 55%); }
+  background: radial-gradient(circle at 80% 0%, #831843 0, #111316 55%); }
 main { max-width: 520px; margin: 0 auto; padding: 18px 16px 40px; display: flex; flex-direction: column; gap: 14px; }
 header { display: flex; align-items: center; gap: 10px; }
 header .logo { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg,#ec4899,#f59e0b);
   display: flex; align-items: center; justify-content: center; font-size: 20px; }
-header b { font-size: 19px; } header small { display: block; color: #9aa1ac; font-size: 12.5px; }
+header b { font-size: 19px; } header small { display: block; color: #979ea9; font-size: 12.5px; }
 header a { margin-left: auto; color: #f9a8d4; text-decoration: none; font-size: 14px; }
-input[type=text] { width: 100%; font-size: 17px; padding: 13px 14px; border-radius: 14px; border: 2px solid #363b42;
-  background: #1f2227; color: #fff; }
+input[type=text] { width: 100%; font-size: 17px; padding: 13px 14px; border-radius: 14px; border: 2px solid #30353c;
+  background: #191c20; color: #fff; }
 label.pick { display: block; text-align: center; padding: 26px 16px; border-radius: 20px; font-size: 21px; font-weight: 800;
   background: linear-gradient(135deg,#ec4899,#f59e0b); cursor: pointer; }
 label.pick small { display: block; font-size: 13px; font-weight: 600; opacity: .9; margin-top: 4px; }
 input[type=file] { display: none; }
 #bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; display: none; }
 #bar div { height: 100%; width: 0; background: linear-gradient(90deg,#f472b6,#fbbf24); transition: width .2s; }
-#info { text-align: center; color: #9aa1ac; font-size: 14.5px; min-height: 20px; }
+#info { text-align: center; color: #979ea9; font-size: 14.5px; min-height: 20px; }
 #info.ok { color: #86efac; } #info.err { color: #fca5a5; }
 h2 { font-size: 15px; color: #cbd5e1; margin: 8px 0 0; }
 #grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-#grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; background: #292d33; }
+#grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; background: #23272c; }
 /* iPad/Tablet: breiter, mehr Fotos pro Reihe */
 @media (min-width: 700px) {
   main { max-width: 900px; padding: 28px 28px 48px; gap: 16px; }

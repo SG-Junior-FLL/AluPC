@@ -7,24 +7,24 @@ Klappt das nicht (alter Browser, Netz), fragt die Seite den Stand alle 0,4 s ab 
 GAME_PAGE = r"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#16181c"><title>AluPC – Spiel</title>
+<meta name="theme-color" content="#111316"><title>AluPC – Spiel</title>
 <style>
 :root { color-scheme: dark; --c: #3b82f6; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; touch-action: manipulation; }
 body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #eceef1;
-  background: radial-gradient(circle at 50% 0%, #292d33 0, #16181c 70%); display: flex; flex-direction: column; }
+  background: radial-gradient(circle at 50% 0%, #23272c 0, #111316 70%); display: flex; flex-direction: column; }
 header { padding: 14px 16px 6px; display: flex; align-items: center; gap: 10px; }
 .dot { width: 16px; height: 16px; border-radius: 50%; background: var(--c); box-shadow: 0 0 14px var(--c); flex: none; }
 header b { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-header span { color: #9aa1ac; font-size: 13px; margin-left: auto; white-space: nowrap; }
+header span { color: #979ea9; font-size: 13px; margin-left: auto; white-space: nowrap; }
 #net { width: 8px; height: 8px; border-radius: 50%; background: #64748b; flex: none; }
 #net.on { background: #22c55e; }
 main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 8px 16px 20px; gap: 14px; min-height: 0; }
 h1 { font-size: 26px; margin: 0; text-align: center; }
-p { color: #9aa1ac; text-align: center; margin: 0; font-size: 15px; line-height: 1.4; }
-input { font: inherit; font-size: 20px; padding: 14px 16px; border-radius: 14px; border: 2px solid #363b42; background: #1f2227;
+p { color: #979ea9; text-align: center; margin: 0; font-size: 15px; line-height: 1.4; }
+input { font: inherit; font-size: 20px; padding: 14px 16px; border-radius: 14px; border: 2px solid #30353c; background: #191c20;
   color: #fff; width: 100%; max-width: 380px; text-align: center; -webkit-user-select: text; user-select: text; }
 button { font: inherit; font-weight: 700; border: 0; color: #fff; cursor: pointer; touch-action: manipulation; }
 button:disabled { opacity: .35; }
@@ -40,51 +40,51 @@ button:disabled { opacity: .35; }
 .tap.go { --c: #16a34a; } .tap.wait { --c: #b91c1c; }
 .hit { transform: scale(.94); filter: brightness(1.2); }
 .pad { display: grid; grid-template-columns: repeat(3, min(26vw, 18vh)); grid-template-rows: repeat(3, min(26vw, 18vh)); gap: 10px; }
-.pad button { border-radius: 22px; background: #292d33; font-size: 34px; border: 2px solid #363b42; }
+.pad button { border-radius: 22px; background: #23272c; font-size: 34px; border: 2px solid #30353c; }
 .pad button.hit { background: var(--c); border-color: var(--c); }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 420px; }
-.grid button { border-radius: 18px; background: #292d33; border: 2px solid #363b42; font-size: 26px; padding: 26px 8px; }
-.grid button.hit { background: #eceef1; color: #16181c; }
+.grid button { border-radius: 18px; background: #23272c; border: 2px solid #30353c; font-size: 26px; padding: 26px 8px; }
+.grid button.hit { background: #eceef1; color: #111316; }
 .grid.column { grid-template-columns: 1fr; gap: 10px; }
 .ttt { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: min(92vw, 420px); aspect-ratio: 1; margin: 0 auto; }
-.ttt button { font-size: min(18vw, 84px); font-weight: 900; border-radius: 16px; border: 2px solid #363b42; background: #292d33; color: #fff; padding: 0; line-height: 1; }
+.ttt button { font-size: min(18vw, 84px); font-weight: 900; border-radius: 16px; border: 2px solid #30353c; background: #23272c; color: #fff; padding: 0; line-height: 1; }
 .ttt button.set.X { color: #ef4444; } .ttt button.set.O { color: #3b82f6; }
-.ttt button.vote { border-color: var(--c); color: color-mix(in srgb, var(--c) 60%, transparent); background: color-mix(in srgb, var(--c) 18%, #292d33); }
-.ttt button.win { background: color-mix(in srgb, #facc15 30%, #292d33); border-color: #facc15; }
+.ttt button.vote { border-color: var(--c); color: color-mix(in srgb, var(--c) 60%, transparent); background: color-mix(in srgb, var(--c) 18%, #23272c); }
+.ttt button.win { background: color-mix(in srgb, #facc15 30%, #23272c); border-color: #facc15; }
 .ttt.off button:not(.set) { opacity: .45; }
 .grid.column button { font-size: 30px; padding: 22px 8px; }
 .simon { grid-template-columns: 1fr 1fr; gap: 14px; max-width: min(420px, 52vh); }
 .simon button { aspect-ratio: 1; border: 0; padding: 0; background: var(--b); filter: saturate(.75) brightness(.7); }
 .simon button.hit { filter: saturate(1.2) brightness(1.3); box-shadow: 0 0 40px var(--b); }
-.track { position: relative; width: min(52vw, 260px); height: min(62vh, 520px); border-radius: 28px; background: #292d33;
-  border: 2px solid #363b42; touch-action: none; }
+.track { position: relative; width: min(52vw, 260px); height: min(62vh, 520px); border-radius: 28px; background: #23272c;
+  border: 2px solid #30353c; touch-action: none; }
 .thumb { position: absolute; left: 8px; right: 8px; height: 26%; border-radius: 20px; background: var(--c);
   box-shadow: 0 0 24px var(--c); top: 37%; }
 .tet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: min(94vw, 440px); }
-.tet button { border-radius: 20px; background: #292d33; border: 2px solid #363b42; font-size: 34px; padding: 0;
+.tet button { border-radius: 20px; background: #23272c; border: 2px solid #30353c; font-size: 34px; padding: 0;
   height: min(17vh, 120px); touch-action: none; }
 .tet button.row { grid-column: span 3; height: min(11vh, 80px); }
 .tet button.wide { grid-column: span 3; height: min(13vh, 90px); font-size: 26px; font-weight: 800; background: var(--c); border-color: var(--c); }
 .tet button.hit { background: var(--c); border-color: var(--c); }
 .nextp { display: grid; grid-template-columns: repeat(4, 14px); grid-auto-rows: 14px; gap: 2px; }
-.nextp span { border-radius: 3px; } .nextrow { display: flex; align-items: center; gap: 10px; color: #9aa1ac; font-size: 14px; }
+.nextp span { border-radius: 3px; } .nextrow { display: flex; align-items: center; gap: 10px; color: #979ea9; font-size: 14px; }
 #area { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; min-height: 0; }
 .bbox { height: 34vh; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; }
 .avatars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; width: 100%; max-width: 380px; }
-.avatars button { font-size: 26px; padding: 6px 0; border-radius: 12px; background: #292d33; border: 2px solid transparent; }
-.avatars button.sel { border-color: var(--c); background: #363b42; }
+.avatars button { font-size: 26px; padding: 6px 0; border-radius: 12px; background: #23272c; border: 2px solid transparent; }
+.avatars button.sel { border-color: var(--c); background: #30353c; }
 #ava { font-size: 22px; line-height: 1; }
 .c4 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; width: min(94vw, 460px); padding: 8px;
-  border-radius: 18px; background: #363b42; touch-action: none; }
-.c4 span { aspect-ratio: 1; border-radius: 50%; background: #16181c; }
+  border-radius: 18px; background: #30353c; touch-action: none; }
+.c4 span { aspect-ratio: 1; border-radius: 50%; background: #111316; }
 .c4 span.X { background: #ef4444; } .c4 span.O { background: #3b82f6; }
 .c4 span.win { box-shadow: 0 0 0 4px #facc15; }
 .c4cols { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; width: min(94vw, 460px); padding: 0 8px; }
-.c4cols button { height: min(13vh, 90px); border-radius: 14px; background: #292d33; border: 2px solid #363b42; font-size: 26px; padding: 0; }
+.c4cols button { height: min(13vh, 90px); border-radius: 14px; background: #23272c; border: 2px solid #30353c; font-size: 26px; padding: 0; }
 .c4cols button.vote { background: var(--c); border-color: var(--c); }
 .c4.off { opacity: .7; }
-.htrack { position: relative; width: min(94vw, 460px); height: min(16vh, 110px); border-radius: 26px; background: #292d33;
-  border: 2px solid #363b42; touch-action: none; }
+.htrack { position: relative; width: min(94vw, 460px); height: min(16vh, 110px); border-radius: 26px; background: #23272c;
+  border: 2px solid #30353c; touch-action: none; }
 .hthumb { position: absolute; top: 8px; bottom: 8px; width: 22%; border-radius: 18px; background: var(--c); box-shadow: 0 0 24px var(--c); left: 39%; }
 .fire { width: min(94vw, 460px); height: min(26vh, 200px); border-radius: 26px; font-size: 34px; letter-spacing: 2px;
   background: radial-gradient(circle at 40% 30%, #fb7185, #e11d48); box-shadow: 0 12px 34px rgba(225,29,72,.45); touch-action: none; }
@@ -98,13 +98,13 @@ button:disabled { opacity: .35; }
 .paint .tools { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; align-items: center; }
 .paint .sw { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; padding: 0; }
 .paint .sw.on { border-color: #fff; transform: scale(1.12); }
-.paint .tb { padding: 8px 12px; border-radius: 12px; border: 0; background: #292d33; color: #fff; font-weight: 800; font-size: 15px; }
+.paint .tb { padding: 8px 12px; border-radius: 12px; border: 0; background: #23272c; color: #fff; font-weight: 800; font-size: 15px; }
 .paint .tb.on { background: var(--c); }
 .guess { display: flex; flex-direction: column; gap: 12px; width: min(94vw, 480px); margin: 0 auto; }
 .guess .hint { text-align: center; font-size: 26px; font-weight: 900; letter-spacing: .12em; }
-.guess input { width: 100%; font-size: 22px; padding: 16px; border-radius: 16px; border: 2px solid #363b42; background: #1f2227; color: #fff; }
+.guess input { width: 100%; font-size: 22px; padding: 16px; border-radius: 16px; border: 2px solid #30353c; background: #191c20; color: #fff; }
 .guess button { padding: 16px; border-radius: 16px; border: 0; font-size: 20px; font-weight: 900; color: #fff; background: var(--c); }
-.guess .last { text-align: center; color: #9aa1ac; min-height: 1.2em; }
+.guess .last { text-align: center; color: #979ea9; min-height: 1.2em; }
 </style></head><body>
 <header><div class="dot" id="dot"></div><span id="ava"></span><b id="who">AluPC-Spiel</b><span id="count"></span><i id="net"></i></header>
 <main id="join">

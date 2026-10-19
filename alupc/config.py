@@ -167,7 +167,8 @@ DEFAULTS: dict = {
     "first_run_done": False,
     # Windows 11: AluPC-Symbol wurde für diesen Programmpfad schon direkt in die Taskleiste gelegt
     "tray": {"promoted_for": ""},
-    "appearance": {"mode": "system", "accent": "alupc", "accent_v2": True, "accent_v3": True, "fade": True},
+    "appearance": {"mode": "dunkel", "accent": "alupc", "accent_v2": True, "accent_v3": True, "mode_v2": True,
+                   "fade": True},
     # Übergang zwischen Inhalten/Szenen auf Monitor 2 (Art siehe transitions.py); Szenen können
     # einen eigenen Übergang haben
     "transition": {"type": "blende", "ms": 400},
@@ -249,6 +250,10 @@ class Config:
                     ap["accent_v3"] = True
                     if ap.get("accent") in ("system", None):  # Voreinstellung → eigenes AluPC-Theme
                         ap["accent"] = "alupc"
+                if isinstance(ap, dict) and not (raw.get("appearance") or {}).get("mode_v2"):  # 1.2: Regiepult dunkel
+                    ap["mode_v2"] = True
+                    if ap.get("mode") in ("system", None):  # Voreinstellung → Dunkel (bewusst „Hell“ bleibt)
+                        ap["mode"] = "dunkel"
         except FileNotFoundError:
             pass
         except (OSError, ValueError):

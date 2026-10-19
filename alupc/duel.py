@@ -356,17 +356,17 @@ PHONE_PAGE = r"""<!doctype html><html lang="de"><head><meta charset="utf-8">
 <title>AluPC – Schiffe versenken</title><style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overscroll-behavior:none}
-body{font-family:system-ui,-apple-system,sans-serif;background:#16181c;color:#eceef1;touch-action:manipulation;
+body{font-family:system-ui,-apple-system,sans-serif;background:#111316;color:#eceef1;touch-action:manipulation;
 padding:max(12px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom));display:flex;flex-direction:column;
 gap:12px;align-items:center;-webkit-user-select:none;user-select:none}
 h1{margin:0;font-size:20px}
-.msg{width:min(94vw,520px);font-size:18px;font-weight:800;text-align:center;padding:12px 14px;border-radius:16px;background:#292d33}
+.msg{width:min(94vw,520px);font-size:18px;font-weight:800;text-align:center;padding:12px 14px;border-radius:16px;background:#23272c}
 .msg.turn{background:linear-gradient(135deg,#16a34a,#0d9488)}.msg.win{background:linear-gradient(135deg,#ca8a04,#db2777)}
 .sub{font-size:13px;font-weight:600;opacity:.85;display:block;margin-top:3px}
-.hint{font-size:13px;color:#9aa1ac;text-align:center}
+.hint{font-size:13px;color:#979ea9;text-align:center}
 .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:min(80vw,46dvh,340px);aspect-ratio:1}
-.pad button,.b{border:0;border-radius:20px;font-weight:900;color:#fff;background:#292d33;font-size:30px}
-.pad button:active,.b:active{transform:scale(.95);background:#363b42}
+.pad button,.b{border:0;border-radius:20px;font-weight:900;color:#fff;background:#23272c;font-size:30px}
+.pad button:active,.b:active{transform:scale(.95);background:#30353c}
 .pad .ok{background:linear-gradient(135deg,#5b8def,#ec4899);font-size:20px}
 .pad .ok.fire{background:linear-gradient(135deg,#dc2626,#f97316)}
 .pad .e{visibility:hidden}
@@ -375,7 +375,7 @@ h1{margin:0;font-size:20px}
 .b.p{background:linear-gradient(135deg,#16a34a,#0d9488)}.b:disabled{opacity:.4}
 .cell{font-size:15px;font-weight:800;color:#a5b4fc}
 #join{display:none;flex-direction:column;gap:12px;width:min(94vw,420px);margin-top:8vh}
-#join input{font-size:20px;padding:14px;border-radius:16px;border:2px solid #363b42;background:#1f2227;color:#fff}
+#join input{font-size:20px;padding:14px;border-radius:16px;border:2px solid #30353c;background:#191c20;color:#fff}
 body.joining > :not(h1):not(#join){display:none!important}body.joining #join{display:flex}
 @media (orientation:landscape) and (min-width:700px){body{display:grid;grid-template-columns:1fr 1fr;align-items:center;
  justify-items:center;column-gap:28px}h1,.msg{grid-column:1/-1}.pad{width:min(40vw,62dvh,380px)}#side{display:flex;

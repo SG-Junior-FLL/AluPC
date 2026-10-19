@@ -18,8 +18,8 @@ ACCENTS = {
 }
 MODES = {"system": "Wie das System", "dunkel": "Dunkel", "hell": "Hell"}
 # Anzeigen auf Monitor 2 (Abstimmung, Glücksrad, Codes …): ruhiger Graphit-Grund wie im Regiepult
-STAGE_BG = "#121417"
-STAGE_PANEL = "#1f2227"
+STAGE_BG = "#0e1013"
+STAGE_PANEL = "#191c20"
 
 
 @dataclass
@@ -203,8 +203,8 @@ def make_theme(mode: str = "system", accent: str = "blau") -> Theme:
     else:
         accent_hex = ACCENTS[key][1]
     if dark:
-        return Theme(True, accent_hex, bg="#16181c", surface="#1f2227", surface2="#292d33", border="#363b42",
-                     text="#eceef1", muted="#9aa1ac", accent2=accent_hex, danger="#f2555a", live="#e5484d",
+        return Theme(True, accent_hex, bg="#111316", surface="#191c20", surface2="#23272c", border="#30353c",
+                     text="#eceef1", muted="#979ea9", accent2=accent_hex, danger="#f2555a", live="#e5484d",
                      ready="#30a46c")
     return Theme(False, accent_hex, bg="#e6e8eb", surface="#f6f7f8", surface2="#ffffff", border="#c9ced5",
                  text="#15181c", muted="#59616c", accent2=accent_hex, danger="#d93a40", live="#d93a40",
@@ -401,6 +401,30 @@ def _check_image() -> str:
         return ""
 
 
+def _fader_image(t: Theme) -> str:
+    """Griffrille der Fader-Kappe (waagerechter Strich) als kleines Bild für das Stylesheet."""
+    import tempfile
+    from pathlib import Path
+
+    from PySide6.QtGui import QImage, QPainter, QPen
+
+    path = Path(tempfile.gettempdir()) / f"alupc-fader-{'d' if t.dark else 'h'}.png"
+    try:
+        if not path.exists():
+            img = QImage(28, 44, QImage.Format_ARGB32)
+            img.fill(Qt.transparent)
+            p = QPainter(img)
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setPen(QPen(QColor(t.text), 3))
+            p.drawLine(5, 22, 23, 22)
+            p.end()
+            img.setDevicePixelRatio(2)
+            img.save(str(path))
+        return path.as_posix()
+    except OSError:
+        return ""
+
+
 def stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
     """Regiepult (docs/DESIGN.md): flache Flächen, Fugen statt Schatten, Rundung nach Rang (Pult 10, Taste 6),
     Tasten mit hellerer Oberkante. Keine Verläufe, kein Glas."""
@@ -416,6 +440,9 @@ def stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
     sel = t.soft(a1, 0.20 if t.dark else 0.13)
     side = t.mix(t.bg, "#000000", 0.18).name() if t.dark else t.surface
     field = t.mix(t.bg, t.surface, 0.5).name() if t.dark else "#ffffff"
+    slot = "#08090b" if t.dark else "#aab1ba"  # Schlitz im Pult
+    cap = t.mix(t.surface2, "#ffffff", 0.16).name() if t.dark else "#ffffff"  # Fader-Kappe
+    fader_image = _fader_image(t)
     return f"""
 * {{ outline: none; }}
 QWidget {{ color: {t.text}; }}
@@ -516,15 +543,16 @@ QScrollBar::handle:horizontal:hover {{ background: {t.muted}; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
 
-QSlider::groove:horizontal {{ height: 4px; background: {t.border}; border-radius: 2px; }}
-QSlider::sub-page:horizontal {{ background: {a1}; border-radius: 2px; }}
-QSlider::handle:horizontal {{ background: {t.surface2}; border: 1px solid {t.mix(t.border, t.text, 0.3).name()};
-    border-top-color: {key_top}; width: 12px; height: 20px; margin: -9px 0; border-radius: 3px; }}
+QSlider::groove:horizontal {{ height: 6px; background: {slot}; border: 1px solid {t.border}; border-radius: 3px; }}
+QSlider::sub-page:horizontal {{ background: {a1}; border: 1px solid {t.border}; border-radius: 3px; }}
+QSlider::handle:horizontal {{ background: {cap}; border: 1px solid {t.mix(t.border, t.text, 0.35).name()};
+    width: 14px; height: 22px; margin: -9px 0; border-radius: 3px;
+    {f'image: url("{fader_image}");' if fader_image else ''} }}
 QSlider::handle:horizontal:hover {{ border-color: {a1}; }}
-QSlider::groove:vertical {{ width: 4px; background: {t.border}; border-radius: 2px; }}
-QSlider::add-page:vertical {{ background: {a1}; border-radius: 2px; }}
-QSlider::handle:vertical {{ background: {t.surface2}; border: 1px solid {t.mix(t.border, t.text, 0.3).name()};
-    height: 12px; width: 22px; margin: 0 -9px; border-radius: 3px; }}
+QSlider::groove:vertical {{ width: 6px; background: {slot}; border: 1px solid {t.border}; border-radius: 3px; }}
+QSlider::add-page:vertical {{ background: {a1}; border: 1px solid {t.border}; border-radius: 3px; }}
+QSlider::handle:vertical {{ background: {cap}; border: 1px solid {t.mix(t.border, t.text, 0.35).name()};
+    height: 14px; width: 26px; margin: 0 -11px; border-radius: 3px; }}
 
 QProgressBar {{ background: {t.border}; border: none; border-radius: 3px; height: 8px; text-align: center; }}
 QProgressBar::chunk {{ background: {a1}; border-radius: 3px; }}

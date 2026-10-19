@@ -341,14 +341,11 @@ body.heftmode nav, body.heftmode header { display:none; }
 /* ===== Regiepult (docs/DESIGN.md): Graphit/Alu, Pultschrift, Rot nur für „läuft“ – überschreibt die Grundwerte oben */
 @font-face { font-family:"Pult"; src:url("/schrift/pult-600.ttf") format("truetype"); font-weight:600; font-display:swap; }
 @font-face { font-family:"Pult"; src:url("/schrift/pult-700.ttf") format("truetype"); font-weight:700; font-display:swap; }
-:root { --bg:#16181c; --card:#1f2227; --card2:#292d33; --text:#eceef1; --muted:#9aa1ac; --line:#363b42;
-        --accent:#5b8def; --on:#5b8def; --live:#e5484d; --bad:#e5484d; --ok:#30a46c; --nav:#1f2227;
+:root { --bg:#111316; --card:#191c20; --card2:#23272c; --text:#eceef1; --muted:#979ea9; --line:#30353c;
+        --accent:#5b8def; --on:#5b8def; --live:#e5484d; --bad:#e5484d; --ok:#30a46c; --nav:#191c20;
         --keytop:rgba(255,255,255,.07); --pult:"Pult","Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif; }
-@media (prefers-color-scheme: light) {
-  :root { --bg:#e6e8eb; --card:#f6f7f8; --card2:#ffffff; --text:#15181c; --muted:#59616c; --line:#c9ced5;
-          --accent:#2f6fdb; --on:#2f6fdb; --live:#d93a40; --bad:#d93a40; --ok:#218358; --nav:#f6f7f8;
-          --keytop:rgba(0,0,0,0); }
-}
+/* immer dunkel (Regiepult) – auch wenn das Handy hell eingestellt ist */
+:root { color-scheme:dark; }
 body::before { display:none; }
 header { background:var(--bg); border-bottom:1px solid var(--line); margin:0 -14px 12px; padding-left:16px; padding-right:16px; }
 header h1, .card h2, nav button, .tile, .clicker button { font-family:var(--pult); }
@@ -373,6 +370,14 @@ button.primary, .btn.primary { background:var(--accent); color:#fff; border-colo
 .badge i { background:var(--live); animation:none; }
 input[type=text], input[type=url], textarea, select { border-radius:6px; background:var(--card2); border:1px solid var(--line); }
 input[type=range] { accent-color:var(--accent); }
+/* Schieberegler wie Fader: dunkler Schlitz, Kappe mit Griffrille */
+input[type=range] { -webkit-appearance:none; appearance:none; background:transparent; height:34px; }
+input[type=range]::-webkit-slider-runnable-track { height:6px; background:#08090b; border:1px solid var(--line); border-radius:3px; }
+input[type=range]::-moz-range-track { height:6px; background:#08090b; border:1px solid var(--line); border-radius:3px; }
+input[type=range]::-moz-range-progress { height:6px; background:var(--accent); border-radius:3px; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:30px; margin-top:-13px; border-radius:3px;
+  border:1px solid #4a5059; background:linear-gradient(transparent 44%, #eceef1 44%, #eceef1 56%, transparent 56%), #3a3f47; }
+input[type=range]::-moz-range-thumb { width:18px; height:30px; border-radius:3px; border:1px solid #4a5059; background:#3a3f47; }
 .pad { border-radius:8px; } .pad.active { border-color:var(--accent); }
 .preview { border-radius:6px; }
 nav { background:var(--nav); border:1px solid var(--line); border-radius:10px; box-shadow:none;

@@ -466,7 +466,7 @@ FONT_FILES = {"/schrift/pult-600.ttf": "BarlowSemiCondensed-SemiBold.ttf",
 PUBLIC_PATHS = {"/icon.png", "/apple-touch-icon.png", "/favicon.ico", "/manifest.json", *FONT_FILES}
 BLOCKED_PAGE = """<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>AluPC</title>
-<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#16181c;
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#111316;
 color:#eceef1;font:16px system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
 b{font-size:22px;display:block;margin-bottom:10px}</style></head><body><div>
 <b>📶 Nur über das AluPC-WLAN</b>Scanne zuerst den WLAN-Code auf dem Bildschirm, dann den Code der Seite.</div></body></html>"""
@@ -809,7 +809,7 @@ def _make_handler(server: CastServer):
             elif path == "/manifest.json":  # „Zum Home-Bildschirm“: öffnet wie eine App (ohne Browserleiste)
                 self._send(200, json.dumps({"name": "AluPC-Fernbedienung", "short_name": "AluPC",
                                             "start_url": "/", "display": "standalone",
-                                            "background_color": "#16181c", "theme_color": "#16181c",
+                                            "background_color": "#111316", "theme_color": "#111316",
                                             "icons": [{"src": "/icon.png", "sizes": "192x192",
                                                        "type": "image/png"}]}).encode(),
                            "application/manifest+json")

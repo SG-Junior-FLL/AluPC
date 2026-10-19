@@ -4,6 +4,16 @@ Die aktuellen Neuerungen stehen in den [Release-Notizen](../packaging/RELEASE_NO
 [Release-Seite](https://github.com/SG-Junior-FLL/AluPC/releases).
 
 
+## 1.1.0 – Design „Regiepult“
+- **Komplett neues Aussehen** nach dem Vorbild eines TV-Bildmischers: Graphit (dunkel) bzw. Alu (hell),
+  keine Verläufe und Leuchteffekte mehr. Alle Funktionen und der Aufbau bleiben gleich.
+- **Kacheln sind Pulttasten:** Was auf dem Bildschirm läuft, zeigt eine rote Leuchte mit rotem Balken.
+  Rot bedeutet überall nur „läuft gerade“. Das Programmbild auf der Startseite ist größer, mit rotem Rahmen bei „Live“.
+- **Neue Überschriften-Schrift** (Barlow Semi Condensed, mitgeliefert). Keine Großbuchstaben-Etiketten mehr.
+- **Handy-/iPad-Seite und Anzeigen auf Monitor 2** (Abstimmung, Glücksrad, Codes, Spiele-Überschriften) im selben Stil.
+  Die Schrift kommt vom PC, auch ohne Internet im AluPC-WLAN.
+- **Nicht getestet** auf echten Monitoren, Handys und iPads – nur automatische Tests und Bildschirmfotos.
+
 ## 1.0.0
 - **Zeichnen am iPad/Handy ohne spürbare Verzögerung:** dauerhafte Verbindung (WebSocket) statt Abfragen – jedes
   neue Bild vom PC kommt sofort, Striche und Zoom gehen ohne Umweg raus. Der PC zeichnet ein neues Bild, sobald sich
