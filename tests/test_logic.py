@@ -721,7 +721,8 @@ def test_handy_setup_plan(monkeypatch, tmp_path):
     monkeypatch.setattr(handy, "bonjour_installed", lambda: False)
     monkeypatch.setattr(handy, "find_uxplay_windows", lambda configured="": None)
     plan = handy.setup_plan(cfg)
-    assert [p[1][3] for p in plan] == ["Apple.Bonjour", "leapbtw.uxplay"]
+    # über AluPC selbst (merkt sich, was neu installiert wurde – Deinstallation kann es wieder entfernen)
+    assert [p[1][-2:] for p in plan] == [["--zusatz", "installieren=bonjour"], ["--zusatz", "installieren=uxplay"]]
     monkeypatch.setattr(handy, "find_uxplay_windows", lambda configured="": r"C:\x\uxplay-windows.exe")
     monkeypatch.setattr(handy, "bonjour_installed", lambda: True)
     assert handy.setup_plan(cfg) == []

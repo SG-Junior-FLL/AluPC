@@ -50,6 +50,9 @@ apt-get -o DPkg::Lock::Timeout=600 install -y "./$deb" && echo && echo "✔ AluP
 status=$?
 # RGB & Lüfter: Sensoren (lm-sensors) und OpenRGB – OpenRGB gibt es erst ab Ubuntu 25.04 in den Paketquellen
 if [ $status -eq 0 ]; then
+    # was hier NEU dazukommt, wird als „automatisch“ markiert: nach dem Entfernen von AluPC räumt
+    # „sudo apt autoremove“ es mit weg (vorher schon vorhandene Pakete bleiben, wie sie sind)
+    neu=""; for p in lm-sensors i2c-tools openrgb v4l2loopback-dkms; do dpkg -s "$p" >/dev/null 2>&1 || neu="$neu $p"; done
     apt-get -o DPkg::Lock::Timeout=600 install -y lm-sensors i2c-tools >/dev/null 2>&1 && echo "✔ Sensoren (lm-sensors) installiert"
     if apt-get -o DPkg::Lock::Timeout=600 install -y openrgb >/dev/null 2>&1; then
         echo "✔ OpenRGB installiert (RGB-Beleuchtung)"
@@ -70,6 +73,7 @@ if [ $status -eq 0 ]; then
     else
         echo "ℹ Virtuelle Kamera: v4l2loopback ließ sich nicht installieren – später in AluPC „Einrichten“"
     fi
+    for p in $neu; do dpkg -s "$p" >/dev/null 2>&1 && apt-mark auto "$p" >/dev/null 2>&1 || true; done
 fi
 if ! [ -t 0 ]; then sleep 4; fi
 exit $status

@@ -74,6 +74,7 @@ PACTL_SCRIPT = """set -e
 # pactl (Ton steuern, Mischpult, virtuelle Mikros) – kommt NICHT mit pipewire-pulse, sondern mit pulseaudio-utils
 if ! command -v pactl >/dev/null; then
   if command -v apt-get >/dev/null; then DEBIAN_FRONTEND=noninteractive apt-get install -y pulseaudio-utils
+    apt-mark auto pulseaudio-utils >/dev/null 2>&1 || true  # „apt autoremove“ nimmt es nach AluPC mit
   elif command -v dnf >/dev/null; then dnf install -y pulseaudio-utils
   elif command -v pacman >/dev/null; then pacman -S --noconfirm libpulse
   elif command -v zypper >/dev/null; then zypper --non-interactive install pulseaudio-utils
@@ -96,6 +97,7 @@ def _camera_script() -> str:
     return f"""set -e
 if ! modinfo v4l2loopback >/dev/null 2>&1; then
   if command -v apt-get >/dev/null; then DEBIAN_FRONTEND=noninteractive apt-get install -y v4l2loopback-dkms
+    apt-mark auto v4l2loopback-dkms >/dev/null 2>&1 || true  # „apt autoremove“ nimmt es nach AluPC mit
   elif command -v dnf >/dev/null; then dnf install -y v4l2loopback
   elif command -v pacman >/dev/null; then pacman -S --noconfirm v4l2loopback-dkms
   elif command -v zypper >/dev/null; then zypper --non-interactive install v4l2loopback-kmp-default
@@ -192,14 +194,17 @@ def install(what: list[str], elevated: bool = False, run=subprocess.run) -> tupl
             script = "\n".join(([vbcable_ps()] if "vbcable" in what else []) +
                                ([obs_vcam_ps()] if "kamera" in what else []))
             enc = encoded_command(script)
+            from . import addons
+
+            tracked = (["vbcable"] if "vbcable" in what else []) + (["obs"] if "kamera" in what else [])
             if elevated:
                 cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", enc]
             else:
                 cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
                        "Start-Process powershell -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList "
                        f"'-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','{enc}'"]
-            r = run(cmd, capture_output=True, text=True, timeout=900,
-                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            r = addons.track(tracked, lambda: run(cmd, capture_output=True, text=True, timeout=900,
+                                                  creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)))
             out = (r.stdout or "") + (r.stderr or "")
             if "FEHLER" in out:
                 return False, out.strip().splitlines()[-1][:200]

@@ -835,7 +835,9 @@ def linux_setup_script(packages: list[str], avahi: bool, firewall_port: int | No
     """Ein Skript für EINE Passwortabfrage: Pakete, avahi-Dienst, Firewall (nur feste Werte, keine Eingaben)."""
     lines = ["set -e", "export DEBIAN_FRONTEND=noninteractive"]
     if packages:
-        lines.append("apt-get -o DPkg::Lock::Timeout=600 install -y " + " ".join(packages))
+        from .addons import apt_install_script
+
+        lines.append(apt_install_script(packages))
     if avahi:
         lines.append("systemctl enable --now avahi-daemon")
     if firewall_port:
@@ -862,9 +864,9 @@ def setup_plan(config) -> list[tuple[str, list[str]]]:
             plan.append((", ".join(parts), ["pkexec", "sh", "-c", linux_setup_script(packages, avahi, firewall)]))
     elif can_winget():
         if not bonjour_installed():
-            plan.append(("Bonjour (damit das iPhone den PC findet) installieren", _winget(WINGET_IDS["bonjour"])))
+            plan.append(("Bonjour (damit das iPhone den PC findet) installieren", _winget("bonjour")))
         if not (find_uxplay_windows() or find_program("uxplay", "", WINDOWS_UXPLAY)):
-            plan.append(("AirPlay-Empfänger (UxPlay für Windows) installieren", _winget(WINGET_IDS["uxplay"])))
+            plan.append(("AirPlay-Empfänger (UxPlay für Windows) installieren", _winget("uxplay")))
     if IS_WINDOWS and int(config["handy"].get("firewall_version", 0)) < FIREWALL_VERSION:
         plan.append(("Firewall für Handy und AirPlay freigeben (eine Windows-Abfrage)",
                      windows_firewall_command(sys.executable, int(config["cast"].get("port", 8765)))))
@@ -930,9 +932,12 @@ def windows_firewall_command(alupc_exe: str, cast_port: int) -> list[str]:
     return ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps]
 
 
-def _winget(package_id: str) -> list[str]:
-    return ["winget", "install", "--id", package_id, "-e", "--silent",
-            "--accept-source-agreements", "--accept-package-agreements"]
+def _winget(key: str) -> list[str]:
+    """Über AluPC installieren (winget) – so merkt sich AluPC, was es neu installiert hat, und kann es beim
+    Deinstallieren wieder entfernen (addons.py)."""
+    from .addons import self_command
+
+    return self_command("--zusatz", f"installieren={key}")
 
 
 def bonjour_installed() -> bool:

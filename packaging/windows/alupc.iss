@@ -2,7 +2,7 @@
 ; Wird von GitHub Actions gebaut (siehe .github/workflows/build.yml).
 
 #ifndef AppVersion
-  #define AppVersion "2.0.0"
+  #define AppVersion "2.1.0"
 #endif
 
 [Setup]
@@ -43,10 +43,11 @@ Name: "{group}\AluPC deinstallieren"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\AluPC"; Filename: "{app}\AluPC.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{cmd}"; Parameters: "/C winget install --id Apple.Bonjour -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "Bonjour (AirPlay) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: handy
-Filename: "{cmd}"; Parameters: "/C winget install --id leapbtw.uxplay -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "AirPlay-Empfänger (uxplay-windows) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: handy
-Filename: "{cmd}"; Parameters: "/C winget install --id OpenRGB.OpenRGB -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "OpenRGB (RGB-Beleuchtung) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: rgb
-Filename: "{cmd}"; Parameters: "/C winget install --id Rem0o.FanControl -e --silent --accept-source-agreements --accept-package-agreements"; StatusMsg: "FanControl (Lüfter) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: luefter
+; Zusatzprogramme über AluPC (winget): AluPC merkt sich, was es NEU installiert hat (vorher schon vorhandene
+; Programme nicht) – beim Deinstallieren kann es genau diese wieder entfernen (alupc/addons.py)
+Filename: "{app}\AluPC.exe"; Parameters: "--zusatz installieren=bonjour,uxplay"; StatusMsg: "AirPlay-Empfang (Bonjour, uxplay-windows) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: handy
+Filename: "{app}\AluPC.exe"; Parameters: "--zusatz installieren=openrgb"; StatusMsg: "OpenRGB (RGB-Beleuchtung) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: rgb
+Filename: "{app}\AluPC.exe"; Parameters: "--zusatz installieren=fancontrol"; StatusMsg: "FanControl (Lüfter) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: luefter
 Filename: "{app}\AluPC.exe"; Parameters: "--treiber vbcable"; StatusMsg: "Virtuelles Mikro (VB-CABLE) wird installiert …"; Flags: runhidden waituntilterminated; Tasks: vbcable
 Filename: "{app}\AluPC.exe"; Parameters: "--treiber kamera"; StatusMsg: "Virtuelle Kamera wird eingerichtet …"; Flags: runhidden waituntilterminated; Tasks: vkamera
 ; Firewall: Handy-Seiten (8765…8774) und AirPlay (braucht Adminrechte, sonst übersprungen)
@@ -58,6 +59,8 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""A
 Filename: "{app}\AluPC.exe"; Description: "AluPC jetzt starten"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
+; Zuerst (solange AluPC.exe noch da ist): mitinstallierte Zusatzprogramme entfernen – nur wenn man es bestätigt hat
+Filename: "{app}\AluPC.exe"; Parameters: "--zusatz entfernen"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveAddons"; Check: ShouldRemoveAddons
 ; Rechtsklick „Auf Monitor 2 zeigen“ und alupc://-Links entfernen
 Filename: "{app}\AluPC.exe"; Parameters: "--einbindung-entfernen"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveIntegration"
 Filename: "{cmd}"; Parameters: "/C reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v AluPC /f"; Flags: runhidden; RunOnceId: "RemoveAutostart"
@@ -68,3 +71,50 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=
 Filename: "{cmd}"; Parameters: "/C reg delete ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" /f & reg delete ""HKLM\SOFTWARE\Classes\CLSID\{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" /f & del /f /q ""%ProgramData%\AluPC\fingerprint-windows.cfg"" ""%ProgramData%\AluPC\fingerprint-*.slots"" & reg delete HKLM\SOFTWARE\AluPC /f"; Flags: runhidden; RunOnceId: "RemoveFingerprintLogin"; Check: IsAdminInstallMode
 ; Vorauswahl „Fingerabdruck“ auf dem Sperrbildschirm zurücknehmen (nur wenn sie von AluPC stammt)
 Filename: "{cmd}"; Parameters: "/C reg query HKLM\SOFTWARE\Policies\Microsoft\Windows\System /v DefaultCredentialProvider | find /i ""{{82F9D550-26AE-40CC-B8F7-F9805D8AD0EF}"" && reg delete HKLM\SOFTWARE\Policies\Microsoft\Windows\System /v DefaultCredentialProvider /f"; Flags: runhidden; RunOnceId: "RemoveFingerprintDefault"; Check: IsAdminInstallMode
+
+[Code]
+var
+  RemoveAddons: Boolean;
+
+{ Namen der Zusatzprogramme, die AluPC selbst installiert hat (Merkzettel von alupc/addons.py) }
+function RecordedAddons(): String;
+var
+  Rec: TFindRec;
+  Dir, Name: String;
+  Text: AnsiString;
+begin
+  Result := '';
+  Dir := ExpandConstant('{commonappdata}\AluPC\zusatz\');
+  if FindFirst(Dir + '*.txt', Rec) then
+  begin
+    try
+      repeat
+        Name := Rec.Name;
+        if LoadStringFromFile(Dir + Rec.Name, Text) then
+          Name := String(Text);
+        Result := Result + '  • ' + Name + #13#10;
+      until not FindNext(Rec);
+    finally
+      FindClose(Rec);
+    end;
+  end;
+end;
+
+function InitializeUninstall(): Boolean;
+var
+  Names: String;
+begin
+  RemoveAddons := False;
+  Names := RecordedAddons();
+  if (Names <> '') and not UninstallSilent() then
+    RemoveAddons := MsgBox('AluPC hat diese Zusatzprogramme mitinstalliert:' + #13#10#13#10 + Names + #13#10 +
+      'Sollen sie auch entfernt werden?' + #13#10 +
+      '(Programme, die schon vor AluPC da waren, werden nicht angefasst.)',
+      mbConfirmation, MB_YESNO) = IDYES;
+  Result := True;
+end;
+
+function ShouldRemoveAddons(): Boolean;
+begin
+  Result := RemoveAddons;
+end;

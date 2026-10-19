@@ -308,13 +308,15 @@ def install_command() -> list[str] | None:
     import sys
 
     if sys.platform.startswith("win"):
-        if shutil.which("winget"):
-            return ["winget", "install", "--id", OPENRGB_WINGET, "-e", "--silent", "--accept-source-agreements",
-                    "--accept-package-agreements"]
+        if shutil.which("winget"):  # über AluPC: merkt sich die Installation (Deinstallation entfernt es wieder)
+            from .addons import self_command
+
+            return self_command("--zusatz", "installieren=openrgb")
         return None
     if shutil.which("pkexec") and shutil.which("apt-get"):
-        return ["pkexec", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "-o", "DPkg::Lock::Timeout=600",
-                "install", "-y", "openrgb"]
+        from .addons import apt_install_script
+
+        return ["pkexec", "sh", "-c", apt_install_script(["openrgb"])]
     return None
 
 

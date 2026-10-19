@@ -38,6 +38,8 @@ def parse_args(argv):
     parser.add_argument("--luefter", metavar="REGLER=WERT,…", help=argparse.SUPPRESS)
     # Installer: Treiber für virtuelle Geräte (vbcable, kamera) – ohne Oberfläche
     parser.add_argument("--treiber", metavar="WAS", help=argparse.SUPPRESS)
+    # Installer/Deinstallation: Zusatzprogramme (AirPlay, OpenRGB …) installieren und merken bzw. wieder entfernen
+    parser.add_argument("--zusatz", metavar="installieren=…|entfernen", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
@@ -167,6 +169,10 @@ def main(argv=None) -> int:
         from .drivers import main_install
 
         return main_install(args.treiber)
+    if args.zusatz:
+        from .addons import main as addons_main
+
+        return addons_main(args.zusatz)
     if args.selbsttest:
         return self_test(args.selbsttest)
     if args.sprachtest:

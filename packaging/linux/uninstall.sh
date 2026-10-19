@@ -9,3 +9,4 @@ rm -f "${HOME}/.local/bin/alupc" "${HOME}/.local/share/applications/alupc.deskto
       "${HOME}/.local/share/kservices5/ServiceMenus/alupc-monitor2.desktop"
 sed -i '/^x-scheme-handler\/alupc=/d' "${HOME}/.config/mimeapps.list" 2>/dev/null || true
 echo "AluPC wurde entfernt. Einstellungen: ~/.config/AluPC (bei Bedarf selbst löschen)."
+echo "Von AluPC nachinstallierte Zusatzpakete (uxplay, OpenRGB …) entfernen: sudo apt autoremove"

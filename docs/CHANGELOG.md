@@ -4,6 +4,11 @@ Die aktuellen Neuerungen stehen in den [Release-Notizen](../packaging/RELEASE_NO
 [Release-Seite](https://github.com/SG-Junior-FLL/AluPC/releases).
 
 
+## 2.1.0 – Zusatzprogramme beim Deinstallieren entfernen
+- Windows: AluPC merkt sich selbst installierte Zusatzprogramme (AirPlay, OpenRGB, FanControl, VB-CABLE, OBS) und
+  bietet beim Deinstallieren an, sie zu entfernen; vorher vorhandene bleiben.
+- Linux: nachinstallierte Pakete werden „automatisch“ markiert → `sudo apt autoremove` entfernt sie nach AluPC.
+
 ## 2.0.0 – drei Designs zum Umschalten
 - Setup → Darstellung → Stil: **Normal** (modern, rund), **Technisch** (dicht, Messwerte), **Holz** (7 Holzarten).
 - Keine Fachkürzel mehr (CH/PGM/STBY); Zustände in Worten oder als Zeit.

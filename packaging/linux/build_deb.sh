@@ -71,9 +71,14 @@ if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
         DEBIAN_FRONTEND=noninteractive pam-auth-update --remove alupc-fingerprint || true
         rm -f /usr/share/pam-configs/alupc-fingerprint /etc/alupc/fingerprint-login.json
     fi
-    rm -f /etc/modules-load.d/alupc-i2c.conf
+    rm -f /etc/modules-load.d/alupc-i2c.conf /etc/modprobe.d/alupc-v4l2loopback.conf \
+          /etc/modules-load.d/alupc-v4l2loopback.conf
     # leere Ordner, die zur Laufzeit entstanden sind, mit entfernen
     rm -rf /opt/alupc
+    if [ "$1" = "remove" ]; then
+        echo "AluPC entfernt. Mitinstallierte Zusatzpakete (z. B. uxplay, OpenRGB, v4l2loopback) entfernen:"
+        echo "  sudo apt autoremove   (Pakete, die schon vor AluPC da waren, bleiben)"
+    fi
 fi
 exit 0
 POSTRM

@@ -9,21 +9,18 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 2.0.0 – drei Designs zum Umschalten
-- **Setup → Darstellung → Stil:** drei Designs für die ganze App (Hauptfenster, Setup, Dialoge, Handy-/iPad-Seite).
-  Umschalten wirkt sofort.
-  - **Normal** (Standard): modern, weich und rund – schwebende Seitenleiste, große runde Kacheln, Knöpfe als Pillen,
-    dicke runde Lautstärke-Regler.
-  - **Technisch:** dicht und eckig, Kacheln als Zeilen, echte Messwerte in Ziffernschrift (Ausgang, Auflösung, Hz,
-    „läuft seit 0:12:34“), Regler mit Skala 0–100.
-  - **Holz:** echtes Furnier als Grund und Kacheln, **7 Holzarten** (Nussbaum, Kirsche, Wenge, Räuchereiche, Eiche,
-    Kiefer, Ahorn), gravierte Schrift, rote Lampe zeigt, was läuft. Helles Holz → dunkle Schrift, dunkles Holz →
-    helle Schrift (alle Kombinationen auf Lesbarkeit geprüft).
-- **Nur echte Angaben:** keine Fachkürzel wie „CH 07“, „PGM“ oder „STBY“ mehr – Zustände heißen „Läuft“, „An“,
-  „Aktiv“ oder zeigen die Zeit.
-- **Setup übersichtlicher:** Bereiche mit kurzer Beschreibung darunter, Stil-Auswahl mit Vorschaubildern.
-- **Handy-/iPad-Seite** übernimmt Stil, Farben, Holzart und Schrift vom PC.
-- **Nicht getestet** auf echten Monitoren, Handys und iPads – nur automatische Tests und Bildschirmfotos.
+### Neu in 2.1.0 – Zusatzprogramme werden beim Deinstallieren mit entfernt
+- **Windows:** AluPC merkt sich, welche Zusatzprogramme es **selbst neu** installiert hat – Bonjour und
+  uxplay-windows (AirPlay), OpenRGB, FanControl, VB-CABLE (virtuelles Mikro), OBS Studio (virtuelle Kamera).
+  Egal ob über den Installer oder später in AluPC. Beim Deinstallieren fragt AluPC, ob diese auch entfernt werden
+  sollen. Programme, die du schon vorher hattest, werden nie angefasst.
+- **Linux:** Pakete, die AluPC nachinstalliert, werden als „automatisch“ markiert. Nach `sudo apt remove alupc`
+  entfernt `sudo apt autoremove` sie mit (der Hinweis steht beim Entfernen da). AluPCs eigene Einstellungsdateien
+  für die virtuelle Kamera werden mit entfernt.
+- Gilt für Installationen ab 2.1.0 – was ältere Versionen installiert haben, kennt AluPC nicht.
+- **Nicht getestet** auf einem echten Windows-PC (Installieren und Deinstallieren mit winget) – nur automatische Tests.
+
+2.0.0: drei Designs (Normal, Technisch, Holz mit 7 Holzarten) – siehe CHANGELOG.
 
 ### Frühere Versionen
 [CHANGELOG](https://github.com/SG-Junior-FLL/AluPC/blob/main/docs/CHANGELOG.md)
