@@ -77,12 +77,12 @@ class Poll:
 POLL_PAGE = """<!doctype html>
 <html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1020"><title>Abstimmung</title>
+<meta name="theme-color" content="#16181c"><title>Abstimmung</title>
 <style>
 :root { color-scheme: dark; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; min-height: 100vh; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: radial-gradient(circle at 20% 0%, #312e81 0, #0b1020 55%); color: #f1f5f9; }
+  background: radial-gradient(circle at 20% 0%, #312e81 0, #16181c 55%); color: #eceef1; }
 main { max-width: 520px; margin: 0 auto; padding: 28px 18px 40px; }
 .tag { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #a5b4fc; font-weight: 700; }
 h1 { font-size: 26px; line-height: 1.25; margin: 8px 0 22px; }
@@ -96,7 +96,7 @@ button .bar { position: absolute; inset: 0 auto 0 0; background: rgba(129,140,24
 button span { position: relative; }
 button .n { float: right; color: #c7d2fe; font-variant-numeric: tabular-nums; }
 button:disabled { opacity: .9; }
-p.info { color: #94a3b8; font-size: 15px; text-align: center; margin-top: 18px; }
+p.info { color: #9aa1ac; font-size: 15px; text-align: center; margin-top: 18px; }
 p.ok { color: #86efac; }
 @media (min-width: 700px) {  /* iPad/Tablet: größer, als Karte */
   body { display: flex; align-items: center; }

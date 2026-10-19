@@ -204,7 +204,7 @@ def sync_group(page) -> QGroupBox:
     lay.addWidget(how)
 
     def set_badge(color: str, icon_name: str):
-        badge.setStyleSheet(f"background: {theme.current().soft(color, 0.16)}; border-radius: 16px;")
+        badge.setStyleSheet(f"background: {theme.current().soft(color, 0.16)}; border-radius: 8px;")
         badge.setPixmap(icons.pixmap(icon_name, color, 28))
 
     def refresh():

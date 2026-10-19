@@ -171,11 +171,11 @@ class MediaLibraryDialog(QDialog):
         lay.addLayout(actions)
         t = theme.current()
         self.setStyleSheet(
-            f"QPushButton#Chip {{ padding: 6px 14px; border-radius: 15px; border: 1px solid {t.border}; "
+            f"QPushButton#Chip {{ padding: 6px 14px; border-radius: 13px; border: 1px solid {t.border}; "
             f"background: {t.surface}; }}"
             f"QPushButton#Chip:checked {{ background: {t.accent}; color: #ffffff; border-color: {t.accent}; }}"
             f"QListWidget {{ background: transparent; border: none; }}"
-            f"QListWidget::item {{ border-radius: 14px; padding: 6px; }}"
+            f"QListWidget::item {{ border-radius: 6px; padding: 6px; }}"
             f"QListWidget::item:selected {{ background: {t.accent_soft(0.22)}; color: {t.text}; }}"
             f"QListWidget::item:hover {{ background: {t.surface}; }}")
         self.reload()

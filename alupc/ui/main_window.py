@@ -1963,7 +1963,7 @@ class MainWindow(QMainWindow):
         elif c.frozen:
             pills.append(("STANDBILD", FREEZE_COLOR))
         else:
-            pills.append(("LIVE", t.success))
+            pills.append(("LIVE", t.live))
         if pip_on:
             pills.append(("BILD-IN-BILD", PIP_COLOR))
         if c.laser.strokes:

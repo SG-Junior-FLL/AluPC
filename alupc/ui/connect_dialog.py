@@ -27,7 +27,7 @@ def _qr_card(step: str, title: str, payload: str, lines: list[str]) -> QFrame:
     qr = QLabel()
     qr.setObjectName("QrBox")
     qr.setAlignment(Qt.AlignCenter)
-    qr.setStyleSheet("background:#ffffff; border-radius:14px; padding:10px;")
+    qr.setStyleSheet("background:#ffffff; border-radius:8px; padding:10px;")
     dpr = QGuiApplication.primaryScreen().devicePixelRatio() if QGuiApplication.primaryScreen() else 1.0
     qr.setPixmap(qr_pixmap(payload, QR_PX, dpr))
     lay.addWidget(qr, 0, Qt.AlignCenter)
@@ -188,7 +188,7 @@ class HotspotDialog(QDialog):
         for qr, caption in ((self.qr, "1 · WLAN"), (self.ctl_qr, "2 · AluPC steuern – privat, nur hier am PC")):
             col = QVBoxLayout()
             qr.setAlignment(Qt.AlignCenter)
-            qr.setStyleSheet("background:#ffffff; border-radius:14px; padding:10px;")
+            qr.setStyleSheet("background:#ffffff; border-radius:8px; padding:10px;")
             col.addWidget(qr, 0, Qt.AlignCenter)
             lab = QLabel(caption)
             lab.setObjectName("Muted")

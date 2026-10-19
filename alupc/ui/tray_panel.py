@@ -238,7 +238,7 @@ class TrayPanel(QFrame):
         return b
 
     def _section(self, text: str) -> QLabel:
-        label = QLabel(text.upper())
+        label = QLabel(text)
         label.setObjectName("TraySection")
         return label
 
@@ -254,17 +254,17 @@ class TrayPanel(QFrame):
         accent_soft = f"rgba({soft.red()},{soft.green()},{soft.blue()},0.18)"
         accent_line = f"rgba({soft.red()},{soft.green()},{soft.blue()},0.55)"
         self.setStyleSheet(f"""
-#TrayCard {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 18px; }}
-#TrayTitle {{ font-size: 11pt; font-weight: 700; color: {t.text}; }}
+#TrayCard {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; }}
+#TrayTitle {{ font-family: "{theme.HEAD_FONT}"; font-size: 13pt; font-weight: 700; color: {t.text}; }}
 #TrayMuted {{ color: {t.muted}; font-size: 8.5pt; }}
-#TraySection {{ color: {t.muted}; font-size: 7.5pt; font-weight: 800; letter-spacing: 1px; padding-top: 2px; }}
+#TraySection {{ color: {t.text}; font-family: "{theme.HEAD_FONT}"; font-size: 10.5pt; font-weight: 600; padding-top: 2px; }}
 #TrayPill {{ border-radius: 8px; padding: 2px 8px; font-size: 7.5pt; font-weight: 800; }}
 #TrayLine {{ background: {t.border}; }}
-QToolButton#TrayTile {{ background: {t.surface2}; border: 1px solid transparent; border-radius: 12px;
+QToolButton#TrayTile {{ background: {t.surface2}; border: 1px solid {t.border}; border-radius: 6px;
     padding: 7px 2px 6px 2px; font-size: 8pt; font-weight: 600; color: {t.text}; }}
 QToolButton#TrayTile:hover {{ border-color: {accent_line}; }}
 QToolButton#TrayTile:checked {{ background: {accent_soft}; border-color: {t.accent}; color: {t.accent}; }}
-QPushButton#TraySmall {{ background: {t.surface2}; border: none; border-radius: 10px; padding: 7px 10px;
+QPushButton#TraySmall {{ background: {t.surface2}; border: 1px solid {t.border}; border-radius: 6px; padding: 7px 10px;
     font-weight: 600; color: {t.text}; }}
 QPushButton#TraySmall:hover {{ background: {accent_soft}; }}
 QPushButton#TraySmall:checked {{ background: {accent_soft}; color: {t.accent}; }}

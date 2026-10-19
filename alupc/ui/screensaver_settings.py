@@ -62,7 +62,7 @@ class ScreensaverSettings(QGroupBox):
         for group, keys in STYLE_GROUPS.items():
             if style.count():
                 style.insertSeparator(style.count())
-            style.addItem(group.upper())  # Überschrift, nicht wählbar
+            style.addItem(group)  # Überschrift (fett), nicht wählbar
             head = style.model().item(style.count() - 1)
             head.setEnabled(False)
             font = head.font()

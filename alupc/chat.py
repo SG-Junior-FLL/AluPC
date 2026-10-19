@@ -182,17 +182,17 @@ def name_color(name: str) -> str:
 CHAT_PAGE = """<!doctype html>
 <html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-<meta name="theme-color" content="#0b1020"><title>AluPC – Chat</title>
+<meta name="theme-color" content="#16181c"><title>AluPC – Chat</title>
 <style>
 :root { color-scheme: dark; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; }
-body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #f1f5f9;
-  background: radial-gradient(circle at 20% 0%, #1e3a8a 0, #0b1020 55%); display: flex; flex-direction: column; }
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #eceef1;
+  background: radial-gradient(circle at 20% 0%, #1e3a8a 0, #16181c 55%); display: flex; flex-direction: column; }
 header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
-header .logo { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg,#6366f1,#06b6d4);
+header .logo { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg,#5b8def,#06b6d4);
   display: flex; align-items: center; justify-content: center; font-size: 20px; }
-header b { font-size: 19px; } header small { display: block; color: #94a3b8; font-size: 12.5px; }
+header b { font-size: 19px; } header small { display: block; color: #9aa1ac; font-size: 12.5px; }
 header a { margin-left: auto; color: #a5b4fc; text-decoration: none; font-size: 14px; }
 #list { flex: 1; overflow-y: auto; padding: 6px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
 .m { max-width: 84%; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.08);
@@ -203,14 +203,14 @@ header a { margin-left: auto; color: #a5b4fc; text-decoration: none; font-size: 
 .m .n { font-size: 12.5px; font-weight: 700; margin-bottom: 2px; }
 .m .t { font-size: 16px; line-height: 1.35; word-wrap: break-word; }
 @keyframes pop { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
-.empty { color: #94a3b8; text-align: center; margin: auto; font-size: 15px; padding: 30px; }
+.empty { color: #9aa1ac; text-align: center; margin: auto; font-size: 15px; padding: 30px; }
 form { display: flex; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: rgba(11,16,32,.92);
   border-top: 1px solid rgba(255,255,255,.08); }
-input { flex: 1; min-width: 0; font-size: 17px; padding: 13px 14px; border-radius: 14px; border: 2px solid #334155;
-  background: #0f172a; color: #fff; }
-input:focus { outline: none; border-color: #6366f1; }
+input { flex: 1; min-width: 0; font-size: 17px; padding: 13px 14px; border-radius: 14px; border: 2px solid #363b42;
+  background: #1f2227; color: #fff; }
+input:focus { outline: none; border-color: #5b8def; }
 button { border: 0; border-radius: 14px; padding: 0 18px; font-size: 17px; font-weight: 800; color: #fff;
-  background: linear-gradient(135deg,#6366f1,#ec4899); }
+  background: linear-gradient(135deg,#5b8def,#ec4899); }
 button:disabled { opacity: .45; }
 #who { display: flex; gap: 8px; padding: 0 12px 8px; }
 #who input { font-size: 15px; padding: 9px 12px; }

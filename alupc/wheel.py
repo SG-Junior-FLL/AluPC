@@ -14,6 +14,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QWidget
 
 from .sources import fitted_font
+from .ui.theme import HEAD_FONT, STAGE_BG
 
 COLORS = ["#6366f1", "#06b6d4", "#f59e0b", "#ec4899", "#22c55e", "#f43f5e", "#8b5cf6", "#14b8a6", "#eab308",
           "#3b82f6"]
@@ -115,10 +116,7 @@ class WheelSource(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        bg = QRadialGradient(QPointF(w * 0.4, h * 0.5), max(w, h) * 0.8)
-        bg.setColorAt(0, QColor("#1e1b4b"))
-        bg.setColorAt(1, QColor("#050816"))
-        p.fillRect(self.rect(), bg)
+        p.fillRect(self.rect(), QColor(STAGE_BG))
         wide = w > h * 1.2
         r = min(h * 0.43, w * (0.3 if wide else 0.42))
         cx = w * 0.36 if wide else w / 2
@@ -185,21 +183,21 @@ class WheelSource(QWidget):
             area = QRectF(cx + r * 1.3, h * 0.2, w - (cx + r * 1.3) - w * 0.04, h * 0.6)
         else:
             area = QRectF(w * 0.06, cy + r * 1.08, w * 0.88, h - (cy + r * 1.08) - h * 0.02)
-        p.setPen(QColor("#a5b4fc"))
-        tag = QFont()
-        tag.setBold(True)
-        tag.setPixelSize(max(10, int(h * 0.035)))
-        tag.setLetterSpacing(QFont.PercentageSpacing, 115)
+        p.setPen(QColor("#7fa6f3"))
+        tag = QFont(HEAD_FONT)
+        tag.setWeight(QFont.DemiBold)
+        tag.setPixelSize(max(10, int(h * 0.045)))
         p.setFont(tag)
-        label = "AUSGEWÄHLT" if done else ("DREHT …" if self.spinning else "GLÜCKSRAD")
+        label = "Ausgewählt" if done else ("Dreht …" if self.spinning else "Glücksrad")
         p.drawText(QRectF(area.x(), area.y(), area.width(), area.height() * 0.2), Qt.AlignCenter, label)
         if done:
             text = self.names[self.winner]
         elif self.spinning:
             text = self.names[self.pointer_index()]
         else:
-            text = ""  # vor dem Drehen nur „GLÜCKSRAD“ – keine Anzahl
+            text = ""  # vor dem Drehen nur „Glücksrad“ – keine Anzahl
         big = fitted_font(p, text, int(area.width()), max(14, int(h * (0.13 if done else 0.08))))
+        big.setFamily(HEAD_FONT)
         big.setBold(True)
         p.setFont(big)
         p.setPen(QColor("#ffffff" if done else "#cbd5e1"))

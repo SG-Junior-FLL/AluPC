@@ -338,6 +338,62 @@ body.heftmode nav, body.heftmode header { display:none; }
 .hlist button.on { background:var(--on); color:#fff; }
 .hpapers { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
 @media (prefers-reduced-motion: reduce) { *, *::before { animation:none !important; transition:none !important; } }
+/* ===== Regiepult (docs/DESIGN.md): Graphit/Alu, Pultschrift, Rot nur für „läuft“ – überschreibt die Grundwerte oben */
+@font-face { font-family:"Pult"; src:url("/schrift/pult-600.ttf") format("truetype"); font-weight:600; font-display:swap; }
+@font-face { font-family:"Pult"; src:url("/schrift/pult-700.ttf") format("truetype"); font-weight:700; font-display:swap; }
+:root { --bg:#16181c; --card:#1f2227; --card2:#292d33; --text:#eceef1; --muted:#9aa1ac; --line:#363b42;
+        --accent:#5b8def; --on:#5b8def; --live:#e5484d; --bad:#e5484d; --ok:#30a46c; --nav:#1f2227;
+        --keytop:rgba(255,255,255,.07); --pult:"Pult","Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif; }
+@media (prefers-color-scheme: light) {
+  :root { --bg:#e6e8eb; --card:#f6f7f8; --card2:#ffffff; --text:#15181c; --muted:#59616c; --line:#c9ced5;
+          --accent:#2f6fdb; --on:#2f6fdb; --live:#d93a40; --bad:#d93a40; --ok:#218358; --nav:#f6f7f8;
+          --keytop:rgba(0,0,0,0); }
+}
+body::before { display:none; }
+header { background:var(--bg); border-bottom:1px solid var(--line); margin:0 -14px 12px; padding-left:16px; padding-right:16px; }
+header h1, .card h2, nav button, .tile, .clicker button { font-family:var(--pult); }
+header h1 { font-size:22px; font-weight:700; letter-spacing:0; }
+.logo { background:var(--accent); border-radius:8px; animation:none; box-shadow:none; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; box-shadow:none; }
+.card h2 { font-size:16px; font-weight:600; letter-spacing:0; text-transform:none; color:var(--text); }
+#c-live { background:var(--card); border-color:var(--line); }
+button, .btn { border-radius:6px; background:var(--card2); border:1px solid var(--line); box-shadow:inset 0 1px 0 var(--keytop);
+               font-weight:600; transition:background .15s, color .15s; }
+button:active, .btn:active { transform:none; box-shadow:none; filter:brightness(.92); }
+.ripple { display:none; }
+.tile { font-size:15px; font-weight:600; align-items:flex-start; text-align:left; padding:12px; position:relative; }
+.tile svg.i { color:var(--accent); }
+/* Taste an = rote Leuchte + Sendungsbalken oben (statt leuchtender Fläche) */
+.tile.on { background:var(--card2); color:var(--text); animation:none; box-shadow:inset 0 3px 0 var(--live); }
+.tile.on::after { content:""; position:absolute; right:10px; top:12px; width:9px; height:9px; border-radius:50%;
+                  background:var(--live); box-shadow:0 0 0 4px rgba(229,72,77,.25); }
+button.on:not(.tile) { background:var(--accent); color:#fff; border-color:var(--accent); animation:none; box-shadow:none; }
+button.primary, .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.dot.on { background:var(--live); animation:none; box-shadow:0 0 0 3px rgba(229,72,77,.25); }
+.badge i { background:var(--live); animation:none; }
+input[type=text], input[type=url], textarea, select { border-radius:6px; background:var(--card2); border:1px solid var(--line); }
+input[type=range] { accent-color:var(--accent); }
+.pad { border-radius:8px; } .pad.active { border-color:var(--accent); }
+.preview { border-radius:6px; }
+nav { background:var(--nav); border:1px solid var(--line); border-radius:10px; box-shadow:none;
+      backdrop-filter:none; -webkit-backdrop-filter:none; }
+nav button { background:transparent; border:0; box-shadow:none; border-radius:6px; font-size:13px; font-weight:600; }
+nav button.sel { color:var(--text); }
+#nav-pill { background:var(--card2); border:1px solid var(--line); border-radius:6px; box-shadow:inset 0 -3px 0 var(--accent); }
+.toast { border-radius:6px; background:#2b2f36; box-shadow:none; }
+.chips button { border-radius:6px; }
+.quick button { border-radius:6px; box-shadow:none; }
+.quick button.on { background:var(--accent); }
+#widths button.on, #guests button.on { background:var(--accent); color:#fff; }
+.page.sel .side > .card, .page.sel #control > .card { animation:none; }
+@media (min-width: 740px) {
+  header { margin:0 0 16px; }
+  nav { border-radius:10px; } nav button { border-radius:6px; } #nav-pill { border-radius:6px;
+        box-shadow:inset 3px 0 0 var(--accent); }
+  .card { border-radius:10px; } button, .btn { border-radius:6px; }
+  .clicker button { border-radius:10px; } .pad { border-radius:10px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
 </style>
 </head>
 <body>
@@ -411,7 +467,7 @@ body.heftmode nav, body.heftmode header { display:none; }
   <div class="side" id="side">
     <div class="card" style="padding:10px" id="c-live">
       <div class="preview" id="preview"><img id="prev" alt=""><div class="laser" id="laser"></div>
-        <span class="badge"><i></i>LIVE · <span id="live-hint">Finger = Laser</span></span>
+        <span class="badge"><i></i>Live · <span id="live-hint">Finger = Laser</span></span>
         <button class="corner small" onclick="toggleFull('preview')" aria-label="Vergrößern"><svg class="i"><use href="#i-expand"/></svg></button></div>
     </div>
     <div class="card" id="c-mon2">

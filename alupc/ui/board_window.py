@@ -86,7 +86,7 @@ def _group() -> tuple[QFrame, QHBoxLayout]:
     box = QFrame()
     box.setObjectName("Group")
     t = theme.current()
-    box.setStyleSheet(f"#Group {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 14px; }}")
+    box.setStyleSheet(f"#Group {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; }}")
     lay = QHBoxLayout(box)
     lay.setContentsMargins(6, 3, 6, 3)
     lay.setSpacing(2)

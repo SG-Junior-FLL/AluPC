@@ -37,7 +37,7 @@ def test_system_accent_used_and_grey_falls_back(qapp, monkeypatch):
     monkeypatch.setattr(theme, "_kde_accent", lambda path=None: "#e9640a")
     monkeypatch.setattr("sys.platform", "linux")
     t = theme.make_theme("dunkel", "system")
-    assert t.accent == "#e9640a" and t.accent2 != t.accent
+    assert t.accent == "#e9640a"
     monkeypatch.setattr(theme, "_kde_accent", lambda path=None: "#808080")  # grau → Blau
     assert theme.make_theme("hell", "system").accent == theme.ACCENTS["blau"][1]
 
@@ -61,16 +61,19 @@ def test_old_defaults_migrate_to_alupc_theme(tmp_path):
 
 
 def test_alupc_theme_same_everywhere_and_branded(qapp):
-    """AluPC-Theme: hängt nicht vom System ab (gleich unter Windows und Linux), Logo-Farben, lesbare Kontraste."""
+    """AluPC-Theme „Regiepult“ (docs/DESIGN.md): hängt nicht vom System ab (gleich unter Windows und Linux),
+    neutrale Graphit-/Alu-Flächen, Blau als Bedienfarbe, Rot nur für „läuft“, lesbare Kontraste."""
     from PySide6.QtGui import QColor
 
     for mode in ("hell", "dunkel"):
         t = theme.make_theme(mode, "alupc")
         assert t == theme.make_theme(mode, "alupc")
-        blue, indigo = QColor(t.accent), QColor(t.accent2)
-        assert 220 <= blue.hslHue() <= 235 and 250 <= indigo.hslHue() <= 265  # Logo: Blau → Indigo
-        bg = QColor(t.bg)
-        assert bg.blue() > bg.red()  # Flächen leicht indigo getönt, nicht neutral grau
+        assert 210 <= QColor(t.accent).hslHue() <= 225  # Bedienfarbe Blau
+        live = QColor(t.live)
+        assert live.hslHue() <= 5 or live.hslHue() >= 350  # Sendungsleuchte rot
+        for surface in (t.bg, t.surface, t.surface2):
+            c = QColor(surface)
+            assert max(c.red(), c.green(), c.blue()) - min(c.red(), c.green(), c.blue()) <= 12  # Graphit/Alu: kaum getönt
 
         def lum(c):
             def ch(v):

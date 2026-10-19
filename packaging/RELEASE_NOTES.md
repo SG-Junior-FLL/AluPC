@@ -9,17 +9,15 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 1.0.0
-- **Zeichnen am iPad/Handy ohne spürbare Verzögerung:** dauerhafte Verbindung (WebSocket) statt Abfragen – jedes
-  neue Bild vom PC kommt sofort, Striche und Zoom gehen ohne Umweg raus. Der PC zeichnet ein neues Bild, sobald sich
-  etwas ändert. Eigene Striche werden nach ~0,05–0,1 s vom PC-Bild übernommen (vorher ~0,25 s, davor über 1 s).
-- **Chromecast verbindet schneller:** Verbinden und Player-Start laufen gleichzeitig mit dem Video-Start statt
-  danach; im Fenster steht der Schritt („Starte Player …“, „Puffert …“). Kürzere Video-Stücke (0,5 s).
-- **Kleines Fenster:** nichts wird mehr rechts abgeschnitten (Audio, Gäste, alle Setup-Bereiche) – Karten
-  stapeln sich, Knopfreihen brechen um, Beschriftungen stehen über den Feldern. Mindestbreite 600 px.
-- **Handy-Seite „Folien“:** klare Anzeige, wenn Tasten nicht gehen.
-- **Nicht getestet** mit echtem iPad, Chromecast oder Apple TV – nur Browser-Test und nachgebaute Geräte
-  (Chromecast-Nachbau: Bild-Anfrage nach 0,7 s; ein echter Fernseher braucht für den Player-Start länger).
+### Neu in 1.1.0 – Design „Regiepult“
+- **Komplett neues Aussehen** nach dem Vorbild eines TV-Bildmischers: Graphit (dunkel) bzw. Alu (hell),
+  keine Verläufe und Leuchteffekte mehr. Alle Funktionen und der Aufbau bleiben gleich.
+- **Kacheln sind Pulttasten:** Was auf dem Bildschirm läuft, zeigt eine rote Leuchte mit rotem Balken.
+  Rot bedeutet überall nur „läuft gerade“. Das Programmbild auf der Startseite ist größer, mit rotem Rahmen bei „Live“.
+- **Neue Überschriften-Schrift** (Barlow Semi Condensed, mitgeliefert). Keine Großbuchstaben-Etiketten mehr.
+- **Handy-/iPad-Seite und Anzeigen auf Monitor 2** (Abstimmung, Glücksrad, Codes, Spiele-Überschriften) im selben Stil.
+  Die Schrift kommt vom PC, auch ohne Internet im AluPC-WLAN.
+- **Nicht getestet** auf echten Monitoren, Handys und iPads – nur automatische Tests und Bildschirmfotos.
 
 ### Frühere Versionen
 [CHANGELOG](https://github.com/SG-Junior-FLL/AluPC/blob/main/docs/CHANGELOG.md)

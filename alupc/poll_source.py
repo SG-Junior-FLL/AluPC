@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter
 from PySide6.QtWidgets import QWidget
 
 from .sources import fitted_font
+from .ui.theme import HEAD_FONT, STAGE_BG
 
 BAR_COLORS = ["#6366f1", "#06b6d4", "#f59e0b", "#ec4899", "#22c55e", "#f43f5e"]
 
@@ -55,10 +56,7 @@ class PollSource(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        grad = QLinearGradient(0, 0, w, h)
-        grad.setColorAt(0, QColor("#0b1020"))
-        grad.setColorAt(1, QColor("#1e1b4b"))
-        p.fillRect(self.rect(), grad)
+        p.fillRect(self.rect(), QColor(STAGE_BG))
         poll = self.server.poll
         if poll is None or not self.ok:
             p.setPen(QColor("#e2e8f0"))
@@ -72,17 +70,16 @@ class PollSource(QWidget):
         col = int(min(w * 0.24, h * 0.42)) if show_qr else 0
         left = QRectF(m, m, w - 2 * m - (col + m if show_qr else 0), h - 2 * m)
         # Überschrift
-        tag = "ABSTIMMUNG" if poll.open else "ERGEBNIS"
-        f = QFont()
-        f.setBold(True)
-        f.setPixelSize(max(10, int(h * 0.03)))
-        f.setLetterSpacing(QFont.PercentageSpacing, 115)
+        tag = "Abstimmung" if poll.open else "Ergebnis"
+        f = QFont(HEAD_FONT)
+        f.setWeight(QFont.DemiBold)
+        f.setPixelSize(max(10, int(h * 0.038)))
         p.setFont(f)
-        p.setPen(QColor("#a5b4fc" if poll.open else "#86efac"))
+        p.setPen(QColor("#7fa6f3" if poll.open else "#4cc38a"))
         p.drawText(QRectF(left.x(), left.y(), left.width(), h * 0.05), Qt.AlignLeft | Qt.AlignVCenter, tag)
-        qf = QFont()
+        qf = QFont(HEAD_FONT)
         qf.setBold(True)
-        qf.setPixelSize(max(14, int(h * 0.075)))
+        qf.setPixelSize(max(14, int(h * 0.085)))
         p.setFont(qf)
         p.setPen(QColor("#ffffff"))
         q_rect = QRectF(left.x(), left.y() + h * 0.055, left.width(), h * 0.2)

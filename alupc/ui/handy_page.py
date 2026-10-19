@@ -38,16 +38,10 @@ class ChipIcon(QWidget):
         self.setFixedSize(52, 52)
 
     def paintEvent(self, _e):
-        from PySide6.QtGui import QLinearGradient
-
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
-        c = QColor(self.color)
-        grad = QLinearGradient(r.topLeft(), r.bottomRight())
-        grad.setColorAt(0, c.lighter(122))
-        grad.setColorAt(1, c.darker(108))
-        p.fillPath(rounded(r, 15), grad)
+        p.fillPath(rounded(r, 8), QColor(self.color))
         icons.paint(p, self.icon_name, r.adjusted(13, 13, -13, -13), "#ffffff", 2.0)
         p.end()
 

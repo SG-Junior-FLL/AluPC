@@ -67,8 +67,12 @@ def text(p: QPainter, rect: QRectF, txt: str, px: float, color=TEXT, bold=False,
 
 
 def tag(c, x, y, w, label: str, color="#a5b4fc") -> None:
-    f = font(c.h * 0.028, True)
-    f.setLetterSpacing(QFont.PercentageSpacing, 115)
+    """Kleine Zeile über dem Spiel (Name, Runde …) – in der Pultschrift, normale Schreibweise."""
+    from .ui.theme import HEAD_FONT
+
+    f = QFont(HEAD_FONT)
+    f.setPixelSize(max(9, int(c.h * 0.034)))
+    f.setWeight(QFont.DemiBold)
     c.p.setFont(f)
     c.p.setPen(qc(color))
     c.p.drawText(QRectF(x, y, w, c.h * 0.045), Qt.AlignLeft | Qt.AlignVCenter, label)
@@ -295,7 +299,7 @@ def lobby(c) -> None:
     else:
         qr_side = int(min(h * 0.46, w * 0.26))
         left_w = w - 3 * m - qr_side
-    tag(c, m, m, left_w, "MINISPIELE · HANDY = CONTROLLER")
+    tag(c, m, m, left_w, "Minispiele · Handy = Controller")
     spec = hub.spec
     t = c.now - c.fx.born.setdefault(("lobby", hub.game_key), c.now)
     slide = ease_out(t / 0.6)
@@ -411,7 +415,7 @@ def podium(c) -> None:
         c.fx.born["confetti"] = c.now
         confetti(c.fx, w, h, c.now)
     t = c.now - hub.over_at
-    tag(c, m, m, w - 2 * m, f"{hub.spec.title.upper()} · ERGEBNIS", "#86efac")
+    tag(c, m, m, w - 2 * m, f"{hub.spec.title} · Ergebnis", "#86efac")
     if hub.spec.cls.teams:
         _team_result(c, m, t)
         return
@@ -487,7 +491,7 @@ def board(c) -> None:
     if not c.fx.born.get("confetti") and hub.board:
         c.fx.born["confetti"] = c.now
         confetti(c.fx, w, h, c.now, n=120)
-    tag(c, m, m, w - 2 * m, "BESTENLISTE DES ABENDS", "#fbbf24")
+    tag(c, m, m, w - 2 * m, "Bestenliste des Abends", "#fbbf24")
     games = hub.board_games
     s = ease_back(t / 0.5)
     p.save()
@@ -633,7 +637,7 @@ def simon(c, g, events) -> None:
             c.fx.born[("out", data["pid"])] = t
         elif kind == "go":
             c.fx.born["go"] = t
-    tag(c, m, m, w * 0.6, f"SIMON SAGT · RUNDE {g.round} · {len(g.seq)} FARBEN · NOCH {len(g.alive)} IM SPIEL")
+    tag(c, m, m, w * 0.6, f"Simon sagt · Runde {g.round} · {len(g.seq)} Farben · noch {len(g.alive)} im Spiel")
     size = min(h * 0.56, w * 0.42)
     center = QPointF(w * 0.3, h * 0.45)
     lit = g.lit(now)
@@ -813,7 +817,7 @@ def tetris(c, g, events) -> None:
         if kind in ("lines", "out", "win"):
             c.fx.born[(kind, data["pid"], t)] = t
     alive = len(g.alive())
-    tag(c, m, m, w * 0.7, f"TETRIS · ALLE DIESELBEN TEILE · NOCH {alive} VON {len(g.boards)} IM SPIEL")
+    tag(c, m, m, w * 0.7, f"Tetris · alle dieselben Teile · noch {alive} von {len(g.boards)} im Spiel")
     text(p, QRectF(w - m - w * 0.25, m, w * 0.25, h * 0.045),
          f"Stufe {g.level(now) + 1} · {clock_text(now - g.start)}", h * 0.034, TEXT, True,
          Qt.AlignRight | Qt.AlignVCenter)
@@ -905,7 +909,7 @@ def schlangen(c, g, events) -> None:
             burst(c.fx, q[0], q[1], color_of(c, data["pid"]), now, n=30, speed=300, size=6)
             if data.get("wall"):
                 c.fx.born["wall"] = t
-    tag(c, m, m, area.width(), "SNAKE")
+    tag(c, m, m, area.width(), "Snake")
     left = g.remaining(now)
     text(p, QRectF(m, m, area.width(), h * 0.05), clock_text(left), h * 0.04, "#fbbf24" if left < 10 else TEXT, True,
          Qt.AlignRight | Qt.AlignVCenter)
@@ -949,7 +953,7 @@ def schlangen(c, g, events) -> None:
 def rennen(c, g, events) -> None:
     p, w, h, now = c.p, c.w, c.h, c.now
     m = max(14, int(min(w, h) * 0.04))
-    tag(c, m, m, w - 2 * m, f"TIPP-RENNEN · {g.goal} TIPPS BIS ZUM ZIEL")
+    tag(c, m, m, w - 2 * m, f"Tipp-Rennen · {g.goal} Tipps bis zum Ziel")
     pids = list(g.progress)
     top = m + h * 0.08
     lane_h = min((h - top - m) / max(1, len(pids)), h * 0.14)
@@ -1005,7 +1009,7 @@ def ssp(c, g, events) -> None:
             c.fx.born[("pick", data["pid"])] = t
     side_w = w * 0.24
     main = QRectF(m, m, w - 3 * m - side_w, h - 2 * m)
-    tag(c, m, m, main.width(), f"SCHERE · STEIN · PAPIER · RUNDE {g.round} / {g.rounds}", "#fda4af")
+    tag(c, m, m, main.width(), f"Schere, Stein, Papier · Runde {g.round} / {g.rounds}", "#fda4af")
     col_w = main.width() / 3
     if g.phase == "waehlen":
         text(p, QRectF(main.x(), main.y() + h * 0.08, main.width(), h * 0.09), "Geheim wählen!", h * 0.07, TEXT, True)
@@ -1202,7 +1206,7 @@ def invaders(c, g, events) -> None:
         a = 0.25 + 0.25 * math.sin(now * 2 + sx * 3)
         p.setBrush(qc("#ffffff", a))
         p.drawEllipse(pt(sx, sy), 1.4, 1.4)
-    tag(c, m, m, field.width(), f"SPACE INVADERS · WELLE {g.wave}")
+    tag(c, m, m, field.width(), f"Space Invaders · Welle {g.wave}")
     left = g.remaining(now)
     text(p, QRectF(m, m, field.width() + (fx0 - m), h * 0.05), clock_text(left), h * 0.04,
          "#fbbf24" if left < 15 else TEXT, True, Qt.AlignRight | Qt.AlignVCenter)
@@ -1338,7 +1342,7 @@ def flappy(c, g, events) -> None:
         text(p, QRectF(q.x() - scale * 2, q.y() - r * 2.6 - near * scale * 0.4, scale * 4, scale * 0.45),
              name_of(c, pid), scale * 0.32, qc("#0f172a", 0.8), True)
     p.restore()
-    tag(c, m, m, field.width(), "FLAPPY BIRD")
+    tag(c, m, m, field.width(), "Flappy Bird")
     best = max((b["passed"] for b in g.birds.values()), default=0)
     text(p, QRectF(m, m, field.width(), h * 0.05), f"{best}", h * 0.05, TEXT, True, Qt.AlignRight | Qt.AlignVCenter)
     if now < g.go_at:
@@ -1435,7 +1439,7 @@ def malen(c, g, events) -> None:
         elif kind == "reveal":
             c.fx.born["paint_reveal"] = t
     side_w = w * 0.27
-    tag(c, m, m, w - 2 * m, f"MONTAGSMALER · RUNDE {g.round} / {g.total}", "#f9a8d4")
+    tag(c, m, m, w - 2 * m, f"Montagsmaler · Runde {g.round} / {g.total}", "#f9a8d4")
     # Leinwand 4:3, so groß wie möglich
     avail = QRectF(m, m + h * 0.07, w - 3 * m - side_w, h - 2 * m - h * 0.07)
     cw = min(avail.width(), avail.height() * 4 / 3)

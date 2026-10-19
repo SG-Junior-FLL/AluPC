@@ -298,7 +298,7 @@ class PresenterWindow(QWidget):
         lay.addLayout(low)
         self.setStyleSheet(
             f"PresenterWindow {{ background: {t.bg}; }}"
-            f"QFrame#Group {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 12px; }}"
+            f"QFrame#Group {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; }}"
             f"QFrame#Group QLabel {{ background: transparent; color: {t.muted}; }}"
             f"QToolButton#ToolBtn {{ padding: 6px 12px; border-radius: 8px; border: none; background: transparent; }}"
             f"QToolButton#ToolBtn:hover {{ background: {t.surface2}; }}"

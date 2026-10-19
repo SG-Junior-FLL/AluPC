@@ -37,6 +37,7 @@ from PySide6.QtMultimedia import (
 from PySide6.QtWidgets import QWidget
 
 from .scenes import layout_slots
+from .ui.theme import STAGE_BG
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tif", ".tiff"}
 MAX_SCENE_DEPTH = 4
@@ -850,7 +851,7 @@ AIRPLAY_IDLE = {"bereit": "„AirPlay bereit“", "schwarz": "Schwarz", "anleitu
 
 def paint_airplay_waiting(widget, name: str, code: str, style: str = "bereit") -> None:
     """Monitor 2, solange kein iPhone verbunden ist: „AirPlay bereit“ (klein, ruhig), schwarz oder Anleitung."""
-    from PySide6.QtGui import QLinearGradient, QPen
+    from PySide6.QtGui import QPen
 
     w, h = widget.width(), widget.height()
     p = QPainter(widget)
@@ -890,10 +891,7 @@ def paint_airplay_waiting(widget, name: str, code: str, style: str = "bereit") -
         line(y, unit * 1.1, name + (f"  ·  Code {code}" if code else ""), "#6b7280")
         p.end()
         return
-    grad = QLinearGradient(0, 0, w, h)
-    grad.setColorAt(0, QColor("#0b1020"))
-    grad.setColorAt(1, QColor("#1b2346"))
-    p.fillRect(widget.rect(), grad)
+    p.fillRect(widget.rect(), QColor(STAGE_BG))  # Regiepult: ruhiger Graphit-Grund
     unit = max(8, min(w, h) // 36)
     # stilisiertes Handy mit Spiegel-Symbol
     pw, ph = unit * 6, unit * 11
@@ -1040,15 +1038,11 @@ class WifiQrSource(QWidget):
             y += px * 1.5
 
     def paintEvent(self, _e):
-        from PySide6.QtGui import QLinearGradient
 
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        grad = QLinearGradient(0, 0, w, h)
-        grad.setColorAt(0, QColor("#0b1220"))
-        grad.setColorAt(1, QColor("#083344"))
-        p.fillRect(self.rect(), grad)
+        p.fillRect(self.rect(), QColor(STAGE_BG))  # Regiepult: ruhiger Graphit-Grund
         if self._qr is None:
             msg = self.note or "Hotspot ist aus"
             p.setPen(QColor("#e2e8f0"))
@@ -1075,17 +1069,14 @@ class WifiHelpSource(WifiQrSource):
         super().__init__({}, parent)  # folgt immer dem laufenden AluPC-WLAN
 
     def paintEvent(self, _e):
-        from PySide6.QtGui import QFont, QFontMetricsF, QLinearGradient
+        from PySide6.QtGui import QFont, QFontMetricsF
 
         from .hotspot import STAY_STEPS, STAY_WHY
 
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        grad = QLinearGradient(0, 0, w, h)
-        grad.setColorAt(0, QColor("#0b1220"))
-        grad.setColorAt(1, QColor("#1e1b4b"))
-        p.fillRect(self.rect(), grad)
+        p.fillRect(self.rect(), QColor(STAGE_BG))  # Regiepult: ruhiger Graphit-Grund
         m = min(w, h) * 0.05
         portrait = h > w * 1.1
         x0, y0 = m, m

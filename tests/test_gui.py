@@ -4113,7 +4113,7 @@ def test_wheel_does_not_spin_by_itself_and_menus(env):
     menu = window.t_wheel.menu
     window._fill_wheel_menu(menu)
     headers = [a.text() for a in menu.actions() if a.data() == "header"]
-    assert headers == ["GLÜCKSRAD"]
+    assert headers == ["Glücksrad"]
     controller.show_whiteboard("kariert")
     pump()
     menu = window.t_board.menu

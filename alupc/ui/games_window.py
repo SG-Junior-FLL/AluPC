@@ -229,7 +229,7 @@ class GamesWindow(QWidget):
 
     @staticmethod
     def _card_css(t) -> str:
-        return (f"QPushButton {{ text-align: left; padding: 10px 14px; border-radius: 12px; background: {t.surface2};"
+        return (f"QPushButton {{ text-align: left; padding: 10px 14px; border-radius: 6px; background: {t.surface2};"
                 f" border: 2px solid {t.border}; color: {t.text}; }}"
                 f"QPushButton:hover {{ border-color: {t.muted}; }}"
                 f"QPushButton:checked {{ border-color: {t.accent}; background: rgba({QColor(t.accent).red()},"
@@ -366,7 +366,7 @@ class GamesWindow(QWidget):
                     "📶  AluPC-WLAN aus – „WLAN …“ startet es (Handys kommen nur darüber ins Spiel).")
             self.wlan.setText(text)
             self.wlan.setStyleSheet(f"color: {t.text}; background: {t.soft(color, 0.14)}; border: 1px solid "
-                                    f"{t.soft(color, 0.4)}; border-radius: 12px; padding: 10px 12px;")
+                                    f"{t.soft(color, 0.4)}; border-radius: 8px; padding: 10px 12px;")
         except RuntimeError:  # Fenster schon zu
             pass
 
@@ -377,7 +377,7 @@ class GamesWindow(QWidget):
         t = theme.current()
         if hub is None:
             self.info.setText("Minispiele sind aus")
-            self.pill.setText("AUS")
+            self.pill.setText("Aus")
             for b in (self.b_start, self.b_next, self.b_end, self.b_lobby, self.b_teams, self.b_team, self.b_kick):
                 b.setEnabled(False)
             self.players.clear()
@@ -409,8 +409,8 @@ class GamesWindow(QWidget):
             self.opts_row.addWidget(combo)
         self.opts_row.addStretch(1)
         running = hub.phase == "running"
-        pill = {"lobby": ("LOBBY", t.accent), "running": ("LÄUFT", t.success), "over": ("ERGEBNIS", t.warning),
-                "board": ("BESTENLISTE", t.warning)}
+        pill = {"lobby": ("Lobby", t.accent), "running": ("Läuft", t.live), "over": ("Ergebnis", t.warning),
+                "board": ("Bestenliste", t.warning)}
         label, color = pill[hub.phase]
         self.pill.setText(label)
         self.pill.setStyleSheet(f"background: {color}; color: white; border-radius: 12px; padding: 6px 12px;"

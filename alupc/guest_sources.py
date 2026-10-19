@@ -7,10 +7,11 @@ import math
 import time
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QLinearGradient, QPainter, QPainterPath
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPainterPath
 from PySide6.QtWidgets import QWidget
 
 from .sources import draw_qr, fitted_font, qr_image
+from .ui.theme import STAGE_BG
 
 
 def _font(px: float, bold: bool = False) -> QFont:
@@ -126,10 +127,7 @@ class ChatWallSource(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        grad = QLinearGradient(0, 0, w, h)
-        grad.setColorAt(0, QColor("#0b1020"))
-        grad.setColorAt(1, QColor("#172554"))
-        p.fillRect(self.rect(), grad)
+        p.fillRect(self.rect(), QColor(STAGE_BG))  # Regiepult: ruhiger Graphit-Grund
         m = min(w, h) * 0.05
         portrait = h > w * 1.1
         codes_rect = QRectF(m, h - m - h * 0.26, w - 2 * m, h * 0.26) if portrait else \
@@ -260,10 +258,7 @@ class PhotoWallSource(QWidget):
 
     # ---- Zeichnen
     def _background(self, p: QPainter, w: int, h: int) -> None:
-        grad = QLinearGradient(0, 0, w, h)
-        grad.setColorAt(0, QColor("#1a0b1e"))
-        grad.setColorAt(1, QColor("#0b1020"))
-        p.fillRect(QRectF(0, 0, w, h), grad)
+        p.fillRect(QRectF(0, 0, w, h), QColor(STAGE_BG))  # Regiepult: ruhiger Graphit-Grund
 
     def _polaroid(self, p: QPainter, photo: dict, center: QPointF, size: float, angle: float, caption: bool,
                   scale: float = 1.0) -> None:

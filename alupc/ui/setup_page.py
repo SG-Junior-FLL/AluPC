@@ -87,7 +87,7 @@ class IdentifyWindow(QLabel):
         font.setBold(True)
         self.setFont(font)
         self.setAlignment(Qt.AlignCenter)
-        self.setStyleSheet(f"background:{theme.current().accent}; color:white; border-radius:24px;")
+        self.setStyleSheet(f"background:{theme.current().accent}; color:white; border-radius:10px;")
         self.resize(360, 260)
         geo = screen.geometry()
         self.move(geo.center().x() - 180, geo.center().y() - 130)

@@ -98,7 +98,7 @@ class Strip(QFrame):
         self.color = COLORS["app"] if stream else (COLORS["virtual"] if item.get("virtual") else COLORS[kind])
         self.setObjectName("Strip")
         self.setFixedWidth(STRIP_W)
-        self.setStyleSheet(f"#Strip {{ background:{t.surface}; border:1px solid {t.border}; border-radius:14px;"
+        self.setStyleSheet(f"#Strip {{ background:{t.surface}; border:1px solid {t.border}; border-radius:10px;"
                            f" border-top:4px solid {self.color}; }}")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 10, 8, 10)

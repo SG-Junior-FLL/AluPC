@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QGuiApplication, QPalette
 
 ACCENTS = {
-    "alupc": ("AluPC", "#5b76f2"),  # eigenes Theme: Farben aus dem Logo, eigene Flächen – Windows und Linux gleich
+    "alupc": ("AluPC", "#5b8def"),  # eigenes Theme „Regiepult“ (docs/DESIGN.md) – Windows und Linux gleich
     "system": ("Wie das System", "#3b82f6"),  # Farbe kommt aus Windows/KDE (system_accent)
     "blau": ("Blau", "#3b82f6"),
     "violett": ("Violett", "#8b5cf6"),
@@ -16,10 +16,10 @@ ACCENTS = {
     "orange": ("Orange", "#f59e0b"),
     "rosa": ("Rosa", "#ec4899"),
 }
-# Zweite Farbe je Akzent: Verläufe (Knöpfe, Navigation, Symbole) laufen von der Akzentfarbe zu dieser
-ACCENT_PARTNERS = {"alupc": "#7a4ff0", "blau": "#8b5cf6", "violett": "#ec4899", "gruen": "#06b6d4", "orange": "#ef4444",
-                   "rosa": "#f97316"}
 MODES = {"system": "Wie das System", "dunkel": "Dunkel", "hell": "Hell"}
+# Anzeigen auf Monitor 2 (Abstimmung, Glücksrad, Codes …): ruhiger Graphit-Grund wie im Regiepult
+STAGE_BG = "#121417"
+STAGE_PANEL = "#1f2227"
 
 
 @dataclass
@@ -36,6 +36,8 @@ class Theme:
     danger: str = "#ef4444"
     warning: str = "#f59e0b"
     success: str = "#22c55e"
+    live: str = "#e5484d"  # Sendung: „läuft auf dem Bildschirm“ (Tally-Leuchte) – nur dafür
+    ready: str = "#30a46c"  # bereit / verbunden
 
     def c(self, name: str) -> QColor:
         return QColor(getattr(self, name))
@@ -189,32 +191,24 @@ def system_accent() -> str:
     return c.name()
 
 
-def _partner(color: str) -> str:
-    """Zweite Verlaufsfarbe: Farbton ein Stück weiter gedreht."""
-    c = QColor(color)
-    h, s, v = c.hsvHue(), c.hsvSaturation(), c.value()
-    return QColor.fromHsv((max(h, 0) + 40) % 360, s, v).name()
-
-
 def make_theme(mode: str = "system", accent: str = "blau") -> Theme:
+    """Regiepult (docs/DESIGN.md): Graphit (dunkel) bzw. Alu (hell), neutrale Flächen; der Akzent ist die
+    Bedienfarbe, Rot (live) zeigt nur, was gerade auf dem Bildschirm läuft."""
     dark = system_prefers_dark() if mode == "system" else mode == "dunkel"
     key = accent if accent in ACCENTS else "alupc"
-    if key == "alupc":  # AluPC-Theme: Flächen leicht ins Logo-Indigo getönt (nicht neutral grau)
-        if dark:
-            return Theme(True, "#6b84ff", bg="#0b0c1a", surface="#131429", surface2="#1b1d38",
-                         border="#2a2d52", text="#eef0ff", muted="#9a9dc8", accent2="#8b5cf6")
-        return Theme(False, "#4f6bef", bg="#f2f3fc", surface="#ffffff", surface2="#eceefb",
-                     border="#dcdff4", text="#14162e", muted="#5c6085", accent2="#7a4ff0")
-    if key == "system":
+    if key == "alupc":
+        accent_hex = "#5b8def" if dark else "#2f6fdb"
+    elif key == "system":
         accent_hex = system_accent()
-        partner = _partner(accent_hex)
     else:
-        accent_hex, partner = ACCENTS[key][1], ACCENT_PARTNERS[key]
-    if dark:  # ruhiges, fast neutrales Dunkelgrau-Blau
-        return Theme(True, accent_hex, bg="#0b0e14", surface="#12161f", surface2="#1a1f2b",
-                     border="#252b38", text="#eef1f6", muted="#8b93a3", accent2=partner)
-    return Theme(False, accent_hex, bg="#f4f5f8", surface="#ffffff", surface2="#f1f3f6",
-                 border="#e2e5eb", text="#111827", muted="#5b6474", accent2=partner)
+        accent_hex = ACCENTS[key][1]
+    if dark:
+        return Theme(True, accent_hex, bg="#16181c", surface="#1f2227", surface2="#292d33", border="#363b42",
+                     text="#eceef1", muted="#9aa1ac", accent2=accent_hex, danger="#f2555a", live="#e5484d",
+                     ready="#30a46c")
+    return Theme(False, accent_hex, bg="#e6e8eb", surface="#f6f7f8", surface2="#ffffff", border="#c9ced5",
+                 text="#15181c", muted="#59616c", accent2=accent_hex, danger="#d93a40", live="#d93a40",
+                 ready="#218358")
 
 
 def current() -> Theme:
@@ -226,11 +220,12 @@ def current() -> Theme:
 
 _fonts_loaded = False
 UI_FONT = "Inter"
+HEAD_FONT = "Barlow Semi Condensed"  # Titel, Kacheln, Tasten – schmal und technisch wie Pultbeschriftung
 MONO_FONT = "JetBrains Mono"
 
 
 def load_fonts(app) -> bool:
-    """Mitgelieferte Schriften laden (Inter, JetBrains Mono) – damit AluPC unter Windows und Linux gleich aussieht.
+    """Mitgelieferte Schriften laden (Inter, Barlow Semi Condensed, JetBrains Mono) – damit AluPC unter Windows und Linux gleich aussieht.
     False = Schriftdateien fehlen (dann nimmt Qt die Systemschrift)."""
     global _fonts_loaded
     if _fonts_loaded:
@@ -407,145 +402,143 @@ def _check_image() -> str:
 
 
 def stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
+    """Regiepult (docs/DESIGN.md): flache Flächen, Fugen statt Schatten, Rundung nach Rang (Pult 10, Taste 6),
+    Tasten mit hellerer Oberkante. Keine Verläufe, kein Glas."""
+    a1 = t.accent
+    head = HEAD_FONT
     hover = t.mix(t.surface2, t.text, 0.06).name()
-    a1, a2 = t.accent, t.accent2
-    a1_hi = t.mix(a1, "#ffffff", 0.14).name()
-    a2_hi = t.mix(a2, "#ffffff", 0.14).name()
-    # schlicht: einfarbig in der Akzentfarbe (nur ein Hauch Tiefe), keine zweifarbigen Verläufe mehr
-    a1_top = t.mix(a1, "#ffffff", 0.06).name()
-    grad = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {a1_top}, stop:1 {a1})"
-    grad_h = f"qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {a1}, stop:1 {a1_top})"
-    grad_hover = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {a1_hi}, stop:1 {t.mix(a1, '#ffffff', 0.08).name()})"
-    del a2_hi
-    # Glas-Karten: oben einen Hauch heller, feine helle Kante
-    card_top = t.mix(t.surface, "#ffffff", 0.035 if t.dark else 0.0).name()
-    card_bottom = t.mix(t.surface, t.bg, 0.35 if t.dark else 0.0).name()
-    card = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {card_top}, stop:1 {card_bottom})"
-    edge = t.mix(t.border, a1, 0.18).name()
-    edge_soft = t.soft(edge, 0.9)
-    # Glas: Karten leicht durchscheinend (das Aurora-Leuchten dahinter schimmert durch), oben etwas heller
-    glass = (f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {t.soft(card_top, 0.9 if t.dark else 0.94)},"
-             f" stop:1 {t.soft(card_bottom, 0.84 if t.dark else 0.9)})")
-    hero = (f"qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {t.soft(t.mix(t.surface, a1, 0.16).name(), 0.92)},"
-            f" stop:1 {t.soft(t.mix(t.surface, t.accent2, 0.06).name(), 0.9)})")
+    pressed = t.mix(t.surface2, t.text, 0.12).name()
+    # Taste: Oberkante heller (dunkel) bzw. Unterkante dunkler (hell) – wie eine echte Pulttaste
+    key_top = t.mix(t.border, "#ffffff", 0.14).name() if t.dark else t.border
+    key_bottom = t.border if t.dark else t.mix(t.border, "#000000", 0.12).name()
+    a1_hover = t.mix(a1, "#ffffff", 0.10).name()
+    a1_down = t.mix(a1, "#000000", 0.12).name()
+    sel = t.soft(a1, 0.20 if t.dark else 0.13)
+    side = t.mix(t.bg, "#000000", 0.18).name() if t.dark else t.surface
+    field = t.mix(t.bg, t.surface, 0.5).name() if t.dark else "#ffffff"
     return f"""
 * {{ outline: none; }}
 QWidget {{ color: {t.text}; }}
 QMainWindow, QDialog {{ background: {t.bg}; }}
-QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {edge};
-            border-radius: 8px; padding: 6px 9px; }}
+QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {t.border}; border-radius: 6px; padding: 6px 9px; }}
 
-#Sidebar {{ background: {t.soft(t.surface if not t.dark else t.mix(t.bg, t.surface, 0.55).name(), 0.72)};
-             border-right: 1px solid {t.soft(t.border, 0.8)}; }}
+#Sidebar {{ background: {side}; border-right: 1px solid {t.border}; }}
 #Content {{ background: transparent; }}
-#PageIcon {{ background: {grad}; border-radius: 14px; }}
-#Brand {{ font-size: 15pt; font-weight: 800; }}
+#PageIcon {{ background: {t.surface2}; border: 1px solid {t.border}; border-radius: 8px; }}
+#Brand {{ font-family: "{head}"; font-size: 16pt; font-weight: 700; }}
 #BrandSub, #Muted, QLabel[muted="true"] {{ color: {t.muted}; }}
-#PageTitle {{ font-size: 21pt; font-weight: 800; letter-spacing: -0.3px; }}
-#PageSubtitle {{ color: {t.muted}; font-size: 10.5pt; }}
-#SectionTitle {{ font-size: 11pt; font-weight: 700; }}
-#StartSection {{ font-size: 8.5pt; font-weight: 800; letter-spacing: 1.4px; color: {t.muted};
-                 padding: 10px 0 2px 2px; border-bottom: 1px solid {t.border}; }}
+#PageTitle {{ font-family: "{head}"; font-size: 22pt; font-weight: 700; }}
+#PageSubtitle {{ color: {t.muted}; font-size: 10pt; }}
+#SectionTitle {{ font-family: "{head}"; font-size: 12.5pt; font-weight: 600; }}
+#StartSection {{ font-family: "{head}"; font-size: 12pt; font-weight: 600; color: {t.text};
+                 padding: 10px 0 4px 0; border-bottom: 1px solid {t.border}; }}
 
-#Card, QGroupBox {{ background: {glass}; border: 1px solid {edge_soft}; border-radius: 18px; }}
-#Hero {{ background: {hero}; border: 1px solid {edge}; border-radius: 22px; }}
-QPushButton#Chip {{ border-radius: 17px; padding: 7px 14px; background: {t.surface2}; font-weight: 600; }}
-QPushButton#Chip:checked {{ background: {grad_h}; border-color: transparent; color: #ffffff; }}
-QGroupBox {{ margin-top: 30px; padding: 18px 18px 16px 18px; font-weight: 700; }}
-QGroupBox::title {{ subcontrol-origin: margin; left: 8px; top: 4px; padding: 0 4px; color: {t.text};
-                   font-size: 11pt; font-weight: 800; }}
+#Card, QGroupBox {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; }}
+#Hero {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; }}
+QPushButton#Chip {{ border-radius: 13px; padding: 5px 12px; background: {t.surface2}; font-weight: 600; }}
+QPushButton#Chip:checked {{ background: {a1}; border-color: {a1}; color: #ffffff; }}
+QGroupBox {{ margin-top: 30px; padding: 18px 16px 14px 16px; }}
+QGroupBox::title {{ subcontrol-origin: margin; left: 2px; top: 4px; padding: 0 2px; color: {t.text};
+                   font-family: "{head}"; font-size: 12.5pt; font-weight: 600; }}
 
 QPushButton, QToolButton#Plain {{
-    background: {t.surface2}; border: 1px solid {t.border}; border-radius: 11px;
-    padding: 7px 15px; min-height: 20px; font-weight: 600; }}
-QPushButton:hover, QToolButton#Plain:hover {{ background: {hover}; border-color: {edge}; }}
-QPushButton:pressed {{ background: {t.border}; }}
-QPushButton:disabled {{ color: {t.muted}; background: {t.surface}; }}
-QPushButton[primary="true"] {{ background: {grad}; border: 1px solid {a1}; color: #ffffff;
-    font-weight: 700; }}
-QPushButton[primary="true"]:hover {{ background: {grad_hover}; }}
+    background: {t.surface2}; border: 1px solid {t.border}; border-top-color: {key_top};
+    border-bottom-color: {key_bottom}; border-radius: 6px; padding: 6px 14px; min-height: 20px;
+    font-family: "{head}"; font-size: 11pt; font-weight: 600; }}
+QPushButton:hover, QToolButton#Plain:hover {{ background: {hover}; }}
+QPushButton:pressed {{ background: {pressed}; border-top-color: {key_bottom}; }}
+QPushButton:disabled {{ color: {t.muted}; background: {t.surface}; border-color: {t.border}; }}
+QPushButton[primary="true"] {{ background: {a1}; border: 1px solid {a1_down}; border-top-color: {a1_hover};
+    color: #ffffff; }}
+QPushButton[primary="true"]:hover {{ background: {a1_hover}; }}
+QPushButton[primary="true"]:pressed {{ background: {a1_down}; }}
 QPushButton[primary="true"]:disabled {{ background: {t.surface2}; border-color: {t.border}; color: {t.muted}; }}
 QPushButton[danger="true"] {{ color: {t.danger}; }}
-QPushButton[danger="true"]:hover {{ background: {t.soft(t.danger, 0.14)}; border-color: {t.soft(t.danger, 0.5)}; }}
+QPushButton[danger="true"]:hover {{ background: {t.soft(t.danger, 0.12)}; border-color: {t.soft(t.danger, 0.5)}; }}
 QPushButton:default {{ border-color: {a1}; }}
-QPushButton#Segment {{ border-radius: 17px; padding: 7px 18px; min-width: 56px; }}
-QPushButton#Segment:checked {{ background: {grad_h}; border-color: transparent; color: #ffffff; font-weight: 700; }}
+QPushButton#Segment {{ border-radius: 6px; padding: 6px 16px; min-width: 56px; }}
+QPushButton#Segment:checked {{ background: {a1}; border-color: {a1_down}; color: #ffffff; }}
 
 QLineEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QKeySequenceEdit QLineEdit {{
-    background: {t.surface2}; border: 1px solid {t.border}; border-radius: 10px; padding: 6px 9px;
+    background: {field}; border: 1px solid {t.border}; border-radius: 6px; padding: 6px 9px;
     selection-background-color: {a1}; }}
-QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border-color: {edge}; }}
-QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
-    border-color: {a1}; background: {t.mix(t.surface2, a1, 0.05).name()}; }}
+QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border-color: {t.mix(t.border, t.text, 0.25).name()}; }}
+QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{ border-color: {a1}; }}
 QComboBox {{ padding-right: 30px; combobox-popup: 0; }}
 QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: center right; border: none; width: 28px; }}
 QComboBox::down-arrow {{ {f'image: url("{arrow_image}");' if arrow_image else ''} width: 14px; height: 14px; }}
 QComboBox::down-arrow:on {{ top: 1px; }}
-QComboBoxPrivateContainer {{ background: {t.surface}; border: 1px solid {edge}; }}
+QComboBoxPrivateContainer {{ background: {t.surface}; border: 1px solid {t.border}; }}
 QComboBox QAbstractItemView {{ background: {t.surface}; border: none; padding: 4px; outline: 0;
     selection-background-color: transparent; selection-color: {t.text}; }}
-QComboBox QAbstractItemView::item {{ min-height: 30px; padding: 2px 10px; border-radius: 8px; margin: 1px 0; }}
+QComboBox QAbstractItemView::item {{ min-height: 30px; padding: 2px 10px; border-radius: 4px; margin: 1px 0; }}
 QComboBox QAbstractItemView::item:hover {{ background: {hover}; }}
-QComboBox QAbstractItemView::item:selected {{ background: {t.soft(a1, 0.16 if t.dark else 0.10)}; color: {t.text}; }}
+QComboBox QAbstractItemView::item:selected {{ background: {sel}; color: {t.text}; }}
 QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
     width: 18px; border: none; }}
 
 QCheckBox, QRadioButton {{ spacing: 9px; }}
 QRadioButton::indicator {{ width: 16px; height: 16px; border-radius: 9px; border: 1px solid {t.border};
-    background: {t.surface2}; }}
-QRadioButton::indicator:checked {{ background: {grad}; border: 4px solid {t.surface2}; }}
-QCheckBox::indicator {{ width: 18px; height: 18px; border-radius: 6px; border: 1px solid {t.border};
-    background: {t.surface2}; }}
+    background: {field}; }}
+QRadioButton::indicator:checked {{ background: {a1}; border: 4px solid {field}; }}
+QCheckBox::indicator {{ width: 18px; height: 18px; border-radius: 4px; border: 1px solid {t.border};
+    background: {field}; }}
 QCheckBox::indicator:hover {{ border-color: {a1}; }}
-QCheckBox::indicator:checked {{ background: {grad}; border-color: transparent;
+QCheckBox::indicator:checked {{ background: {a1}; border-color: {a1};
     {f'image: url("{check_image}");' if check_image else ''} }}
 
-QListWidget {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 12px; padding: 4px; }}
-QListWidget::item {{ padding: 7px 8px; border-radius: 8px; }}
+QListWidget {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 8px; padding: 4px; }}
+QListWidget::item {{ padding: 7px 8px; border-radius: 4px; }}
 QListWidget::item:hover {{ background: {hover}; }}
-QListWidget::item:selected {{ background: {t.soft(a1, 0.16 if t.dark else 0.10)}; color: {t.text}; }}
-QListWidget::indicator, QTreeWidget::indicator {{ width: 17px; height: 17px; border-radius: 5px;
-    border: 1px solid {t.border}; background: {t.surface2}; }}
-QListWidget::indicator:checked, QTreeWidget::indicator:checked {{ background: {grad}; border-color: transparent;
+QListWidget::item:selected {{ background: {sel}; color: {t.text}; }}
+QListWidget::indicator, QTreeWidget::indicator {{ width: 17px; height: 17px; border-radius: 4px;
+    border: 1px solid {t.border}; background: {field}; }}
+QListWidget::indicator:checked, QTreeWidget::indicator:checked {{ background: {a1}; border-color: {a1};
     {f'image: url("{check_image}");' if check_image else ''} }}
-QListWidget#SetupNav {{ background: {card}; border: 1px solid {edge}; border-radius: 18px; padding: 6px; }}
-QListWidget#SetupNav::item {{ padding: 8px 10px; margin: 1px 0; border-radius: 11px; border-left: 3px solid transparent; }}
-QListWidget#SetupNav::item:selected {{ background: {t.soft(a1, 0.16 if t.dark else 0.10)}; border-left: 3px solid {a1};
-    font-weight: 700; }}
+QListWidget#SetupNav {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; padding: 6px; }}
+QListWidget#SetupNav::item {{ padding: 8px 10px; margin: 1px 0; border-radius: 4px; border-left: 3px solid transparent; }}
+QListWidget#SetupNav::item:selected {{ background: {t.surface2}; border-left: 3px solid {a1}; font-weight: 600; }}
 
-QTabWidget::pane {{ border: 1px solid {edge}; border-radius: 12px; top: -1px; background: {t.surface}; }}
-QTabBar::tab {{ background: transparent; padding: 8px 14px; margin-right: 4px; border-radius: 9px; color: {t.muted}; }}
-QTabBar::tab:selected {{ background: {t.soft(a1, 0.14)}; color: {t.text}; border-bottom: 2px solid {a1}; }}
+QTabWidget::pane {{ border: 1px solid {t.border}; border-radius: 8px; top: -1px; background: {t.surface}; }}
+QTabBar::tab {{ background: transparent; padding: 8px 14px; margin-right: 2px; color: {t.muted};
+    font-family: "{head}"; font-size: 11pt; font-weight: 600; border-bottom: 2px solid transparent; }}
+QTabBar::tab:hover {{ color: {t.text}; }}
+QTabBar::tab:selected {{ color: {t.text}; border-bottom: 2px solid {a1}; }}
 
 QScrollArea {{ background: transparent; border: none; }}
 QScrollArea > QWidget > QWidget {{ background: transparent; }}
 QScrollBar:vertical {{ background: transparent; width: 9px; margin: 3px; }}
-QScrollBar::handle:vertical {{ background: {t.border}; border-radius: 4px; min-height: 30px; }}
-QScrollBar::handle:vertical:hover {{ background: {a1}; }}
+QScrollBar::handle:vertical {{ background: {t.border}; border-radius: 3px; min-height: 30px; }}
+QScrollBar::handle:vertical:hover {{ background: {t.muted}; }}
 QScrollBar:horizontal {{ background: transparent; height: 9px; margin: 3px; }}
-QScrollBar::handle:horizontal {{ background: {t.border}; border-radius: 4px; min-width: 30px; }}
-QScrollBar::handle:horizontal:hover {{ background: {a1}; }}
+QScrollBar::handle:horizontal {{ background: {t.border}; border-radius: 3px; min-width: 30px; }}
+QScrollBar::handle:horizontal:hover {{ background: {t.muted}; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
 
-QSlider::groove:horizontal {{ height: 6px; background: {t.surface2}; border-radius: 3px; }}
-QSlider::sub-page:horizontal {{ background: {grad_h}; border-radius: 3px; }}
-QSlider::handle:horizontal {{ background: #ffffff; border: 2px solid {a1}; width: 14px; height: 14px;
-    margin: -6px 0; border-radius: 9px; }}
+QSlider::groove:horizontal {{ height: 4px; background: {t.border}; border-radius: 2px; }}
+QSlider::sub-page:horizontal {{ background: {a1}; border-radius: 2px; }}
+QSlider::handle:horizontal {{ background: {t.surface2}; border: 1px solid {t.mix(t.border, t.text, 0.3).name()};
+    border-top-color: {key_top}; width: 12px; height: 20px; margin: -9px 0; border-radius: 3px; }}
+QSlider::handle:horizontal:hover {{ border-color: {a1}; }}
+QSlider::groove:vertical {{ width: 4px; background: {t.border}; border-radius: 2px; }}
+QSlider::add-page:vertical {{ background: {a1}; border-radius: 2px; }}
+QSlider::handle:vertical {{ background: {t.surface2}; border: 1px solid {t.mix(t.border, t.text, 0.3).name()};
+    height: 12px; width: 22px; margin: 0 -9px; border-radius: 3px; }}
 
-QProgressBar {{ background: {t.surface2}; border: none; border-radius: 5px; height: 10px; text-align: center; }}
-QProgressBar::chunk {{ background: {grad_h}; border-radius: 5px; }}
+QProgressBar {{ background: {t.border}; border: none; border-radius: 3px; height: 8px; text-align: center; }}
+QProgressBar::chunk {{ background: {a1}; border-radius: 3px; }}
 
-QMenu {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 16px; padding: 8px; min-width: 230px; }}
-QMenu::item {{ padding: 9px 30px 9px 12px; border-radius: 10px; margin: 1px 0; }}
-QMenu::item:selected {{ background: {t.soft(a1, 0.16 if t.dark else 0.10)}; color: {t.text}; }}
+QMenu {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 8px; padding: 6px; min-width: 230px; }}
+QMenu::item {{ padding: 8px 30px 8px 12px; border-radius: 4px; margin: 1px 0; }}
+QMenu::item:selected {{ background: {sel}; color: {t.text}; }}
 QMenu::item:disabled {{ color: {t.muted}; }}
 QMenu::icon {{ padding-left: 10px; }}
-QMenu::indicator {{ width: 16px; height: 16px; margin-left: 10px; border-radius: 5px; border: 1px solid {t.border};
-    background: {t.surface2}; }}
-QMenu::indicator:checked {{ background: {grad}; border-color: transparent;
+QMenu::indicator {{ width: 16px; height: 16px; margin-left: 10px; border-radius: 4px; border: 1px solid {t.border};
+    background: {field}; }}
+QMenu::indicator:checked {{ background: {a1}; border-color: {a1};
     {f'image: url("{check_image}");' if check_image else ''} }}
-QMenu::separator {{ height: 1px; background: {t.border}; margin: 6px 10px; }}
+QMenu::separator {{ height: 1px; background: {t.border}; margin: 5px 8px; }}
 
 QStatusBar {{ background: transparent; color: {t.muted}; }}
 QMessageBox, QInputDialog, QColorDialog, QFileDialog {{ background: {t.bg}; }}
