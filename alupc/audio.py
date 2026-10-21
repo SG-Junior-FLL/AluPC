@@ -198,6 +198,13 @@ def _on_com(fn, *args, timeout: float = 8.0):
                     box["error"] = RuntimeError(f"{type(exc).__name__}: {exc}")
                     exc.__traceback__ = None
                 func = a = job = None  # auch hier keine Verweise bis zum nächsten Auftrag halten
+                if q.empty() and getattr(_LOCAL, "win", None) is not None:
+                    # Keine Windows-Audio-Objekte (Geräte-Aufzählung, Richtlinien) dauerhaft festhalten – hier im
+                    # eigenen Faden freigeben; beim nächsten Auftrag neu holen (dauert nur Millisekunden).
+                    _LOCAL.win = None
+                    import gc
+
+                    gc.collect()
                 done.set()
 
         _COM["queue"] = q
