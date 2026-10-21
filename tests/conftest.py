@@ -89,27 +89,39 @@ def _hang_guard(request):
 
 
 def _native_dump_later(seconds: int):
-    """Hängt ein Test in Qt selbst, zeigt faulthandler nur „pump“. py-spy (falls installiert) liest dann die
-    C++-Stapel aller Threads mit – nach gui-haenger-nativ.txt. Gibt ein Event zurück: gesetzt = abbrechen."""
+    """Hängt ein Test in Qt selbst, zeigt faulthandler nur „pump“. Dann die C++-Stapel aller Threads mitlesen –
+    nach gui-haenger-nativ.txt. Windows: cdb (Windows SDK, ohne Symbol-Download – Qt-Namen kommen aus den
+    DLL-Exporten); sonst py-spy. Gibt ein Event zurück: gesetzt = abbrechen."""
+    import glob
     import shutil
     import subprocess
     import threading
 
     cancel = threading.Event()
-    spy = shutil.which("py-spy")
-    if not spy:
+    pid = str(os.getpid())
+    if sys.platform == "win32":
+        cdb = shutil.which("cdb") or next(iter(sorted(glob.glob(
+            r"C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe"))), None)
+        # -pv: nur lesen (hält den Prozess nicht an) · -y "": keine Symbole aus dem Netz
+        cmd = [cdb, "-pv", "-p", pid, "-y", "", "-c", "~*kn 60; q"] if cdb else None
+    else:
+        spy = shutil.which("py-spy")
+        cmd = [spy, "dump", "--native", "--pid", pid] if spy else None
+    if not cmd:
         return cancel
 
     def run():
         if cancel.wait(seconds):
             return
+        target = Path("gui-haenger-nativ.txt")
         try:
-            Path("gui-haenger-nativ.txt").write_text("py-spy läuft …", encoding="utf-8")
-            out = subprocess.run([spy, "dump", "--native", "--pid", str(os.getpid())], capture_output=True,
-                                 text=True, timeout=max(30, seconds - 10))
-            Path("gui-haenger-nativ.txt").write_text(out.stdout + out.stderr, encoding="utf-8")
+            target.write_text(f"läuft: {cmd[0]} …", encoding="utf-8")
+            env = {**os.environ, "_NT_SYMBOL_PATH": "", "_NT_ALT_SYMBOL_PATH": ""}
+            out = subprocess.run(cmd, capture_output=True, text=True, errors="replace", env=env,
+                                 timeout=max(30, seconds - 10))
+            target.write_text(out.stdout + out.stderr, encoding="utf-8")
         except Exception as exc:  # noqa: BLE001 - nur Diagnose
-            Path("gui-haenger-nativ.txt").write_text(f"py-spy: {exc}", encoding="utf-8")
+            target.write_text(f"{cmd[0]}: {exc}", encoding="utf-8")
 
     threading.Thread(target=run, name="haenger-diagnose", daemon=True).start()
     return cancel

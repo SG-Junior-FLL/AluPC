@@ -408,7 +408,7 @@ jobs:
           # GitHub zeigt nur ~10 Meldungen je Schritt → alles Wichtige in EINE Meldung (Zeilen mit %0A getrennt)
           $lines = @()
           if (Test-Path gui-haenger.txt) { $lines += Get-Content gui-haenger.txt | Where-Object { $_ -match 'Test hängt|alupc|tests\\|Thread' } | Select-Object -First 60 }
-          if (Test-Path gui-haenger-nativ.txt) { $lines += '--- nativ (py-spy) ---'; $lines += Get-Content gui-haenger-nativ.txt | Where-Object { $_.Trim() } | Select-Object -First 120 }
+          if (Test-Path gui-haenger-nativ.txt) { $lines += '--- nativ (cdb) ---'; $lines += Get-Content gui-haenger-nativ.txt | Where-Object { $_ -match '!|Id:|läuft|cdb|Thread' } | Select-Object -First 200 }
           if (Test-Path gui.log) {
             $log = Get-Content gui.log
             $lines += $log | Where-Object { $_ -match '^tests/test_gui\.py::' } | Select-Object -Last 3
