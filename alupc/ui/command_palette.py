@@ -16,6 +16,7 @@ from .widgets import font
 # Seiten der Seitenleiste: Text → Seiten-Nummer im Stapel
 PAGES = [("Start", 0, "home"), ("Szenen", 1, "scenes"), ("Gäste – Chat & Foto-Wand", 5, "users"),
          ("Audio & Kamera – Mischpult", 6, "mixer"), ("Tastenbox – 9 Tasten und Regler", 7, "grid"),
+         ("Updates – PC nach Updates und Treibern durchsuchen", 8, "download"),
          ("System", 4, "gauge"), ("Setup", 2, "sliders"),
          ("Fingerabdruck", 3, "fingerprint")]
 

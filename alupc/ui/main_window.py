@@ -311,6 +311,7 @@ class MainWindow(QMainWindow):
             LazyPage(lambda: _padded(self._guests_page(), scroll=True)),
             LazyPage(lambda: _padded(self._audio_page(), scroll=True)),
             LazyPage(lambda: _padded(self._tastenbox_page(), scroll=True)),
+            LazyPage(lambda: _padded(self._updates_page(), scroll=True)),
         ]
         for page in self.pages:
             self.stack.addWidget(page)
@@ -532,8 +533,8 @@ class MainWindow(QMainWindow):
 
     def open_setup_section(self, title: str) -> None:
         """Setup öffnen und dort den Bereich `title` zeigen (z. B. aus der Befehlssuche)."""
-        if title == "Tastenbox":  # eigene Seite (früher im Setup)
-            self._go(7)
+        if title in ("Tastenbox", "Updates"):  # eigene Seiten unter „Geräte“
+            self._go(7 if title == "Tastenbox" else 8)
             return
         self._go(2)
         from .setup_page import SetupPage
@@ -552,9 +553,9 @@ class MainWindow(QMainWindow):
             ind.follow(obj, animate=False)
         return super().eventFilter(obj, event)
 
-    # „Geräte“ in der Seitenleiste: PC (System), Tastenbox, Fingerabdruck – oben als Reiter
-    DEVICE_TABS = [(4, "PC"), (7, "Tastenbox"), (3, "Fingerabdruck")]
-    NAV_OF = {3: 4, 7: 4}
+    # „Geräte“ in der Seitenleiste: PC (System), Updates, Tastenbox, Fingerabdruck – oben als Reiter
+    DEVICE_TABS = [(4, "PC"), (8, "Updates"), (7, "Tastenbox"), (3, "Fingerabdruck")]
+    NAV_OF = {3: 4, 7: 4, 8: 4}
     _last_device = 4
 
     def _subnav(self) -> QWidget:
@@ -610,6 +611,11 @@ class MainWindow(QMainWindow):
         from .audio_page import AudioPage
 
         return AudioPage(self.controller)
+
+    def _updates_page(self):
+        from .updates_page import UpdatesPage
+
+        return UpdatesPage(self.controller)
 
     def _tastenbox_page(self):
         from .tastenbox_page import TastenboxPage
