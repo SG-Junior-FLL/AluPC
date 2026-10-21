@@ -16,6 +16,7 @@
   Programm. Beim Wechsel startet das neue Ziel bei 0 und folgt erst, wenn der Regler auch auf 0 steht (Skala am
   Regler). Regelt er den PC-Ton, stellt AluPC andere Wege (Windows, Tastatur, Handy, Sprache) zurück.
   Arduino-Programm: Seite Tastenbox → „Arduino-Programm speichern“. Noch nicht mit echter Box getestet.
+- **Windows:** AluPC konnte zufällig einfrieren (Ton-Steuerung blockierte Windows-Rundsendungen). Behoben.
 - **Startseite:** Live-Bild mit Vorschau steht oben über den Kacheln (Spalte rechts nur auf Wunsch); im Stil Technisch kompakter.
 - **Seitenleiste aufgeräumt:** 6 statt 8 Punkte. „Geräte“ bündelt PC-Status, Tastenbox und Fingerabdruck als
   Reiter; „Zuhören“ und „Sperren“ stehen in einer Zeile.

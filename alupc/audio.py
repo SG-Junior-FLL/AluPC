@@ -168,12 +168,22 @@ def _on_com(fn, *args, timeout: float = 8.0):
     Threads wandern – sonst kann das Programm abstürzen). Wartet auf das Ergebnis; Fehler kommen als Ausnahme."""
     import queue
 
-    if os.environ.get("ALUPC_NO_WINAUDIO"):  # CI-Versuch: Windows-Ton ganz aus (Hänger eingrenzen)
-        raise RuntimeError("Windows-Ton ist in diesem Testlauf abgeschaltet")
     if _COM["thread"] is None or not _COM["thread"].is_alive():
         q: queue.Queue = queue.Queue()
 
         def loop():
+            if IS_WINDOWS:
+                # COM als MTA anmelden, BEVOR comtypes geladen wird: Ein STA-Faden braucht eine Nachrichtenschleife,
+                # dieser hier wartet aber nur auf Aufträge. Schickt Windows dann eine Rundsendung an alle Fenster
+                # (z. B. Einstellungs-Änderung), wartet der Absender – oft der Qt-Hauptfaden – für immer auf ihn:
+                # AluPC friert ein (in der CI: Oberflächentests hingen zufällig). MTA hat dieses Problem nicht.
+                sys.coinit_flags = 0  # COINIT_MULTITHREADED – gilt fürs erste „import comtypes“ (nur hier)
+                try:
+                    import ctypes
+
+                    ctypes.windll.ole32.CoInitializeEx(None, 0)
+                except Exception:  # noqa: BLE001 - ohne COM gibt es eben keinen Windows-Ton
+                    pass
             while True:
                 job = q.get()
                 if job is None:
@@ -285,7 +295,7 @@ def _win():
             COMMETHOD([], HRESULT, "SetDefaultEndpoint", (["in"], LPCWSTR), (["in"], DWORD)),
         ]
 
-    comtypes.CoInitialize()
+    comtypes.CoInitializeEx(comtypes.COINIT_MULTITHREADED)  # MTA, siehe _on_com
     enum = comtypes.CoCreateInstance(GUID("{BCDE0395-E52F-467C-8E3D-C4579291692E}"), IMMDeviceEnumerator,
                                      comtypes.CLSCTX_ALL)
     name_key = PROPERTYKEY(GUID("{a45c254e-df1c-4efd-8020-67d146a850e0}"), 14)

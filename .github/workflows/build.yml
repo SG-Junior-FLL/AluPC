@@ -370,7 +370,6 @@ jobs:
         timeout-minutes: 20
         run: |
           $env:ALUPC_TEST_HANG_EXIT = "300"  # hängt ein Test 5 Minuten: Stapel in gui-haenger.txt, Abbruch
-          $env:ALUPC_NO_WINAUDIO = "1"  # Versuch: Hänger kommt vom Windows-Ton-Faden (COM)? Dann ist er hiermit weg
           python -X faulthandler -m pytest -v -rf tests/test_gui.py 2>&1 | Tee-Object -FilePath gui.log
           $code = $LASTEXITCODE
           if ($code -ne 0 -and (Select-String -Path gui-haenger.txt -Pattern 'Thread' -Quiet -ErrorAction SilentlyContinue)) {

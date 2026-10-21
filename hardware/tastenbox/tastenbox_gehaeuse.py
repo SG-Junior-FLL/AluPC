@@ -1,13 +1,15 @@
 """AluPC-Tastenbox – Einbau-Gehäuse für ein Loch in einer Holzplatte (CadQuery). Entwurf 3.
 
 Flach: nur so hoch wie nötig (Dupont-Stecker ~14 mm stehen senkrecht auf Steckbrett und Tasten).
-Oben läuft ein dünner Rand (Flansch) rundum 10 mm über – er liegt auf der Holzplatte auf.
+In der Mitte der Höhe läuft ein dünner Rand (Flansch) rundum 10 mm über – er liegt auf der Holzplatte auf,
+die obere Hälfte der Box schaut heraus. In jeder Ecke ein Loch für eine 5-mm-LED.
 
 Oberseite von links nach rechts: 9 Tastatur-Schalter (MX, 3 × 3) → Steckbrett darunter → rechte Spalte mit
 Zündschloss (hinten), Fingerabdrucksensor Ø 17 mm (Mitte) und Drehregler (vorne, Bohrung folgt mit den Maßen).
 
 Zwei Teile:
-  * Oberteil mit Flansch. Druck: Oberseite nach UNTEN aufs Bett (Flansch liegt flach, keine Stützen).
+  * Oberteil mit Flansch. Druck: Oberseite nach UNTEN aufs Bett; Stützen NUR unter dem Rand
+    (Baumstützen, „nur am Druckbett“) – lassen sich leicht abbrechen.
   * Boden: wird von unten eingesteckt, rastet mit zwei Federlaschen ein (Nasen bündig in Schlitzen der
     Seitenwand – nichts steht über, die Box passt ins Loch). Lösen: Nasen von außen eindrücken, Boden ziehen.
     Auf dem Boden: Rahmen fürs Steckbrett (400 Kontakte) mit Rastleiste für den Bügel aus klemme_pro_micro.py,
@@ -27,7 +29,13 @@ top_t = 3.0
 corner_r = 8.0
 flange = 10.0          # Rand rundum über die Box hinaus
 flange_t = 2.5         # Dicke des Randes
-flange_edge_r = 1.2    # Kante oben am Rand gerundet
+flange_z = 16.0        # Höhe der Rand-Mitte über der Unterkante: darüber schaut die Box aus der Holzplatte
+flange_edge_r = 1.2    # Kanten am Rand gerundet
+top_r = 3.0            # obere Kante der Box gerundet (steht über die Holzplatte)
+
+# LEDs in den 4 Ecken (5 mm, stecken von unten im Loch)
+led_d = 5.2
+led_inset = 7.0        # Abstand der Loch-Mitte von den Außenkanten
 
 # Tastatur-Schalter (MX-kompatibel, z. B. Outemu)
 key_pitch = 19.05
@@ -102,11 +110,12 @@ ad_x, ad_y = col_cx - 2.0, fp_dy
 # ============================================================
 # OBERTEIL
 # ============================================================
-body = (cq.Workplane("XY").box(box_w, box_d, box_h, centered=(True, True, False)).edges("|Z").fillet(corner_r))
-rim_top = (cq.Workplane("XY").workplane(offset=box_h - flange_t)
+body = (cq.Workplane("XY").box(box_w, box_d, box_h, centered=(True, True, False)).edges("|Z").fillet(corner_r)
+        .faces(">Z").edges().fillet(top_r))
+rim_top = (cq.Workplane("XY").workplane(offset=flange_z - flange_t / 2)
            .rect(box_w + 2 * flange, box_d + 2 * flange).extrude(flange_t)
            .edges("|Z").fillet(corner_r + flange)
-           .faces(">Z").edges().fillet(flange_edge_r))
+           .edges("not |Z").fillet(flange_edge_r))
 shell = body.union(rim_top)
 shell = shell.cut(cq.Workplane("XY").workplane(offset=-eps)
                   .box(inner_w, inner_d, box_h - top_t + eps, centered=(True, True, False))
@@ -118,6 +127,8 @@ shell = shell.cut(cq.Workplane("XY").workplane(offset=box_h - top_t - eps)
                   .pushPoints(keys).rect(mx_relief, mx_relief).extrude(top_t - mx_plate_t + eps))
 shell = shell.cut(cq.Workplane("XY").pushPoints([(lock_x, lock_dy)])
                   .circle((lock_d + lock_clear) / 2).extrude(box_h + 1))
+leds = [(sx * (box_w / 2 - led_inset), sy * (box_d / 2 - led_inset)) for sx in (-1, 1) for sy in (-1, 1)]
+shell = shell.cut(cq.Workplane("XY").pushPoints(leds).circle(led_d / 2).extrude(box_h + 1))
 shell = shell.cut(cq.Workplane("XY").pushPoints([(fp_x, fp_dy)])
                   .circle((fp_d + fp_clear) / 2).extrude(box_h + 1))
 
