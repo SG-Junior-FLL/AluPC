@@ -168,6 +168,8 @@ def _on_com(fn, *args, timeout: float = 8.0):
     Threads wandern – sonst kann das Programm abstürzen). Wartet auf das Ergebnis; Fehler kommen als Ausnahme."""
     import queue
 
+    if os.environ.get("ALUPC_NO_WINAUDIO"):  # CI-Versuch: Windows-Ton ganz aus (Hänger eingrenzen)
+        raise RuntimeError("Windows-Ton ist in diesem Testlauf abgeschaltet")
     if _COM["thread"] is None or not _COM["thread"].is_alive():
         q: queue.Queue = queue.Queue()
 
