@@ -33,9 +33,27 @@ flange_z = 16.0        # Höhe der Rand-Mitte über der Unterkante: darüber sch
 flange_edge_r = 1.2    # Kanten am Rand gerundet
 top_r = 3.0            # obere Kante der Box gerundet (steht über die Holzplatte)
 
-# LEDs in den 4 Ecken (5 mm, stecken von unten im Loch)
-led_d = 5.2
+# LEDs in den 4 Ecken (5 mm). Halter innen am Deckel: LED von unten einstecken, bis der Kragen anliegt –
+# die Kuppe schließt dann bündig mit der Oberseite ab. Beine zeigen nach innen (Kerbe), Kabel in die Haken.
+led_d = 5.2            # Loch in der Deckplatte (Kuppe)
+led_fit = 5.15         # Bohrung im Halter (5-mm-LED klemmt; zu stramm → 5,3)
+led_len = 8.6          # LED vom Kragen bis zur Kuppe (Standard 5 mm)
+led_boss_d = 9.0
 led_inset = 7.0        # Abstand der Loch-Mitte von den Außenkanten
+led_skin = 0.0         # > 0 (z. B. 0,6): Loch oben geschlossen, Licht scheint durch (nur helles Filament)
+
+# Lichtleiste vorne über den Tasten (WS2812B-Streifen, 10 mm breit, z. B. 60 LEDs/m → 3 LEDs, 144/m → 7)
+light_bar = True
+bar_shift = 5.0        # Leiste etwas nach rechts: Platz für den Halter der Eck-LED
+bar_len = 42.0         # Schlitz-Länge (Eck-LED links vorn bleibt frei)
+bar_w = 3.0            # Schlitz-Breite
+bar_skin = 0.0         # > 0: geschlossen, diffus (helles Filament)
+strip_w = 10.4         # Streifen 10 mm + Luft
+strip_h = 3.2          # Streifen + LED-Höhe: Abstand Deckel → Boden der Schiene
+rail_t = 1.2
+
+# Kabelhaken innen am Deckel (für LED-Kabel zum Steckbrett)
+hook_w = 6.0
 
 # Tastatur-Schalter (MX-kompatibel, z. B. Outemu)
 key_pitch = 19.05
@@ -128,9 +146,48 @@ shell = shell.cut(cq.Workplane("XY").workplane(offset=box_h - top_t - eps)
 shell = shell.cut(cq.Workplane("XY").pushPoints([(lock_x, lock_dy)])
                   .circle((lock_d + lock_clear) / 2).extrude(box_h + 1))
 leds = [(sx * (box_w / 2 - led_inset), sy * (box_d / 2 - led_inset)) for sx in (-1, 1) for sy in (-1, 1)]
-shell = shell.cut(cq.Workplane("XY").pushPoints(leds).circle(led_d / 2).extrude(box_h + 1))
+under = box_h - top_t                                 # Unterseite der Deckplatte
+boss_h = led_len - top_t                              # Kuppe bündig mit der Oberseite
+footprint = (cq.Workplane("XY").rect(inner_w, inner_d).extrude(box_h).edges("|Z").fillet(corner_r - wall))
+for (lx, ly) in leds:
+    boss = cq.Workplane("XY").workplane(offset=under - boss_h).center(lx, ly).circle(led_boss_d / 2).extrude(boss_h + eps)
+    # Kerbe zur Box-Mitte: dort kommen die Beine heraus (Dupont-Buchsen passen daneben)
+    to_mid = 1 if lx < 0 else -1
+    boss = boss.cut(cq.Workplane("XY").workplane(offset=under - boss_h - eps).center(lx + to_mid * led_boss_d / 2, ly)
+                    .rect(led_boss_d * 0.5, 2.2).extrude(2.5))
+    shell = shell.union(boss.intersect(footprint))
+    shell = shell.cut(cq.Workplane("XY").workplane(offset=under - boss_h - eps).center(lx, ly)
+                      .circle(led_fit / 2).extrude(boss_h + 2 * eps))
+shell = shell.cut(cq.Workplane("XY").workplane(offset=under).pushPoints(leds).circle(led_d / 2)
+                  .extrude(top_t - led_skin + (eps if led_skin == 0 else 0)))
 shell = shell.cut(cq.Workplane("XY").pushPoints([(fp_x, fp_dy)])
                   .circle((fp_d + fp_clear) / 2).extrude(box_h + 1))
+
+# Lichtleiste: Schlitz vor den Tasten + Schiene darunter (Streifen von rechts einschieben, Klebeseite nach unten)
+bar_y = -(19.05 + mx_relief / 2 + (box_d / 2 - wall - 19.05 - mx_relief / 2) / 2)  # Mitte zwischen Tasten und Wand
+if light_bar:
+    shell = shell.cut(cq.Workplane("XY").workplane(offset=under - eps).center(grid_cx + bar_shift, bar_y)
+                      .slot2D(bar_len, bar_w).extrude(top_t - bar_skin + (2 * eps if bar_skin == 0 else eps)))
+    rail_len = bar_len + 8
+    bx = grid_cx + bar_shift
+    rail = (cq.Workplane("XY").workplane(offset=under - strip_h - rail_t).center(bx, bar_y)
+            .rect(rail_len, strip_w + 2 * rail_t).extrude(strip_h + rail_t + eps)
+            .cut(cq.Workplane("XY").workplane(offset=under - strip_h).center(bx + 2, bar_y)
+                 .rect(rail_len, strip_w).extrude(strip_h + eps)))          # rechts offen zum Einschieben
+    # Fenster im Schienenboden: Kabel des Streifens nach unten
+    rail = rail.cut(cq.Workplane("XY").workplane(offset=under - strip_h - rail_t - eps)
+                    .center(bx + rail_len / 2 - 6, bar_y).rect(6, strip_w - 2).extrude(rail_t + 2 * eps))
+    shell = shell.union(rail.intersect(footprint))
+
+# Kabelhaken an den Längswänden innen: LED-Kabel von den Ecken zum Steckbrett führen
+for hx in (x0 + 10, bb_cx + rim_out_w / 2 + lip_out + gap / 2):  # links neben den Tasten, rechts neben dem Steckbrett
+    for sy in (-1, 1):
+        wy = sy * (inner_d / 2)
+        hook = (cq.Workplane("XY").workplane(offset=under - 7).center(hx, wy - sy * 2.5)
+                .rect(hook_w, 5).extrude(7 + eps)
+                .cut(cq.Workplane("XY").workplane(offset=under - 5.5).center(hx, wy - sy * 2.0)
+                     .rect(hook_w + 1, 3.2).extrude(4.5)))
+        shell = shell.union(hook.intersect(footprint))
 
 nose_z = base_t + snap_len - nose_h - nose_hold
 for sx in (-1, 1):
@@ -191,5 +248,6 @@ cq.exporters.export(base, "tastenbox_boden.stl", tolerance=0.01, angularToleranc
 cq.exporters.export(shell, "tastenbox_oberteil.step")
 cq.exporters.export(base, "tastenbox_boden.step")
 cq.exporters.export(shell.union(base), "tastenbox_zusammen.stl", tolerance=0.01, angularTolerance=0.1)
+print(f"LED-Halter: {boss_h:.1f} mm unter dem Deckel · Lichtleiste {bar_len:.0f} × {bar_w:.0f} mm bei y={bar_y:.1f}")
 print(f"Box {box_w:.1f} × {box_d:.1f} × {box_h} mm, mit Rand {box_w + 2 * flange:.1f} × {box_d + 2 * flange:.1f} mm · "
       f"Loch in der Holzplatte: {box_w + 1:.0f} × {box_d + 1:.0f} mm, Ecken R{corner_r:.0f}")

@@ -1,10 +1,23 @@
 # Tastenbox – Verdrahtungsplan (nur stecken, nichts löten)
 
-Teile: Pro Micro (USB-C) · Steckbrett 400 Kontakte · 9 MX-Schalter · Drehregler 10 kΩ linear ·
+Teile: Pro Micro (USB-C) **oder Arduino Nano** · Steckbrett 400 Kontakte · 9 MX-Schalter · Drehregler 10 kΩ linear ·
 Dupont-Kabel Buchse–Stecker und Stecker–Stecker · optional LED + 220-Ω-Widerstand oder LED-Streifen WS2812B.
 
 Ausnahme: Die Stiftleisten am Pro Micro müssen einmal angelötet werden. Bis dahin hält die gedruckte
 Klemme (`klemme_pro_micro.py`) die Platine auf die Stifte gedrückt.
+
+## 0. Welcher Pin wofür (das Programm erkennt das Board selbst)
+
+| | Pro Micro | Nano |
+|---|---|---|
+| Tasten 1–9 | 2, 3, 4, 5, 6, 7, 8, 14, 15 | 2, 3, 4, 5, 6, 7, 8, 9, 10 |
+| Drehregler (Mitte) | A0 | A0 |
+| Eck-LEDs (je 1 kΩ) | 9 | 11 |
+| Lichtleiste (WS2812B, DIN) | 10 | 12 |
+| Plus / Minus | VCC / GND | 5V / GND |
+
+Hochladen: Arduino-IDE → Board „Arduino Leonardo“ (Pro Micro) bzw. „Arduino Nano“ → Programm aus AluPC
+(Seite Tastenbox → „Arduino-Programm speichern …“).
 
 ## 1. Pro Micro – welcher Pin ist wo
 
@@ -65,9 +78,34 @@ Egal, welches Beinchen A oder B ist. Wackelt eine Buchse: ein Tropfen Heißklebe
 
 Dreht er falsch herum: links und rechts tauschen – oder in AluPC „Richtung umkehren“.
 
-## 5. Licht (optional, eins von beiden)
+## 5. Licht – Plan
 
-- **4 LEDs in den Ecken** (5 mm, Löcher sind im Gehäuse): jede LED bekommt einen **eigenen 1-kΩ-Widerstand**
+![LED-Plan](led_plan.png)
+
+| Was | Wo | Pin | In AluPC einstellbar |
+|---|---|---|---|
+| 4 Eck-LEDs (5 mm) | je ein Halter innen in jeder Ecke | Pro Micro 9 / Nano 11 | an, aus, bei Live; Helligkeit; ruhig/atmen/blinken; Blitz bei Tastendruck |
+| Lichtleiste vorn | Schlitz vor den Tasten, Schiene darunter | Pro Micro 10 / Nano 12 | zusätzlich die **Farbe** |
+
+**Eck-LEDs einbauen (ca. 10 Min.):**
+1. LED von innen in den Halter drücken, bis der Rand anliegt – die Kuppe ist dann bündig mit der Oberseite.
+2. Beine zeigen in die Kerbe (Richtung Box-Mitte).
+3. Langes Bein: 1-kΩ-Widerstand mit Dupont-Buchse aufstecken; kurzes Bein: Dupont-Buchse.
+4. Kabel durch den nächsten Kabelhaken, an der Wand entlang zum Steckbrett.
+5. Alle 4 Widerstände → Pin 9 (Nano 11), alle kurzen Beine → Minus-Leiste.
+
+**Lichtleiste (optional, ca. 10 Min.):** WS2812B-Streifen, 10 mm breit, **mit fertig angelötetem Kabel** kaufen
+(sonst müsste man löten). 60 LEDs/m → 3 LEDs passen, 144 LEDs/m → 7.
+1. Streifen von rechts in die Schiene schieben, LEDs nach oben, Klebeseite auf den Schienenboden.
+2. Kabel durch das Fenster im Schienenboden: DIN → Pin 10 (Nano 12), 5V → Plus, GND → Minus.
+3. Im Arduino-Programm `// #define STREIFEN 8` → `#define STREIFEN 3` (bzw. 7), neu hochladen.
+
+Tipp: Wer das Oberteil in hellem Filament druckt, kann in `tastenbox_gehaeuse.py` `led_skin = 0.6` bzw.
+`bar_skin = 0.6` setzen – dann sind die Löcher oben zu und das Licht scheint weich durch (unsichtbar, solange aus).
+
+### Licht – technische Details
+
+- **4 LEDs in den Ecken** (5 mm, Halter sind im Gehäuse): jede LED bekommt einen **eigenen 1-kΩ-Widerstand**
   (aus deinem Set). Pin 9 → je 1 kΩ → langes LED-Bein; kurze Beine → blaue Leiste (−).
   Alle 4 hängen zusammen an Pin 9, AluPC schaltet sie (Live/An/Aus, Helligkeit, Blitz bei Tastendruck).
   Nicht kleiner als 1 kΩ: Pin 9 verträgt höchstens ca. 40 mA, 4 LEDs mit 1 kΩ brauchen zusammen ca. 12 mA.
@@ -82,10 +120,18 @@ Dreht er falsch herum: links und rechts tauschen – oder in AluPC „Richtung u
 - **Zündschloss:** vorerst nur mechanisch. Wenn es mitmelden soll: ein Kontakt → Pin 16, anderer → Minus.
   (Arduino-Programm und AluPC brauchen dafür noch eine Erweiterung – sag Bescheid.)
 
-## 7. Testen ohne Bauteile: Online-Simulation (Wokwi)
+## 7. Fehlersuche in AluPC
+
+Seite **Geräte → Tastenbox → Fehlersuche → Anzeigen**:
+- oben: Anschluss, Programmversion, Board (Nano/Pro Micro)
+- **Rohwerte live**: Taste unten → leuchtet in der App, solange sie gedrückt ist; Regler als Zahl 0–1023
+- **Protokoll**: jede Zeile zwischen AluPC und Box (→ gesendet, ← empfangen), auch „keine Antwort“ bei der Suche
+- **LED testen** (blitzt 3×), **Neu verbinden**, **Protokoll kopieren** (zum Schicken)
+
+## 8. Testen ohne Bauteile: Online-Simulation (Wokwi)
 
 1. https://wokwi.com öffnen → „Arduino Mega“ neues Projekt.
-   (Einen Pro Micro gibt es dort nicht. Der Mega hat dieselben Pin-Nummern, das Programm läuft unverändert.)
+   (Einen Pro Micro gibt es dort nicht. Auf Mega/Nano nimmt das Programm die Nano-Belegung: Tasten 2–10, LEDs 11.)
 2. Inhalt von `wokwi/sketch.ino` in `sketch.ino` kopieren.
 3. Inhalt von `wokwi/diagram.json` in `diagram.json` kopieren (Reiter oben).
 4. ▶ starten. Taste anklicken → unten im Serial Monitor erscheint `TASTE 1`, gedrückt halten → `LANG 1`,
