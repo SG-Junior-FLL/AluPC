@@ -71,6 +71,7 @@ DEFAULTS: dict = {
     "default_camera": "",  # Kamera für die Kachel (leer = erste gefundene)
     "camera_fit": "cover",  # Kamera-Kachel: "cover" (Monitor füllen) oder "contain" (ganzes Bild)
     "scenes": [],
+    "vorlagen_v2": True,  # neue Installation: Szenen haben schon den neuen Aufbau
     "hotkeys": dict(DEFAULT_HOTKEYS),
     "privacy": {"text": "", "image": ""},
     "pip": {"opacity": 1.0, "width": 480, "fps": 20},
@@ -199,6 +200,7 @@ DEFAULTS: dict = {
         "title": "",
         "subtitle": "",
         "show_status": True,
+        "live_rechts": False,  # breites Fenster: Live-Bild als Spalte rechts statt oben über den Kacheln
         "show_hint": True,
         "tiles": None,
         "custom": [],
@@ -241,6 +243,8 @@ class Config:
                     from .scenes import normalize_scene
 
                     self.data["scenes"] = [normalize_scene(sc) for sc in self.data["scenes"] if isinstance(sc, dict)]
+                if not raw.get("vorlagen_v2") and isinstance(self.data.get("scenes"), list):
+                    self._upgrade_scenes()  # 2.2: Uhr/Countdown aus alten Vorlagen in die Info-Leiste
                 v = self.data.get("voice")
                 if isinstance(v, dict) and not (raw.get("voice") or {}).get("wake_v2"):  # 0.93: „Computer“ als Startwort dazu
                     v["wake_v2"] = True
@@ -270,6 +274,24 @@ class Config:
                 self.path.replace(self.path.with_suffix(".defekt.json"))
             except OSError:
                 pass
+
+    def _upgrade_scenes(self) -> None:
+        """Gespeicherte Szenen aus alten Vorlagen gegen den neuen Aufbau tauschen – die alten Fassungen kommen
+        vorher in „config.vorlagen-alt.json“ (zum Zurückholen)."""
+        from .scenes import upgrade_scene
+
+        self.data["vorlagen_v2"] = True
+        old = self.data["scenes"]
+        new = [upgrade_scene(copy.deepcopy(sc)) for sc in old]
+        if new == old:
+            return
+        try:
+            self.path.with_name("config.vorlagen-alt.json").write_text(
+                json.dumps(old, indent=2, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            return  # ohne Sicherung nichts umbauen
+        self.data["scenes"] = new
+        self.save()
 
     def save(self) -> None:
         if self.frozen:

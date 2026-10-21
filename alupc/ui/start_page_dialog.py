@@ -442,6 +442,8 @@ class StartPageDialog(QDialog):
         self.subtitle.setPlaceholderText("Kachel antippen – läuft sofort auf dem Bildschirm")
         self.show_status = QCheckBox("Statuskarte zeigen")
         self.show_status.setChecked(bool(self.cfg.get("show_status", True)))
+        self.live_right = QCheckBox("Live-Bild rechts als Spalte (nur breites Fenster)")
+        self.live_right.setChecked(bool(self.cfg.get("live_rechts", False)))
         self.show_hint = QCheckBox("Hinweis mit Tastenkürzeln anzeigen")
         self.show_hint.setChecked(bool(self.cfg.get("show_hint", True)))
 
@@ -505,6 +507,7 @@ class StartPageDialog(QDialog):
         form.addRow("Überschrift:", self.title)
         form.addRow("Untertitel:", self.subtitle)
         form.addRow("", self.show_status)
+        form.addRow("", self.live_right)
         form.addRow("", self.show_hint)
 
         body = QHBoxLayout()
@@ -857,6 +860,7 @@ class StartPageDialog(QDialog):
             "title": self.title.text().strip(),
             "subtitle": self.subtitle.text().strip(),
             "show_status": self.show_status.isChecked(),
+            "live_rechts": self.live_right.isChecked(),
             "show_hint": self.show_hint.isChecked(),
         })
         self.config.data["hotkeys"] = self.hotkeys

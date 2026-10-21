@@ -184,3 +184,41 @@ def describe_source(cfg: dict | None) -> str:
 
         return describe_design(cfg)
     return str(t)
+
+
+# ---------------------------------------------------------------------------- alte Vorlagen-Szenen erneuern
+# Bis 2.2 lagen Uhr und Countdown als kleine Kästen über der gestalteten Seite (oft über Titel oder Antworten).
+# Jetzt stehen sie in der Info-Leiste darunter (screens_bar). Gespeicherte Szenen mit genau diesem alten Aufbau
+# werden beim Laden einmal umgebaut; Name, Hintergrund und alle Texte bleiben.
+_CORNERS = ("ecke_unten_rechts", "ecke_oben_rechts", "ecke_unten_links")
+
+
+def _is(slot, kind: str, design: str | None = None) -> bool:
+    return isinstance(slot, dict) and slot.get("type") == kind and (design is None or slot.get("design") == design)
+
+
+def upgrade_scene(scene: dict) -> dict:
+    """Alte Vorlagen-Szene → neuer Aufbau (Info-Leiste / Spalte rechts). Andere Szenen bleiben unverändert."""
+    if not isinstance(scene, dict) or not isinstance(scene.get("slots"), list):
+        return scene
+    layout, slots = scene.get("layout"), scene["slots"]
+
+    def full(design: dict, **extra) -> dict:
+        return {**scene, "layout": "vollbild", "slots": [{**design, **extra}]}
+
+    if len(slots) == 2 and _is(slots[0], "design"):
+        main, small = slots
+        if layout in _CORNERS and _is(small, "clock"):
+            return full(main, uhr=True)
+        if layout in (*_CORNERS, "uebereinander", "bauchbinde") and _is(small, "countdown"):
+            return full(main, countdown=small.get("minutes", 5))
+        if layout == "bauchbinde" and _is(small, "text") and small.get("text"):
+            return full(main, laufschrift=small["text"])
+        if layout in ("ecke_unten_rechts", "nebeneinander") and _is(small, "cast"):
+            return {**scene, "layout": "haupt_seite"}
+        if layout == "ecke_unten_rechts" and _is(main, "design", "neon") and _is(small, "design", "nowplaying"):
+            return full(main, uhr=True)
+    if layout == "gross_zwei_klein" and len(slots) == 3 and _is(slots[0], "design", "ablauf") \
+            and _is(slots[1], "clock") and _is(slots[2], "design", "ankuendigung"):
+        return full(slots[0], uhr=True, laufschrift=slots[2].get("text", ""))
+    return scene

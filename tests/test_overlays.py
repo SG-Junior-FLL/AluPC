@@ -185,8 +185,11 @@ def test_start_page_fits_window(env):  # noqa: F811
 
     controller.show_source({"type": "clock"})
     card = window.status_card
-    for width, mode in ((1920, "dock"), (950, "mittel")):
+    # Standard: Live-Leiste oben über den Kacheln (auch breit); „Live-Bild rechts“ stellt sie als Spalte rechts
+    for width, mode, right in ((1920, "voll", False), (1920, "dock", True), (950, "mittel", True)):
+        controller.config["start_page"] = {**controller.config["start_page"], "live_rechts": right}
         window.resize(width, 820)
+        window._place_dock()
         pump(30)
         card._recheck()
         pump(5)
@@ -202,8 +205,12 @@ def test_start_page_fits_window(env):  # noqa: F811
             assert all(c.text() and c.width() >= c.sizeHint().width() - 1 for c in chips)
             assert all(c.geometry().right() <= card.width() for c in chips)
             assert card.preview.width() <= inner.width()
+        elif mode == "voll":  # oben, breit: Schalter mit Namen in einer Reihe neben dem Live-Bild
+            assert card.parentWidget() is not window.dock_inner and all(c.text() for c in chips)
         else:
             assert not any(c.text() for c in chips) and all(c.toolTip() for c in chips)
+    controller.config["start_page"] = {**controller.config["start_page"], "live_rechts": False}
+    window._place_dock()
     controller.extend()
 
 

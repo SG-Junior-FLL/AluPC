@@ -624,7 +624,7 @@ class MainWindow(QMainWindow):
         return self.system_page
 
     # ================================================================ Start
-    DOCK_MIN = 1240  # ab dieser Fensterbreite steht „Was läuft“ als Live-Dock rechts neben den Kacheln
+    DOCK_MIN = 1240  # ab dieser Breite kann „Was läuft“ rechts stehen (Startseite anpassen → „Live-Bild rechts“)
     DOCK_W = 372
 
     def _start_root(self):
@@ -669,12 +669,12 @@ class MainWindow(QMainWindow):
         return root
 
     def _place_dock(self) -> None:
-        """Breites Fenster: Statuskarte ins Live-Dock rechts; sonst als Karte über den Kacheln."""
+        """Statuskarte oben über den Kacheln – auf Wunsch (und nur breit genug) im Live-Dock rechts."""
         if not hasattr(self, "live_dock"):
             return
         card = self.status_card
         show = bool(self.config["start_page"].get("show_status", True))
-        docked = self.width() >= self.DOCK_MIN
+        docked = bool(self.config["start_page"].get("live_rechts", False)) and self.width() >= self.DOCK_MIN
         if docked != (card.parentWidget() is self.dock_inner):
             if docked:
                 self._start_lay.removeWidget(card)
