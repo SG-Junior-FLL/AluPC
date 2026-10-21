@@ -16,7 +16,17 @@
   Programm. Beim Wechsel startet das neue Ziel bei 0 und folgt erst, wenn der Regler auch auf 0 steht (Skala am
   Regler). Regelt er den PC-Ton, stellt AluPC andere Wege (Windows, Tastatur, Handy, Sprache) zurück.
   Arduino-Programm: Seite Tastenbox → „Arduino-Programm speichern“. Noch nicht mit echter Box getestet.
-- **Windows:** AluPC konnte zufällig einfrieren (Ton-Steuerung blockierte Windows-Rundsendungen). Behoben.
+- **Windows:** AluPC konnte zufällig einfrieren. Ursache war die Ton-Steuerung (Core Audio) im Programm selbst. Sie
+  läuft jetzt in einem eigenen kleinen Hilfsprozess; hängt der, startet AluPC nur ihn neu.
+- **Updates** (Geräte → Updates): PC nach Updates und Treibern durchsuchen – Windows: Windows Update (System +
+  Treiber), winget (Programme), Geräte ohne Treiber; Linux: apt/dnf/pacman, Flatpak, Snap, Firmware (fwupd),
+  empfohlene Treiber, Geräte ohne Treiber. Nur prüfen; installiert wird mit den Werkzeugen des Systems.
+  Unter Windows nur in der CI-Umgebung geprüft, nicht auf einem echten PC mit offenen Updates.
+- **Tastenbox, Arduino-Programm 3:** läuft auf Pro Micro **und Nano** (Belegung passt sich an). LEDs aus der App:
+  Effekt (ruhig, atmen, blinken) und Farbe (LED-Streifen). Neue **Fehlersuche**: Protokoll aller Zeilen,
+  Rohwerte live (Tasten leuchten, solange sie unten sind; Regler 0–1023), LED-Test, Neu verbinden.
+  Programm am PC simuliert; Tastentest auf Nano in Wokwi vom Nutzer bestätigt, Programm 3 selbst noch nicht auf
+  echter Hardware.
 - **Startseite:** Live-Bild mit Vorschau steht oben über den Kacheln (Spalte rechts nur auf Wunsch); im Stil Technisch kompakter.
 - **Seitenleiste aufgeräumt:** 6 statt 8 Punkte. „Geräte“ bündelt PC-Status, Tastenbox und Fingerabdruck als
   Reiter; „Zuhören“ und „Sperren“ stehen in einer Zeile.
