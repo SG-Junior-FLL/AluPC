@@ -80,7 +80,7 @@ def _hang_guard(request):
         f.write(f"Test hängt: {request.node.nodeid}\n")
         f.flush()
         faulthandler.dump_traceback_later(seconds, exit=True, file=f)
-        native = _native_dump_later(max(1, seconds - 15))  # kurz vorher: auch die Qt-/C++-Stapel (py-spy)
+        native = _native_dump_later(max(1, seconds // 2))  # nach der halben Zeit: Qt-/C++-Stapel (py-spy braucht Zeit)
         try:
             yield
         finally:
@@ -104,8 +104,9 @@ def _native_dump_later(seconds: int):
         if cancel.wait(seconds):
             return
         try:
+            Path("gui-haenger-nativ.txt").write_text("py-spy läuft …", encoding="utf-8")
             out = subprocess.run([spy, "dump", "--native", "--pid", str(os.getpid())], capture_output=True,
-                                 text=True, timeout=60)
+                                 text=True, timeout=max(30, seconds - 10))
             Path("gui-haenger-nativ.txt").write_text(out.stdout + out.stderr, encoding="utf-8")
         except Exception as exc:  # noqa: BLE001 - nur Diagnose
             Path("gui-haenger-nativ.txt").write_text(f"py-spy: {exc}", encoding="utf-8")
