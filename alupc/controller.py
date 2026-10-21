@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
@@ -1662,7 +1663,7 @@ class Controller(QObject):
     def apply_buttonbox(self) -> None:
         """Einstellungen übernehmen: Box suchen (oder nicht), Lautstärke-Sperre, LED."""
         cfg = self.config["tasten"]
-        if cfg.get("on", True):
+        if cfg.get("on", True) and not os.environ.get("ALUPC_NO_TASTENBOX"):  # Tests: keine echte Suche
             if self.buttonbox._thread is None or self.buttonbox.wanted_port != cfg.get("port", ""):
                 self.buttonbox.start(cfg.get("port", ""))
         else:

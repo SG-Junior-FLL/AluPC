@@ -5,6 +5,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("ALUPC_NO_ANIMATION", "1")
 os.environ.setdefault("ALUPC_NO_AUTO_WIFI", "1")  # Tests starten kein echtes Spiele-WLAN  # Tests prüfen Zustände, nicht Übergänge (eigener Test dafür)
+os.environ.setdefault("ALUPC_NO_TASTENBOX", "1")  # Tests suchen keine echte Tastenbox an COM-/tty-Anschlüssen
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Chromium (QtWebEngine) verweigert als root den Start mit Sandbox – nur im Test-Container relevant
@@ -79,7 +80,35 @@ def _hang_guard(request):
         f.write(f"Test hängt: {request.node.nodeid}\n")
         f.flush()
         faulthandler.dump_traceback_later(seconds, exit=True, file=f)
+        native = _native_dump_later(max(1, seconds - 15))  # kurz vorher: auch die Qt-/C++-Stapel (py-spy)
         try:
             yield
         finally:
+            native.set()
             faulthandler.cancel_dump_traceback_later()
+
+
+def _native_dump_later(seconds: int):
+    """Hängt ein Test in Qt selbst, zeigt faulthandler nur „pump“. py-spy (falls installiert) liest dann die
+    C++-Stapel aller Threads mit – nach gui-haenger-nativ.txt. Gibt ein Event zurück: gesetzt = abbrechen."""
+    import shutil
+    import subprocess
+    import threading
+
+    cancel = threading.Event()
+    spy = shutil.which("py-spy")
+    if not spy:
+        return cancel
+
+    def run():
+        if cancel.wait(seconds):
+            return
+        try:
+            out = subprocess.run([spy, "dump", "--native", "--pid", str(os.getpid())], capture_output=True,
+                                 text=True, timeout=60)
+            Path("gui-haenger-nativ.txt").write_text(out.stdout + out.stderr, encoding="utf-8")
+        except Exception as exc:  # noqa: BLE001 - nur Diagnose
+            Path("gui-haenger-nativ.txt").write_text(f"py-spy: {exc}", encoding="utf-8")
+
+    threading.Thread(target=run, name="haenger-diagnose", daemon=True).start()
+    return cancel
