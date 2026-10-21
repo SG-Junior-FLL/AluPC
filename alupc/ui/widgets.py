@@ -846,6 +846,8 @@ class StatusCard(QWidget):
         self.since.setVisible(t.technical)
         self.title.setFont(self._title_font(self._mode == "schmal"))
         self._tick_since()
+        if self.isVisible():  # Stil gewechselt: Größe des Live-Bilds neu wählen
+            self._recheck()
 
     @staticmethod
     def _title_font(narrow: bool) -> QFont:
@@ -928,7 +930,15 @@ class StatusCard(QWidget):
                        if self.actions.itemAt(i).widget() is not None
                        and not self.actions.itemAt(i).widget().isHidden()), default=0)
         m = self._lay.contentsMargins()
-        return m.left() + m.right() + 320 + self._lay.spacing() * 2 + chip_w + actions + 24  # etwas Luft
+        return m.left() + m.right() + self._preview_size(False).width() + self._lay.spacing() * 2 + chip_w \
+            + actions + 24  # etwas Luft
+
+    @staticmethod
+    def _preview_size(narrow: bool) -> QSize:
+        """Live-Bild neben dem Text: Technisch kompakter (dichtes Pult), sonst groß."""
+        if narrow:
+            return QSize(240, 135)
+        return QSize(256, 144) if theme.current().technical else QSize(320, 180)
 
     def _auto(self) -> None:
         """Breit: nebeneinander, Schalter mit Namen · mittel: nebeneinander, Schalter nur Symbol ·
@@ -946,13 +956,14 @@ class StatusCard(QWidget):
         stacked = narrow or dock
         self._lay.setDirection(QBoxLayout.TopToBottom if stacked else QBoxLayout.LeftToRight)
         self._lay.setAlignment(self.screens, Qt.AlignHCenter if narrow else Qt.Alignment())
-        self._lay.setContentsMargins(*((0, 0, 0, 0) if dock else (16, 16, 20, 16)))
-        self._lay.setSpacing(14 if dock else 20)
+        tech = theme.current().technical
+        self._lay.setContentsMargins(*((0, 0, 0, 0) if dock else ((12, 10, 14, 10) if tech else (16, 16, 20, 16))))
+        self._lay.setSpacing(14 if dock or tech else 20)
         inner = self._dock
         if dock:
             self.preview.setFixedSize(QSize(inner, round(inner * 9 / 16)))
         else:
-            self.preview.setFixedSize(QSize(240, 135) if narrow else QSize(320, 180))
+            self.preview.setFixedSize(self._preview_size(narrow))
         # Dock: Regler links, „Beenden“ rechts unten
         if self.studio is not None:
             self.studio.set_width(self.preview.width())
