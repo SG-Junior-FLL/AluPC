@@ -16,6 +16,7 @@ from array import array
 from .audio import IS_WINDOWS
 
 METER_APP = "alupc-pegel"
+DEFAULT_OUT = "@default"  # Geräte-ID für „der aktuelle Standard-Ausgang“ (Pegel im Live-Dock)
 
 
 class _Parec:
@@ -79,7 +80,8 @@ class Meters:
                     continue
                 args = ["-d", s["sink"] + ".monitor", f"--monitor-stream={s['stream']}"]
             elif s["kind"] == "out":
-                args = ["-d", s["dev"] + ".monitor"]
+                dev = "@DEFAULT_SINK@" if s["dev"] == DEFAULT_OUT else s["dev"]
+                args = ["-d", dev + ".monitor"]
             else:
                 args = ["-d", s["dev"]]
             try:
@@ -146,7 +148,7 @@ def _win_peaks(specs: list[dict]) -> dict[str, float]:
         if s.get("stream") is not None:
             continue
         try:
-            dev = w["enum"].GetDevice(s["dev"])
+            dev = audio._win_default("out") if s["dev"] == DEFAULT_OUT else w["enum"].GetDevice(s["dev"])
             m = dev.Activate(meter._iid_, comtypes.CLSCTX_ALL, None).QueryInterface(meter)
             peaks[s["key"]] = float(m.GetPeakValue())
         except (OSError, comtypes.COMError):

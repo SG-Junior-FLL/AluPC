@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QLabel,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QHBoxLayout,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -77,7 +79,7 @@ class SceneEditor(QDialog):
         else:
             self.scene = copy.deepcopy(scene) if scene else new_scene(self._free_name())
         self.setWindowTitle("Szene bearbeiten" if scene else ("Neue Szene aus Vorlage" if template else "Neue Szene"))
-        self.resize(900, 680)
+        self.resize(1060, 720)
 
         self.name_edit = QLineEdit(self.scene["name"])
         self.bg_button = ColorButton(self.scene.get("background", "#000000"))
@@ -126,10 +128,12 @@ class SceneEditor(QDialog):
         self.transition_ms.setSuffix(" ms")
         self.transition_ms.setSpecialValueText("Standard-Dauer")
         self.transition_ms.setValue(int(tr.get("ms", 0) or 0))
+        self.transition_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.transition_combo.setMinimumContentsLength(10)
         tr_row = QHBoxLayout()
         tr_row.addWidget(self.transition_combo, 1)
         tr_row.addWidget(self.transition_ms)
-        form.addRow("Übergang zu dieser Szene:", tr_row)
+        form.addRow("Übergang:", tr_row)
 
         buttons = QDialogButtonBox()
         buttons.addButton(button("Speichern", "check", primary=True), QDialogButtonBox.AcceptRole)
@@ -137,24 +141,54 @@ class SceneEditor(QDialog):
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)
 
+        # Studio-Aufbau: links die Schritte (Allgemein → Layout → Felder), rechts Vorschau + Speichern
         self.preview = ScenePreview()
-        top = QHBoxLayout()
-        top.setSpacing(20)
-        top.addLayout(form, 1)
-        top.addWidget(self.preview)
+        self.preview.setFixedSize(292, 164)
+        general = QGroupBox("Allgemein")
+        general.setLayout(form)
+        layout_box = QGroupBox("Layout")
+        QVBoxLayout(layout_box).addWidget(self.layout_list)
+        steps = QWidget()
+        sl = QVBoxLayout(steps)
+        sl.setContentsMargins(0, 0, 8, 0)
+        sl.setSpacing(6)
+        sl.addWidget(general)
+        sl.addWidget(layout_box)
+        sl.addWidget(self.slots_box)
+        sl.addStretch(1)
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        area.setWidget(steps)
 
+        side = QFrame()
+        side.setObjectName("Card")
+        side.setAttribute(Qt.WA_StyledBackground, True)
+        side.setFixedWidth(328)
+        side_lay = QVBoxLayout(side)
+        side_lay.setContentsMargins(18, 18, 18, 18)
+        side_lay.setSpacing(10)
+        side_lay.addWidget(self.preview)
+        self.preview_note = QLabel()
+        self.preview_note.setObjectName("Muted")
+        self.preview_note.setWordWrap(True)
+        side_lay.addWidget(self.preview_note)
+        side_lay.addStretch(1)
+        buttons.setOrientation(Qt.Vertical)
+        for b in buttons.buttons():
+            b.setMinimumWidth(290)
+        side_lay.addWidget(buttons)
+
+        body = QHBoxLayout()
+        body.setSpacing(18)
+        body.addWidget(area, 1)
+        body.addWidget(side)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(22, 20, 22, 18)
-        lay.setSpacing(12)
+        lay.setSpacing(14)
         lay.addWidget(page_header("Szene bearbeiten" if scene else "Neue Szene",
-                                  "Layout · Felder füllen · Speichern"))
-        lay.addLayout(top)
-        section = QLabel("Layout-Vorlage")
-        section.setObjectName("SectionTitle")
-        lay.addWidget(section)
-        lay.addWidget(self.layout_list)
-        lay.addWidget(self.slots_box, 1)
-        lay.addWidget(buttons)
+                                  "Layout wählen, Felder füllen, speichern"))
+        lay.addLayout(body, 1)
         self._rebuild_slots()
 
     def _free_name(self, base: str = "Szene") -> str:
@@ -201,6 +235,10 @@ class SceneEditor(QDialog):
         self.slots_grid.setHorizontalSpacing(12)
         self.slots_grid.setVerticalSpacing(8)
         self.preview.set_scene(self.scene)
+        filled = sum(1 for x in self.scene["slots"] if x)
+        total = len(self.scene["slots"])
+        self.preview_note.setText(f"{LAYOUTS.get(self.scene['layout'], ('?',))[0]} · {filled} von {total} "
+                                  f"Feld{'' if total == 1 else 'ern'} gefüllt")
         self.slots_grid.setRowStretch(len(self.scene["slots"]), 1)
 
     def _choose(self, idx):

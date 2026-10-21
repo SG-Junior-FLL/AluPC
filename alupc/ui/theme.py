@@ -793,9 +793,11 @@ def _stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
         btn_down = f"background: {pressed};"
         hero_tint = t.mix(t.surface, a1, 0.16 if t.dark else 0.08).name()
         rcmd = min(23, round(23 * t.radius_scale))
+        dialog_top = t.mix(t.bg, a1, 0.10 if t.dark else 0.06).name()
         extra = f"""
 #Hero {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {t.surface}, stop:1 {hero_tint}); }}
 #Sidebar {{ margin: 12px 0 12px 12px; border-radius: 22px; border: none; }}
+QDialog {{ background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {dialog_top}, stop:0.45 {t.bg}); }}
 #LiveDock {{ margin: 12px 12px 12px 0; border-radius: 22px; border: none; }}
 QPushButton#CommandBar {{ background: {t.surface}; border-color: transparent; }}
 QPushButton {{ padding: 7px 16px; }}
@@ -816,6 +818,11 @@ QListWidget#SetupNav::item:selected {{ border-left: none; }}
         extra = f"""
 #Card, QGroupBox, #Hero {{ border-top: 2px solid {a1}; }}
 #LiveDock {{ border-top: 2px solid {a1}; }}
+QPushButton#Chip {{ background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {t.mix(t.surface2, "#ffffff", 0.06).name()},
+    stop:1 {t.mix(t.surface, "#000000", 0.15).name()}); border: 1px solid {line}; border-bottom: 2px solid {t.mix(t.bg, "#000000", 0.4).name()}; }}
+QPushButton#Chip:checked {{ background: {a1}; color: {on_accent}; border-color: {a1}; border-bottom-color: {t.mix(a1, "#000000", 0.35).name()}; }}
+QPushButton#Chip:pressed {{ border-bottom-width: 1px; padding-top: 6px; }}
+QDialog {{ border-top: 2px solid {a1}; }}
 #DockTitle {{ font-family: "{MONO_FONT}"; font-weight: 600; border-left: 3px solid {a1}; padding-left: 7px; }}
 """
     if t.wood:
@@ -849,11 +856,12 @@ QToolTip {{ background: {t.surface2}; color: {t.text}; border: 1px solid {line_h
 
 #Sidebar {{ background: {side}; border-right: 1px solid {line}; }}
 #Content {{ background: transparent; }}
-#PageIcon {{ {page_icon} border-radius: {rb}px; }}
+#PageIcon, #SectionIcon {{ {page_icon} border-radius: {rb}px; }}
 #Brand {{ {head} font-size: 13.5pt; font-weight: 700; }}
 #BrandSub {{ color: {t.muted}; font-size: 8.5pt; }}
 #Muted, QLabel[muted="true"] {{ color: {t.muted}; }}
 #PageTitle {{ {head} font-size: {title_pt}pt; font-weight: {title_w}; }}
+#PanelTitle {{ {head} font-size: 15pt; font-weight: 700; }}
 #PageSubtitle {{ color: {t.muted}; font-size: 9.5pt; }}
 #SectionTitle {{ {head} font-size: {group_pt}pt; font-weight: 600; }}
 #StartSection {{ font-size: 11pt; font-weight: 600; color: {t.text}; padding: 10px 0 4px 0; border-bottom: 1px solid {line}; }}
@@ -972,4 +980,7 @@ QMessageBox, QInputDialog, QColorDialog, QFileDialog {{ background: {window_bg};
 QPushButton#CommandBar {{ text-align: left; padding: 10px 16px; background: {field}; border: 1px solid {line};
     border-radius: {rcmd}px; color: {t.muted}; font-weight: 500; font-size: 10.5pt; }}
 QPushButton#CommandBar:hover {{ border-color: {a1}; color: {t.text}; }}
+QPushButton#CornerButton {{ padding: 0; border-radius: {min(rb, 18)}px; min-height: 0; }}
+QLineEdit#SearchField {{ padding: 7px 10px; border-radius: {min(rcmd, 15)}px; }}
+QGroupBox[notitle="true"] {{ margin-top: 0px; }}
 {extra}"""

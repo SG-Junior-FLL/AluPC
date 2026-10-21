@@ -231,7 +231,7 @@ class Tile(HoverMixin, QAbstractButton):
 
     def sizeHint(self):
         t = theme.current()
-        base = {"technisch": 58, "holz": 106}.get(t.style, 118)
+        base = {"technisch": 92, "holz": 106}.get(t.style, 118)
         return QSize(200, round(base * t.density * (0.5 + 0.5 * t.font_scale)))
 
     def minimumSizeHint(self):
@@ -239,7 +239,7 @@ class Tile(HoverMixin, QAbstractButton):
 
     def paintEvent(self, _e):
         style = theme.current().style
-        {"technisch": self._paint_row, "holz": self._paint_plate}.get(style, self._paint_card)()
+        {"technisch": self._paint_pad, "holz": self._paint_plate}.get(style, self._paint_card)()
 
     def _state(self) -> tuple[bool, QColor, str]:
         """(läuft?, Lampenfarbe, Zustand in Worten)."""
@@ -280,7 +280,7 @@ class Tile(HoverMixin, QAbstractButton):
                 p.drawEllipse(QPointF(x + 3.5, line.center().y()), 3.5, 3.5)
                 line = line.adjusted(12, 0, 0, 0)
             p.setFont(sf)
-            p.setPen(lamp)
+            p.setPen(QColor("#ffffff") if t.technical else lamp)  # Technisch: Pad leuchtet rot → weiße Schrift
             p.drawText(line, Qt.AlignLeft | Qt.AlignVCenter,
                        QFontMetrics(sf).elidedText(state, Qt.ElideRight, int(line.width())))
         elif self.subtitle:
@@ -337,29 +337,73 @@ class Tile(HoverMixin, QAbstractButton):
         self._texts(p, r.left() + 16, r.right() - 14, r.bottom() - 30, font(11.5, QFont.DemiBold), 9.2)
         p.end()
 
-    def _paint_row(self):
-        """Technisch: dichte Zeile mit feinem Rand; läuft sie, leuchtet links eine rote Leiste."""
+    def _paint_pad(self):
+        """Technisch: beleuchtetes Pad wie an einem DJ-Controller – gummierte Fläche in einer Mulde, unten eine
+        Lichtleiste in der Farbe der Quelle (heller beim Überfahren). Läuft es: das ganze Pad leuchtet rot."""
+        from PySide6.QtGui import QRadialGradient
+
         t = theme.current()
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        well = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
         on, lamp, _state = self._state()
-        radius = t.radii[0]
-        p.fillPath(rounded(r, radius), t.mix(t.surface, t.surface2, 0.7 * self._hover + (0.7 if self.isDown() else 0)))
-        p.setPen(QPen(lamp if on else QColor(t.mix(t.border, t.text, 0.15 * self._hover)), 1))
+        rw = max(2.0, t.radii[0] * 1.6)
+        # Mulde im Pult
+        p.fillPath(rounded(well, rw), t.mix(t.bg, "#000000", 0.35 if t.dark else 0.10))
+        p.setPen(QPen(QColor(t.border), 1))
         p.setBrush(Qt.NoBrush)
-        p.drawPath(rounded(r, radius))
+        p.drawPath(rounded(well, rw))
+        pad = well.adjusted(4, 4, -4, -4).translated(0, 1 if self.isDown() else 0)
+        rp = max(2.0, rw - 2)
+        src = QColor(self.color or t.accent)
+        face = QLinearGradient(pad.topLeft(), pad.bottomLeft())
+        top = t.mix(t.surface2, "#ffffff", 0.05 + 0.04 * self._hover) if t.dark else t.mix(t.surface2, "#ffffff", 0.5)
+        face.setColorAt(0, top)
+        face.setColorAt(1, t.mix(t.surface, "#000000", 0.12 if t.dark else 0.03))
+        p.fillPath(rounded(pad, rp), face)
+        under = QLinearGradient(pad.bottomLeft(), QPointF(pad.left(), pad.top() + pad.height() * 0.35))
+        s0, s1 = QColor(src), QColor(src)
+        s0.setAlphaF((0.16 + 0.12 * self._hover) if t.dark else 0.10)
+        s1.setAlphaF(0.0)
+        under.setColorAt(0, s0)
+        under.setColorAt(1, s1)
+        p.fillPath(rounded(pad, rp), under)  # Hintergrundlicht der Quelle von unten
+        if on:  # Pad leuchtet von innen
+            glow = QRadialGradient(QPointF(pad.center().x(), pad.bottom()), pad.width() * 0.75)
+            g0, g1 = QColor(lamp), QColor(lamp)
+            g0.setAlphaF(0.55)
+            g1.setAlphaF(0.08)
+            glow.setColorAt(0, g0)
+            glow.setColorAt(1, g1)
+            p.fillPath(rounded(pad, rp), glow)
+        # Lichtkante oben, Lichtleiste unten
+        p.setPen(QPen(QColor(255, 255, 255, 22 if t.dark else 120), 1))
+        p.drawLine(QPointF(pad.left() + rp, pad.top() + 0.5), QPointF(pad.right() - rp, pad.top() + 0.5))
+        strip = QRectF(pad.left() + 10, pad.bottom() - 6, pad.width() - 20, 3)
+        led = QColor(lamp if on else src)
+        led.setAlphaF(1.0 if on else 0.7 + 0.3 * self._hover)
+        p.setPen(Qt.NoPen)
+        if led.alphaF() > 0:
+            halo = QColor(led)
+            halo.setAlphaF((0.35 if on else 0.18 + 0.15 * self._hover) * led.alphaF())
+            p.setBrush(halo)
+            p.drawRoundedRect(strip.adjusted(-3, -3, 3, 3), 3, 3)
+        p.setBrush(led)
+        p.drawRoundedRect(strip, 1.5, 1.5)
         if on:
-            p.fillRect(QRectF(r.left(), r.top(), 3, r.height()), lamp)
-        icons.paint(p, self.icon_name, QRectF(r.left() + 14, r.center().y() - 10, 20, 20),
-                    self._glyph_color().name(), 1.9)
-        right = r.right() - 10
-        if self.menu is not None:
+            p.setPen(QPen(lamp, 1.6))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(rounded(pad.adjusted(0.8, 0.8, -0.8, -0.8), rp))
+        icons.paint(p, self.icon_name, QRectF(pad.left() + 12, pad.top() + 11, 20, 20),
+                    (QColor("#ffffff") if on else self._glyph_color()).name(), 1.9)
+        if self.menu is not None:  # „Shift“-Taste oben rechts öffnet das Menü
+            key = QRectF(pad.right() - 34, pad.top() + 8, 26, 22)
             p.setPen(QPen(QColor(t.border), 1))
-            p.drawLine(QPointF(right - 22, r.top() + 10), QPointF(right - 22, r.bottom() - 10))
-            self._chevron(p, right - 9, r.center().y(), QColor(t.mix(t.muted, t.text, self._hover)))
-            right -= 30
-        self._texts(p, r.left() + 46, right, r.center().y() + 1, font(10.3, QFont.DemiBold), 8.8, dot=False)
+            p.setBrush(QColor(t.mix(t.surface, "#000000", 0.2) if t.dark else t.surface))
+            p.drawRoundedRect(key, 3, 3)
+            self._chevron(p, key.center().x(), key.center().y(), QColor(t.mix(t.muted, t.text, self._hover)))
+        self._texts(p, pad.left() + 12, pad.right() - 12, pad.bottom() - 26, font(10.6, QFont.DemiBold), 8.8,
+                    dot=False)
         p.end()
 
     def _paint_plate(self):
@@ -1471,13 +1515,103 @@ class SceneCard(HoverMixin, QAbstractButton):
         p.drawText(QRectF(r.left() + 12, thumb.bottom() + 30, r.width() - 24, 18), Qt.AlignLeft | Qt.AlignVCenter,
                    f"{filled} Quelle{'n' if filled != 1 else ''}")
         if self.live:
-            pill = QRectF(thumb.right() - 58, thumb.top() + 8, 50, 20)
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(t.success))
-            p.drawRoundedRect(pill, 10, 10)
-            p.setPen(QColor("#ffffff"))
-            p.setFont(font(8, QFont.Bold))
-            p.drawText(pill, Qt.AlignCenter, "LIVE")
+            paint_live_pill(p, QRectF(thumb.right() - 56, thumb.top() + 8, 48, 20))
+        p.end()
+
+
+def paint_live_pill(p: QPainter, pill: QRectF) -> None:
+    """Kleines rotes Etikett „Live“ (Rot heißt nur: läuft gerade auf dem Bildschirm)."""
+    t = theme.current()
+    p.save()
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(t.live))
+    rad = min(pill.height() / 2, max(2.0, t.radii[1] * pill.height() / 34))
+    p.drawRoundedRect(pill, rad, rad)
+    p.setBrush(QColor("#ffffff"))
+    p.drawEllipse(QPointF(pill.left() + 10, pill.center().y()), 3, 3)
+    p.setPen(QColor("#ffffff"))
+    p.setFont(font(8, QFont.Bold))
+    p.drawText(pill.adjusted(14, 0, 0, 0), Qt.AlignCenter, "Live")
+    p.restore()
+
+
+class SceneThumb(QWidget):
+    """Große Vorschau der gewählten Szene (Szenen-Seite, rechts): Felder in der Farbe ihrer Quelle."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.scene: dict | None = None
+        self.live = False
+        self.setMinimumHeight(120)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    def set(self, scene: dict | None, live: bool = False) -> None:
+        self.scene, self.live = scene, live
+        self.update()
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, w):
+        return round(w * 9 / 16)
+
+    def sizeHint(self):
+        return QSize(320, 180)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        h = self.heightForWidth(self.width())
+        if self.height() != h:
+            self.setFixedHeight(h)
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        paint_scene_thumb(p, r, self.scene)
+        if self.live:
+            t = theme.current()
+            p.setPen(QPen(QColor(t.live), 2.5))
+            p.setBrush(Qt.NoBrush)
+            rad = {"normal": 12, "holz": 4}.get(t.style, 2)
+            p.drawRoundedRect(r.adjusted(1, 1, -1, -1), rad, rad)
+            paint_live_pill(p, QRectF(r.right() - 60, r.top() + 10, 50, 22))
+        p.end()
+
+
+class NewSceneCard(HoverMixin, QAbstractButton):
+    """Letzte Karte im Szenen-Raster: gestrichelter Rahmen mit Plus – „Neue Szene“."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setText("Neue Szene")
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedSize(236, 200)
+        self.setToolTip("Neue Szene aus einer Vorlage anlegen")
+        self._init_hover()
+
+    hover = Property(float, HoverMixin._get_hover, HoverMixin._set_hover)
+
+    def paintEvent(self, _e):
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
+        rad = t.radii[0]
+        fill = QColor(t.accent)
+        fill.setAlphaF(0.05 + 0.07 * self._hover)
+        p.fillPath(rounded(r, rad), fill)
+        line = t.mix(t.border, t.accent, 0.4 + 0.6 * self._hover)
+        p.setPen(QPen(line, 1.5, Qt.DashLine))
+        p.drawPath(rounded(r, rad))
+        c = QPointF(r.center().x(), r.center().y() - 12)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(t.accent))
+        p.drawEllipse(c, 22, 22)
+        icons.paint(p, "plus", QRectF(c.x() - 11, c.y() - 11, 22, 22), t.on_accent, 2.4)
+        p.setPen(QColor(t.text))
+        p.setFont(font(10.5, QFont.DemiBold))
+        p.drawText(QRectF(r.left(), c.y() + 30, r.width(), 22), Qt.AlignCenter, "Neue Szene")
         p.end()
 
 
@@ -1836,28 +1970,86 @@ class Telemetry(QWidget):
             p.setFont(mono)
             p.setPen(QColor(t.text))
             p.drawText(QRectF(inner.x(), inner.y() + 14, inner.width(), 20), Qt.AlignLeft | Qt.AlignVCenter, text)
-            # Verlauf: feine Linie in Akzentfarbe, darunter leicht gefüllt
-            top = max(hist + [1.0]) if name == "Temperatur" else 100.0
-            area = QRectF(inner.x(), inner.bottom() - 14, inner.width(), 14)
-            if len(hist) > 1 and any(hist):
-                path = QPainterPath()
-                for j, v in enumerate(hist):
-                    pt = QPointF(area.x() + area.width() * j / (len(hist) - 1),
-                                 area.bottom() - area.height() * max(0.0, min(1.0, v / top)))
-                    if j == 0:
-                        path.moveTo(pt)
-                    else:
-                        path.lineTo(pt)
-                fill = QPainterPath(path)
-                fill.lineTo(area.bottomRight())
-                fill.lineTo(area.bottomLeft())
-                fill.closeSubpath()
-                soft = QColor(t.accent)
-                soft.setAlphaF(0.18)
-                p.fillPath(fill, soft)
-                p.setPen(QPen(QColor(t.accent), 1.4))
-                p.setBrush(Qt.NoBrush)
-                p.drawPath(path)
+            # LED-Kette wie ein Pegel am Pult: grün → gelb → rot
+            top = 100.0
+            value = hist[-1] if hist else 0.0
+            area = QRectF(inner.x(), inner.bottom() - 9, inner.width(), 9)
+            paint_led_bar(p, area, value / top if text != "–" else 0.0, segments=14)
+        p.end()
+
+
+def paint_led_bar(p: QPainter, area: QRectF, level: float, segments: int = 16, peak: float | None = None) -> None:
+    """Pegel als LED-Kette (aus = dunkel): bis 60 % grün, bis 85 % gelb, darüber rot."""
+    t = theme.current()
+    gap = 2.0
+    seg_w = (area.width() - gap * (segments - 1)) / segments
+    lit = round(max(0.0, min(1.0, level)) * segments)
+    peak_i = None if not peak or peak < 0.01 else min(segments - 1, int(max(0.0, min(1.0, peak)) * segments))
+    p.save()
+    p.setPen(Qt.NoPen)
+    for i in range(segments):
+        frac = (i + 1) / segments
+        color = QColor("#2fd27a" if frac <= 0.6 else ("#f5c400" if frac <= 0.85 else t.live))
+        if i >= lit and i != peak_i:
+            color = t.mix(t.bg, color.name(), 0.18)
+        p.setBrush(color)
+        p.drawRoundedRect(QRectF(area.x() + i * (seg_w + gap), area.y(), seg_w, area.height()), 1.2, 1.2)
+    p.restore()
+
+
+class LevelMeter(QWidget):
+    """Echter Pegel des PC-Tons (Standard-Ausgang) als LED-Kette – nur gemessen, solange sichtbar."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._meters = None
+        self.level = 0.0
+        self.peak = 0.0
+        self._peak_at = 0.0
+        self._timer = QTimer(self, interval=50)
+        self._timer.timeout.connect(self._tick)
+        self.setFixedHeight(40)
+        self.setToolTip("Lautstärke, die gerade aus dem PC kommt (Standard-Ausgang)")
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        from .. import mixer_meters
+
+        if self._meters is None:
+            self._meters = mixer_meters.Meters()
+        self._meters.set_channels([{"key": "pc", "kind": "out", "dev": mixer_meters.DEFAULT_OUT,
+                                    "stream": None}])
+        self._timer.start()
+
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        self._timer.stop()
+        if self._meters is not None:
+            self._meters.stop()
+
+    def _tick(self):
+        import time as _time
+
+        raw = self._meters.peak("pc") if self._meters is not None else 0.0
+        self.level = max(raw, self.level * 0.82)  # schnell hoch, langsam runter
+        now = _time.monotonic()
+        if raw >= self.peak or now - self._peak_at > 1.2:
+            self.peak, self._peak_at = raw, now
+        self.update()
+
+    def paintEvent(self, _e):
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(QColor(t.muted))
+        p.setFont(font(7.6))
+        p.drawText(QRectF(0, 0, self.width(), 14), Qt.AlignLeft | Qt.AlignVCenter, "Ton vom PC")
+        mono = QFont(theme.MONO_FONT)
+        mono.setPointSizeF(t.pt(8))
+        p.setFont(mono)
+        db = "–∞ dB" if self.level < 0.001 else f"{20 * math.log10(self.level):.0f} dB"
+        p.drawText(QRectF(0, 0, self.width(), 14), Qt.AlignRight | Qt.AlignVCenter, db)
+        paint_led_bar(p, QRectF(0, 20, self.width(), 14), self.level, segments=28, peak=self.peak)
         p.end()
 
 

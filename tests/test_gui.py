@@ -4865,3 +4865,73 @@ def test_wayland_native_mirror_never_asks_for_screen(env, monkeypatch):
     calls.clear()
     monkeypatch.setattr(sources, "_kwin_allowed", lambda name: True)
     assert not controller._capture_would_ask(controller.main_screen())
+
+
+# ---------------------------------------------------------------- 2.2: Studio-Aufbau
+def test_quick_style_switch(env):
+    """Eckknopf: Stil/Hell-Dunkel/Profil sofort wechseln; in Setup → Darstellung ausblendbar."""
+    controller, window, _ = env
+    from alupc.ui import theme
+
+    window.show()
+    pump()
+    assert window.style_button.isVisible()
+    window._fill_style_menu()
+    texts = [a.text() for a in window.style_menu.actions()]
+    assert any(t.startswith("Technisch") for t in texts) and "Knopf ausblenden" in texts
+    window.quick_appearance(style="technisch")
+    assert controller.config["appearance"]["style"] == "technisch" and theme.current().technical
+    window.quick_profile("AluPC Standard")
+    a = controller.config["appearance"]
+    assert a["style"] == "normal" and a["profile"] == "AluPC Standard"
+    window.quick_appearance(quick_switch=False)
+    assert not window.style_button.isVisible()
+    window.open_setup_section("Darstellung")
+    pump()
+    assert not window.setup.quick_switch.isChecked()
+    window.setup.quick_switch.setChecked(True)
+    pump()
+    assert controller.config["appearance"]["quick_switch"] and window.style_button.isVisible()
+    window._go(0)
+
+
+def test_scene_page_search_and_panel(env):
+    """Szenen: Suche filtert das Raster, rechts steht die gewählte Szene mit ihren Feldern."""
+    controller, window, _ = env
+    config = controller.config
+    config.put_scene({"name": "Pause", "layout": "vollbild", "background": "#000000", "slots": [{"type": "clock"}]})
+    config.put_scene({"name": "Begrüßung", "layout": "vollbild", "background": "#000000",
+                      "slots": [{"type": "design", "design": "willkommen"}]})
+    window._reload_scenes("Pause")
+    window._go(1)
+    pump()
+    assert window.scene_name.text() == "Pause" and window.scene_slots.count() == 1
+    assert window.new_scene_card in window.scene_grid.items
+    window.scene_search.setText("begr")
+    pump()
+    assert [c.scene["name"] for c in window.scene_grid.items] == ["Begrüßung"]
+    assert "1 von" in window.scene_count.text()
+    window.scene_search.clear()
+    window._go(0)
+
+
+def test_setup_search_filters_sections(env):
+    """Setup-Suche findet Bereiche über ihre Beschriftungen (z. B. „Rundung“ → Darstellung)."""
+    controller, window, _ = env
+    from alupc.ui.setup_page import SetupPage
+
+    window.open_setup_section("Monitore")
+    setup = window.setup
+    setup.search.setText("Rundung")
+    pump()
+    titles = [t for _i, t, _s in SetupPage.SECTIONS]
+    visible = [titles[i] for i in range(len(titles)) if not setup.nav.isRowHidden(i)]
+    assert visible == ["Darstellung"] and setup.nav.currentRow() == titles.index("Darstellung")
+    assert setup.section_title.text() == "Darstellung"
+    setup.search.setText("gibtsnichtxyz")
+    pump()
+    assert setup.no_match.isVisible() or not setup.stack.isVisible()
+    setup.search.clear()
+    pump()
+    assert not any(setup.nav.isRowHidden(i) for i in range(len(titles)))
+    window._go(0)

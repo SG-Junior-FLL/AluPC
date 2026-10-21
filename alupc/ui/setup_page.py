@@ -293,6 +293,9 @@ def _round(rect: QRectF, radius: float):
     return path
 
 
+GROUP_HEAD = 30  # Höhe der Gruppenüberschrift in der Setup-Liste
+
+
 class NavDelegate(QStyledItemDelegate):
     """Setup-Liste: Bereichsname in Textfarbe, darunter kleiner und leiser, was drin ist."""
 
@@ -301,12 +304,21 @@ class NavDelegate(QStyledItemDelegate):
         self.initStyleOption(opt, index)
         text = index.data(Qt.DisplayRole) or ""
         opt.text = ""
+        group = index.data(Qt.UserRole + 1) if text else None
+        t = theme.current()
+        if group:  # Überschrift der Gruppe („Bildschirm“, „Werkzeuge“ …) über dem ersten Bereich
+            head = QRectF(opt.rect.left() + 12, opt.rect.top() + 6, opt.rect.width() - 20, GROUP_HEAD - 8)
+            p.save()
+            p.setFont(font(8.2, QFont.Bold))
+            p.setPen(QColor(t.muted))
+            p.drawText(head, Qt.AlignLeft | Qt.AlignVCenter, group)
+            p.restore()
+            opt.rect = opt.rect.adjusted(0, GROUP_HEAD, 0, 0)
         style = opt.widget.style() if opt.widget else QApplication.style()
         style.drawControl(QStyle.CE_ItemViewItem, opt, p, opt.widget)
         if not text:
             return
         title, _, sub = text.partition("\n")
-        t = theme.current()
         r = QRectF(opt.rect).adjusted(opt.decorationSize.width() + 22, 0, -8, 0)
         p.save()
         f = font(10, QFont.DemiBold if opt.state & QStyle.State_Selected else QFont.Medium)
@@ -413,11 +425,14 @@ class SetupPage(QWidget):
         ("sound", "Töne", "Klänge bei Aktionen"),
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
         ("mic", "Sprache", "Sprachbefehle und Stimme"),
+        ("phone", "Handy & Kamera", "Was das Handy darf"),
         ("sync", "Sichern & Sync", "Sichern, Windows/Linux"),
         ("fan", "RGB & Lüfter", "Licht und Temperaturen"),
-        ("phone", "Handy & Kamera", "Was das Handy darf"),
         ("sliders", "Allgemein", "Start, Autostart, Hilfe"),
     ]
+    # Gruppen in der Liste: erster Bereich → Überschrift
+    GROUPS = {"Monitore": "Bildschirm", "Timer": "Werkzeuge", "Tastenkürzel": "Bedienung",
+              "Sichern & Sync": "System"}
 
     def __init__(self, controller, hotkeys, parent=None):
         super().__init__(parent)
@@ -454,7 +469,8 @@ class SetupPage(QWidget):
         self._pending = {}
         for i, (icon_name, title, sub) in enumerate(self.SECTIONS):
             item = QListWidgetItem(icons.icon(icon_name, t.accent, 20), f"{title}\n{sub}")
-            item.setSizeHint(QSize(220, 54))
+            item.setData(Qt.UserRole + 1, self.GROUPS.get(title))
+            item.setSizeHint(self._item_size(title, False))
             self.nav.addItem(item)
             area = QScrollArea()
             area.setWidgetResizable(True)
@@ -468,8 +484,44 @@ class SetupPage(QWidget):
         root = QHBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(18)
-        root.addWidget(self.nav)
-        root.addWidget(self.stack, 1)
+        side = QVBoxLayout()
+        side.setSpacing(10)
+        self.search = QLineEdit()
+        self.search.setObjectName("SearchField")
+        self.search.setPlaceholderText("Einstellung suchen …")
+        self.search.setClearButtonEnabled(True)
+        self.search.addAction(icons.icon("search", t.muted, 16), QLineEdit.LeadingPosition)
+        self.search.setFixedWidth(230)
+        self.search.textChanged.connect(self._filter)
+        side.addWidget(self.search)
+        side.addWidget(self.nav, 1)
+        root.addLayout(side)
+        right = QVBoxLayout()
+        right.setSpacing(12)
+        head = QHBoxLayout()
+        head.setSpacing(12)
+        self.section_icon = QLabel()
+        self.section_icon.setObjectName("SectionIcon")
+        self.section_icon.setFixedSize(38, 38)
+        self.section_icon.setAlignment(Qt.AlignCenter)
+        col = QVBoxLayout()
+        col.setSpacing(0)
+        self.section_title = QLabel()
+        self.section_title.setObjectName("PanelTitle")
+        self.section_sub = QLabel()
+        self.section_sub.setObjectName("Muted")
+        col.addWidget(self.section_title)
+        col.addWidget(self.section_sub)
+        head.addWidget(self.section_icon)
+        head.addLayout(col, 1)
+        self.no_match = QLabel("Keine Einstellung gefunden")
+        self.no_match.setObjectName("Muted")
+        self.no_match.hide()
+        right.addLayout(head)
+        right.addWidget(self.no_match)
+        right.addWidget(self.stack, 1)
+        root.addLayout(right, 1)
+        self._update_head(0)
         controller.changed.connect(self._update_arrangement)
         QTimer.singleShot(0, self.reload_outputs)
 
@@ -482,7 +534,11 @@ class SetupPage(QWidget):
         lay.setContentsMargins(0, 0, 8, 0)
         lay.setSpacing(6)
         for build in builders:
-            lay.addWidget(build())
+            box = build()
+            if isinstance(box, QGroupBox) and box.title() == self.SECTIONS[i][1]:
+                box.setTitle("")  # steht schon groß im Kopf darüber
+                box.setProperty("notitle", True)
+            lay.addWidget(box)
         for combo in inner.findChildren(QComboBox):  # lange Einträge dürfen das Fenster nicht verbreitern
             combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
             combo.setMinimumContentsLength(8)
@@ -521,8 +577,61 @@ class SetupPage(QWidget):
             self._build_section(i)
 
     def _show_row(self, i: int) -> None:
+        if i < 0:
+            return
         self._build_section(i)
         self.stack.setCurrentIndex(i)
+        self._update_head(i)
+
+    def _item_size(self, title: str, compact: bool) -> QSize:
+        if compact:
+            return QSize(48, 48)
+        searching = bool(self.__dict__.get("search") and self.search.text().strip())
+        return QSize(220, 54 + (GROUP_HEAD if title in self.GROUPS and not searching else 0))
+
+    def _update_head(self, i: int) -> None:
+        """Kopf über dem Bereich: Symbol, Name und was drin ist."""
+        if "section_title" not in self.__dict__:
+            return
+        icon_name, title, sub = self.SECTIONS[i]
+        t = theme.current()
+        color = t.accent if t.technical else (t.text if t.wood else t.on_accent)
+        self.section_icon.setPixmap(icons.pixmap(icon_name, color, 20))
+        self.section_title.setText(title)
+        self.section_sub.setText(sub)
+
+    def _section_text(self, i: int) -> str:
+        """Alle Beschriftungen eines Bereichs (für die Suche)."""
+        from PySide6.QtWidgets import QAbstractButton, QGroupBox
+
+        self._build_section(i)
+        inner = self._areas[i].widget()
+        parts = [" ".join(self.SECTIONS[i][1:])]
+        for w in inner.findChildren(QWidget) if inner is not None else []:
+            if isinstance(w, (QLabel, QAbstractButton)):
+                parts.append(w.text())
+            elif isinstance(w, QGroupBox):
+                parts.append(w.title())
+            elif isinstance(w, QComboBox):
+                parts.extend(w.itemText(k) for k in range(w.count()))
+        return " ".join(parts).lower()
+
+    def _filter(self, text: str) -> None:
+        """Suche: nur Bereiche zeigen, in denen das Wort vorkommt (Name, Beschriftungen, Auswahllisten)."""
+        query = text.strip().lower()
+        compact = self.nav.width() < 100
+        first = None
+        for i, (_icon, title, _sub) in enumerate(self.SECTIONS):
+            match = not query or query in self._section_text(i)
+            self.nav.setRowHidden(i, not match)
+            self.nav.item(i).setSizeHint(self._item_size(title, compact))
+            if match and first is None:
+                first = i
+        if first is not None and self.nav.isRowHidden(self.nav.currentRow()):
+            self.nav.setCurrentRow(first)
+        self.no_match.setVisible(first is None)
+        self.stack.setVisible(first is not None)
+        self.nav.doItemsLayout()
 
     def __getattr__(self, name):
         # Attribut aus einem noch nicht gebauten Bereich (z. B. self.voice_on) → alle Bereiche bauen
@@ -535,11 +644,12 @@ class SetupPage(QWidget):
     def set_compact(self, on: bool) -> None:
         """Kleines Fenster: Bereichsliste nur mit Symbolen (Name als Tooltip)."""
         self.nav.setFixedWidth(64 if on else 230)
+        self.search.setVisible(not on)
         for i, (_icon, title, sub) in enumerate(self.SECTIONS):
             item = self.nav.item(i)
             item.setText("" if on else f"{title}\n{sub}")
             item.setToolTip(f"{title} – {sub}")
-            item.setSizeHint(QSize(48, 48) if on else QSize(220, 54))
+            item.setSizeHint(self._item_size(title, on))
         self.layout().setSpacing(10 if on else 18)
 
     def show_section(self, title: str) -> None:
@@ -904,6 +1014,11 @@ class SetupPage(QWidget):
         form.addRow("Hell/Dunkel:", mode)
         form.addRow("Akzentfarbe:", swatches)
         self._fine_controls(form, a)
+        self.quick_switch = QCheckBox("Knopf unten links in der Seitenleiste")
+        self.quick_switch.setToolTip("Ein Klick: Stil, Hell/Dunkel oder Profil wechseln – ohne ins Setup zu gehen")
+        self.quick_switch.setChecked(bool(a.get("quick_switch", True)))
+        self.quick_switch.toggled.connect(lambda on: self._save_appearance(quick_switch=on))
+        form.addRow("Schnellwahl:", self.quick_switch)
         form.addRow("Desktop:", self._desktop_theme_row())
         self._sync_style_rows()
         from .. import perf
@@ -1162,6 +1277,11 @@ class SetupPage(QWidget):
         if "eigen" in getattr(self, "_swatches", {}) and a.get("accent_color"):
             self._swatches["eigen"].color = a["accent_color"]
         self._style_swatches(a.get("accent", "alupc"))
+        qs = self.__dict__.get("quick_switch")
+        if qs is not None:
+            qs.blockSignals(True)
+            qs.setChecked(bool(a.get("quick_switch", True)))
+            qs.blockSignals(False)
         for widget, value in ((self.__dict__.get("_radius_slider"), a.get("radius", 100)),
                               (self.__dict__.get("_font_slider"), a.get("font", 100)),
                               (self.__dict__.get("_mode_combo"), None),

@@ -172,7 +172,7 @@ DEFAULTS: dict = {
     # Darstellung: Stil, Farbe, Holzart, Feinheiten (Rundung/Schrift in %, Abstände) und Profile (Setup → Darstellung)
     "appearance": {"mode": "dunkel", "accent": "alupc", "style": "normal", "wood": "nussbaum", "radius": 100,
                    "font": 100, "density": "normal", "profile": "", "profiles": {}, "accent_color": "",
-                   "accent_v2": True, "accent_v3": True,
+                   "accent_v2": True, "accent_v3": True, "quick_switch": True,
                    "mode_v2": True, "fade": True},
     # Übergang zwischen Inhalten/Szenen auf Monitor 2 (Art siehe transitions.py); Szenen können
     # einen eigenen Übergang haben

@@ -6,11 +6,12 @@ import copy
 import os
 import sys
 
-from PySide6.QtCore import QEvent, QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtWidgets import (
     QApplication,
+    QBoxLayout,
     QButtonGroup,
     QCheckBox,
     QComboBox,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -51,8 +53,8 @@ from .setup_page import SetupPage
 from .source_picker import IMAGE_FILTER, VIDEO_FILTER
 from ..startpage import BUILTIN_TILES, custom_key, find_custom, ordered_keys, section_of, sections
 from .start_page_dialog import StartPageDialog
-from .widgets import (AuroraBackdrop, CommandBar, EmptyState, MonitorCard, NavButton, NavIndicator, SceneCard,
-                      SectionHeader, StatusCard, Telemetry, Tile, Toast, animate_height, button, fade_in, font, mark_current, menu_header, page_header)
+from .widgets import (AuroraBackdrop, CommandBar, EmptyState, MonitorCard, NavButton, NavIndicator, NewSceneCard,
+                      SceneCard, SceneThumb, LevelMeter, SectionHeader, StatusCard, Telemetry, Tile, Toast, animate_height, button, fade_in, font, mark_current, menu_header, page_header)
 
 __all__ = ["MainWindow", "app_icon"]
 
@@ -63,9 +65,9 @@ PIP_COLOR = "#8b5cf6"
 
 
 def tile_min_width() -> int:
-    """Mindestbreite einer Kachel je Stil – Normal/Technisch legen Symbol und Text nebeneinander."""
+    """Mindestbreite einer Kachel je Stil (Technisch: Pads wie am DJ-Controller, 4 nebeneinander)."""
     t = theme.current()
-    return round({"technisch": 212}.get(t.style, 184) * (0.6 + 0.4 * t.font_scale))
+    return round({"technisch": 180}.get(t.style, 184) * (0.6 + 0.4 * t.font_scale))
 
 
 class FlowGrid(QWidget):
@@ -441,8 +443,73 @@ class MainWindow(QMainWindow):
         version.setContentsMargins(14, 6, 0, 0)
         version.setFont(font(8.5))
         self.version_label = version
-        lay.addWidget(version)
+        # unten in der Ecke: Design schnell wechseln (Setup → Darstellung → „Schnellwahl“ blendet ihn aus)
+        corner = QHBoxLayout()
+        corner.setContentsMargins(0, 0, 4, 0)
+        corner.addWidget(version, 1, Qt.AlignBottom)
+        self.style_button = QPushButton()
+        self.style_button.setObjectName("CornerButton")
+        self.style_button.setProperty("iconName", "palette")
+        self.style_button.setIcon(icons.icon("palette", theme.current().text, 18))
+        self.style_button.setFixedSize(36, 36)
+        self.style_button.setCursor(Qt.PointingHandCursor)
+        self.style_button.setToolTip("Design schnell wechseln: Stil, Hell/Dunkel, Profil")
+        self.style_menu = QMenu(self)
+        self.style_menu.aboutToShow.connect(self._fill_style_menu)
+        self.style_button.clicked.connect(
+            lambda: self.style_menu.popup(self.style_button.mapToGlobal(QPoint(self.style_button.width() + 6, -8))))
+        corner.addWidget(self.style_button, 0, Qt.AlignBottom)
+        lay.addLayout(corner)
+        self.style_button.setVisible(bool(self.config["appearance"].get("quick_switch", True)))
         return side
+
+    def _fill_style_menu(self) -> None:
+        """Menü am Eckknopf: Stil, Holzart, Hell/Dunkel und Profile – sofort angewendet."""
+        m = self.style_menu
+        m.clear()
+        a = self.config["appearance"]
+        menu_header(m, "Stil")
+        for key, label in theme.STYLES.items():
+            act = m.addAction(label, lambda k=key: self.quick_appearance(style=k))
+            mark_current(act, a.get("style", "normal") == key)
+        if a.get("style") == "holz":
+            woods = m.addMenu("Holzart")
+            for key, info in theme.WOODS.items():
+                act = woods.addAction(info[0], lambda k=key: self.quick_appearance(wood=k))
+                mark_current(act, a.get("wood", theme.DEFAULT_WOOD) == key)
+        else:
+            menu_header(m, "Helligkeit")
+            for key, label in (("dunkel", "Dunkel"), ("hell", "Hell"), ("system", "Wie das System")):
+                act = m.addAction(label, lambda k=key: self.quick_appearance(mode=k))
+                mark_current(act, a.get("mode", "dunkel") == key)
+        profiles = {**theme.BUILTIN_PROFILES, **(a.get("profiles") or {})}
+        if profiles:
+            menu_header(m, "Profil")
+            for name in profiles:
+                act = m.addAction(name, lambda n=name: self.quick_profile(n))
+                mark_current(act, a.get("profile") == name)
+        m.addSeparator()
+        m.addAction(icons.icon("sliders", theme.current().text, 18), "Mehr einstellen …",
+                    lambda: self.open_setup_section("Darstellung"))
+        m.addAction(icons.icon("eye_off", theme.current().text, 18), "Knopf ausblenden",
+                    lambda: self.quick_appearance(quick_switch=False))
+
+    def quick_appearance(self, **changes) -> None:
+        """Darstellung über den Eckknopf ändern – wie in Setup → Darstellung (Profil gilt dann nicht mehr)."""
+        a = dict(self.config["appearance"])
+        if set(changes) & set(theme.PROFILE_KEYS):
+            changes.setdefault("profile", "")
+        a.update(changes)
+        self.config["appearance"] = a
+        self.style_button.setVisible(bool(a.get("quick_switch", True)))
+        self.apply_theme()
+        if self.setup is not None:
+            self.setup._sync_appearance_controls()
+
+    def quick_profile(self, name: str) -> None:
+        profiles = {**theme.BUILTIN_PROFILES, **(self.config["appearance"].get("profiles") or {})}
+        values = {k: v for k, v in (profiles.get(name) or {}).items() if k in theme.PROFILE_KEYS}
+        self.quick_appearance(**values, profile=name)
 
     def open_command_palette(self) -> None:
         from .command_palette import CommandPalette
@@ -536,12 +603,15 @@ class MainWindow(QMainWindow):
         self.telemetry = Telemetry()
         self.telemetry.setToolTip("Prozessor, Speicher und Temperatur dieses PCs – gemessen jede Sekunde")
         self.dock_lay.addWidget(self.telemetry)
+        self.level_meter = LevelMeter()
+        self.dock_lay.addWidget(self.level_meter)
         self.dock_lay.addStretch(1)
         area.setWidget(self.dock_inner)
         dl.addWidget(area)
         h.addWidget(self.live_dock)
         self.live_dock.hide()
         self.telemetry.hide()
+        self.level_meter.hide()
         self.start_root = root
         return root
 
@@ -567,7 +637,9 @@ class MainWindow(QMainWindow):
         card.set_docked(self.DOCK_W - dm.left() - dm.right() - dl.left() - dl.right() if docked else 0)
         card.setVisible(show)
         self.live_dock.setVisible(docked and show)
-        self.telemetry.setVisible(docked and show and theme.current().technical and self.telemetry.available())
+        tech = docked and show and theme.current().technical
+        self.telemetry.setVisible(tech and self.telemetry.available())
+        self.level_meter.setVisible(tech and self.stack.currentIndex() == 0)
         # Seitenleiste: kleines Live-Bild nur, wenn die Startseite es nicht schon groß zeigt
         self.side_monitor.setVisible(not (show and self.stack.currentIndex() == 0))
 
@@ -1572,34 +1644,18 @@ class MainWindow(QMainWindow):
 
     # ================================================================ Szenen
     def _scenes_page(self):
+        """Szenen im Studio-Aufbau: links Suche + Raster der Szenen (mit Karte „Neue Szene“), rechts die gewählte
+        Szene groß – Vorschau, Felder mit ihren Quellen und alle Aktionen."""
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(14)
         top = QHBoxLayout()
-        top.addWidget(page_header("Meine Szenen", "Eigene Zusammenstellungen"), 1)
+        top.addWidget(page_header("Meine Szenen", "Mehrere Quellen auf einmal – mit einem Klick auf dem Bildschirm"), 1)
         new = button("Neue Szene", "plus", primary=True)
         new.clicked.connect(self.new_scene)
         top.addWidget(new, 0, Qt.AlignTop)
         lay.addLayout(top)
-
-        self.scene_actions = QHBoxLayout()
-        self.scene_actions.setSpacing(8)
-        for text, icon_name, slot, kwargs in [
-            ("Anzeigen", "play", self.show_scene, {}),
-            ("Bearbeiten", "edit", self.edit_scene, {}),
-            ("Duplizieren", "copy", self.duplicate_scene, {}),
-            ("Löschen", "trash", self.delete_scene, {"danger": True}),
-        ]:
-            b = button(text, icon_name, **kwargs)
-            b.clicked.connect(slot)
-            self.scene_actions.addWidget(b)
-        self.scene_actions.addStretch(1)
-        self.scene_detail = QLabel()
-        self.scene_detail.setObjectName("Muted")
-        self.scene_detail.setWordWrap(True)
-        lay.addLayout(self.scene_actions)
-        lay.addWidget(self.scene_detail)
 
         self.scene_stack = QStackedWidget()
         empty_btn = button("Erste Szene anlegen", "plus", primary=True)
@@ -1607,21 +1663,98 @@ class MainWindow(QMainWindow):
         self.scene_stack.addWidget(EmptyState(
             "scenes", "Noch keine Szene",
             "Vorlage wählen, Text eintragen, fertig", empty_btn))
+        body = QWidget()
+        self.scene_body = QBoxLayout(QBoxLayout.LeftToRight, body)
+        self.scene_body.setContentsMargins(0, 0, 0, 0)
+        self.scene_body.setSpacing(18)
+        left = QVBoxLayout()
+        left.setSpacing(12)
+        bar = QHBoxLayout()
+        self.scene_search = QLineEdit()
+        self.scene_search.setObjectName("SearchField")
+        self.scene_search.setPlaceholderText("Szenen durchsuchen …")
+        self.scene_search.setClearButtonEnabled(True)
+        self.scene_search.addAction(icons.icon("search", theme.current().muted, 16), QLineEdit.LeadingPosition)
+        self.scene_search.textChanged.connect(lambda _t: self._filter_scenes())
+        self.scene_count = QLabel()
+        self.scene_count.setObjectName("Muted")
+        bar.addWidget(self.scene_search, 1)
+        bar.addWidget(self.scene_count)
+        left.addLayout(bar)
         area = QScrollArea()
         area.setWidgetResizable(True)
         self.scene_grid = FlowGrid(min_width=236, max_cols=6, fixed=True)
+        self.new_scene_card = NewSceneCard()
+        self.new_scene_card.clicked.connect(self.new_scene)
         holder = QWidget()
         hl = QVBoxLayout(holder)
         hl.setContentsMargins(0, 0, 0, 0)
         hl.addWidget(self.scene_grid)
         hl.addStretch(1)
         area.setWidget(holder)
-        self.scene_stack.addWidget(area)
+        left.addWidget(area, 1)
+        self.scene_body.addLayout(left, 1)
+        self.scene_body.addWidget(self._scene_panel())
+        self.scene_stack.addWidget(body)
         lay.addWidget(self.scene_stack, 1)
         self.scene_group = QButtonGroup(self)
         self.scene_cards: list[SceneCard] = []
         self._reload_scenes()
         return page
+
+    def _scene_panel(self) -> QWidget:
+        """Rechte Spalte der Szenen-Seite: die gewählte Szene im Detail."""
+        panel = QFrame()
+        panel.setObjectName("Card")
+        panel.setAttribute(Qt.WA_StyledBackground, True)
+        panel.setFixedWidth(340)
+        self.scene_panel = panel
+        pl = QVBoxLayout(panel)
+        pl.setContentsMargins(18, 18, 18, 18)
+        pl.setSpacing(12)
+        self.scene_thumb = SceneThumb()
+        self.scene_thumb.setCursor(Qt.PointingHandCursor)
+        pl.addWidget(self.scene_thumb)
+        self.scene_name = QLabel()
+        self.scene_name.setObjectName("PanelTitle")
+        self.scene_name.setWordWrap(True)
+        self.scene_detail = QLabel()  # Layout · Quellen · Tastenkürzel
+        self.scene_detail.setObjectName("Muted")
+        self.scene_detail.setWordWrap(True)
+        pl.addWidget(self.scene_name)
+        pl.addWidget(self.scene_detail)
+        self.scene_slots = QVBoxLayout()
+        self.scene_slots.setSpacing(6)
+        pl.addLayout(self.scene_slots)
+        pl.addStretch(1)
+        self.scene_actions = QVBoxLayout()
+        self.scene_actions.setSpacing(8)
+        show = button("Auf dem Bildschirm zeigen", "play", primary=True)
+        show.clicked.connect(self.show_scene)
+        self.scene_actions.addWidget(show)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        for text, icon_name, slot in [("Bearbeiten", "edit", self.edit_scene),
+                                      ("Duplizieren", "copy", self.duplicate_scene)]:
+            b = button(text, icon_name)
+            b.clicked.connect(slot)
+            row.addWidget(b, 1)
+        self.scene_actions.addLayout(row)
+        delete = button("Löschen", "trash", danger=True)
+        delete.clicked.connect(self.delete_scene)
+        self.scene_actions.addWidget(delete)
+        pl.addLayout(self.scene_actions)
+        return panel
+
+    def _filter_scenes(self) -> None:
+        query = self.scene_search.text().strip().lower() if hasattr(self, "scene_search") else ""
+        shown = [c for c in self.scene_cards if query in c.scene["name"].lower()]
+        for c in self.scene_cards:
+            c.setVisible(c in shown)
+        self.scene_grid.set_items(shown + ([self.new_scene_card] if not query else []))
+        self.new_scene_card.setVisible(not query)
+        n = len(self.scene_cards)
+        self.scene_count.setText(f"{len(shown)} von {n}" if query else f"{n} Szene{'' if n == 1 else 'n'}")
 
     def _reload_scenes(self, select: str | None = None):
         current = select or (self._selected_scene() or {}).get("name")
@@ -1635,14 +1768,9 @@ class MainWindow(QMainWindow):
             card.toggled.connect(lambda on, s=scene: on and self._scene_selected(s))
             self.scene_group.addButton(card)
             self.scene_cards.append(card)
-        self.scene_grid.set_items(self.scene_cards)
+        self._filter_scenes()
         has = bool(self.scene_cards)
         self.scene_stack.setCurrentIndex(1 if has else 0)
-        for i in range(self.scene_actions.count()):
-            w = self.scene_actions.itemAt(i).widget()
-            if w:
-                w.setVisible(has)
-        self.scene_detail.setVisible(has)
         target = next((c for c in self.scene_cards if c.scene["name"] == current), None)
         target = target or (self.scene_cards[0] if self.scene_cards else None)
         if target:
@@ -1658,10 +1786,42 @@ class MainWindow(QMainWindow):
     def _scene_selected(self, scene):
         from ..scenes import LAYOUTS, layout_slots
 
-        parts = [f"<b>{scene['name']}</b> · {LAYOUTS.get(scene['layout'], ('?',))[0]}"]
+        self.scene_name.setText(scene["name"])
+        filled = sum(1 for s in scene.get("slots", []) if s)
+        meta = [LAYOUTS.get(scene["layout"], ("?",))[0], f"{filled} Quelle{'' if filled == 1 else 'n'}"]
+        key = self.config["hotkeys"].get(f"szene:{scene['name']}", "")
+        if key:
+            meta.append(key)
+        self.scene_detail.setText("  ·  ".join(meta))
+        while self.scene_slots.count():
+            item = self.scene_slots.takeAt(0)
+            if item.widget():
+                item.widget().hide()
+                item.widget().deleteLater()
+        t = theme.current()
         for (_x, _y, _w, _h, slot_name), slot in zip(layout_slots(scene["layout"]), scene["slots"]):
-            parts.append(f"{slot_name}: {describe_source(slot)}")
-        self.scene_detail.setText("  ·  ".join(parts))
+            row = QWidget()
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(0, 0, 0, 0)
+            rl.setSpacing(10)
+            dot = QLabel()
+            kind = (slot or {}).get("type")
+            color = theme.SOURCE_COLORS.get(kind, t.muted) if slot else t.muted
+            dot.setPixmap(icons.pixmap(icons.SOURCE_ICONS.get(kind, "monitor"), color, 18))
+            dot.setFixedSize(22, 22)
+            text = QLabel(f"<span style='color:{t.muted}'>{slot_name}</span><br>"
+                          f"{describe_source(slot) if slot else 'leer'}")
+            text.setWordWrap(True)
+            rl.addWidget(dot, 0, Qt.AlignTop)
+            rl.addWidget(text, 1)
+            self.scene_slots.addWidget(row)
+        self._update_scene_thumb()
+
+    def _update_scene_thumb(self) -> None:
+        if not hasattr(self, "scene_thumb"):
+            return
+        card = self.scene_group.checkedButton()
+        self.scene_thumb.set(card.scene if card else None, bool(card and card.live))
 
     def _selected_scene(self):
         card = self.scene_group.checkedButton() if hasattr(self, "scene_group") else None
@@ -1674,6 +1834,7 @@ class MainWindow(QMainWindow):
         for card in getattr(self, "scene_cards", []):
             card.live = card.scene["name"] == live
             card.update()
+        self._update_scene_thumb()
 
     def show_scene(self):
         scene = self._selected_scene()
@@ -1833,6 +1994,8 @@ class MainWindow(QMainWindow):
     def apply_theme(self):
         a = self.config["appearance"]
         theme.apply_appearance(QApplication.instance(), a)
+        if hasattr(self, "style_button"):
+            self.style_button.setVisible(bool(a.get("quick_switch", True)))
         # Symbole in Knöpfen neu einfärben
         for b in self.findChildren(QPushButton):
             name = b.property("iconName")
@@ -2172,7 +2335,8 @@ class MainWindow(QMainWindow):
             if chip.isChecked() != bool(on):
                 chip.setChecked(bool(on))
             t_ = theme.current()
-            color = (t_.text if t_.wood else t_.accent) if on else t_.text  # an: getönter Chip, Symbol in Akzentfarbe
+            # an: getönter Chip mit Symbol in Akzentfarbe (Technisch: Taste leuchtet ganz → Symbol dunkel)
+            color = (t_.on_accent if t_.technical else (t_.text if t_.wood else t_.accent)) if on else t_.text
             chip.setIcon(icons.icon(chip.property("iconName"), color, 16))
         self.a_freeze.setChecked(c.frozen)
         self.a_black.setChecked(c.privacy)
