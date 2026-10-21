@@ -1,16 +1,18 @@
-"""AluPC-Tastenbox – Gehäuse zum Drucken (CadQuery). Entwurf 1.
+"""AluPC-Tastenbox – Gehäuse zum Drucken (CadQuery). Entwurf 2.
+
+Oberseite von links nach rechts: 9 Tastatur-Schalter (MX, 3 × 3) → Fingerabdrucksensor (Ø 5 mm) → Drehregler
+(Platz frei gelassen, Bohrung kommt mit den Maßen) und Zündschloss (Ø 20 mm).
 
 Zwei Teile:
-  * Oberteil: abgerundeter Kasten, oben 9 Tastatur-Schalter (MX, 3 × 3), Loch fürs Zündschloss (Ø 20 mm),
-    Loch für den Fingerabdrucksensor (Ø 5 mm). Platz für den Drehregler ist frei gelassen (Maße kommen noch).
-    Druckrichtung: Oberseite nach UNTEN aufs Bett (schöne, glatte Oberfläche, keine Stützen nötig).
-  * Boden: Platte mit Halterung für den Pro Micro (Platine schiebt sich in Nuten, USB-C zeigt nach hinten),
-    Halterung für den kleinen USB-Adapter des Fingerabdrucksensors, zwei Ösen für Kabelbinder.
-    Druckrichtung: flach, Halterungen nach oben.
-Zusammenbau: 4 Schrauben M3 × 8 von unten in Gewindeeinsätze (M3, Ø 4 mm) in den Ecksäulen.
-Hinten zwei Kabelausschnitte (offen nach unten): USB-C vom Pro Micro und USB-Kabel vom Fingerabdruck-Adapter.
+  * Oberteil: abgerundeter Kasten. Druck: Oberseite nach UNTEN aufs Bett (glatte Oberfläche, keine Stützen).
+  * Boden: wird von unten eingesteckt und rastet links und rechts mit je einer Federlasche ein, deren Nase seitlich
+    aus dem Gehäuse schaut (die „Vorsprünge“). Herausnehmen: beide Nasen eindrücken und am Boden ziehen – die
+    Nasen sind unten angeschrägt, mit etwas Kraft geht der Boden auch so heraus. Druck: flach, Laschen nach oben.
+    Auf dem Boden: Mulde für die Steckbrett-Wanne (klemme_pro_micro.py, 400 Kontakte), Wanne für den USB-Adapter
+    des Fingerabdrucksensors, Ösen für Kabelbinder.
+Kabel: USB-C des Pro Micro links seitlich (Fenster), USB-Kabel des Fingerabdruck-Adapters hinten.
 
-Alle Maße in mm. Nachmessen: Pro Micro, USB-Adapter, Zündschloss-Tiefe – dann oben anpassen.
+Material: PETG empfohlen (die Rastlaschen federn), PLA geht. Alle Maße in mm.
 """
 
 import cadquery as cq
@@ -21,69 +23,75 @@ import cadquery as cq
 # Kasten (außen)
 box_w = 150.0          # Breite (links–rechts)
 box_d = 92.0           # Tiefe (vorne–hinten)
-box_h = 50.0           # Höhe mit Boden – genug Platz hinterm Zündschloss (innen ~44 mm)
-corner_r = 10.0        # Rundung der senkrechten Kanten
-top_edge_r = 4.0       # Rundung der oberen Kante
-wall = 2.6             # Wandstärke
-top_t = 3.0            # Dicke der Deckplatte
+box_h = 60.0           # Höhe – Dupont-Stecker unter den Tasten und auf dem Steckbrett berühren sich nicht; innen 54 mm
+corner_r = 10.0
+top_edge_r = 4.0
+wall = 2.6
+top_t = 3.0
 
-# Tastatur-Schalter (Cherry-MX-kompatibel)
-key_pitch = 19.05      # Abstand Mitte–Mitte (Standard-Tastenkappen)
-mx_cut = 14.0          # Ausschnitt im Plattenbereich (MX-Norm 14,0 × 14,0)
+# Tastatur-Schalter (Cherry-MX-kompatibel, z. B. Outemu)
+key_pitch = 19.05
+mx_cut = 14.0
 mx_plate_t = 1.5       # Schalter rasten nur bei 1,5 mm Plattendicke ein
-mx_relief = 16.2       # von unten auf 1,5 mm ausgedünnte Fläche je Schalter
-grid_cx = -32.0        # Mitte des 3 × 3-Feldes (x)
+mx_relief = 16.2
+grid_cx = -42.0        # 3 × 3 links
 grid_cy = 0.0
 
-# Zündschloss (Bohrung laut Angabe Ø 20 mm) – Mutter von innen
-lock_d = 20.0
-lock_clear = 0.4       # Spiel
-lock_x, lock_y = 42.0, 20.0
-
-# Fingerabdrucksensor (laut Angabe Ø 5 mm)
+# Fingerabdrucksensor (Ø 5 mm) – Mitte
 fp_d = 5.0
 fp_clear = 0.3
-fp_x, fp_y = 15.0, 26.0
+fp_x, fp_y = 6.0, 0.0
 
-# Drehregler: Platz freigehalten, Bohrung kommt später (Maße morgen)
-knob_x, knob_y = 42.0, -22.0
-knob_keepout_d = 32.0  # hier keine Stützen/Halterungen innen
+# Rechts: Drehregler (Platz frei, Bohrung folgt) und Zündschloss (Ø 20 mm)
+knob_x, knob_y = 46.0, -18.0
+lock_d = 20.0
+lock_clear = 0.4
+lock_x, lock_y = 46.0, 22.0
 
 # Boden
 base_t = 3.0
-base_clear = 0.3       # Spiel Boden ↔ Wand innen
+base_clear = 0.3
 
-# Schrauben / Ecksäulen
+# Ecksäulen: Anschlag für den Boden (optional zusätzlich M3-Schrauben in Gewindeeinsätze)
 boss_od = 9.0
-insert_d = 4.0         # Loch für Gewindeeinsatz M3 (Ø 4,0)
+insert_d = 4.0
 insert_depth = 6.0
-screw_d = 3.4          # Durchgang M3 im Boden
-screw_head_d = 6.2     # Senkung für den Kopf
-screw_head_depth = 2.0
-boss_inset = 8.0       # Säulenmitte von der Außenkante
+screw_d = 3.4
+boss_inset = 8.0
 
-# Pro Micro (USB-C-Nachbau ca. 33–34 × 18 mm, Platine 1,6 mm) – NACHMESSEN
-pm_len = 34.0
-pm_w = 18.0
-pm_pcb_t = 1.6
-pm_fit = 0.4           # Spiel in der Nut
-pm_rail_h = 6.0        # Höhe der Seitenwände
-pm_groove_z = 2.5      # Platine liegt so hoch über dem Boden (Platz für Bauteile unten)
-pm_lip = 1.2           # wie weit die Wände über die Platine greifen
-pm_x = -40.0           # Lage auf dem Boden (USB-Ende zeigt nach hinten, +y)
-usb_cut_w = 13.0       # Kabelausschnitt hinten (Stecker mit Knickschutz passt durch)
-usb_cut_h = 12.0
+# Rastlaschen (links/rechts) mit Nase durch die Seitenwand
+snap_y = 28.0          # Lage entlang der Seite (zwischen Steckbrett-Mulde und Ecksäule)
+snap_w = 10.0          # Breite der Lasche
+snap_t = 2.0           # Dicke (federt)
+snap_len = 30.0        # Länge ab Bodenoberseite – lang = weich, bricht nicht
+nose_out = 2.0         # so weit schaut die Nase außen heraus („Vorsprung“)
+nose_h = 5.0           # Höhe der Einführschräge
+nose_hold = 2.0        # Höhe der Halte-Schräge unten (steil, lässt sich mit Kraft lösen)
+slot_clear = 0.4
+
+# Steckbrett-Wanne (aus klemme_pro_micro.py: 88,2 × 60,2 mm) – Mulde im Boden
+tray_len = 88.2
+tray_w = 60.2
+tray_rim_h = 2.0
+tray_cx = -25.7        # links, Pro Micro am linken Ende (USB-C zeigt nach links)
+tray_cy = -10.7
+
+# USB-C des Pro Micro: Fenster in der linken Seitenwand
+usb_win_w = 14.0       # Stecker mit Knickschutz passt durch
+usb_win_z0 = 14.0      # über Gehäuseunterkante
+usb_win_h = 11.0
 
 # USB-Adapter des Fingerabdrucksensors – NACHMESSEN
 ad_len = 30.0
 ad_w = 16.0
 ad_wall_h = 7.0
-ad_x = 12.0
-ad_cut_w = 14.0        # zweiter Kabelausschnitt hinten
+ad_x, ad_y = 46.0, -16.0     # rechts vorne, unter dem Regler (Regler ragt nur oben hinein)
+ad_cut_x = 30.0              # Kabelausschnitt hinten, offen nach unten
+ad_cut_w = 14.0
 ad_cut_h = 12.0
 
 # Kabelbinder-Ösen
-tie_positions = [(-5.0, -20.0), (25.0, -20.0)]
+tie_positions = [(26.0, 0.0), (26.0, 30.0)]
 
 eps = 0.01
 
@@ -92,82 +100,89 @@ eps = 0.01
 # ============================================================
 inner_w = box_w - 2 * wall
 inner_d = box_d - 2 * wall
-shell_h = box_h  # Oberteil reicht bis z = 0 (Boden sitzt innen zwischen den Wänden)
 
-outer = (cq.Workplane("XY").box(box_w, box_d, shell_h, centered=(True, True, False))
+outer = (cq.Workplane("XY").box(box_w, box_d, box_h, centered=(True, True, False))
          .edges("|Z").fillet(corner_r)
          .faces(">Z").edges().fillet(top_edge_r))
 inner = (cq.Workplane("XY").workplane(offset=-eps)
-         .box(inner_w, inner_d, shell_h - top_t + eps, centered=(True, True, False))
+         .box(inner_w, inner_d, box_h - top_t + eps, centered=(True, True, False))
          .edges("|Z").fillet(corner_r - wall))
 shell = outer.cut(inner)
 
-# Ecksäulen (bis zur Unterkante des Bodens, damit der Boden innen anliegt)
 boss_pts = [(sx * (box_w / 2 - boss_inset), sy * (box_d / 2 - boss_inset)) for sx in (-1, 1) for sy in (-1, 1)]
-bosses = (cq.Workplane("XY").workplane(offset=base_t)
-          .pushPoints(boss_pts).circle(boss_od / 2).extrude(shell_h - top_t - base_t + eps))
-shell = shell.union(bosses)
+shell = shell.union(cq.Workplane("XY").workplane(offset=base_t)
+                    .pushPoints(boss_pts).circle(boss_od / 2).extrude(box_h - top_t - base_t + eps))
 shell = shell.cut(cq.Workplane("XY").workplane(offset=base_t - eps)
                   .pushPoints(boss_pts).circle(insert_d / 2).extrude(insert_depth))
 
-# 3 × 3 Schalter: Ausschnitt durch, von unten auf 1,5 mm ausgedünnt
 keys = [(grid_cx + (c - 1) * key_pitch, grid_cy + (1 - r) * key_pitch) for r in range(3) for c in range(3)]
 shell = shell.cut(cq.Workplane("XY").pushPoints(keys).rect(mx_cut, mx_cut).extrude(box_h + 1))
 shell = shell.cut(cq.Workplane("XY").workplane(offset=box_h - top_t - eps)
                   .pushPoints(keys).rect(mx_relief, mx_relief).extrude(top_t - mx_plate_t + eps))
 
-# Zündschloss und Fingerabdrucksensor
 shell = shell.cut(cq.Workplane("XY").pushPoints([(lock_x, lock_y)])
                   .circle((lock_d + lock_clear) / 2).extrude(box_h + 1))
 shell = shell.cut(cq.Workplane("XY").pushPoints([(fp_x, fp_y)])
                   .circle((fp_d + fp_clear) / 2).extrude(box_h + 1))
 
-# Kabelausschnitte hinten (+y), offen nach unten
-cut_y = box_d / 2 - wall / 2
-for cx, w_, h_ in ((pm_x, usb_cut_w, usb_cut_h), (ad_x, ad_cut_w, ad_cut_h)):
-    shell = shell.cut(cq.Workplane("XY").workplane(offset=-eps)
-                      .center(cx, cut_y).rect(w_, wall * 3).extrude(h_))
+# Schlitze für die Rastnasen (links und rechts)
+nose_z = base_t + snap_len - nose_h - nose_hold          # Unterkante der Nase (Boden ganz eingesteckt)
+for sx in (-1, 1):
+    shell = shell.cut(cq.Workplane("XY").workplane(offset=nose_z - slot_clear)
+                      .center(sx * (box_w / 2 - wall / 2), snap_y)
+                      .rect(wall * 3, snap_w + 2 * slot_clear).extrude(nose_hold + nose_h + 2 * slot_clear))
+
+# USB-C-Fenster links (Pro Micro am linken Ende des Steckbretts)
+shell = shell.cut(cq.Workplane("XY").workplane(offset=usb_win_z0)
+                  .center(-(box_w / 2 - wall / 2), tray_cy).rect(wall * 3, usb_win_w).extrude(usb_win_h))
+# Kabelausschnitt hinten für den Fingerabdruck-Adapter (offen nach unten)
+shell = shell.cut(cq.Workplane("XY").workplane(offset=-eps)
+                  .center(ad_cut_x, box_d / 2 - wall / 2).rect(ad_cut_w, wall * 3).extrude(ad_cut_h))
 
 # ============================================================
 # BODEN
 # ============================================================
-base = (cq.Workplane("XY")
-        .box(inner_w - 2 * base_clear, inner_d - 2 * base_clear, base_t, centered=(True, True, False))
+bw, bd = inner_w - 2 * base_clear, inner_d - 2 * base_clear
+base = (cq.Workplane("XY").box(bw, bd, base_t, centered=(True, True, False))
         .edges("|Z").fillet(corner_r - wall - base_clear))
-# Aussparungen um die Ecksäulen? Nein: Säulen enden auf dem Boden (z = base_t). Schraublöcher mit Senkung:
 base = base.cut(cq.Workplane("XY").workplane(offset=-eps).pushPoints(boss_pts).circle(screw_d / 2)
                 .extrude(base_t + 2 * eps))
-base = base.cut(cq.Workplane("XY").workplane(offset=-eps).pushPoints(boss_pts).circle(screw_head_d / 2)
-                .extrude(screw_head_depth))
 
-# Pro-Micro-Halterung: U-Form, Platine schiebt sich von hinten in die Nut, USB-C an der offenen Seite
-slot_w = pm_w + pm_fit
-holder_w = slot_w + 2 * 2.0
-holder_len = pm_len + 2.0
-pm_back = inner_d / 2 - base_clear - 1.5          # offene Seite kurz vor der Rückwand
-pm_cy = pm_back - holder_len / 2
-holder = (cq.Workplane("XY").workplane(offset=base_t)
-          .center(pm_x, pm_cy).rect(holder_w, holder_len).extrude(pm_rail_h))
-# Innenraum (unter der Platine schmaler: Platine liegt auf Leisten), Nut für die Platine
-holder = holder.cut(cq.Workplane("XY").workplane(offset=base_t)
-                    .center(pm_x, pm_cy + 1.0).rect(slot_w - 2 * pm_lip, holder_len).extrude(pm_rail_h + eps))
-holder = holder.cut(cq.Workplane("XY").workplane(offset=base_t + pm_groove_z)
-                    .center(pm_x, pm_cy + 1.0).rect(slot_w, holder_len).extrude(pm_pcb_t + pm_fit))
-base = base.union(holder)
+# Rastlaschen: Federzunge an der Bodenkante, oben eine Nase mit Schrägen (Profil in XZ, über die Breite gezogen)
+for sx in (-1, 1):
+    x_face = inner_w / 2 - 0.2                      # Außenseite der Zunge, knapp an der Wand
+    tongue = (cq.Workplane("XY").workplane(offset=base_t - eps)
+              .center(sx * (x_face - snap_t / 2), snap_y).rect(snap_t, snap_w).extrude(snap_len + eps))
+    x_out = box_w / 2 + nose_out
+    profile = [(x_face - snap_t, nose_z - 0.01), (x_face, nose_z - 0.01),   # Fuß an der Zunge
+               (x_out, nose_z + nose_hold), (x_out, nose_z + nose_hold + 1.0),
+               (x_face, nose_z + nose_hold + nose_h), (x_face - snap_t, nose_z + nose_hold + nose_h)]
+    pts = [(sx * x, z) for x, z in profile]
+    nose = (cq.Workplane("XZ", origin=(0, snap_y + snap_w / 2, 0)).polyline(pts).close().extrude(snap_w))
+    base = base.union(tongue).union(nose)
 
-# Halterung USB-Adapter (Fingerabdruck): Wanne, hinten offen fürs Kabel
-ad_back = inner_d / 2 - base_clear - 1.5
-ad_cy = ad_back - (ad_len + 2.0) / 2
-cradle = (cq.Workplane("XY").workplane(offset=base_t)
-          .center(ad_x, ad_cy).rect(ad_w + 0.6 + 4.0, ad_len + 2.0).extrude(ad_wall_h))
-cradle = cradle.cut(cq.Workplane("XY").workplane(offset=base_t)
-                    .center(ad_x, ad_cy + 1.0).rect(ad_w + 0.6, ad_len + 2.0).extrude(ad_wall_h + eps))
+# Mulde (Rand) für die Steckbrett-Wanne
+rim_in_l, rim_in_w = tray_len + 0.6, tray_w + 0.6
+rim = (cq.Workplane("XY").workplane(offset=base_t).center(tray_cx, tray_cy)
+       .rect(rim_in_l + 4.0, rim_in_w + 4.0).extrude(tray_rim_h)
+       .cut(cq.Workplane("XY").workplane(offset=base_t - eps).center(tray_cx, tray_cy)
+            .rect(rim_in_l, rim_in_w).extrude(tray_rim_h + 2 * eps)))
+footprint = (cq.Workplane("XY").box(bw, bd, base_t + tray_rim_h + 1, centered=(True, True, False))
+             .edges("|Z").fillet(corner_r - wall - base_clear))
+rim = rim.intersect(footprint)  # an den runden Ecken nichts überstehen lassen
+rim = rim.cut(cq.Workplane("XY").pushPoints(boss_pts).circle(boss_od / 2 + 0.5).extrude(base_t + tray_rim_h + 1))
+base = base.union(rim)
+
+# Wanne für den USB-Adapter des Fingerabdrucksensors (Kabelseite offen, zeigt nach hinten)
+cradle = (cq.Workplane("XY").workplane(offset=base_t).center(ad_x, ad_y)
+          .rect(ad_w + 0.6 + 4.0, ad_len + 2.0).extrude(ad_wall_h)
+          .cut(cq.Workplane("XY").workplane(offset=base_t - eps).center(ad_x, ad_y + 1.0)
+               .rect(ad_w + 0.6, ad_len + 2.0).extrude(ad_wall_h + 2 * eps)))
 base = base.union(cradle)
 
-# Kabelbinder-Ösen (Brücke mit Durchgang 4 × 2 mm)
 for tx, ty in tie_positions:
     eye = (cq.Workplane("XY").workplane(offset=base_t).center(tx, ty).rect(8.0, 4.0).extrude(4.0)
-           .cut(cq.Workplane("XY").workplane(offset=base_t - eps).center(tx, ty).rect(4.5, 4.0 + 1).extrude(2.2)))
+           .cut(cq.Workplane("XY").workplane(offset=base_t - eps).center(tx, ty).rect(4.5, 5.0).extrude(2.2)))
     base = base.union(eye)
 
 # ============================================================
@@ -177,7 +192,6 @@ cq.exporters.export(shell, "tastenbox_oberteil.stl", tolerance=0.01, angularTole
 cq.exporters.export(base, "tastenbox_boden.stl", tolerance=0.01, angularTolerance=0.1)
 cq.exporters.export(shell, "tastenbox_oberteil.step")
 cq.exporters.export(base, "tastenbox_boden.step")
-# zusammengebaut (nur zum Ansehen)
 cq.exporters.export(shell.union(base), "tastenbox_zusammen.stl", tolerance=0.01, angularTolerance=0.1)
-print(f"Oberteil {box_w} × {box_d} × {box_h} mm, Boden {inner_w - 2 * base_clear:.1f} × "
-      f"{inner_d - 2 * base_clear:.1f} × {base_t} mm, Innenhöhe {box_h - top_t - base_t:.1f} mm")
+print(f"Oberteil {box_w} × {box_d} × {box_h} mm · Boden {bw:.1f} × {bd:.1f} mm · Nasen bei z={nose_z:.1f} mm, "
+      f"stehen {nose_out} mm über")
