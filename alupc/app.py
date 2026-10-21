@@ -37,6 +37,8 @@ def parse_args(argv):
     parser.add_argument("--einbindung-entfernen", action="store_true", help=argparse.SUPPRESS)  # Deinstallation
     parser.add_argument("--luefter", metavar="REGLER=WERT,…", help=argparse.SUPPRESS)
     # Installer: Treiber für virtuelle Geräte (vbcable, kamera) – ohne Oberfläche
+    # Windows-Ton (Core Audio) in eigenem Prozess – startet AluPC selbst, siehe audio._on_com
+    parser.add_argument("--ton-helfer", metavar="PORT", help=argparse.SUPPRESS)
     parser.add_argument("--treiber", metavar="WAS", help=argparse.SUPPRESS)
     # Installer/Deinstallation: Zusatzprogramme (AirPlay, OpenRGB …) installieren und merken bzw. wieder entfernen
     parser.add_argument("--zusatz", metavar="installieren=…|entfernen", help=argparse.SUPPRESS)
@@ -143,6 +145,10 @@ def main(argv=None) -> int:
 
     restore_system_env()  # fertige Linux-Version: gestartete Programme (UxPlay …) bekommen die System-Bibliotheken
     args = parse_args(sys.argv[1:] if argv is None else argv)
+    if args.ton_helfer:
+        from .audio import helper_main
+
+        return helper_main(args.ton_helfer)
     args.befehl = startup_command(args)
     if args.desktop_waechter:  # alter Eintrag „AluPC als Desktop“ (gibt es nicht mehr) → normaler Desktop
         from .platform.desktop_shell import legacy_login

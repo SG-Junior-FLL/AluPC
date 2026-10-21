@@ -1791,7 +1791,8 @@ def test_audio_core_audio_windows():
         t.start()
     for t in threads:
         t.join(60)
-    assert not errors and audio._COM["thread"].is_alive()
+    assert not errors and audio._HELPER["proc"] is not None and audio._HELPER["proc"].poll() is None
+    assert "comtypes" not in sys.modules  # Core Audio nur im Hilfsprozess, nie in AluPC selbst
 
 
 def test_windows_powershell_scripts_parse(tmp_path):

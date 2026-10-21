@@ -258,7 +258,7 @@ def _win_sessions() -> list[dict]:
                 vol = ctl.QueryInterface(api["ISimpleAudioVolume"])
             except (OSError, comtypes.COMError):
                 continue
-            if pid == os.getpid():
+            if pid == os.getpid() or (audio._IN_HELPER and pid == os.getppid()):
                 continue  # AluPC selbst
             app = "Systemklänge" if pid == 0 else _process_name(pid)
             out.append({"id": f"{i}:{pid}", "pid": pid, "app": app, "title": "", "device": dev_name,

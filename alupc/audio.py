@@ -163,8 +163,148 @@ _LOCAL = threading.local()  # COM-Objekte gelten nur im Thread, der sie angelegt
 _COM: dict = {"thread": None, "queue": None}
 
 
+_IN_HELPER = False  # True im Ton-Hilfsprozess (--ton-helfer): dort laufen die Aufrufe wirklich
+_HELPER: dict = {"proc": None, "sock": None, "file": None, "lock": threading.Lock()}
+_HELPER_MODULES = ("alupc.audio", "alupc.mixer", "alupc.mixer_meters")
+
+
 def _on_com(fn, *args, timeout: float = 8.0):
-    """Windows: JEDEN Core-Audio-Aufruf in genau einem eigenen Thread ausführen (COM-Objekte dürfen nicht zwischen
+    """Windows-Ton aufrufen. Unter Windows läuft das in einem eigenen kleinen Hilfsprozess (AluPC --ton-helfer):
+    Core Audio (COM) im Programm selbst ließ AluPC zufällig einfrieren (Qt-Hauptfaden blieb in Windows hängen –
+    in der CI hingen so die Oberflächentests). Hängt jetzt etwas, wird nur der Hilfsprozess neu gestartet.
+    `fn` muss eine Funktion auf Modulebene sein; Argumente und Ergebnis müssen JSON sein."""
+    if IS_WINDOWS and not _IN_HELPER and os.environ.get("ALUPC_TON_IM_PROZESS") != "1":
+        return _helper_call(fn, args, timeout)
+    return _on_com_local(fn, *args, timeout=timeout)
+
+
+def _helper_cmd(port: int) -> list[str]:
+    if getattr(sys, "frozen", False):
+        return [sys.executable, "--ton-helfer", str(port)]
+    return [sys.executable, "-m", "alupc", "--ton-helfer", str(port)]
+
+
+def _helper_stop() -> None:
+    proc, sock = _HELPER["proc"], _HELPER["sock"]
+    _HELPER.update(proc=None, sock=None, file=None)
+    if sock is not None:
+        try:
+            sock.close()
+        except OSError:
+            pass
+    if proc is not None and proc.poll() is None:
+        try:
+            proc.kill()
+        except OSError:
+            pass
+
+
+def _helper_start() -> None:
+    import secrets
+    import socket
+
+    token = secrets.token_hex(16)
+    srv = socket.create_server(("127.0.0.1", 0))
+    srv.settimeout(20)
+    try:
+        env = dict(os.environ, ALUPC_TON_TOKEN=token)
+        if not getattr(sys, "frozen", False):  # „python -m alupc“ muss das Paket finden, egal wo gestartet
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            env["PYTHONPATH"] = os.pathsep.join(p for p in (root, env.get("PYTHONPATH", "")) if p)
+        proc = subprocess.Popen(_helper_cmd(srv.getsockname()[1]), env=env, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        try:
+            sock, _ = srv.accept()
+        except OSError:
+            proc.kill()
+            raise TimeoutError("Ton-Hilfsprozess startet nicht")
+    finally:
+        srv.close()
+    sock.settimeout(20)
+    f = sock.makefile("rwb")
+    if f.readline().strip().decode("ascii", "replace") != token:  # nur unser eigener Prozess darf antworten
+        sock.close()
+        proc.kill()
+        raise RuntimeError("Ton-Hilfsprozess: falsche Kennung")
+    _HELPER.update(proc=proc, sock=sock, file=f)
+
+
+def _helper_call(fn, args, timeout: float):
+    if not _HELPER["lock"].acquire(timeout=timeout + 2):
+        raise TimeoutError("Windows-Ton antwortet nicht")
+    try:
+        if _HELPER["proc"] is None or _HELPER["proc"].poll() is not None:
+            _helper_stop()
+            _helper_start()
+        try:
+            _HELPER["sock"].settimeout(timeout + 2)
+            _HELPER["file"].write(json.dumps({"m": fn.__module__, "f": fn.__name__, "a": list(args),
+                                              "t": timeout}).encode() + b"\n")
+            _HELPER["file"].flush()
+            line = _HELPER["file"].readline()
+        except OSError as exc:  # auch socket.timeout: Hilfsprozess hängt → weg damit, nächstes Mal neu
+            _helper_stop()
+            raise TimeoutError("Windows-Ton antwortet nicht") from exc
+        if not line:
+            _helper_stop()
+            raise RuntimeError("Ton-Hilfsprozess beendet")
+        reply = json.loads(line)
+        if reply.get("hang"):
+            _helper_stop()
+    finally:
+        _HELPER["lock"].release()
+    if reply.get("hang"):
+        raise TimeoutError("Windows-Ton antwortet nicht")
+    if not reply.get("ok"):
+        raise RuntimeError(reply.get("e", "Fehler"))
+    return reply.get("v")
+
+
+def helper_main(port: str) -> int:
+    """Der Ton-Hilfsprozess: nimmt Aufträge (JSON-Zeilen) vom AluPC-Hauptprogramm an. Endet mit dem Hauptprogramm."""
+    import importlib
+    import socket
+
+    global _IN_HELPER
+    _IN_HELPER = True
+    try:
+        sock = socket.create_connection(("127.0.0.1", int(port)), timeout=20)
+    except (OSError, ValueError):
+        return 1
+    sock.settimeout(None)
+    f = sock.makefile("rwb")
+    f.write(os.environ.get("ALUPC_TON_TOKEN", "").encode() + b"\n")
+    f.flush()
+    for line in f:
+        try:
+            job = json.loads(line)
+            if job["m"] not in _HELPER_MODULES or not job["f"].startswith("_win"):
+                raise ValueError("nicht erlaubt")
+            fn = getattr(importlib.import_module(job["m"]), job["f"])
+            reply = {"ok": True, "v": _on_com_local(fn, *job["a"], timeout=float(job.get("t", 8)))}
+        except Exception as exc:  # noqa: BLE001 - als Text zurück
+            reply = {"ok": False, "e": f"{type(exc).__name__}: {exc}" if not isinstance(exc, RuntimeError) else str(exc),
+                     "hang": isinstance(exc, TimeoutError)}
+        try:
+            f.write(json.dumps(reply).encode() + b"\n")
+            f.flush()
+        except (OSError, TypeError, ValueError):
+            return 1
+        if reply.get("hang"):
+            os._exit(2)  # Core Audio hängt hier → sofort beenden; das Hauptprogramm startet beim nächsten Aufruf neu
+    return 0
+
+
+def _win_ping(delay: float = 0) -> int:
+    """Hilfsprozess lebt? (ohne Core Audio; für Tests: delay)"""
+    if delay:
+        time.sleep(delay)
+    return os.getpid()
+
+
+def _on_com_local(fn, *args, timeout: float = 8.0):
+    """JEDEN Core-Audio-Aufruf in genau einem eigenen Thread ausführen (COM-Objekte dürfen nicht zwischen
     Threads wandern – sonst kann das Programm abstürzen). Wartet auf das Ergebnis; Fehler kommen als Ausnahme."""
     import queue
 
@@ -361,12 +501,30 @@ def _win_level(kind: str) -> tuple[int | None, bool]:
     return round(vol.GetMasterVolumeLevelScalar() * 100), bool(vol.GetMute())
 
 
+def _win_check() -> bool:
+    _win()
+    return True
+
+
+def _win_set_level(kind: str, percent: int) -> None:
+    vol = _win()["volume"](_win_default(kind))
+    vol.SetMasterVolumeLevelScalar(percent / 100, None)
+    vol.SetMute(False, None)
+
+
+def _win_set_mute(kind: str, on: bool) -> None:
+    _win()["volume"](_win_default(kind)).SetMute(bool(on), None)
+
+
+def _win_set_default(dev_id: str) -> None:
+    _win()["set_default"](dev_id)
+
+
 # --------------------------------------------------------------------------- gemeinsam
 def available() -> bool:
     if IS_WINDOWS:
         try:
-            _on_com(_win)
-            return True
+            return bool(_on_com(_win_check))
         except Exception:  # noqa: BLE001 - comtypes fehlt / kein Audio-Dienst
             return False
     return shutil.which("pactl") is not None
@@ -383,7 +541,7 @@ def devices(kind: str) -> list[dict]:
 def level(kind: str) -> tuple[int | None, bool]:
     """(Lautstärke 0–100 oder None, stumm)."""
     try:
-        return _on_com(_win_level, kind) if IS_WINDOWS else _pa_level(kind)
+        return tuple(_on_com(_win_level, kind)) if IS_WINDOWS else _pa_level(kind)
     except Exception:  # noqa: BLE001
         return None, False
 
@@ -393,12 +551,7 @@ def set_level(kind: str, percent: int) -> tuple[bool, str]:
     _CACHE["t"] = 0
     try:
         if IS_WINDOWS:
-            def go():
-                vol = _win()["volume"](_win_default(kind))
-                vol.SetMasterVolumeLevelScalar(percent / 100, None)
-                vol.SetMute(False, None)
-
-            _on_com(go)
+            _on_com(_win_set_level, kind, percent)
             return True, ""
         what, target = _pa_kind(kind), ("@DEFAULT_SINK@" if kind == "out" else "@DEFAULT_SOURCE@")
         code, out = _run(["pactl", f"set-{what}-volume", target, f"{percent}%"])
@@ -413,7 +566,7 @@ def set_mute(kind: str, on: bool) -> tuple[bool, str]:
     _CACHE["t"] = 0
     try:
         if IS_WINDOWS:
-            _on_com(lambda: _win()["volume"](_win_default(kind)).SetMute(bool(on), None))
+            _on_com(_win_set_mute, kind, bool(on))
             return True, ""
         what, target = _pa_kind(kind), ("@DEFAULT_SINK@" if kind == "out" else "@DEFAULT_SOURCE@")
         code, out = _run(["pactl", f"set-{what}-mute", target, "1" if on else "0"])
@@ -426,7 +579,7 @@ def set_default(kind: str, dev_id: str) -> tuple[bool, str]:
     _CACHE["t"] = 0
     try:
         if IS_WINDOWS:
-            _on_com(lambda: _win()["set_default"](dev_id))
+            _on_com(_win_set_default, dev_id)
             return True, ""
         code, out = _run(["pactl", "set-default-" + _pa_kind(kind), dev_id])
         return code == 0, out.strip()

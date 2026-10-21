@@ -84,6 +84,25 @@ def test_self_command_runs_alupc():
     assert cmd[-2:] == ["--zusatz", "entfernen"] and ("-m" in cmd or cmd[0].lower().endswith(".exe"))
 
 
+def test_win_audio_helper_process():
+    """Windows-Ton läuft in einem eigenen Prozess (AluPC friert nicht mehr ein, wenn Core Audio hängt):
+    Aufträge gehen hin und zurück, ein hängender Auftrag startet den Prozess neu, Fremdes wird abgelehnt."""
+    import os
+
+    from alupc import audio
+
+    try:
+        pid = audio._helper_call(audio._win_ping, (), 20)
+        assert pid != os.getpid() and audio._helper_call(audio._win_ping, (), 5) == pid
+        with pytest.raises(TimeoutError):
+            audio._helper_call(audio._win_ping, (5,), 0.5)
+        assert audio._helper_call(audio._win_ping, (), 20) != pid  # neu gestartet
+        with pytest.raises(RuntimeError, match="nicht erlaubt"):
+            audio._helper_call(os.getcwd, (), 5)
+    finally:
+        audio._helper_stop()
+
+
 def test_com_errors_do_not_carry_objects_to_other_threads():
     """Windows-Ton (COM): Fehler kommen nur als Text an – Objekte aus dem Ton-Thread werden dort freigegeben,
     nicht später zufällig im Hauptthread (das war ein Absturz unter Windows ohne Audiogerät)."""
@@ -106,6 +125,6 @@ def test_com_errors_do_not_carry_objects_to_other_threads():
         raise OSError("kein Audiogerät")
 
     with pytest.raises(RuntimeError, match="OSError: kein Audiogerät"):
-        audio._on_com(boom)
+        audio._on_com_local(boom)
     assert refs[0]() is None
     assert freed_in == ["alupc-ton"]
