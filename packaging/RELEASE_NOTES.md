@@ -9,6 +9,14 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
+### Neu in 2.3.0 – Vorlagen und Handy im neuen Design, LEDs am Handy, bunte LEDs
+- **Vorlagen auf Bildschirm 2 neu (taste-skill):** flache, tiefe Farbfelder statt Lichtflecken und Verläufe,
+  keine Etiketten über Überschriften, Fließtext kräftiger; „Glas-Karte“ wird zur „Farbfeld-Karte“.
+- **Handy-Seite im Regie-Design:** flach, Haarlinien, keine Glas-Leiste, Auswahl als dünne Linie.
+- **Tastenbox-LEDs am Handy** (Seite Start): an/aus/bei Live, Effekt, Farbschema, Farbe, Helligkeit.
+- **Bunte LEDs (Arduino-Programm 4):** jede RGB-LED eigene Farbe – Schemata Eine Farbe, Ecken bunt, Zustand
+  (Rot = live), Regenbogen. Plan mit Teileliste: hardware/tastenbox/VERKABELUNG.md. Nur am PC simuliert.
+
 ### Neu in 2.2.0 – neues Design „Regie“, Updates-Seite, Tastenbox 3, neuer Aufbau
 - **Neues Standard-Design „Regie“:** fast schwarz, ruhig für lange Abende, 1-px-Haarlinien statt Schatten,
   jede Auswahl als dünne blaue Linie, Rot nur für „live“, Inter mit einstöckigem g. Gestaltet mit den Skills

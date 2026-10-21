@@ -100,6 +100,31 @@ Dreht er falsch herum: links und rechts tauschen – oder in AluPC „Richtung u
 2. Kabel durch das Fenster im Schienenboden: DIN → Pin 10 (Nano 12), 5V → Plus, GND → Minus.
 3. Im Arduino-Programm `// #define STREIFEN 8` → `#define STREIFEN 3` (bzw. 7), neu hochladen.
 
+### Bunt: RGB-LEDs (jede LED eigene Farbe) – empfohlen
+
+![LED-Farbplan](led_farben.png)
+
+Statt einfarbiger LEDs: **adressierbare RGB-LEDs in einer Kette** an einem einzigen Pin. AluPC kann dann
+jede LED einzeln färben – Farbschemata in AluPC (Tastenbox → Box → Farbschema, auch am Handy):
+**Eine Farbe**, **Ecken bunt** (jede Ecke eigene Farbe), **Zustand** (Rot = läuft auf Bildschirm 2,
+Gelb = Schwarz/Standbild, sonst Grundfarbe), **Regenbogen** (läuft in der Box selbst).
+
+Teile (ohne Löten):
+- 4 × **PL9823**, 5 mm, adressierbar (4 Beine, passen in die Eck-Halter, Dupont-Buchsen steckbar)
+- Lichtleiste: WS2812B-Streifen 10 mm **mit fertig angelötetem Kabel**, 144 LEDs/m → 7 LEDs
+- Dupont-Kabel Buchse–Buchse
+
+Kette (Reihenfolge = Nummer im Bild): Pin → **0** vorne links → **1** hinten links → **2** hinten rechts →
+**3** vorne rechts → Lichtleiste (ab **4**).
+1. Pin 10 (Nano 12) → DIN von LED 0.
+2. DOUT von LED 0 → DIN von LED 1, und so weiter bis LED 3. DOUT von LED 3 → DIN der Lichtleiste.
+3. Jede LED: 5V-Bein an die Plus-Leiste, GND-Bein an die Minus-Leiste (über die Kabelhaken führen).
+4. Im Arduino-Programm: `#define STREIFEN 11` (4 + 7) und `#define ECKEN_PL9823` einschalten, hochladen.
+
+Strom: 11 LEDs bei voller Helligkeit weiß ≈ 0,6 A – am USB in AluPC die Helligkeit auf höchstens 50 % lassen.
+Nicht getestet: Programm 4 läuft nur in der PC-Simulation; Farbreihenfolge der PL9823 kann je Hersteller
+abweichen (falsche Farben → `ECKEN_PL9823` aus- bzw. einschalten).
+
 Tipp: Wer das Oberteil in hellem Filament druckt, kann in `tastenbox_gehaeuse.py` `led_skin = 0.6` bzw.
 `bar_skin = 0.6` setzen – dann sind die Löcher oben zu und das Licht scheint weich durch (unsichtbar, solange aus).
 

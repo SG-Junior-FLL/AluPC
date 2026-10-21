@@ -38,7 +38,7 @@ CARD_DESIGNS: dict[str, tuple[str, str, str, str, str]] = {
                   "https://example.com", "#10b981"),
     "comingsoon": ("Coming soon", "Ankündigung mit pulsierenden Punkten", "Bald verfügbar", "Stay tuned",
                    "#f97316"),
-    "glas": ("Glas-Karte", "Milchglas-Karte über fließenden Farben", "Hallo zusammen", "Schön, dass du da bist",
+    "glas": ("Farbfeld-Karte", "Dunkle Karte auf einem vollen Farbfeld", "Hallo zusammen", "Schön, dass du da bist",
              "#6366f1"),
 }
 CARD_TIMED = {"neon": 50, "glitch": 50, "synthwave": 33, "spotlight": 33, "nowplaying": 50, "live": 500,
@@ -504,31 +504,19 @@ def c_comingsoon(p, w, h, cfg, t, color, u):
 
 
 def c_glas(p, w, h, cfg, t, color, u):
+    """Farbfeld-Karte (früher Glas): die ganze Fläche in der Farbe, darauf eine flache dunkle Karte – kein Milchglas,
+    keine Lichtflecken (taste-skill: keine Glas-Effekte)."""
     base = QColor(color)
-    p.fillRect(0, 0, w, h, QColor("#0b0b14"))
-    for i in range(4):
-        cx = w * (0.5 + 0.35 * math.sin(t * 0.3 + i * 1.7))
-        cy = h * (0.5 + 0.35 * math.cos(t * 0.25 + i * 2.1))
-        g = QRadialGradient(QPointF(cx, cy), w * 0.3)
-        c = QColor.fromHsvF((base.hsvHueF() + i * 0.12) % 1.0, 0.75, 1.0)
-        c.setAlpha(170)
-        g.setColorAt(0, c)
-        g.setColorAt(1, QColor(0, 0, 0, 0))
-        p.fillRect(0, 0, w, h, g)
-    card = QRectF(w * 0.14, h * 0.2, w * 0.72, h * 0.6)
-    p.setPen(QPen(QColor(255, 255, 255, 90), max(1.0, u * 0.15)))
-    p.setBrush(QColor(255, 255, 255, 38))
-    p.drawRoundedRect(card, u * 3, u * 3)
-    shine = QLinearGradient(card.topLeft(), card.bottomLeft())
-    shine.setColorAt(0, QColor(255, 255, 255, 40))
-    shine.setColorAt(0.5, QColor(255, 255, 255, 0))
+    p.fillRect(0, 0, w, h, QColor.fromHsvF(base.hsvHueF() % 1.0 if base.hsvHueF() >= 0 else 0.6,
+                                         min(0.8, base.hsvSaturationF()), 0.62))
+    card = QRectF(w * 0.08, h * 0.22, w * 0.62, h * 0.56)
     p.setPen(Qt.NoPen)
-    p.setBrush(shine)
-    p.drawRoundedRect(card, u * 3, u * 3)
-    tr = QRectF(card.left() + u * 4, card.top() + card.height() * 0.18, card.width() - u * 8, card.height() * 0.42)
+    p.setBrush(QColor("#0d0d0d"))
+    p.drawRect(card)
+    tr = QRectF(card.left() + u * 4, card.top() + card.height() * 0.14, card.width() - u * 8, card.height() * 0.46)
     _draw(p, tr, cfg["title"], _fit(cfg["title"], tr, u * 8), QColor("#ffffff"))
-    sr = QRectF(card.left() + u * 4, card.top() + card.height() * 0.64, card.width() - u * 8, card.height() * 0.2)
-    _draw(p, sr, cfg["text"], _fit(cfg["text"], sr, u * 3.2, bold=False), QColor(255, 255, 255, 210))
+    sr = QRectF(card.left() + u * 4, card.top() + card.height() * 0.64, card.width() - u * 8, card.height() * 0.22)
+    _draw(p, sr, cfg["text"], _fit(cfg["text"], sr, u * 3.2, bold=False), QColor(255, 255, 255, 220))
 
 
 CARD_PAINTERS = {

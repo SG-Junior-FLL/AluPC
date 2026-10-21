@@ -42,7 +42,12 @@ VIDS = {0x2341, 0x2A03, 0x1B4F, 0x239A, 0x1D50}
 # USB-Seriell-Chips (Nano-Nachbauten: CH340, FTDI, CP210x) – stecken auch in anderen Geräten, deshalb fragt AluPC
 # jeden solchen Anschluss nur einmal je Einstecken (antwortet er nicht, bleibt er in Ruhe)
 SERIAL_CHIP_VIDS = {0x1A86, 0x0403, 0x10C4}
-LED_EFFECTS = {"ruhig": 0, "atmen": 1, "blinken": 2}
+LED_EFFECTS = {"ruhig": 0, "atmen": 1, "blinken": 2, "regenbogen": 3}
+# Farbschemata für RGB-LEDs (Programm 4): Reihenfolge der Kette 0–3 = Ecken (vorne links, hinten links,
+# hinten rechts, vorne rechts), ab 4 die Lichtleiste
+LED_SCHEMES = {"einfarbig": "Eine Farbe", "ecken": "Jede Ecke eigene Farbe", "zustand": "Zeigt den Zustand",
+               "regenbogen": "Regenbogen (läuft)"}
+CORNER_COLORS = ["#57c1ff", "#ff6161", "#59d499", "#ffc533"]
 DEFAULT_KEYS = {"1": "schwarz", "2": "standbild", "3": "studio_uebergang", "4": "vorherige_szene",
                 "5": "naechste_szene", "6": "bild-in-bild", "7": "timer_start_pause", "8": "spiegeln",
                 "9": "erweitern"}
@@ -186,8 +191,22 @@ class ButtonBox(QObject):
         return self.send(f"LED {max(0, min(100, int(level)))}")
 
     def set_effect(self, name: str) -> bool:
-        """LED-Effekt in der Box: ruhig, atmen, blinken (ab Programm 3; ältere Boxen leuchten ruhig)."""
-        return self.version >= 3 and self.send(f"EFFEKT {LED_EFFECTS.get(name, 0)}")
+        """LED-Effekt in der Box: ruhig, atmen, blinken (ab Programm 3), Regenbogen (ab 4; sonst ruhig)."""
+        code = LED_EFFECTS.get(name, 0)
+        if code == 3 and self.version < 4:
+            code = 0
+        return self.version >= 3 and self.send(f"EFFEKT {code}")
+
+    def set_pixel(self, index: int, color: str) -> bool:
+        """Eine RGB-LED der Kette einfärben (ab Programm 4)."""
+        c = color.lstrip("#")
+        if len(c) != 6 or self.version < 4:
+            return False
+        try:
+            r, g, b = (int(c[i:i + 2], 16) for i in (0, 2, 4))
+        except ValueError:
+            return False
+        return self.send(f"PIXEL {int(index)} {r} {g} {b}")
 
     def set_color(self, color: str) -> bool:
         """Farbe des LED-Streifens („#00ffa0“, ab Programm 3; einfarbige LEDs ignorieren sie)."""

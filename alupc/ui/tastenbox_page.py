@@ -35,7 +35,8 @@ from .widgets import FlowLayout, button, font, page_header
 
 SKETCH = Path(__file__).resolve().parents[1] / "resources" / "arduino" / "AluPC-Tasten" / "AluPC-Tasten.ino"
 LED_MODES = {"live": "Leuchtet, wenn etwas live ist", "an": "Immer an", "aus": "Aus"}
-LED_EFFECTS = {"ruhig": "Ruhig", "atmen": "Atmen (langsam heller/dunkler)", "blinken": "Blinken"}
+LED_EFFECTS = {"ruhig": "Ruhig", "atmen": "Atmen (langsam heller/dunkler)", "blinken": "Blinken",
+               "regenbogen": "Regenbogen (nur RGB-LEDs)"}
 CELL = 132  # 3 × 132 passt auch ins kleinste Fenster (600 px)
 
 
@@ -299,6 +300,16 @@ class TastenboxPage(QWidget):
         effect.setToolTip("Wie die LEDs leuchten, wenn sie an sind (Box-Programm ab Version 3)")
         effect.currentIndexChanged.connect(lambda _i: self._save(led_effekt=effect.currentData()))
         df.addRow("Effekt:", effect)
+        from ..tastenbox import LED_SCHEMES
+
+        scheme = QComboBox()
+        for key, label in LED_SCHEMES.items():
+            scheme.addItem(label, key)
+        scheme.setCurrentIndex(max(0, scheme.findData(c.config["tasten"].get("led_schema", "einfarbig"))))
+        scheme.setToolTip("Für RGB-LEDs (Box-Programm 4): Ecken in eigenen Farben, Zustand (Rot = live, "
+                          "Gelb = Schwarz/Standbild) oder Regenbogen – siehe LED-Plan")
+        scheme.currentIndexChanged.connect(lambda _i: self._save(led_schema=scheme.currentData()))
+        df.addRow("Farbschema:", scheme)
         self.color_btn = QPushButton()
         self.color_btn.setToolTip("Nur LED-Streifen bzw. RGB-LEDs (WS2812B/PL9823) – einfarbige LEDs bleiben, wie sie sind")
         self.color_btn.clicked.connect(self._pick_color)

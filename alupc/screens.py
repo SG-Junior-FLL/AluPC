@@ -148,7 +148,7 @@ def paint_design(p: QPainter, w: int, h: int, cfg: dict, now: float | None = Non
     p.setRenderHint(QPainter.TextAntialiasing)
     _background(p, w, h, color)
     white = QColor("#f8fafc")
-    muted = QColor(255, 255, 255, 170)
+    muted = QColor(255, 255, 255, 215)  # Fließtext fast in voller Schrift (taste-skill: kein blasses Grau)
     unit = min(w, h / 0.5625) / 100  # 1 % der Breite eines 16:9-Bilds
 
     if design in CARD_PAINTERS:  # Design-Karten zeichnen ihren eigenen Hintergrund
@@ -179,14 +179,6 @@ def paint_design(p: QPainter, w: int, h: int, cfg: dict, now: float | None = Non
         p.setFont(_fit(title, area, unit * 12))
         p.drawText(area, Qt.AlignCenter | Qt.TextWordWrap, title)
         p.restore()
-        bar = unit * 16 * intro(cfg, now, 3)
-        g = QLinearGradient(w / 2 - bar / 2, 0, w / 2 + bar / 2, 0)
-        g.setColorAt(0, QColor(color.red(), color.green(), color.blue(), 0))
-        g.setColorAt(0.5, color.lighter(130))
-        g.setColorAt(1, QColor(color.red(), color.green(), color.blue(), 0))
-        p.setPen(Qt.NoPen)
-        p.setBrush(g)
-        p.drawRoundedRect(QRectF(w / 2 - bar / 2, h * 0.64, bar, unit * 0.5), unit * 0.25, unit * 0.25)
         sub = QRectF(m * 1.5, h * 0.68, w - 3 * m, h * 0.16)
         p.save()
         p.setOpacity(intro(cfg, now, 5))

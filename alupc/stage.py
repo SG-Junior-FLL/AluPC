@@ -80,8 +80,13 @@ def paint_aurora(p: QPainter, rect: QRectF, color: QColor, now: float = 0.0, str
 
 
 def _paint_aurora(p: QPainter, rect: QRectF, color: QColor, strength: float = 1.0) -> None:
-    """Gemeinsamer Hintergrund aller Vorlagen auf Monitor 2: sehr dunkler Grund in der Farbe der Vorlage, zwei
-    weiche Lichtflecken (Farbe + Nachbarfarbe), die langsam wandern, dunkler Rand. Passt zu jeder Größe."""
+    """Gemeinsamer Hintergrund aller Vorlagen auf Monitor 2 (ab 2.2, taste-skill): ein flaches, tiefes Farbfeld
+    im Ton der Vorlage – keine Lichtflecken, kein Verlauf, kein dunkler Rand. Die Farbe trägt die Seite."""
+    rect = QRectF(rect)
+    hue = color.hsvHueF() if color.hsvHueF() >= 0 else 0.62
+    sat = color.hsvSaturationF()
+    p.fillRect(rect, QColor.fromHsvF(hue, min(0.7, sat * 0.75), 0.16 if sat > 0.15 else 0.08))
+    return
     rect = QRectF(rect)
     w, h = rect.width(), rect.height()
     hue = color.hsvHueF() if color.hsvHueF() >= 0 else 0.62
@@ -112,7 +117,9 @@ def font(px: float, weight: int = 700) -> QFont:
 
 
 def eyebrow(p: QPainter, x: float, y: float, text: str, color: QColor, unit: float) -> QRectF:
-    """Kleines Etikett oben links (Punkt in der Farbe + Wort), wie bei Sendungen. Gibt sein Rechteck zurück."""
+    """Früher ein kleines Etikett oben links. Ab 2.2 (taste-skill: „keine Etiketten über Überschriften“) zeichnet
+    es nichts mehr; das Rechteck bleibt für den Aufbau."""
+    return QRectF(x, y, 0, unit * 4)
     f = font(unit * 1.9, 700)
     f.setLetterSpacing(QFont.PercentageSpacing, 104)
     tw = QFontMetricsF(f).horizontalAdvance(text)

@@ -337,6 +337,10 @@ body.heftmode nav, body.heftmode header { display:none; }
 .hlist button { justify-content:flex-start; }
 .hlist button.on { background:var(--on); color:#fff; }
 .hpapers { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+#bl-schema { flex-wrap:wrap; } #bl-schema button { flex:1 1 40%; }
+.swatches { display:flex; gap:10px; margin:10px 0 4px; flex-wrap:wrap; }
+.swatches .sw { width:40px; height:40px; min-height:0; padding:0; border-radius:50%; border:2px solid transparent; }
+.swatches .sw.on { border-color:var(--text); box-shadow:inset 0 0 0 3px var(--bg); }
 @media (prefers-reduced-motion: reduce) { *, *::before { animation:none !important; transition:none !important; } }
 /* ===== Gestaltung wie am PC (docs/DESIGN.md) – überschreibt die Grundwerte oben. Farben, Rundungen und Holzart
    setzt der PC beim Ausliefern (<style id="alupc-theme">); hier stehen nur Ersatzwerte und die Formen je Stil.
@@ -436,6 +440,27 @@ html[data-style=normal] button, html[data-style=normal] .btn { border-color:tran
 html[data-style=normal] .chips button, html[data-style=normal] .quick button { border-radius:999px; }
 html[data-style=normal] nav { border-radius:999px; } html[data-style=normal] #nav-pill,
 html[data-style=normal] nav button { border-radius:999px; }
+/* Regie (Standard ab 2.2): fast schwarz, 1-px-Haarlinien, keine Schatten/Glas; Auswahl = 1-px-Linie in der
+   Akzentfarbe, Hauptknopf weiß, Kacheln mit grauem Symbol, Rot nur für „läuft“ */
+html[data-style=regie] body { font-feature-settings:"calt","kern","liga","ss03"; }
+html[data-style=regie] .card, html[data-style=regie] #c-live { box-shadow:none; }
+html[data-style=regie] button:not(.sw), html[data-style=regie] .btn { background:transparent; border:1px solid #2c2f31;
+  font-weight:500; }
+html[data-style=regie] button.on:not(.tile):not(.sw), html[data-style=regie] .quick button.on,
+html[data-style=regie] .hlist button.on { background:var(--card2); color:var(--text); border-color:#2c2f31;
+  box-shadow:inset 0 -1px 0 var(--accent); }
+html[data-style=regie] button.primary, html[data-style=regie] .btn.primary { background:#fff; color:#000; border-color:#fff; }
+html[data-style=regie] .tile { background:var(--card); border:1px solid var(--line); }
+html[data-style=regie] .tile svg.i { color:var(--muted); }
+html[data-style=regie] .tile.on { box-shadow:none; border-color:var(--live); }
+html[data-style=regie] .tile.on svg.i { color:var(--text); }
+html[data-style=regie] nav { background:var(--bg); border:0; border-top:1px solid var(--line); border-radius:0;
+  box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; }
+html[data-style=regie] nav button { border:0; background:transparent; }
+html[data-style=regie] #nav-pill { background:transparent; border-radius:0; box-shadow:inset 0 -1px 0 var(--accent); }
+html[data-style=regie] nav button.sel { color:var(--text); }
+html[data-style=regie] .card h2 { font-weight:500; color:var(--muted); }
+html[data-style=regie] .logo { background:transparent; color:var(--text); border:1px solid var(--line); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
 </style>
 </head>
@@ -552,6 +577,29 @@ html[data-style=normal] nav button { border-radius:999px; }
       <button class="tile" onclick="cmd('whiteboard')"><svg class="i"><use href="#i-board"/></svg>Tafel</button>
       <button class="tile" onclick="cmd('gluecksrad')"><svg class="i"><use href="#i-wheel"/></svg>Glücksrad</button>
     </div>
+  </div>
+  <div class="card hide" id="c-boxled">
+    <h2>Tastenbox-LEDs</h2>
+    <div class="row" id="bl-mode">
+      <button data-v="aus" onclick="cmd('box_led:aus')">Aus</button>
+      <button data-v="live" onclick="cmd('box_led:live')">Bei Live</button>
+      <button data-v="an" onclick="cmd('box_led:an')">An</button>
+    </div>
+    <div class="row" id="bl-effekt">
+      <button data-v="ruhig" onclick="cmd('box_effekt:ruhig')">Ruhig</button>
+      <button data-v="atmen" onclick="cmd('box_effekt:atmen')">Atmen</button>
+      <button data-v="blinken" onclick="cmd('box_effekt:blinken')">Blinken</button>
+    </div>
+    <div class="row" id="bl-schema">
+      <button data-v="einfarbig" onclick="cmd('box_schema:einfarbig')">Eine Farbe</button>
+      <button data-v="ecken" onclick="cmd('box_schema:ecken')">Ecken bunt</button>
+      <button data-v="zustand" onclick="cmd('box_schema:zustand')">Zustand</button>
+      <button data-v="regenbogen" onclick="cmd('box_schema:regenbogen')">Regenbogen</button>
+    </div>
+    <div class="swatches" id="bl-farben"></div>
+    <div class="hrow"><span>Helligkeit</span>
+      <input type="range" id="bl-hell" min="5" max="100" step="5" aria-label="Helligkeit der LEDs"
+             onchange="cmd('box_hell:' + this.value)"></div>
   </div>
   <div class="card hide" id="c-ablauf">
     <h2>Punkte <span id="punkt" style="float:right;text-transform:none;letter-spacing:0"></span></h2>
@@ -1018,6 +1066,21 @@ async function liveSend() {
 }
 try { if (localStorage.getItem("alupc-live")) { $("live").checked = true; $("text-btn").style.display = "none"; } } catch (e) {}
 
+// Tastenbox-LEDs: nur sichtbar, wenn die Box angeschlossen ist; gewählte Knöpfe markiert
+const BOX_COLORS = ["#57c1ff", "#ff6161", "#59d499", "#ffc533", "#c084fc", "#ffffff"];
+function renderBoxLed(b) {
+  const card = $("c-boxled");
+  card.classList.toggle("hide", !(b && b.on));
+  if (!b || !b.on) return;
+  for (const [id, v] of [["bl-mode", b.led], ["bl-effekt", b.led_effekt], ["bl-schema", b.led_schema]])
+    $(id).querySelectorAll("button").forEach(x => x.classList.toggle("on", x.dataset.v === v));
+  const box = $("bl-farben");
+  if (!box.childElementCount) BOX_COLORS.forEach(c => {
+    const x = document.createElement("button"); x.className = "sw"; x.style.background = c; x.dataset.v = c;
+    x.setAttribute("aria-label", "Farbe " + c); x.onclick = () => cmd("box_farbe:" + c); box.appendChild(x); });
+  box.querySelectorAll("button").forEach(x => x.classList.toggle("on", x.dataset.v === (b.led_farbe || "").toLowerCase()));
+  if (document.activeElement !== $("bl-hell")) $("bl-hell").value = b.led_hell;
+}
 let scenesKey = "", failures = 0;
 async function refresh() {
   requestAnimationFrame(movePill);
@@ -1028,6 +1091,7 @@ async function refresh() {
     showLogin(false);
     $("dot").classList.add("on");
     $("now").textContent = s.now;
+    renderBoxLed(s.boxled);
     allow = Object.assign({ senden: true, steuern: true, live: true, laser: true }, s.allow || {});
     for (const [p, on] of [["zeichnen", allow.laser], ["folien", allow.steuern], ["senden", allow.senden]])
       document.querySelector('nav button[data-p="' + p + '"]').classList.toggle("hide", !on);
@@ -1823,7 +1887,6 @@ def themed_page(appearance: dict) -> str:
                   ("Barlow Semi Condensed", "BarlowSemiCondensed-Bold", 700)]
     css = "".join(f"@font-face{{font-family:'{fam}';src:url(/fonts/{file}.ttf);font-weight:{w};font-display:swap}}"
                   for fam, file, w in faces) + css
-    # Matrix: Formen wie Technisch, Farben grün · Regie: Formen wie Normal, Farben des Regie-Stils
-    shape = {"matrix": "technisch", "regie": "normal"}.get(style, style)
+    shape = {"matrix": "technisch"}.get(style, style)  # Matrix: Formen wie Technisch, Farben grün
     page = PAGE.replace('<html lang="de">', f'<html lang="de" data-style="{shape}">', 1)
     return page.replace("</head>", f'<style id="alupc-theme">{css}</style>\n</head>', 1)

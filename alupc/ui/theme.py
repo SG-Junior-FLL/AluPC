@@ -689,9 +689,10 @@ def system_signature() -> tuple:
 # ------------------------------------------------------------------ Windows: Titelleiste passend zur App
 def title_bar(widget, t: Theme | None = None) -> bool:
     """Windows 10/11: dunkle bzw. helle Titelleiste, Windows 11 zusätzlich in der App-Hintergrundfarbe."""
+    import os
     import sys
 
-    if sys.platform != "win32":
+    if sys.platform != "win32" or os.environ.get("ALUPC_NO_TITLEBAR"):  # Schalter nur für Fehlersuche in der CI
         return False
     try:
         import ctypes

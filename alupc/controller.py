@@ -1012,6 +1012,10 @@ class Controller(QObject):
             "ablauf": bool(self.step_sources()),
             "punkt": self.step_label(),
             "rgb": rgb,
+            "boxled": {"on": self.buttonbox.connected, "version": self.buttonbox.version,
+                       **{k: self.config["tasten"].get(k, d) for k, d in (
+                           ("led", "live"), ("led_effekt", "ruhig"), ("led_farbe", "#00ffa0"),
+                           ("led_hell", 100), ("led_schema", "einfarbig"))}},
             "reply": {"id": self.assistant.reply_seq, "text": self.assistant.last_reply},
             "flags": {"schwarz": self.privacy, "standbild": self.frozen, "schoner": self.screensaver.active,
                       "spiegeln": bool(self.mode == "content" and content.get("mirror")),
@@ -1817,16 +1821,64 @@ class Controller(QObject):
         cfg = self.config["tasten"]
         mode = cfg.get("led", "live")
         live = self.mode == "content"
+        scheme = cfg.get("led_schema", "einfarbig")
         level = self.box_led_brightness() if mode == "an" or (mode == "live" and live) else 0
+        if scheme == "zustand" and mode != "aus":  # Zustand braucht Licht, auch wenn nichts läuft
+            level = self.box_led_brightness()
         # Effekt und Farbe (ab Box-Programm 3): „bei Live“ blinken/atmen lassen, sonst ruhig
         effect = cfg.get("led_effekt", "ruhig") if mode == "an" or live else "ruhig"
-        extra = (effect, cfg.get("led_farbe", "#00ffa0"))
+        if scheme == "regenbogen":
+            effect = "regenbogen"
+        extra = (effect, cfg.get("led_farbe", "#00ffa0"), scheme, tuple(self.box_pixels()))
         if extra != self._led_extra:
             self.buttonbox.set_effect(extra[0])
             self.buttonbox.set_color(extra[1])
+            for i, color in enumerate(extra[3]):
+                self.buttonbox.set_pixel(i, color)
             self._led_extra = extra
         if level != self._led_level and self.buttonbox.set_led(level):
             self._led_level = level
+
+    def box_pixels(self) -> list[str]:
+        """Farben der 4 Ecken für das Farbschema (die Lichtleiste bekommt die Grundfarbe). Leer = alle gleich."""
+        from .tastenbox import CORNER_COLORS
+
+        cfg = self.config["tasten"]
+        scheme = cfg.get("led_schema", "einfarbig")
+        if scheme == "ecken":
+            corners = list(cfg.get("led_ecken") or CORNER_COLORS)
+            return (corners + CORNER_COLORS)[:4]
+        if scheme == "zustand":  # Rot = läuft auf Bildschirm 2, Gelb = Schwarz/Standbild, sonst die Grundfarbe
+            if self.privacy or self.frozen:
+                return ["#ffb000"] * 4
+            return ["#ff2020"] * 4 if self.mode == "content" else [cfg.get("led_farbe", "#00ffa0")] * 4
+        return []
+
+    def box_led_command(self, command: str) -> bool:
+        """Befehle für die LEDs der Tastenbox (auch vom Handy): box_led:an|aus|live, box_effekt:…, box_farbe:#rrggbb,
+        box_hell:5–100, box_schema:einfarbig|ecken|zustand|regenbogen."""
+        from .tastenbox import LED_EFFECTS, LED_SCHEMES
+
+        name, _, arg = command.partition(":")
+        cfg = dict(self.config["tasten"])
+        if name == "box_led" and arg in ("an", "aus", "live"):
+            cfg["led"] = arg
+        elif name == "box_effekt" and arg in LED_EFFECTS:
+            cfg["led_effekt"] = arg
+        elif name == "box_farbe" and len(arg.lstrip("#")) == 6:
+            cfg["led_farbe"] = "#" + arg.lstrip("#").lower()
+        elif name == "box_hell" and arg.isdigit():
+            cfg["led_hell"] = max(5, min(100, int(arg)))
+        elif name == "box_schema" and arg in LED_SCHEMES:
+            cfg["led_schema"] = arg
+        else:
+            return False
+        self.config["tasten"] = cfg
+        self._led_level = None
+        self._led_extra = None
+        self.update_box_led()
+        self.changed.emit()
+        return True
 
     def toggle_box_led(self) -> None:
         cfg = dict(self.config["tasten"])
@@ -1848,6 +1900,10 @@ class Controller(QObject):
             from . import pc_control
 
             self.message.emit(pc_control.run(command))  # Lautstärke, Programme, Fenster … (Ein/Aus nur mit Rückfrage)
+            return
+        if command.startswith("box_"):
+            if not self.box_led_command(command):
+                self.message.emit("Unbekannter LED-Befehl.")
             return
         if command.startswith("szene:"):
             name = command[6:]

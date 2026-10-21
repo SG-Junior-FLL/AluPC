@@ -123,7 +123,7 @@ class Ctx:
 
 
 WHITE = QColor("#f8fafc")
-MUTED = QColor(255, 255, 255, 170)
+MUTED = QColor(255, 255, 255, 215)  # Fließtext fast in voller Schrift (taste-skill)
 
 
 def _font(px: float, bold: bool = False) -> QFont:
@@ -408,17 +408,11 @@ def p_danke(c: Ctx):
 
 def p_schlagzeile(c: Ctx):
     u = c.unit
-    tag = QRectF(c.w * 0.07, c.h * 0.16, u * 18 * c.intro(0, dur=0.4), u * 4.5)
-    c.p.setPen(Qt.NoPen)
-    c.p.setBrush(c.color)
-    c.p.drawRect(tag)
-    c.p.save()
-    c.p.setClipRect(tag)
-    _text(c, QRectF(tag.left(), tag.top(), u * 18, tag.height()), "AKTUELL", tag.height() * 0.5)
-    c.p.restore()
+    # volles Farbfeld links statt Etikett „AKTUELL“ (taste-skill: keine Etiketten über Überschriften)
+    c.p.fillRect(QRectF(0, 0, c.w * 0.035 * c.intro(0, dur=0.4), c.h), c.color)
     a = c.intro(2)
     c.fade(a, -(1 - a) * c.w * 0.04)
-    _text(c, QRectF(c.w * 0.07, c.h * 0.28, c.w * 0.86, c.h * 0.34), c.title, u * 8, True, WHITE,
+    _text(c, QRectF(c.w * 0.07, c.h * 0.2, c.w * 0.86, c.h * 0.42), c.title, u * 10, True, WHITE,
           Qt.AlignLeft | Qt.AlignVCenter | Qt.TextWordWrap)
     c.restore()
     c.p.setPen(QPen(QColor(255, 255, 255, 60), u * 0.2))

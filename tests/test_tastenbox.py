@@ -173,7 +173,7 @@ def tastenbox_sketch_exists() -> bool:
     from alupc.ui.tastenbox_page import SKETCH
 
     text = SKETCH.read_text(encoding="utf-8")
-    return all(w in text for w in ("HALLO ALUPC-TASTEN 3", "LAUT", "TASTE", "LANG", "EFFEKT", "FARBE", "DEBUG", "ROH",
+    return all(w in text for w in ("HALLO ALUPC-TASTEN 4", "LAUT", "TASTE", "LANG", "EFFEKT", "FARBE", "DEBUG", "ROH", "PIXEL",
                                    "ARDUINO_AVR_LEONARDO"))
 
 
@@ -278,3 +278,42 @@ def test_led_effect_color_and_debug_panel(env, monkeypatch):  # noqa: F811
     controller.config["tasten"] = {**base}
     box.port, box.version, box.board = "", 0, ""
     window._go(0)
+
+
+def test_led_commands_and_color_schemes(env, monkeypatch):  # noqa: F811
+    """LEDs vom Handy (box_*-Befehle) und Farbschemata für RGB-LEDs (Programm 4: PIXEL, Regenbogen)."""
+    controller, _window, _ = env
+    box = controller.buttonbox
+    sent = []
+    monkeypatch.setattr(box, "send", lambda line: sent.append(line) or True)
+    box.port, box.version = "COM9", 4
+    base = dict(controller.config["tasten"])
+    controller.config["tasten"] = {**base, "led": "an", "led_hell": 80}
+    controller.run_command("box_schema:ecken")
+    assert controller.config["tasten"]["led_schema"] == "ecken"
+    assert [line for line in sent if line.startswith("PIXEL")] == [
+        "PIXEL 0 87 193 255", "PIXEL 1 255 97 97", "PIXEL 2 89 212 153", "PIXEL 3 255 197 51"]
+    sent.clear()
+    controller.run_command("box_schema:regenbogen")
+    assert "EFFEKT 3" in sent
+    sent.clear()
+    controller.run_command("box_schema:zustand")
+    controller.privacy = True
+    controller._led_extra = None
+    controller.update_box_led()
+    assert "PIXEL 0 255 176 0" in sent  # Schwarz/Standbild → Gelb
+    controller.privacy = False
+    for cmd, key, value in (("box_led:aus", "led", "aus"), ("box_effekt:atmen", "led_effekt", "atmen"),
+                            ("box_farbe:#FF0000", "led_farbe", "#ff0000"), ("box_hell:300", "led_hell", 100)):
+        controller.run_command(cmd)
+        assert controller.config["tasten"][key] == value
+    assert not controller.box_led_command("box_led:quatsch")
+    snap = controller.cast.snapshot if hasattr(controller, "cast") else {}
+    controller._cast_snapshot()
+    assert controller.cast.snapshot["boxled"]["led_schema"] == "zustand" and controller.cast.snapshot["boxled"]["on"]
+    box.version = 3  # altes Programm: kein PIXEL, Regenbogen wird ruhig
+    sent.clear()
+    assert not box.set_pixel(0, "#ffffff") and box.set_effect("regenbogen") and sent == ["EFFEKT 0"]
+    controller.config["tasten"] = {**base}
+    box.port, box.version = "", 0
+    del snap

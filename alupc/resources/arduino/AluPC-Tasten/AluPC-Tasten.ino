@@ -17,16 +17,21 @@
 //   Streifen/RGB-LEDs (WS2812B, PL9823): DIN an den Streifen-Pin, 5V, GND (am USB höchstens ~8–10 LEDs).
 //
 // Was die Box an den PC schickt (115200 Baud, eine Zeile je Meldung):
-//   HALLO ALUPC-TASTEN 3 NANO – Antwort auf „WER?“ (und einmal beim Start); 3 = Programmversion, dann das Board
+//   HALLO ALUPC-TASTEN 4 NANO – Antwort auf „WER?“ (und einmal beim Start); 4 = Programmversion, dann das Board
 //   TASTE n                   – Taste n kurz gedrückt (1–9), gemeldet beim Loslassen
 //   LANG n                    – Taste n lange gedrückt (ab 0,6 s, noch während sie unten ist)
 //   LAUT n                    – Regler steht auf n Prozent (0–100), nur wenn er sich bewegt hat, und auf „LAUT?“
 //   ROH 010000000 512         – nur mit „DEBUG 1“: alle 0,1 s jede Taste (1 = unten) und der Regler roh (0–1023)
 // Was der PC schickt:
-//   WER?  LAUT?  LED n (Helligkeit 0–100, 0 = aus)  EFFEKT n (0 = ruhig, 1 = atmen, 2 = blinken)
-//   FARBE r g b (Streifen, je 0–255)  DEBUG 0|1
+//   WER?  LAUT?  LED n (Helligkeit 0–100, 0 = aus)  EFFEKT n (0 = ruhig, 1 = atmen, 2 = blinken, 3 = Regenbogen)
+//   FARBE r g b (alle RGB-LEDs, je 0–255)  PIXEL i r g b (eine RGB-LED, i ab 0)  DEBUG 0|1
+//
+// RGB-LEDs (Farben je LED): eine Kette aus adressierbaren LEDs am Streifen-Pin. Reihenfolge wie im LED-Plan:
+//   0 = Ecke vorne links, 1 = hinten links, 2 = hinten rechts, 3 = vorne rechts, ab 4 = Lichtleiste.
+// STREIFEN = Anzahl aller LEDs der Kette (z. B. 4 Ecken + 7 Leiste = 11).
 
-// #define STREIFEN 8   // Zeile einschalten (// weg) für einen WS2812B-Streifen mit 8 LEDs (Bibliothek „Adafruit NeoPixel“)
+// #define STREIFEN 11  // Zeile einschalten (// weg) für RGB-LEDs, hier 11 Stück (Bibliothek „Adafruit NeoPixel“)
+// #define ECKEN_PL9823 // einschalten, wenn die 4 Ecken 5-mm-LEDs vom Typ PL9823 sind (andere Farbreihenfolge als WS2812B)
 
 #if defined(ARDUINO_AVR_LEONARDO) || defined(ARDUINO_AVR_MICRO) || defined(ARDUINO_AVR_PROMICRO) || defined(__AVR_ATmega32U4__)
 const uint8_t TASTEN[9] = {2, 3, 4, 5, 6, 7, 8, 14, 15};
@@ -59,6 +64,9 @@ String zeile;
 int hell = 0;             // gewünschte Helligkeit 0–100
 int effekt = 0;           // 0 ruhig, 1 atmen, 2 blinken
 uint8_t farbe[3] = {0, 255, 160};
+#ifdef STREIFEN
+uint8_t px[STREIFEN][3];  // Farbe je LED (FARBE setzt alle, PIXEL eine)
+#endif
 bool debug = false;
 unsigned long debugZuletzt = 0;
 
@@ -67,8 +75,19 @@ void ledZeigen(int prozent) {
   analogWrite(LED, map(prozent, 0, 100, 0, 255));
 #ifdef STREIFEN
   for (int i = 0; i < STREIFEN; i++) {
-    streifen.setPixelColor(i, streifen.Color((uint16_t)farbe[0] * prozent / 100, (uint16_t)farbe[1] * prozent / 100,
-                                             (uint16_t)farbe[2] * prozent / 100));
+    uint16_t r = px[i][0], g = px[i][1], b = px[i][2];
+    if (effekt == 3) {  // Regenbogen: Farbe wandert über die Kette
+      uint16_t hue = (millis() / 8 + i * 65536UL / STREIFEN / 256) % 256;
+      uint8_t seg = hue / 43, f = (hue % 43) * 6;
+      uint8_t q = 255 - f;
+      const uint8_t rgb[6][3] = {{255, f, 0}, {q, 255, 0}, {0, 255, f}, {0, q, 255}, {f, 0, 255}, {255, 0, q}};
+      r = rgb[seg % 6][0]; g = rgb[seg % 6][1]; b = rgb[seg % 6][2];
+    }
+    r = r * prozent / 100; g = g * prozent / 100; b = b * prozent / 100;
+#ifdef ECKEN_PL9823
+    if (i < 4) { streifen.setPixelColor(i, (uint32_t)g << 16 | (uint32_t)r << 8 | b); continue; }
+#endif
+    streifen.setPixelColor(i, streifen.Color(r, g, b));
   }
   streifen.show();
 #endif
@@ -83,11 +102,11 @@ int effektHelligkeit(unsigned long t) {
   if (effekt == 2) {  // blinken: 0,4 s an, 0,4 s aus
     return (t / 400) % 2 ? 0 : hell;
   }
-  return hell;
+  return hell;  // ruhig und Regenbogen: volle eingestellte Helligkeit
 }
 
 void hallo() {
-  Serial.print("HALLO ALUPC-TASTEN 3 ");
+  Serial.print("HALLO ALUPC-TASTEN 4 ");
   Serial.println(BOARD);
 }
 
@@ -101,6 +120,7 @@ void setup() {
   pinMode(LED, OUTPUT);
 #ifdef STREIFEN
   streifen.begin();
+  for (int i = 0; i < STREIFEN; i++) for (int k = 0; k < 3; k++) px[i][k] = farbe[k];
 #endif
   ledZeigen(0);
   glatt = analogRead(REGLER);
@@ -119,15 +139,32 @@ void befehl(String text) {
     hell = constrain(text.substring(4).toInt(), 0, 100);
     ledZeigen(effektHelligkeit(millis()));
   } else if (text.startsWith("EFFEKT ")) {
-    effekt = constrain(text.substring(7).toInt(), 0, 2);
+    effekt = constrain(text.substring(7).toInt(), 0, 3);
   } else if (text.startsWith("FARBE ")) {
     int a = text.indexOf(' ', 6), b = a < 0 ? -1 : text.indexOf(' ', a + 1);
     if (a > 0 && b > 0) {
       farbe[0] = constrain(text.substring(6, a).toInt(), 0, 255);
       farbe[1] = constrain(text.substring(a + 1, b).toInt(), 0, 255);
       farbe[2] = constrain(text.substring(b + 1).toInt(), 0, 255);
+#ifdef STREIFEN
+      for (int i = 0; i < STREIFEN; i++) for (int k = 0; k < 3; k++) px[i][k] = farbe[k];
+#endif
       ledZeigen(effektHelligkeit(millis()));
     }
+  } else if (text.startsWith("PIXEL ")) {
+    int v[4], start = 6;
+    for (int k = 0; k < 4; k++) {
+      int e = text.indexOf(' ', start);
+      v[k] = text.substring(start, e < 0 ? text.length() : e).toInt();
+      start = e + 1;
+      if (e < 0 && k < 3) return;
+    }
+#ifdef STREIFEN
+    if (v[0] >= 0 && v[0] < STREIFEN) {
+      for (int k = 0; k < 3; k++) px[v[0]][k] = constrain(v[k + 1], 0, 255);
+      ledZeigen(effektHelligkeit(millis()));
+    }
+#endif
   } else if (text.startsWith("DEBUG ")) {
     debug = text.substring(6).toInt() != 0;
   }
