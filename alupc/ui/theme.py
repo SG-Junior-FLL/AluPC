@@ -783,6 +783,7 @@ def _stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
     card_line = line  # Rand von Karten/Gruppen
     btn_line = line   # Rand von Knöpfen
     extra = ""
+    rcmd = rf  # Befehlsleiste
     if t.style == "normal":  # modern: weiche Flächen ohne harte Ränder, Knöpfe als Pillen, Seitenleiste schwebt
         card_line = btn_line = "transparent"
         side = t.surface
@@ -791,9 +792,12 @@ def _stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
         btn_hover = f"background: {hover};"
         btn_down = f"background: {pressed};"
         hero_tint = t.mix(t.surface, a1, 0.16 if t.dark else 0.08).name()
+        rcmd = min(23, round(23 * t.radius_scale))
         extra = f"""
 #Hero {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {t.surface}, stop:1 {hero_tint}); }}
 #Sidebar {{ margin: 12px 0 12px 12px; border-radius: 22px; border: none; }}
+#LiveDock {{ margin: 12px 12px 12px 0; border-radius: 22px; border: none; }}
+QPushButton#CommandBar {{ background: {t.surface}; border-color: transparent; }}
 QPushButton {{ padding: 7px 16px; }}
 QPushButton#Chip {{ border-radius: 16px; padding: 6px 14px; }}
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{ background: {t.surface2}; border-color: transparent; }}
@@ -811,6 +815,8 @@ QListWidget#SetupNav::item:selected {{ border-left: none; }}
         page_icon = f"background: transparent; border: 1px solid {line_hi};"
         extra = f"""
 #Card, QGroupBox, #Hero {{ border-top: 2px solid {a1}; }}
+#LiveDock {{ border-top: 2px solid {a1}; }}
+#DockTitle {{ font-family: "{MONO_FONT}"; font-weight: 600; border-left: 3px solid {a1}; padding-left: 7px; }}
 """
     if t.wood:
         def img(part: str) -> str:
@@ -958,4 +964,12 @@ QMenu::separator {{ height: 1px; background: {line}; margin: 4px 6px; }}
 
 QStatusBar {{ background: transparent; color: {t.muted}; }}
 QMessageBox, QInputDialog, QColorDialog, QFileDialog {{ background: {window_bg}; }}
+
+#LiveDock {{ background: {side}; border: none; border-left: 1px solid {line}; }}
+#DockScroll, #DockInner {{ background: transparent; }}
+#DockTitle {{ color: {t.muted}; font-size: 8.5pt; font-weight: 700; }}
+#Hero[docked="true"] {{ background: transparent; border: none; }}
+QPushButton#CommandBar {{ text-align: left; padding: 10px 16px; background: {field}; border: 1px solid {line};
+    border-radius: {rcmd}px; color: {t.muted}; font-weight: 500; font-size: 10.5pt; }}
+QPushButton#CommandBar:hover {{ border-color: {a1}; color: {t.text}; }}
 {extra}"""

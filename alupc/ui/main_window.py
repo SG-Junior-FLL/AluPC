@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -50,8 +51,8 @@ from .setup_page import SetupPage
 from .source_picker import IMAGE_FILTER, VIDEO_FILTER
 from ..startpage import BUILTIN_TILES, custom_key, find_custom, ordered_keys, section_of, sections
 from .start_page_dialog import StartPageDialog
-from .widgets import (AuroraBackdrop, EmptyState, MonitorCard, NavButton, NavIndicator, SceneCard, SectionHeader, StatusCard, Tile, Toast,
-                      animate_height, button, fade_in, font, mark_current, menu_header, page_header)
+from .widgets import (AuroraBackdrop, CommandBar, EmptyState, MonitorCard, NavButton, NavIndicator, SceneCard,
+                      SectionHeader, StatusCard, Telemetry, Tile, Toast, animate_height, button, fade_in, font, mark_current, menu_header, page_header)
 
 __all__ = ["MainWindow", "app_icon"]
 
@@ -293,7 +294,7 @@ class MainWindow(QMainWindow):
 
         self.setup = None
         self.pages = [
-            _padded(self._start_page(), scroll=True),
+            self._start_root(),
             _padded(self._scenes_page()),
             # Setup und Fingerabdruck erst beim ersten Öffnen bauen (spart ~40 % der Startzeit)
             LazyPage(lambda: _padded(self._setup_page())),
@@ -477,6 +478,7 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(index)
         self.nav_group.button(index).setChecked(True)
         self.nav_indicator.follow(self.nav_group.button(index), animate=changed)
+        self._place_dock()
         if changed:
             fade_in(self.stack.currentWidget(), 200)  # Seitenwechsel: weich einblenden
 
@@ -499,6 +501,76 @@ class MainWindow(QMainWindow):
         return self.system_page
 
     # ================================================================ Start
+    DOCK_MIN = 1240  # ab dieser Fensterbreite steht „Was läuft“ als Live-Dock rechts neben den Kacheln
+    DOCK_W = 372
+
+    def _start_root(self):
+        """Startseite im Studio-Aufbau: links Befehlsleiste + Kacheln (scrollen), rechts das Live-Dock (bleibt stehen):
+        Live-Bild, was läuft, alle Schnellschalter mit Namen, Regler und – im Stil „Technisch“ – Messwerte."""
+        self.start_scroll = _padded(self._start_page(), scroll=True)
+        root = QWidget()
+        root.setObjectName("StartRoot")
+        h = QHBoxLayout(root)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(0)
+        h.addWidget(self.start_scroll, 1)
+        self.live_dock = QFrame()
+        self.live_dock.setObjectName("LiveDock")
+        self.live_dock.setAttribute(Qt.WA_StyledBackground, True)
+        self.live_dock.setFixedWidth(self.DOCK_W)
+        dl = QVBoxLayout(self.live_dock)
+        dl.setContentsMargins(0, 0, 0, 0)
+        area = QScrollArea()
+        area.setObjectName("DockScroll")
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.NoFrame)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.dock_inner = QWidget()
+        self.dock_inner.setObjectName("DockInner")
+        self.dock_lay = QVBoxLayout(self.dock_inner)
+        self.dock_lay.setContentsMargins(18, 22, 18, 18)
+        self.dock_lay.setSpacing(16)
+        head = QLabel("Gerade auf dem Bildschirm")
+        head.setObjectName("DockTitle")
+        self.dock_lay.addWidget(head)
+        self.telemetry = Telemetry()
+        self.telemetry.setToolTip("Prozessor, Speicher und Temperatur dieses PCs – gemessen jede Sekunde")
+        self.dock_lay.addWidget(self.telemetry)
+        self.dock_lay.addStretch(1)
+        area.setWidget(self.dock_inner)
+        dl.addWidget(area)
+        h.addWidget(self.live_dock)
+        self.live_dock.hide()
+        self.telemetry.hide()
+        self.start_root = root
+        return root
+
+    def _place_dock(self) -> None:
+        """Breites Fenster: Statuskarte ins Live-Dock rechts; sonst als Karte über den Kacheln."""
+        if not hasattr(self, "live_dock"):
+            return
+        card = self.status_card
+        show = bool(self.config["start_page"].get("show_status", True))
+        docked = self.width() >= self.DOCK_MIN
+        if docked != (card.parentWidget() is self.dock_inner):
+            if docked:
+                self._start_lay.removeWidget(card)
+                self.dock_lay.insertWidget(1, card)
+            else:
+                self.dock_lay.removeWidget(card)
+                self._start_lay.insertWidget(self._card_index, card)
+            card.setProperty("docked", docked)
+            card.style().unpolish(card)
+            card.style().polish(card)
+        self.live_dock.ensurePolished()  # Rand aus dem Stylesheet (Normal: schwebt) ist erst danach bekannt
+        dm, dl = self.live_dock.contentsMargins(), self.dock_lay.contentsMargins()
+        card.set_docked(self.DOCK_W - dm.left() - dm.right() - dl.left() - dl.right() if docked else 0)
+        card.setVisible(show)
+        self.live_dock.setVisible(docked and show)
+        self.telemetry.setVisible(docked and show and theme.current().technical and self.telemetry.available())
+        # Seitenleiste: kleines Live-Bild nur, wenn die Startseite es nicht schon groß zeigt
+        self.side_monitor.setVisible(not (show and self.stack.currentIndex() == 0))
+
     def _start_page(self):
         page = QWidget()
         lay = QVBoxLayout(page)
@@ -522,6 +594,13 @@ class MainWindow(QMainWindow):
         customize.clicked.connect(self.customize_start)
         top.addWidget(customize, 0, Qt.AlignTop)
         lay.addLayout(top)
+        # Befehlsleiste: der schnellste Weg zu allem (öffnet die Befehlssuche)
+        self.command_bar = CommandBar("Suchen oder schreiben, was laufen soll …")
+        self.command_bar.setToolTip("Befehle, Szenen und Einstellungen suchen – oder einfach schreiben, was "
+                                    "passieren soll („Timer 5 Minuten“, „Szene Pause“) · Strg+K")
+        self.command_bar.setIcon(icons.icon("search", theme.current().muted, 18))
+        self.command_bar.clicked.connect(self.open_command_palette)
+        lay.addWidget(self.command_bar)
         self.status_card = StatusCard()
         self.status_card.preview.clicked.connect(self.controller.toggle_pip)
         self.stop_btn = button("Beenden", "x")
@@ -562,6 +641,7 @@ class MainWindow(QMainWindow):
         self.volume_box = VolumeBox(self.controller)
         self.fader_panel = FaderPanel(self.volume_box)  # Regler wie am Mischpult: PC + Medien
         self.status_card.actions.addWidget(self.fader_panel)
+        self._start_lay, self._card_index = lay, lay.count()
         lay.addWidget(self.status_card)
         self.media_bar = MediaBar(self.controller)
         lay.addWidget(self.media_bar)
@@ -753,6 +833,7 @@ class MainWindow(QMainWindow):
         self.start_title.setText(cfg.get("title") or "Was sollen die anderen sehen?")
         self.start_subtitle.setText(cfg.get("subtitle") or "Kachel antippen – läuft sofort auf dem Bildschirm")
         self.status_card.setVisible(bool(cfg.get("show_status", True)))
+        self._place_dock()
         self.shortcut_hint.setVisible(bool(cfg.get("show_hint", True)))
         # eigene Kacheln neu anlegen
         for tile in self.custom_tiles.values():
@@ -1762,6 +1843,8 @@ class MainWindow(QMainWindow):
         self.media_bar.apply_theme()
         self.fader_panel.apply_theme()
         self.status_card.apply_style()
+        self.command_bar.setIcon(icons.icon("search", theme.current().muted, 18))
+        self._place_dock()
         for tile in list(self.tiles.values()) + list(getattr(self, "custom_tiles", {}).values()):
             tile.updateGeometry()  # Kachelhöhe hängt vom Stil ab
         for grid in getattr(self, "section_grids", {}).values():  # Spaltenbreite auch
@@ -2125,6 +2208,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "toast") and self.toast.isVisible():
             self.toast.reposition()
         self.apply_compact(self.width() < self.COMPACT_WIDTH, self.width() < self.NARROW_WIDTH)
+        self._place_dock()
 
     def apply_compact(self, compact: bool, narrow: bool = False) -> None:
         """Kleines Fenster: alles bleibt bedienbar und aufgeräumt (auch unter ~600 px Breite)."""
@@ -2147,6 +2231,8 @@ class MainWindow(QMainWindow):
         self.wheel_spin.setText("" if compact else ("Dreht …" if not self.wheel_spin.isEnabled() else "Drehen"))
         margin = (12, 12, 12, 10) if narrow else ((18, 16, 18, 14) if compact else (28, 24, 28, 20))
         for page in self.pages:
+            if page is getattr(self, "start_root", None):
+                page = self.start_scroll
             inner = page.widget() if isinstance(page, QScrollArea) else page
             if isinstance(page, LazyPage):
                 inner = page.inner()

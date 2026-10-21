@@ -178,14 +178,14 @@ def test_overlay_quick_add(env):  # noqa: F811
 
 
 def test_start_page_fits_window(env):  # noqa: F811
-    """Startseite ragt nie rechts über den Rand: die Statuskarte zeigt je nach Platz Schalter mit Namen, nur
-    Symbole oder alles untereinander."""
+    """Startseite ragt nie rechts über den Rand: breit steht die Statuskarte im Live-Dock rechts (Schalter mit
+    Namen in zwei Spalten), sonst über den Kacheln mit Namen, nur Symbolen oder alles untereinander."""
     controller, window, _ = env
     from PySide6.QtWidgets import QScrollArea
 
     controller.show_source({"type": "clock"})
     card = window.status_card
-    for width, mode in ((1920, "voll"), (950, "mittel")):  # 8 Schnellschalter mit Namen: Full HD
+    for width, mode in ((1920, "dock"), (950, "mittel")):
         window.resize(width, 820)
         pump(30)
         card._recheck()
@@ -194,8 +194,14 @@ def test_start_page_fits_window(env):  # noqa: F811
         assert area.widget().width() <= area.viewport().width(), width  # nichts ragt rechts heraus
         assert card._mode == mode, (width, card._mode, card.width(), card._full_width())
         chips = list(card._chips())
-        if mode == "voll":  # Namen ganz lesbar, kein Schalter gequetscht
+        assert window.live_dock.isVisible() == (mode == "dock")
+        assert window.side_monitor.isHidden()  # Live-Bild steht schon groß auf der Startseite
+        if mode == "dock":  # Namen ganz lesbar, kein Schalter gequetscht, nichts ragt aus dem Dock
+            inner = window.dock_inner
+            assert card.parentWidget() is inner and card.width() <= inner.width()
             assert all(c.text() and c.width() >= c.sizeHint().width() - 1 for c in chips)
+            assert all(c.geometry().right() <= card.width() for c in chips)
+            assert card.preview.width() <= inner.width()
         else:
             assert not any(c.text() for c in chips) and all(c.toolTip() for c in chips)
     controller.extend()

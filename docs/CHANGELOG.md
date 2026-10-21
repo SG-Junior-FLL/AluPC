@@ -4,7 +4,8 @@ Die aktuellen Neuerungen stehen in den [Release-Notizen](../packaging/RELEASE_NO
 [Release-Seite](https://github.com/SG-Junior-FLL/AluPC/releases).
 
 
-## 2.2.0 – Design-Profile, mehr Schalter, einheitliche Publikumsansicht
+## 2.2.0 – neuer Aufbau, Design-Profile, mehr Schalter, einheitliche Publikumsansicht
+- Startseite „Studio“: Live-Dock rechts (Live-Bild, Schalter, Regler), Befehlsleiste oben; Technisch mit Messwerten.
 - Darstellung: Rundung, Schriftgröße, Abstände, eigene Farbe; Profile speichern/wechseln.
 - Statusleiste: Schoner, Overlays, Stumm, Weiter.
 - Monitor 2: einheitliche „Bühne“ (oder Schwarz) für alle Info-Anzeigen.

@@ -748,6 +748,7 @@ class StatusCard(QWidget):
         lay.addLayout(self.actions)
         self._lay = lay
         self._narrow = False  # vom Hauptfenster: sehr schmales Fenster
+        self._dock = 0  # >0: steht im Live-Dock rechts (Breite) – alles untereinander, Schalter als Raster
         self._mode = ""
         self.apply_style()
 
@@ -785,6 +786,15 @@ class StatusCard(QWidget):
     def set_compact(self, on: bool) -> None:
         """Sehr schmales Fenster: Vorschau oben, Text darunter. Sonst wählt die Karte ihre Form selbst."""
         self._narrow = on
+        self._auto()
+
+    def set_docked(self, width: int) -> None:
+        """Im Live-Dock (rechts, feste Breite): Vorschau oben über die ganze Breite, darunter Titel, Schalter mit
+        Namen in zwei Spalten, Regler. 0 = wieder als breite Karte über den Kacheln."""
+        if width == self._dock:
+            return
+        self._dock = width
+        self._mode = ""
         self._auto()
 
     def minimumSizeHint(self):
@@ -838,21 +848,44 @@ class StatusCard(QWidget):
     def _auto(self) -> None:
         """Breit: nebeneinander, Schalter mit Namen · mittel: nebeneinander, Schalter nur Symbol ·
         schmal: Vorschau oben, Text darunter."""
-        need = max(self._full_width(), getattr(self, "_full_min", 0))
-        mode = "schmal" if self._narrow else ("voll" if self.width() >= need else "mittel")
+        if self._dock:
+            mode = "dock"
+        else:
+            need = max(self._full_width(), getattr(self, "_full_min", 0))
+            mode = "schmal" if self._narrow else ("voll" if self.width() >= need else "mittel")
         if mode == self._mode:
             return
         self._mode = mode
         narrow = mode == "schmal"
-        self._lay.setDirection(QBoxLayout.TopToBottom if narrow else QBoxLayout.LeftToRight)
+        dock = mode == "dock"
+        stacked = narrow or dock
+        self._lay.setDirection(QBoxLayout.TopToBottom if stacked else QBoxLayout.LeftToRight)
         self._lay.setAlignment(self.preview, Qt.AlignHCenter if narrow else Qt.Alignment())
-        self.preview.setFixedSize(QSize(240, 135) if narrow else QSize(320, 180))
+        self._lay.setContentsMargins(*((0, 0, 0, 0) if dock else (16, 16, 20, 16)))
+        self._lay.setSpacing(14 if dock else 20)
+        inner = self._dock
+        if dock:
+            self.preview.setFixedSize(QSize(inner, round(inner * 9 / 16)))
+        else:
+            self.preview.setFixedSize(QSize(240, 135) if narrow else QSize(320, 180))
+        # Dock: Regler links, „Beenden“ rechts unten
+        self.actions.setDirection(QBoxLayout.RightToLeft if dock else QBoxLayout.TopToBottom)
+        for i in range(self.actions.count()):
+            w = self.actions.itemAt(i).widget()
+            if isinstance(w, QPushButton):
+                self.actions.setAlignment(w, Qt.AlignRight | (Qt.AlignBottom if dock else Qt.AlignTop))
         self.title.setFont(self._title_font(narrow))
+        labelled = mode in ("voll", "dock")
+        half = (inner - self.chips._space) // 2
         for chip in self._chips():  # Schnellschalter: knapp nur Symbol (Name als Tooltip)
-            chip.setText(chip.property("full_text") if mode == "voll" else "")
+            chip.setText(chip.property("full_text") if labelled else "")
             chip.setToolTip(chip.property("full_text"))
             # selbst gerechnete Mindestbreite: Qt vergisst mit Stylesheet den Abstand Symbol–Text
-            chip.setMinimumWidth(int(chip.property("full_w")) if mode == "voll" else 0)
+            if dock:  # Raster aus zwei gleich breiten Spalten
+                chip.setFixedWidth(max(half, int(chip.property("full_w"))))
+            else:
+                chip.setMinimumWidth(int(chip.property("full_w")) if mode == "voll" else 0)
+                chip.setMaximumWidth(16777215)
         if mode == "voll":
             QTimer.singleShot(0, self._verify_fit)
 
@@ -1209,7 +1242,26 @@ class AuroraBackdrop(QWidget):
                 g.setColorAt(0, c0)
                 g.setColorAt(1, c1)
                 p.fillRect(r, g)
+        elif t.technical:  # feines Punktraster wie Millimeterpapier
+            p.fillRect(r, QBrush(_dot_grid(t)))
         p.end()
+
+
+_DOT_CACHE: dict[tuple, QPixmap] = {}
+
+
+def _dot_grid(t) -> QPixmap:
+    key = (t.text, t.dark)
+    if key not in _DOT_CACHE:
+        px = QPixmap(22, 22)
+        px.fill(Qt.transparent)
+        q = QPainter(px)
+        c = QColor(t.text)
+        c.setAlphaF(0.13 if t.dark else 0.14)
+        q.fillRect(QRectF(0, 0, 1, 1), c)
+        q.end()
+        _DOT_CACHE[key] = px
+    return _DOT_CACHE[key]
 
 
 class ProgressRing(QWidget):
@@ -1717,3 +1769,129 @@ def flow_row(*widgets, spacing: int = 8) -> QWidget:
     for x in widgets:
         lay.addWidget(x)
     return w
+
+
+class Telemetry(QWidget):
+    """Messwerte des PCs im Live-Dock (Stil „Technisch“): Prozessor, Speicher, Temperatur – echte Werte aus
+    `sysinfo.monitor()` mit Verlauf der letzten Sekunden. Misst nur, solange es zu sehen ist."""
+
+    ROWS = (("cpu", "Prozessor", "%"), ("ram", "Speicher", "%"), ("temp", "Temperatur", "°C"))
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from .. import sysinfo
+
+        self._mon = sysinfo.monitor()
+        self._mon.updated.connect(lambda _s: self.update())
+        self.setMinimumHeight(66)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+    def sizeHint(self):
+        return QSize(300, 66)
+
+    def available(self) -> bool:
+        return self._mon.available
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._mon.acquire(self)
+
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        self._mon.release(self)
+
+    def values(self) -> list[tuple[str, str, list[float]]]:
+        """(Name, Wert als Text, Verlauf) – „–“, solange es keinen Messwert gibt (z. B. keine Temperatur)."""
+        snap, hist = self._mon.snapshot, self._mon.history
+        out = []
+        for key, name, unit in self.ROWS:
+            if key == "temp":
+                v = snap.cpu_temp if snap.cpu_temp is not None else (snap.gpu.temp if snap.gpu else None)
+            else:
+                v = getattr(snap, key) if snap.time else None
+            text = "–" if v is None else f"{v:.0f} {unit}"
+            out.append((name, text, list(hist[key])[-40:]))
+        return out
+
+    def paintEvent(self, _e):
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        rows = self.values()
+        gap = 8
+        w = (self.width() - gap * (len(rows) - 1)) / len(rows)
+        r = t.radii[2]
+        for i, (name, text, hist) in enumerate(rows):
+            cell = QRectF(i * (w + gap), 0, w, self.height() - 1)
+            p.setPen(QPen(QColor(t.border), 1))
+            p.setBrush(QColor(t.mix(t.bg, t.surface, 0.5)))
+            p.drawRoundedRect(cell.adjusted(0.5, 0.5, -0.5, -0.5), r, r)
+            inner = cell.adjusted(9, 7, -9, -7)
+            p.setPen(QColor(t.muted))
+            p.setFont(font(7.6))
+            p.drawText(QRectF(inner.x(), inner.y(), inner.width(), 14), Qt.AlignLeft | Qt.AlignVCenter, name)
+            mono = QFont(theme.MONO_FONT)
+            mono.setPointSizeF(t.pt(11))
+            mono.setWeight(QFont.DemiBold)
+            p.setFont(mono)
+            p.setPen(QColor(t.text))
+            p.drawText(QRectF(inner.x(), inner.y() + 14, inner.width(), 20), Qt.AlignLeft | Qt.AlignVCenter, text)
+            # Verlauf: feine Linie in Akzentfarbe, darunter leicht gefüllt
+            top = max(hist + [1.0]) if name == "Temperatur" else 100.0
+            area = QRectF(inner.x(), inner.bottom() - 14, inner.width(), 14)
+            if len(hist) > 1 and any(hist):
+                path = QPainterPath()
+                for j, v in enumerate(hist):
+                    pt = QPointF(area.x() + area.width() * j / (len(hist) - 1),
+                                 area.bottom() - area.height() * max(0.0, min(1.0, v / top)))
+                    if j == 0:
+                        path.moveTo(pt)
+                    else:
+                        path.lineTo(pt)
+                fill = QPainterPath(path)
+                fill.lineTo(area.bottomRight())
+                fill.lineTo(area.bottomLeft())
+                fill.closeSubpath()
+                soft = QColor(t.accent)
+                soft.setAlphaF(0.18)
+                p.fillPath(fill, soft)
+                p.setPen(QPen(QColor(t.accent), 1.4))
+                p.setBrush(Qt.NoBrush)
+                p.drawPath(path)
+        p.end()
+
+
+class CommandBar(QPushButton):
+    """Große Befehlsleiste oben auf der Startseite: öffnet die Befehlssuche (Strg+K). Rechts die Taste als Hinweis."""
+
+    def __init__(self, text: str, parent=None):
+        super().__init__(text, parent)
+        self.setObjectName("CommandBar")
+        self.setCursor(Qt.PointingHandCursor)
+        self.setProperty("iconName", "search")
+        self.setMinimumHeight(46)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    def minimumSizeHint(self):
+        return QSize(120, 46)
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        if self.width() < 360:
+            return
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        f = font(8.2, QFont.DemiBold)
+        p.setFont(f)
+        x = self.width() - 14
+        for key in reversed(("Strg", "K")):
+            kw = QFontMetrics(f).horizontalAdvance(key) + 14
+            cap = QRectF(x - kw, (self.height() - 24) / 2, kw, 24)
+            p.setPen(QPen(QColor(t.border), 1))
+            p.setBrush(QColor(t.surface2))
+            p.drawRoundedRect(cap.adjusted(0.5, 0.5, -0.5, -0.5), min(6, t.radii[2]), min(6, t.radii[2]))
+            p.setPen(QColor(t.muted))
+            p.drawText(cap, Qt.AlignCenter, key)
+            x -= kw + 5
+        p.end()

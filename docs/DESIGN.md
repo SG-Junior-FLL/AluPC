@@ -13,6 +13,16 @@ Holz), `alupc/ui/widgets.py` (gezeichnete Teile), `alupc/cast_page.py` (Handy-/i
   Schrift auf Akzentfarbe ≥ 4,5:1 – für jeden Stil, hell und dunkel, und jede Holzart.
 - Keine Verläufe als Schmuck, keine Bewegung ohne Anlass; Satzschreibweise statt GROSSBUCHSTABEN.
 
+## Aufbau der Startseite „Studio“ (ab 2.2)
+
+- **Live-Dock rechts** (ab 1240 px Fensterbreite, `MainWindow.DOCK_MIN`): großes Live-Bild, was läuft, alle
+  Schnellschalter mit Namen in zwei Spalten, Regler, „Beenden“. Bleibt stehen, die Kacheln links scrollen.
+  Das kleine Live-Bild in der Seitenleiste ist auf der Startseite dann aus (sonst doppelt).
+- **Befehlsleiste** oben über den Kacheln: öffnet die Befehlssuche (Strg+K).
+- Schmaler: die Statuskarte steht wie vorher über den Kacheln (mit Namen, nur Symbole oder untereinander).
+- Technisch zusätzlich: Messwerte im Dock (`Telemetry`: Prozessor, Speicher, Temperatur – echte Werte aus
+  `sysinfo.monitor()`, „–“ wenn es keinen Sensor gibt), Punktraster im Hintergrund, gelbe Kante am Dock.
+
 ## Normal (Standard) – modern, weich, rund
 
 | Rolle | Dunkel | Hell |

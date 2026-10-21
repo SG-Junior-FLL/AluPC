@@ -9,7 +9,14 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 2.2.0 – eigene Design-Profile, mehr Schalter, einheitliche Publikumsansicht
+### Neu in 2.2.0 – neuer Aufbau, Design-Profile, mehr Schalter, einheitliche Publikumsansicht
+- **Neuer Aufbau der Startseite („Studio“):**
+  - Breites Fenster (ab ca. 1240 px): rechts ein festes **Live-Dock** mit großem Live-Bild, allen Schnellschaltern
+    mit Namen, Reglern und „Beenden“. Es bleibt stehen, während man die Kacheln scrollt.
+  - Oben eine große **Befehlsleiste** („Suchen oder schreiben, was laufen soll …“, Strg+K).
+  - Schmaleres Fenster: wie bisher eine Karte über den Kacheln.
+  - Technisch: echte Messwerte im Dock (Prozessor, Speicher, Temperatur mit Verlauf), feines Punktraster im
+    Hintergrund, gelbe Signalkante.
 - **Design anpassen und speichern** (Setup → Darstellung):
   - Rundung (eckig bis sehr rund), Schriftgröße (85–130 %), Abstände (kompakt, normal, luftig)
   - eigene Akzentfarbe („Farbe wählen …“)
@@ -27,7 +34,7 @@
   - Setup → Bildschirm → „Publikum sieht“: Bühne oder reines Schwarz.
 - **Linux: Spiegeln ohne Bildschirm-Auswahl.** Würde die Aufnahme nach dem Bildschirm fragen (Wayland ohne
   KWin-Freigabe), spiegelt KDE direkt, ohne Nachfrage.
-- **Nicht getestet** auf echten Geräten (Spiegeln unter KDE/Wayland, PC-Stummschalten) – nur automatische Tests
+- **Nicht getestet** auf echten Geräten (Spiegeln unter KDE/Wayland, PC-Stummschalten, Temperatur-Anzeige) – nur automatische Tests
   und Bildschirmfotos.
 
 ### Frühere Versionen
