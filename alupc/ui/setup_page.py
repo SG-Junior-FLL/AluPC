@@ -1307,9 +1307,9 @@ class SetupPage(QWidget):
         style = self.config["appearance"].get("style")
         wood = style == "holz"
         form.setRowVisible(self._wood_row, wood)
-        self._mode_combo.setEnabled(style not in ("holz", "matrix"))
+        self._mode_combo.setEnabled(style not in ("holz", "matrix", "regie"))
         self._mode_combo.setToolTip("Im Holz-Stil bestimmt die Holzart, ob hell oder dunkel" if wood else
-                                    ("Matrix ist immer dunkel" if style == "matrix" else ""))
+                                    (f"{theme.STYLES[style]} ist immer dunkel" if style in ("matrix", "regie") else ""))
 
     def _save_appearance(self, emit: bool = True, **changes):
         a = dict(self.config["appearance"])

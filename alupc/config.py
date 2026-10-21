@@ -175,10 +175,10 @@ DEFAULTS: dict = {
     # Windows 11: AluPC-Symbol wurde für diesen Programmpfad schon direkt in die Taskleiste gelegt
     "tray": {"promoted_for": ""},
     # Darstellung: Stil, Farbe, Holzart, Feinheiten (Rundung/Schrift in %, Abstände) und Profile (Setup → Darstellung)
-    "appearance": {"mode": "dunkel", "accent": "alupc", "style": "normal", "wood": "nussbaum", "radius": 100,
+    "appearance": {"mode": "dunkel", "accent": "alupc", "style": "regie", "wood": "nussbaum", "radius": 100,
                    "font": 100, "density": "normal", "profile": "", "profiles": {}, "accent_color": "",
                    "accent_v2": True, "accent_v3": True, "quick_switch": True,
-                   "mode_v2": True, "fade": True},
+                   "mode_v2": True, "fade": True, "regie_v1": True},
     # Übergang zwischen Inhalten/Szenen auf Monitor 2 (Art siehe transitions.py); Szenen können
     # einen eigenen Übergang haben
     "transition": {"type": "blende", "ms": 400},
@@ -267,6 +267,12 @@ class Config:
                     ap["mode_v2"] = True
                     if ap.get("mode") in ("system", None):  # Voreinstellung → Dunkel (bewusst „Hell“ bleibt)
                         ap["mode"] = "dunkel"
+                if isinstance(ap, dict) and not (raw.get("appearance") or {}).get("regie_v1"):  # 2.2: neues Design
+                    ap["regie_v1"] = True
+                    if ap.get("style") != "regie":  # einmal auf „Regie“; der alte Stil bleibt zum Zurückholen gemerkt
+                        ap["style_vorher"] = ap.get("style", "normal")
+                        ap["style"] = "regie"
+                        ap["profile"] = ""
         except FileNotFoundError:
             pass
         except (OSError, ValueError):

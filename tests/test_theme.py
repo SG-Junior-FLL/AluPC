@@ -76,7 +76,8 @@ def test_alupc_theme_same_everywhere_and_branded(qapp):
         la, lb = sorted((lum(a), lum(b)), reverse=True)
         return (la + 0.05) / (lb + 0.05)
 
-    hues = {"normal": (215, 235), "technisch": (40, 55), "holz": (30, 45), "matrix": (135, 150)}  # Blau / Signalgelb / Messing / Grün
+    hues = {"normal": (215, 235), "technisch": (40, 55), "holz": (30, 45), "matrix": (135, 150),
+            "regie": (195, 210)}  # Blau / Signalgelb / Messing / Grün / Regie-Blau
     for style in theme.STYLES:
         for mode in ("hell", "dunkel"):
             for wood in (theme.WOODS if style == "holz" else [theme.DEFAULT_WOOD]):
@@ -115,7 +116,8 @@ def test_title_bar_only_on_windows(qapp):
 
 def test_follows_system_change_live(env, monkeypatch):  # noqa: F811
     controller, window, _ = env
-    controller.config["appearance"] = {**controller.config["appearance"], "mode": "system", "accent": "system"}
+    controller.config["appearance"] = {**controller.config["appearance"], "mode": "system", "accent": "system",
+                                       "style": "normal"}  # Regie ist immer dunkel
     state = {"sig": (True, "#3daee9")}
     monkeypatch.setattr(theme, "system_signature", lambda: state["sig"])
     monkeypatch.setattr(theme, "system_accent", lambda: state["sig"][1])
@@ -152,3 +154,24 @@ def test_dark_is_default_and_old_system_default_migrates(tmp_path):
     p.write_text(json.dumps({"appearance": {"mode": "system", "accent_v2": True, "accent_v3": True,
                                             "mode_v2": True}}), encoding="utf-8")
     assert Config(p)["appearance"]["mode"] == "system"  # danach bewusst „Wie das System“ → bleibt
+
+
+def test_regie_style_rules(qapp):  # noqa: D103
+    """Regie (taste-skill „Data terminal“ + awesome-design Raycast): nur dunkel, Flächenleiter Grund < Karte <
+    gehoben, keine Verläufe im Stylesheet, Auswahl als 1-px-Linie in der Akzentfarbe, Inter mit ss03."""
+    from PySide6.QtGui import QColor, QFont
+
+    t = theme.make_theme("hell", "alupc", "regie")
+    assert t.dark and t.regie and t.kind == "regie" and t.head_font == "Inter"
+    assert QColor(t.bg).lightness() < QColor(t.surface).lightness() < QColor(t.surface2).lightness()
+    css = theme.stylesheet(t)
+    regie_part = css[css.index("#Sidebar {{ background: {}".format(t.bg).replace("{{", "{")):]
+    assert "gradient" not in regie_part
+    assert f"border-bottom: 1px solid {t.accent}" in regie_part and f"border-left: 1px solid {t.accent}" in regie_part
+    from pathlib import Path
+
+    fonts = Path(theme.__file__).resolve().parent.parent / "assets" / "fonts"
+    assert (fonts / "Inter-Regular.ttf").exists()
+    f = theme.set_features(QFont("Inter"), t)
+    assert QFont.Tag("ss03") in f.featureTags()
+    assert theme.BUILTIN_PROFILES["Regie"]["style"] == "regie"

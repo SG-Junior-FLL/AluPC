@@ -1,6 +1,6 @@
 # AluPC – Gestaltung (ab 2.0)
 
-Vier Designs (ab 2.2 auch Matrix), umschaltbar unter **Setup → Darstellung → Stil**. Alle drei teilen Aufbau und Funktionen; sie
+Fünf Designs (ab 2.2 auch Matrix und Regie, Regie ist Standard), umschaltbar unter **Setup → Darstellung → Stil**. Alle drei teilen Aufbau und Funktionen; sie
 unterscheiden sich in Flächen, Rundungen, Schrift und Kachelform. Code: `alupc/ui/theme.py` (Farben, Stylesheet,
 Holz), `alupc/ui/widgets.py` (gezeichnete Teile), `alupc/cast_page.py` (Handy-/iPad-Seite).
 
@@ -27,6 +27,20 @@ Holz), `alupc/ui/widgets.py` (gezeichnete Teile), `alupc/cast_page.py` (Handy-/i
 
 Knopf „Studio“: über dem Live-Bild klappt die Vorschau auf (Animation: Bild teilt sich, dann kommen die Knöpfe).
 Grün = Vorschau, Rot = live – auch an den Kacheln. Code: `alupc/ui/studio_panel.py`, `Controller.take()`.
+
+## Regie – neues Standard-Design (ab 2.2)
+
+Entstanden mit zwei Skills: **taste-skill** (App-Regeln, ausgeloster Stil „Data terminal“, Seed 1995944031) gibt den
+Aufbau vor, **awesome-design** (Vorlage Raycast) Farben und Schrift.
+- Nur dunkel. Flächenleiter: Grund `#07080a` → Karte `#0d0d0d` → gehoben `#121212`; jede Kante eine 1-px-Haarlinie
+  `#242728`, keine Schatten, keine Verläufe, kein Leuchten.
+- Schrift Inter mit Stilsatz **ss03** (einstöckiges g); Text `#f4f4f6`, Zweitstufe `#9c9c9d` (über 4,5:1).
+- **Jede Auswahl ist dieselbe 1-px-Linie** in `#57c1ff` (Seitenleiste links, Reiter/Segmente unten, Listen links) –
+  keine farbigen Flächen. Hauptknopf weiß mit schwarzer Schrift; alle anderen Knöpfe nur Umriss.
+- Kacheln: flach, graues Umriss-Symbol ohne Kreis, Name und Untertitel. Läuft etwas, wird der Rand rot wie das
+  Rotlicht an der Kamera (`#ff6161`) – Rot gibt es nur dafür.
+- Seitentitel ohne Symbol-Kasten. Die anderen Stile (Normal, Technisch, Holz, Matrix) bleiben wählbar; beim Update
+  wird einmal auf Regie umgestellt, der alte Stil steht in `appearance.style_vorher`.
 
 ## Matrix – grüner Code
 

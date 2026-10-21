@@ -102,7 +102,7 @@ EXPECTED_BACK = {
     ("Sichern & Sync", "„An“", "sync.declined"): "„Aus“ geklickt = bewusst abgelehnt (vorher: nie gefragt)",
 }
 NO_CONFIG.update({"Darstellung: Swatch „AluPC“": "ist schon gewählt",
-                  "Darstellung: StyleCard „Modern, weich und rund“": "Stil Normal ist schon gewählt",
+                  "Darstellung: StyleCard „Ruhiges Dunkel für lange Abende“": "Stil Regie ist schon gewählt",
                   "Darstellung: Swatch „Eigene Farbe“": "noch keine eigene Farbe → öffnet erst den Farbdialog",
                   "Töne: QComboBox": "„Eigener Ton …“ öffnet die Dateiauswahl (hier abgebrochen)",
                   "Allgemein: QCheckBox „Autostart“": "Autostart steht im System, nicht in der Konfiguration "
@@ -284,6 +284,9 @@ setup._set_accent("gruen")
 pump(0.2)
 ok(theme.current().accent == theme.ACCENTS["gruen"][1], "Akzentfarbe Grün → App sofort grün")
 setup._set_accent("alupc")
+pump(0.2)
+ok(theme.current().accent == "#57c1ff", "AluPC-Theme (Regie) → Regie-Blau")
+setup._save_appearance(style="normal")
 pump(0.2)
 ok(theme.current().accent in ("#2f62e9", "#5b8cff"), "AluPC-Theme (Normal) → AluPC-Blau")
 setup._save_appearance(style="technisch")

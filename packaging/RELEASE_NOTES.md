@@ -9,7 +9,11 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 2.2.0 – neuer Aufbau, Design-Profile, mehr Schalter, einheitliche Publikumsansicht
+### Neu in 2.2.0 – neues Design „Regie“, Updates-Seite, Tastenbox 3, neuer Aufbau
+- **Neues Standard-Design „Regie“:** fast schwarz, ruhig für lange Abende, 1-px-Haarlinien statt Schatten,
+  jede Auswahl als dünne blaue Linie, Rot nur für „live“, Inter mit einstöckigem g. Gestaltet mit den Skills
+  taste-skill und awesome-design (Raycast-Vorlage). Normal, Technisch, Holz und Matrix bleiben wählbar
+  (Setup → Darstellung); beim Update wird einmal auf Regie umgestellt.
 - **Tastenbox** (Arduino Pro Micro, 9 Tasten + Drehregler + LED): eigene Seite „Tastenbox“. AluPC findet die Box
   von selbst. Die Tasten erscheinen 3 × 3 wie auf der Box und leuchten beim Drücken; jede bekommt einen Befehl
   (auch Szenen, Studio-Übergang). Der Regler regelt wahlweise PC-Ton, Ton auf Bildschirm 2, Mikrofon oder ein

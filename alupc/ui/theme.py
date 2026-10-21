@@ -30,15 +30,18 @@ BUILTIN_PROFILES = {
                    "density": "normal"},
     "Werkbank Eiche": {"style": "holz", "wood": "eiche", "accent": "alupc", "radius": 100, "font": 100,
                        "density": "normal"},
+    "Regie": {"style": "regie", "mode": "dunkel", "accent": "alupc", "radius": 100, "font": 100,
+              "density": "kompakt"},
 }
 PROFILE_KEYS = ("style", "mode", "wood", "accent", "accent_color", "radius", "font", "density")
 MODES = {"system": "Wie das System", "dunkel": "Dunkel", "hell": "Hell"}
 # Drei Gestaltungen (docs/DESIGN.md), frei umschaltbar unter Setup → Darstellung
-STYLES = {"normal": "Normal", "technisch": "Technisch", "holz": "Holz", "matrix": "Matrix"}
+STYLES = {"normal": "Normal", "technisch": "Technisch", "holz": "Holz", "matrix": "Matrix", "regie": "Regie"}
 STYLE_INFO = {"normal": "Modern, weich und rund",
               "technisch": "Dicht, mit Messwerten",
               "holz": "Echtes Furnier, 7 Holzarten",
-              "matrix": "Grüner Code auf Schwarz"}
+              "matrix": "Grüner Code auf Schwarz",
+              "regie": "Ruhiges Dunkel für lange Abende"}
 # Anzeigen auf Monitor 2 (Abstimmung, Glücksrad, Codes …): ruhiger, dunkler Grund
 STAGE_BG = "#121315"
 STAGE_PANEL = "#1c1d20"
@@ -85,6 +88,14 @@ class Theme:
         return "technisch" if self.technical else self.style
 
     @property
+    def regie(self) -> bool:
+        """Regie (docs/DESIGN.md): dunkles Pult für lange Abende. Aufbau nach dem taste-skill („Data terminal“:
+        keine Farbflächen, jede Auswahl dieselbe 1-px-Linie in der Akzentfarbe, Rot nur für „live“), Farben und
+        Schrift nach awesome-design (Raycast: fast schwarzer Grund, Flächenleiter, 1-px-Haarlinien, weißer
+        Hauptknopf, Inter mit Stilsatz ss03)."""
+        return self.style == "regie"
+
+    @property
     def wood(self) -> bool:
         return self.style == "holz"
 
@@ -103,7 +114,7 @@ class Theme:
     @property
     def radii(self) -> tuple[int, int, int, int]:
         """Rundung: Karte, Knopf, Eingabefeld, Listenzeile."""
-        base = {"technisch": (3, 3, 2, 2), "holz": (6, 5, 4, 4)}.get(self.kind, (20, 17, 12, 10))
+        base = {"technisch": (3, 3, 2, 2), "holz": (6, 5, 4, 4), "regie": (10, 8, 8, 6)}.get(self.kind, (20, 17, 12, 10))
         return tuple(max(0, round(r * self.radius_scale)) for r in base)
 
     def pt(self, size: float) -> float:
@@ -288,9 +299,9 @@ def _make_theme(mode: str, accent: str, style: str, wood: str, custom: dict) -> 
     dark = WOODS[wood][5] if style == "holz" else (system_prefers_dark() if mode == "system" else mode == "dunkel")
     key = accent if accent in ACCENTS else "alupc"
     own = {"normal": ("#5b8cff", "#2f62e9"), "technisch": ("#f5c400", "#c99a00"),
-           "holz": ("#e0b354", "#8a5a12"), "matrix": ("#00ff66", "#00ff66")}[style]
-    if style == "matrix":
-        dark = True  # Matrix gibt es nur dunkel
+           "holz": ("#e0b354", "#8a5a12"), "matrix": ("#00ff66", "#00ff66"), "regie": ("#57c1ff", "#57c1ff")}[style]
+    if style in ("matrix", "regie"):
+        dark = True  # Matrix und Regie gibt es nur dunkel
     if key == "alupc":
         accent_hex = own[0] if dark else own[1]
     elif key == "system":
@@ -303,6 +314,10 @@ def _make_theme(mode: str, accent: str, style: str, wood: str, custom: dict) -> 
         return Theme(True, accent_hex, bg="#010403", surface="#04110a", surface2="#082016", border="#0f3a22",
                      text="#c8ffd8", muted="#6fd394", danger="#ff5c5c", live="#ff3b3b", ready="#00ff66",
                      style=style)
+    if style == "regie":  # Flächenleiter, Haarlinie und Textstufen aus awesome-design (Raycast)
+        return Theme(True, accent_hex, bg="#07080a", surface="#0d0d0d", surface2="#121212", border="#242728",
+                     text="#f4f4f6", muted="#9c9c9d", danger="#ff6161", warning="#ffc533", success="#59d499",
+                     live="#ff6161", ready="#59d499", style=style)
     if style == "technisch":
         if dark:
             return Theme(True, accent_hex, bg="#18191b", surface="#202124", surface2="#292a2e", border="#36383d",
@@ -599,6 +614,19 @@ def load_fonts(app) -> bool:
     return ok
 
 
+def set_features(f, t: Theme | None = None):
+    """Regie: Inter mit Stilsatz ss03 (offenes einstöckiges g, wie in awesome-design/Raycast). Sonst unverändert."""
+    t = t or current()
+    if t.regie and hasattr(f, "setFeature"):
+        from PySide6.QtGui import QFont
+
+        try:
+            f.setFeature(QFont.Tag("ss03"), 1)
+        except (AttributeError, TypeError, ValueError):
+            pass
+    return f
+
+
 def apply_appearance(app, a: dict) -> Theme:
     """Alle Darstellungs-Einstellungen anwenden (Stil, Farbe, Rundung, Schrift, Abstände)."""
     return apply(app, a.get("mode", "system"), a.get("accent", "alupc"), a.get("style", "normal"),
@@ -621,6 +649,7 @@ def apply(app, mode: str = "system", accent: str = "blau", style: str = "normal"
         base = QFont(UI_FONT)
         base.setPointSizeF(10 * t.font_scale)
         base.setHintingPreference(QFont.PreferNoHinting)
+        set_features(base, t)
         app.setFont(base)
     if app.style().name().lower() != "fusion":
         app.setStyle("Fusion")
@@ -636,6 +665,7 @@ def apply(app, mode: str = "system", accent: str = "blau", style: str = "normal"
     for role in (QPalette.Text, QPalette.WindowText, QPalette.ButtonText):
         pal.setColor(QPalette.Disabled, role, QColor(t.muted))
     app.setPalette(pal)
+    _check_image_dark()
     app.setStyleSheet(stylesheet(t, _check_image(), _arrow_image(t)))
     _install_title_bars(app, t)
     return t
@@ -749,6 +779,22 @@ def _arrow_image(t) -> str:
         return ""
 
 
+def _check_image_dark() -> str:
+    """Schwarzer Haken (Regie: angekreuzte Kästchen weiß gefüllt)."""
+    import tempfile
+    from pathlib import Path
+
+    from . import icons
+
+    path = Path(tempfile.gettempdir()) / "alupc-check-dark.png"
+    try:
+        if not path.exists():
+            icons.pixmap("check", "#000000", 14, stroke=3.0, dpr=1).save(str(path))
+        return path.as_posix()
+    except OSError:
+        return ""
+
+
 def _check_image() -> str:
     """Weißer Haken als Bilddatei für angekreuzte Kästchen (QSS braucht eine Datei)."""
     import tempfile
@@ -789,7 +835,7 @@ def _stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
     sel = t.soft(a1, 0.18 if t.dark else 0.12)
     field = t.mix(t.bg, t.surface, 0.5).name() if t.dark else "#ffffff"
     number_font = f'font-family: "{MONO_FONT}";' if t.technical else ""
-    title_pt, title_w = {"technisch": (19, 600), "holz": (25, 600)}.get(t.kind, (22, 700))
+    title_pt, title_w = {"technisch": (19, 600), "holz": (25, 600), "regie": (19.5, 600)}.get(t.kind, (22, 700))
     group_pt = 13.5 if t.wood else 11.5
     window_bg = t.bg
     side = t.mix(t.bg, "#000000", 0.18).name() if t.dark else t.mix(t.bg, "#ffffff", 0.5).name()
@@ -840,6 +886,49 @@ QWidget {{ font-family: "{MONO_FONT}"; }}
 QPushButton[primary="true"] {{ background: {a1}; color: #001a09; }}
 QLineEdit, QComboBox, QSpinBox {{ background: #000000; border-color: {line}; }}
 QLineEdit:focus, QComboBox:focus {{ border-color: {a1}; }}
+"""
+    if t.regie:
+        ctrl = "#2c2f31"  # Rand von Bedienelementen: eine Stufe über der Haarlinie
+        field_r = "#101111"
+        side = t.bg
+        page_icon = "background: transparent; border: none;"  # Titel ohne Symbol-Kasten
+        extra = f"""
+#Sidebar {{ background: {t.bg}; border-right: 1px solid {line}; }}
+#LiveDock {{ background: {t.bg}; border-left: 1px solid {line}; }}
+#PageTitle {{ letter-spacing: 0.2px; }}
+#PageSubtitle, #BrandSub {{ color: {t.muted}; }}
+#SectionTitle, QGroupBox::title {{ color: {t.muted}; font-weight: 500; }}
+#Card, QGroupBox, #Hero {{ background: {t.surface}; border: 1px solid {line}; }}
+QPushButton, QToolButton#Plain {{ background: transparent; border: 1px solid {ctrl}; color: {t.text}; font-weight: 500;
+    padding: 7px 14px; }}
+QPushButton:hover, QToolButton#Plain:hover {{ background: {t.surface2}; border-color: {t.mix(ctrl, "#ffffff", 0.18).name()}; }}
+QPushButton:pressed {{ background: {field_r}; }}
+QPushButton[primary="true"] {{ background: #ffffff; border: 1px solid #ffffff; color: #000000; font-weight: 600; }}
+QPushButton[primary="true"]:hover {{ background: #f0f0f0; }}
+QPushButton[primary="true"]:pressed {{ background: #e8e8e8; }}
+QPushButton:checked {{ background: {t.surface2}; border-color: {ctrl}; border-bottom: 1px solid {a1}; }}
+QPushButton#Chip {{ background: transparent; border: 1px solid {ctrl}; color: {t.muted}; font-weight: 500; }}
+QPushButton#Chip:hover {{ color: {t.text}; }}
+QPushButton#Chip:checked {{ background: {t.surface2}; color: {t.text}; border-color: {ctrl}; border-bottom-color: {a1}; }}
+QPushButton#Segment {{ background: transparent; border: none; border-bottom: 1px solid transparent; border-radius: 0;
+    color: {t.muted}; padding: 6px 2px; margin: 0 10px; min-width: 0; font-weight: 500; }}
+QPushButton#Segment:hover {{ color: {t.text}; background: transparent; }}
+QPushButton#Segment:checked {{ color: {t.text}; border-bottom: 1px solid {a1}; background: transparent; }}
+QTabBar::tab:selected {{ border-bottom: 1px solid {a1}; }}
+QLineEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {{ background: {field_r}; border-color: {ctrl}; }}
+QListWidget::item:selected, QListWidget#SetupNav::item:selected {{ background: {t.surface2}; color: {t.text};
+    border-left: 1px solid {a1}; font-weight: 600; }}
+QListWidget#SetupNav {{ background: {t.surface}; border-color: {line}; }}
+QComboBox QAbstractItemView::item:selected, QMenu::item:selected {{ background: {t.surface2}; color: {t.text}; }}
+QMenu, QComboBoxPrivateContainer {{ background: {t.surface}; border: 1px solid {line}; }}
+QCheckBox::indicator, QListWidget::indicator, QMenu::indicator {{ background: {field_r}; border: 1px solid {ctrl}; }}
+QCheckBox::indicator:checked, QListWidget::indicator:checked, QMenu::indicator:checked {{ background: #ffffff;
+    border: 1px solid #ffffff; {f'image: url("{check_image.replace("alupc-check", "alupc-check-dark")}");' if check_image else ''} }}
+QRadioButton::indicator:checked {{ background: #ffffff; border: 4px solid {field_r}; }}
+QSlider::sub-page:horizontal, QSlider::add-page:vertical, QProgressBar::chunk {{ background: {t.text}; }}
+QPushButton#CommandBar {{ background: {field_r}; border-color: {line}; }}
+QToolTip {{ background: {t.surface2}; border: 1px solid {line}; }}
+#DockTitle {{ color: {t.muted}; font-weight: 500; font-size: 9pt; }}
 """
     if t.technical:
         side = t.surface

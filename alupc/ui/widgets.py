@@ -40,6 +40,7 @@ def font(size_pt: float | None = None, weight: QFont.Weight = QFont.Normal, head
     """Schrift der Oberfläche (Inter); head=True: Schrift für Titel und Kachelnamen (im Holz-Stil Barlow)."""
     t = theme.current()
     f = QFont(t.head_font) if head or t.matrix else QFont()
+    theme.set_features(f, t)
     if size_pt:
         f.setPointSizeF(size_pt * t.font_scale)
     f.setWeight(weight)
@@ -110,7 +111,7 @@ def page_header(title: str, subtitle: str = "", icon_name: str | None = None) ->
         t_ = theme.current()
         chip.setFixedSize(40, 40)
         chip.setAlignment(Qt.AlignCenter)
-        color = t_.accent if t_.technical else (t_.text if t_.wood else t_.on_accent)
+        color = t_.accent if t_.technical else (t_.text if t_.wood else (t_.muted if t_.regie else t_.on_accent))
         chip.setPixmap(icons.pixmap(icon_name, color, 20))
         row.addWidget(chip, 0, Qt.AlignTop)
     col = QVBoxLayout()
@@ -232,7 +233,7 @@ class Tile(HoverMixin, QAbstractButton):
 
     def sizeHint(self):
         t = theme.current()
-        base = {"technisch": 92, "holz": 106}.get(t.kind, 118)
+        base = {"technisch": 92, "holz": 106, "regie": 88}.get(t.kind, 118)
         return QSize(200, round(base * t.density * (0.5 + 0.5 * t.font_scale)))
 
     def minimumSizeHint(self):
@@ -245,7 +246,7 @@ class Tile(HoverMixin, QAbstractButton):
 
     def paintEvent(self, _e):
         style = theme.current().kind
-        {"technisch": self._paint_pad, "holz": self._paint_plate}.get(style, self._paint_card)()
+        {"technisch": self._paint_pad, "holz": self._paint_plate, "regie": self._paint_flat}.get(style, self._paint_card)()
         if self.cued and not (self.active or self.alert):
             self._paint_cue()
 
@@ -366,6 +367,30 @@ class Tile(HoverMixin, QAbstractButton):
             p.drawEllipse(knob)
             self._chevron(p, knob.center().x(), knob.center().y(), QColor(t.mix(t.muted, t.text, self._hover)))
         self._texts(p, r.left() + 16, r.right() - 14, r.bottom() - 30, font(11.5, QFont.DemiBold), 9.2)
+        p.end()
+
+    def _paint_flat(self):
+        """Regie: flache Karte, dunkler als der Grund, 1-px-Rand. Graues Umriss-Symbol ohne Kreis, Name und
+        Untertitel. Läuft sie: der Rand wird zur roten 1-px-Linie (wie das Rotlicht an der Kamera) – sonst keine Farbe."""
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
+        on, lamp, _state = self._state()
+        radius = t.radii[0]
+        face = QColor(t.surface2) if self.isDown() else t.mix(t.surface, t.surface2, 0.6 * self._hover)
+        p.fillPath(rounded(r, radius), face)
+        edge = QColor(lamp) if on else t.mix(t.border, "#5a5a60", self._hover)
+        p.setPen(QPen(edge, 1))
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(rounded(r, radius))
+        icons.paint(p, self.icon_name, QRectF(r.left() + 14, r.center().y() - 9, 18, 18),
+                    t.text if (on or self._hover > 0.5) else t.muted, 1.6)
+        right = r.right() - 12
+        if self.menu is not None:
+            self._chevron(p, r.right() - 20, r.center().y(), QColor(t.mix(t.muted, t.text, self._hover)))
+            right -= 22
+        self._texts(p, r.left() + 44, right, r.center().y() + 1, font(10.5, QFont.DemiBold), 9)
         p.end()
 
     def _paint_pad(self):
@@ -539,7 +564,7 @@ class NavButton(HoverMixin, QAbstractButton):
             h.setAlphaF(0.05 * self._hover)
             p.fillPath(rounded(r, 3), h)
         on_pill = self.isChecked() and t.style == "normal"
-        col = (t.on_accent if on_pill else t.text if t.wood else t.accent) if self.isChecked() else t.muted
+        col = (t.on_accent if on_pill else t.text if (t.wood or t.regie) else t.accent) if self.isChecked() else t.muted
         if self.compact:
             icons.paint(p, self.icon_name, QRectF(r.center().x() - 10, r.center().y() - 10, 20, 20), col, 2.0)
             p.end()
@@ -744,7 +769,7 @@ class PreviewThumb(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
-        radius = {"technisch": 2, "holz": 8}.get(t.kind, 16)
+        radius = {"technisch": 2, "holz": 8, "regie": 6}.get(t.kind, 16)
         if t.wood:  # Gehäuse
             bezel = QLinearGradient(r.topLeft(), r.bottomLeft())
             bezel.setColorAt(0, QColor("#2c2c2e"))
@@ -1301,6 +1326,9 @@ def paint_nav_mark(p: QPainter, r: QRectF, t) -> None:
     if t.wood:
         p.fillPath(rounded(r.translated(0, 1.5), t.radii[1]), QColor(0, 0, 0, 70))
         theme.paint_panel(p, rounded(r, t.radii[1]), r, t)
+        return
+    if t.regie:  # Regie: keine Fläche – nur die 1-px-Linie in der Akzentfarbe am linken Rand der Zeile
+        p.fillRect(QRectF(r.left(), r.top() + 4, 1, r.height() - 8), QColor(t.accent))
         return
     if t.style == "normal":  # kräftige Pille in der Akzentfarbe, leicht leuchtend
         glow = QColor(t.accent)
