@@ -10,10 +10,12 @@
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
 ### Neu in 2.2.0 – neuer Aufbau, Design-Profile, mehr Schalter, einheitliche Publikumsansicht
-- **Tastenbox** (Arduino Pro Micro, 9 Tasten + Lautstärkeregler + LED): Setup → Tastenbox. AluPC findet die Box
-  von selbst, jede Taste bekommt einen Befehl (auch Szenen, Studio-Übergang). Der Regler ist die einzige
-  PC-Lautstärke: andere Wege (Windows, Tastatur, Handy, Sprache) stellt AluPC zurück; Programme einzeln gehen weiter.
-  Arduino-Programm: Setup → Tastenbox → „Arduino-Programm speichern“. Noch nicht mit echter Box getestet.
+- **Tastenbox** (Arduino Pro Micro, 9 Tasten + Drehregler + LED): eigene Seite „Tastenbox“. AluPC findet die Box
+  von selbst. Die Tasten erscheinen 3 × 3 wie auf der Box und leuchten beim Drücken; jede bekommt einen Befehl
+  (auch Szenen, Studio-Übergang). Der Regler regelt wahlweise PC-Ton, Ton auf Bildschirm 2, Mikrofon oder ein
+  Programm. Beim Wechsel startet das neue Ziel bei 0 und folgt erst, wenn der Regler auch auf 0 steht (Skala am
+  Regler). Regelt er den PC-Ton, stellt AluPC andere Wege (Windows, Tastatur, Handy, Sprache) zurück.
+  Arduino-Programm: Seite Tastenbox → „Arduino-Programm speichern“. Noch nicht mit echter Box getestet.
 - **Studio-Modus** (Knopf „Studio“ auf der Startseite, wie in OBS): Über dem Live-Bild klappt eine Vorschau auf.
   Kacheln und Szenen landen erst dort, „Übergang“ (oder Strg+Enter) schaltet live, „Schnitt“ ohne Überblenden.
   Live-Kachel rot, Vorschau-Kachel grün. Kamera, Bildschirm-Aufnahme und AirPlay zeigt die Vorschau nur als Schema.

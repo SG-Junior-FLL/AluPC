@@ -304,6 +304,7 @@ class MainWindow(QMainWindow):
             LazyPage(lambda: _padded(self._system_page(), scroll=True)),
             LazyPage(lambda: _padded(self._guests_page(), scroll=True)),
             LazyPage(lambda: _padded(self._audio_page(), scroll=True)),
+            LazyPage(lambda: _padded(self._tastenbox_page(), scroll=True)),
         ]
         for page in self.pages:
             self.stack.addWidget(page)
@@ -375,7 +376,7 @@ class MainWindow(QMainWindow):
         self.nav_group.setExclusive(True)
         # (Seiten-Nummer, Symbol, Text) – Reihenfolge in der Leiste, Nummer = Seite im Stapel
         for i, icon_name, text in [(0, "home", "Start"), (1, "scenes", "Szenen"), (5, "users", "Gäste"),
-                                   (6, "mixer", "Audio"), (4, "gauge", "System"), (2, "sliders", "Setup"),
+                                   (6, "mixer", "Audio"), (7, "grid", "Tastenbox"), (4, "gauge", "System"), (2, "sliders", "Setup"),
                                    (3, "fingerprint", "Fingerabdruck")]:
             b = NavButton(icon_name, text)
             b.setToolTip(text)
@@ -519,6 +520,9 @@ class MainWindow(QMainWindow):
 
     def open_setup_section(self, title: str) -> None:
         """Setup öffnen und dort den Bereich `title` zeigen (z. B. aus der Befehlssuche)."""
+        if title == "Tastenbox":  # eigene Seite (früher im Setup)
+            self._go(7)
+            return
         self._go(2)
         from .setup_page import SetupPage
 
@@ -560,6 +564,11 @@ class MainWindow(QMainWindow):
         from .audio_page import AudioPage
 
         return AudioPage(self.controller)
+
+    def _tastenbox_page(self):
+        from .tastenbox_page import TastenboxPage
+
+        return TastenboxPage(self.controller)
 
     # ================================================================ System
     def _system_page(self):
@@ -640,7 +649,11 @@ class MainWindow(QMainWindow):
         self.telemetry.setVisible(tech and self.telemetry.available())
         self.level_meter.setVisible(tech and self.stack.currentIndex() == 0)
         # Seitenleiste: kleines Live-Bild nur, wenn die Startseite es nicht schon groß zeigt
-        self.side_monitor.setVisible(not (show and self.stack.currentIndex() == 0))
+        # … und nur, wenn es in die Leiste passt (niedriges Fenster: sonst rutscht es über die Knöpfe)
+        lay, mon = self.sidebar.layout(), self.side_monitor
+        base = lay.minimumSize().height() - (mon.sizeHint().height() + lay.spacing() if mon.isVisible() else 0)
+        fits = base + mon.sizeHint().height() + lay.spacing() <= self.sidebar.height()
+        mon.setVisible(fits and not (show and self.stack.currentIndex() == 0))
 
     def toggle_studio(self) -> None:
         """Studio-Modus an/aus: über dem Live-Bild klappt die Vorschau auf (wie OBS)."""

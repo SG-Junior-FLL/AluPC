@@ -1633,6 +1633,53 @@ class CountdownSource(TextBase):
             return QColor("#ef4444") if int(time.monotonic() * 2) % 2 == 0 else self.color
         return self.color
 
+    def paintEvent(self, _event):
+        if not stage.is_default_black(self.background):  # eigener Hintergrund: schlicht wie Text
+            return super().paintEvent(_event)
+        # Standard: Bühne mit Etikett, großen Ziffern, Restzeit-Balken und „Ende um …“
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+        stage.paint_background(p, QRectF(self.rect()))
+        unit = min(w, h / 0.5625) / 100
+        c = self.clock
+        countdown = c.mode != "stoppuhr"
+        color = self.text_color()
+        if unit >= 3:  # in kleinen Szenen-Feldern nur die Zahl
+            stage.eyebrow(p, unit * 6, unit * 4, "Timer" if countdown else "Stoppuhr", QColor(stage.ACCENT), unit)
+            stage.clock_corner(p, w, unit, time.time())
+        shown = self.text()
+        area = QRectF(w * 0.06, h * 0.18, w * 0.88, h * 0.5)
+        font = stage.font(min(area.height(), w * 0.3), 600)
+        fm = QFontMetrics(font)
+        template = self.fit_text(shown)
+        while fm.horizontalAdvance(template) > area.width() and font.pixelSize() > 10:
+            font.setPixelSize(int(font.pixelSize() * 0.92))
+            fm = QFontMetrics(font)
+        p.setFont(font)
+        p.setPen(color)
+        p.drawText(area, Qt.AlignCenter, shown)
+        if countdown and not c.finished():
+            frac = max(0.0, min(1.0, c.remaining() / max(1.0, c.duration)))
+            bar = QRectF(w * 0.2, h * 0.74, w * 0.6, max(4.0, h * 0.014))
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(255, 255, 255, 30))
+            p.drawRoundedRect(bar, bar.height() / 2, bar.height() / 2)
+            fill = QColor(color if c.urgency() in ("bald", "gleich") else QColor(stage.ACCENT))
+            p.setBrush(fill)
+            p.drawRoundedRect(QRectF(bar.left(), bar.top(), bar.width() * frac, bar.height()),
+                              bar.height() / 2, bar.height() / 2)
+            if c.running and unit >= 3:
+                end = time.strftime("%H:%M", time.localtime(time.time() + c.remaining()))
+                p.setPen(QColor(255, 255, 255, 170))
+                p.setFont(stage.font(unit * 2.6, 500))
+                p.drawText(QRectF(0, bar.bottom() + unit * 2, w, unit * 5), Qt.AlignCenter, f"Ende um {end}")
+        elif not c.running and not c.fresh() and not c.finished() and unit >= 3:
+            p.setPen(QColor(255, 255, 255, 170))
+            p.setFont(stage.font(unit * 2.6, 500))
+            p.drawText(QRectF(0, h * 0.74, w, unit * 5), Qt.AlignCenter, "Pause")
+        p.end()
+
     def stop(self):
         self.timer.stop()
 

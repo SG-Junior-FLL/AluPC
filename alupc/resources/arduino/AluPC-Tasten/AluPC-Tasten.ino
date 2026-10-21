@@ -1,8 +1,8 @@
 // AluPC-Tasten – Programm für den Arduino Pro Micro (ATmega32U4)
 //
-// 9 Tasten (3 × 3), 1 Drehregler (Lautstärke), 1 LED oder ein LED-Streifen.
+// 9 Tasten (3 × 3), 1 Drehregler (was er regelt, stellt man in AluPC ein), 1 LED oder ein LED-Streifen.
 // In der Arduino-IDE: Board „Arduino Leonardo“ wählen (der Pro Micro ist technisch gleich), Anschluss wählen,
-// hochladen. AluPC findet die Box danach von selbst (Setup → Tastenbox).
+// hochladen. AluPC findet die Box danach von selbst (Seite „Tastenbox“).
 //
 // Anschluss:
 //   Tasten 1–9 : D2 D3 D4 D5 D6 D7 D8 D14 D15 – jeweils das andere Bein an GND (keine Widerstände nötig)

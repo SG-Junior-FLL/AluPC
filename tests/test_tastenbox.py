@@ -94,22 +94,68 @@ def test_keys_run_commands_and_volume_only_at_knob(env, monkeypatch):  # noqa: F
     keeper.set_target(None)
 
 
-def test_setup_section(env):  # noqa: F811
+def test_tastenbox_page(env):  # noqa: F811
+    """Eigene Seite: Tasten 3 × 3 (Taste leuchtet beim Drücken), Belegung, Regler-Anzeige; Setup-Link führt hin."""
     controller, window, _ = env
     window.open_setup_section("Tastenbox")
     pump()
-    from PySide6.QtWidgets import QComboBox, QGroupBox
+    from alupc.ui.tastenbox_page import TastenboxPage
 
-    group = next(g for g in window.setup.findChildren(QGroupBox) if hasattr(g, "tastenbox_refresh"))  # Titel steht im Kopf
-    group.tastenbox_refresh()
-
-    combos = [c for c in group.findChildren(QComboBox) if c.findData("schwarz") >= 0]
-    assert len(combos) == 9 and combos[0].currentData() == "schwarz"
-    combos[4].setCurrentIndex(combos[4].findData("standbild"))
+    page = window.findChild(TastenboxPage)
+    assert page is not None and window.stack.currentIndex() == 7
+    assert len(page.caps) == 9 and page.action.currentData() == "schwarz"
+    assert page.caps[1].text  # zeigt, was die Taste tut (auf der Box steht nichts)
+    page.select(5)
+    page.action.setCurrentIndex(page.action.findData("standbild"))
+    page.action.activated.emit(page.action.currentIndex())
     pump()
-    assert controller.box_keys()["5"] == "standbild"
+    assert controller.box_keys()["5"] == "standbild" and page.caps[5].text == "Standbild an/aus"
+    controller.buttonbox.key.emit(3)  # echte Taste gedrückt → leuchtet und wird ausgewählt
+    assert page.caps[3]._anim.state() == page.caps[3]._anim.State.Running
+    assert page.selected == 3 and page.key_label.text() == "Taste 3:"
+    assert page.target.findData("medien") >= 0 and page.target.findData("mikro") >= 0
     assert tastenbox_sketch_exists()
     window._go(0)
+
+
+def test_knob_target_waits_for_zero(env, monkeypatch):  # noqa: F811
+    """Ziel wechseln → neues Ziel auf 0, Regler greift erst, wenn er auch auf 0 steht (Skala am Regler)."""
+    controller, _window, _ = env
+    from alupc import audio, pc_control
+
+    calls = []
+    monkeypatch.setattr(pc_control, "set_volume", lambda percent=None, step=0: calls.append(("pc", percent)) or (True, ""))
+    monkeypatch.setattr(pc_control, "set_mute", lambda on: (True, ""))
+    monkeypatch.setattr(pc_control, "get_volume", lambda: None)
+    monkeypatch.setattr(audio, "set_level", lambda kind, v: calls.append((kind, v)) or (True, ""))
+    box = controller.buttonbox
+    box.port = "COM9"
+    monkeypatch.setattr(box, "send", lambda line: True)
+    box.feed("LAUT 60")
+    pump(30)
+    assert controller.volume_locked()
+
+    controller.set_knob_target("mikro")
+    assert _until(lambda: ("in", 0) in calls)
+    assert controller.knob_wait and not controller.volume_locked()  # PC-Ton ist wieder frei
+    calls.clear()
+    box.feed("LAUT 55")  # noch nicht auf 0 → nichts passiert
+    pump(30)
+    assert not any(k == "in" for k, _v in calls)
+    box.feed("LAUT 1")   # auf 0 gedreht → Regler greift
+    box.feed("LAUT 30")
+    assert _until(lambda: ("in", 30) in calls)
+    assert not controller.knob_wait
+
+    controller.set_knob_target("pc")  # zurück: PC-Ton auf 0, wartet wieder
+    assert controller.knob_wait and controller.volume_keeper.target == 0
+    box.feed("LAUT 0")
+    box.feed("LAUT 25")
+    pump(30)
+    assert controller.volume_keeper.target == 25
+    box.port = ""
+    box.knob = None
+    controller.volume_keeper.set_target(None)
 
 
 def tastenbox_sketch_exists() -> bool:
@@ -117,3 +163,20 @@ def tastenbox_sketch_exists() -> bool:
 
     text = SKETCH.read_text(encoding="utf-8")
     return "HALLO ALUPC-TASTEN 1" in text and "LAUT" in text and "TASTE" in text
+
+
+def test_audio_default_output_locked(env, monkeypatch):  # noqa: F811
+    """Audio-Seite: Standard-Lautsprecher ausgegraut, solange der Regler gilt; Programme bleiben frei."""
+    from types import SimpleNamespace
+
+    from alupc.ui.audio_page import Strip
+
+    controller, _window, _ = env
+    page = SimpleNamespace(controller=controller)
+    monkeypatch.setattr(controller, "volume_locked", lambda: True)
+    speaker = Strip(page, "out", {"id": "spk", "name": "Lautsprecher", "volume": 40, "default": True})
+    other = Strip(page, "out", {"id": "hdmi", "name": "HDMI", "volume": 40, "default": False})
+    app = Strip(page, "out", {"id": "7", "app": "Spotify", "volume": 40, "default": True}, stream=True)
+    assert not speaker.slider.isEnabled() and not speaker.mute.isEnabled()
+    assert other.slider.isEnabled() and app.slider.isEnabled()
+

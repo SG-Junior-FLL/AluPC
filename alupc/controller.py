@@ -61,6 +61,7 @@ class Controller(QObject):
 
         self.buttonbox = ButtonBox(self)
         self.volume_keeper = VolumeKeeper(self)
+        self.knob_wait = False  # Regler-Ziel gewechselt: wartet, bis der Regler auf 0 steht
         self.buttonbox.key.connect(self._box_key)
         self.buttonbox.volume.connect(self._box_volume)
         self.buttonbox.mute.connect(self._box_mute)
@@ -1670,7 +1671,60 @@ class Controller(QObject):
     def volume_locked(self) -> bool:
         """Lautstärke nur am Regler: Box verbunden, Regler hat gemeldet, Einstellung an."""
         return bool(self.config["tasten"].get("nur_regler", True) and self.buttonbox.connected
-                    and self.buttonbox.knob is not None)
+                    and self.buttonbox.knob is not None and self.knob_target() == "pc")
+
+    # Wofür der Regler ist: PC-Ton, Ton auf Bildschirm 2, Mikrofon oder ein Programm („app:Spotify“)
+    KNOB_TARGETS = {"pc": "PC-Lautstärke", "medien": "Ton auf Bildschirm 2", "mikro": "Mikrofon"}
+
+    def knob_target(self) -> str:
+        return self.config["tasten"].get("regler", "pc") or "pc"
+
+    def knob_target_label(self, target: str | None = None) -> str:
+        target = target or self.knob_target()
+        return self.KNOB_TARGETS.get(target) or (f"Programm: {target[4:]}" if target.startswith("app:") else target)
+
+    def set_knob_target(self, target: str) -> None:
+        """Neues Ziel für den Regler. Der Regler hat eine Skala – deshalb startet das neue Ziel bei 0, und der Regler
+        greift erst, wenn er auch auf 0 gedreht wurde (sonst spränge der Ton auf die alte Reglerstellung)."""
+        if target == self.knob_target():
+            return
+        self.config["tasten"] = {**self.config["tasten"], "regler": target}
+        self.knob_wait = True
+        self._knob_apply(target, 0)
+        self._box_state()
+        if self.buttonbox.connected and (self.buttonbox.knob or 0) <= 2:
+            self.knob_wait = False  # steht schon auf 0
+        else:
+            self.message.emit(f"Regler: {self.knob_target_label(target)} – jetzt auf 0 drehen.")
+        self.changed.emit()
+
+    def _knob_apply(self, target: str, value: int) -> None:
+        from .ui.util import run_async
+
+        if target == "pc":
+            if self.config["tasten"].get("nur_regler", True) and self.buttonbox.connected:
+                self.volume_keeper.set_target(value)
+            else:  # Regler dreht die Lautstärke, andere dürfen auch
+                from . import pc_control
+
+                run_async(lambda: pc_control.set_volume(value), lambda _r: None, lambda _e: None)
+        elif target == "medien":
+            self.set_media_volume(volume=value)
+        elif target == "mikro":
+            from . import audio
+
+            run_async(lambda: audio.set_level("in", value), lambda _r: None, lambda _e: None)
+        elif target.startswith("app:"):
+            from . import mixer
+
+            name = target[4:]
+
+            def work():
+                for s in mixer.streams("out"):
+                    if s.get("app") == name:
+                        mixer.set_stream("out", s["id"], volume=value)
+
+            run_async(work, lambda _r: None, lambda _e: None)
 
     def box_keys(self) -> dict[str, str]:
         from .tastenbox import DEFAULT_KEYS
@@ -1683,13 +1737,12 @@ class Controller(QObject):
             self.run_command(action)
 
     def _box_volume(self, value: int) -> None:
-        if self.config["tasten"].get("nur_regler", True):
-            self.volume_keeper.set_target(value)
-        else:  # Regler dreht die Lautstärke, andere dürfen auch
-            from .ui.util import run_async
-            from . import pc_control
-
-            run_async(lambda: pc_control.set_volume(value), lambda _r: None, lambda _e: None)
+        if self.knob_wait:  # neues Ziel: erst auf 0 drehen, dann greift der Regler
+            if value > 2:
+                self.changed.emit()
+                return
+            self.knob_wait = False
+        self._knob_apply(self.knob_target(), value)
         self.changed.emit()
 
     def _box_mute(self) -> None:
@@ -1699,7 +1752,7 @@ class Controller(QObject):
 
     def _box_state(self) -> None:
         if self.volume_locked():
-            self.volume_keeper.set_target(self.buttonbox.knob)
+            self.volume_keeper.set_target(0 if self.knob_wait else self.buttonbox.knob)
         else:
             self.volume_keeper.set_target(None)
         self._led_level = None

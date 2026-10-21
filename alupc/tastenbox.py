@@ -13,7 +13,10 @@ des LED-Streifens; 0 = aus).
 Anschluss am Pro Micro: Tasten D2–D8, D14, D15 gegen GND · Poti 10 kΩ: Mitte an A0, außen VCC/GND ·
 LED an D9 (über 220 Ω) oder LED-Streifen WS2812B an D10. Programm für den Arduino: resources/arduino/.
 
-Lautstärke nur am Regler (Einstellung, Standard: an): Solange die Box angeschlossen ist, bestimmt allein der
+Was der Regler regelt, ist wählbar (Seite „Tastenbox“): PC-Ton, Ton auf Bildschirm 2, Mikrofon oder ein Programm.
+Der Regler hat eine Skala – beim Wechsel startet das neue Ziel bei 0 und folgt erst, wenn der Regler auch auf 0 steht.
+
+Lautstärke nur am Regler (Einstellung, Standard: an; nur wenn er den PC-Ton regelt): Solange die Box angeschlossen ist, bestimmt allein der
 Regler die PC-Lautstärke. Ändert sie jemand anders (Windows-/KDE-Lautstärke, Medientasten, Handy, Sprache), stellt
 AluPC sie innerhalb einer Sekunde zurück. Die Lautstärke einzelner Programme bleibt frei (Seite Audio).
 """

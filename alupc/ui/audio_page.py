@@ -184,6 +184,12 @@ class Strip(QFrame):
         self.mute.blockSignals(False)
         self.pct.setText(f"{self.slider.value()} %")
         self._icons()
+        # Tastenbox: der Standard-Lautsprecher gehört dem Regler; Programme bleiben frei
+        locked = (self.kind == "out" and not self.stream and bool(item.get("default"))
+                  and self.page.controller.volume_locked())
+        for w in (self.slider, self.mute):
+            w.setEnabled(not locked)
+        self.slider.setToolTip("Lautstärke nur am Regler der Tastenbox" if locked else "")
 
     def set_targets(self, outs: list[dict]) -> None:
         if self.target is None:
