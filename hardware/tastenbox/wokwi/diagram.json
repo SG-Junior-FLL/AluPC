@@ -1,0 +1,276 @@
+{
+  "version": 1,
+  "author": "AluPC",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-mega",
+      "id": "mega",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "taste1",
+      "top": -220,
+      "left": 420,
+      "attrs": {
+        "color": "red",
+        "label": "Taste 1"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "taste2",
+      "top": -220,
+      "left": 510,
+      "attrs": {
+        "color": "green",
+        "label": "Taste 2"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "taste3",
+      "top": -220,
+      "left": 600,
+      "attrs": {
+        "color": "blue",
+        "label": "Taste 3"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "taste4",
+      "top": -150,
+      "left": 420,
+      "attrs": {
+        "color": "yellow",
+        "label": "Taste 4"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "taste5",
+      "top": -150,
+      "left": 510,
+      "attrs": {
+        "color": "red",
+        "label": "Taste 5"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "taste6",
+      "top": -150,
+      "left": 600,
+      "attrs": {
+        "color": "green",
+        "label": "Taste 6"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "taste7",
+      "top": -80,
+      "left": 420,
+      "attrs": {
+        "color": "blue",
+        "label": "Taste 7"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "taste8",
+      "top": -80,
+      "left": 510,
+      "attrs": {
+        "color": "yellow",
+        "label": "Taste 8"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "taste9",
+      "top": -80,
+      "left": 600,
+      "attrs": {
+        "color": "red",
+        "label": "Taste 9"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "regler",
+      "top": 260,
+      "left": 420,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r220",
+      "top": 200,
+      "left": 700,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led",
+      "top": 150,
+      "left": 780,
+      "attrs": {
+        "color": "green"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "taste1:1.l",
+      "mega:2",
+      "green",
+      []
+    ],
+    [
+      "taste1:2.r",
+      "mega:GND.1",
+      "black",
+      []
+    ],
+    [
+      "taste2:1.l",
+      "mega:3",
+      "green",
+      []
+    ],
+    [
+      "taste2:2.r",
+      "mega:GND.1",
+      "black",
+      []
+    ],
+    [
+      "taste3:1.l",
+      "mega:4",
+      "green",
+      []
+    ],
+    [
+      "taste3:2.r",
+      "mega:GND.1",
+      "black",
+      []
+    ],
+    [
+      "taste4:1.l",
+      "mega:5",
+      "green",
+      []
+    ],
+    [
+      "taste4:2.r",
+      "mega:GND.1",
+      "black",
+      []
+    ],
+    [
+      "taste5:1.l",
+      "mega:6",
+      "green",
+      []
+    ],
+    [
+      "taste5:2.r",
+      "mega:GND.1",
+      "black",
+      []
+    ],
+    [
+      "taste6:1.l",
+      "mega:7",
+      "green",
+      []
+    ],
+    [
+      "taste6:2.r",
+      "mega:GND.1",
+      "black",
+      []
+    ],
+    [
+      "taste7:1.l",
+      "mega:8",
+      "green",
+      []
+    ],
+    [
+      "taste7:2.r",
+      "mega:GND.1",
+      "black",
+      []
+    ],
+    [
+      "taste8:1.l",
+      "mega:14",
+      "green",
+      []
+    ],
+    [
+      "taste8:2.r",
+      "mega:GND.1",
+      "black",
+      []
+    ],
+    [
+      "taste9:1.l",
+      "mega:15",
+      "green",
+      []
+    ],
+    [
+      "taste9:2.r",
+      "mega:GND.1",
+      "black",
+      []
+    ],
+    [
+      "regler:SIG",
+      "mega:A0",
+      "orange",
+      []
+    ],
+    [
+      "regler:VCC",
+      "mega:5V",
+      "red",
+      []
+    ],
+    [
+      "regler:GND",
+      "mega:GND.2",
+      "black",
+      []
+    ],
+    [
+      "mega:9",
+      "r220:1",
+      "blue",
+      []
+    ],
+    [
+      "r220:2",
+      "led:A",
+      "blue",
+      []
+    ],
+    [
+      "led:C",
+      "mega:GND.3",
+      "black",
+      []
+    ]
+  ],
+  "dependencies": {}
+}
