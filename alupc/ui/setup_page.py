@@ -41,6 +41,7 @@ from .util import error_box, run_async
 from .hotkey_edit import HotkeyButton
 from .reset_page import reset_group
 from .sync_page import backup_group, sync_group
+from .tastenbox_page import tastenbox_group
 from .widgets import FlowLayout, button, flow_row, font, rounded
 
 SIDES = [("right", "rechts vom Hauptmonitor"), ("left", "links vom Hauptmonitor"),
@@ -425,6 +426,7 @@ class SetupPage(QWidget):
         ("sound", "Töne", "Klänge bei Aktionen"),
         ("keyboard", "Tastenkürzel", "Alles per Tastatur"),
         ("mic", "Sprache", "Sprachbefehle und Stimme"),
+        ("grid", "Tastenbox", "9 Tasten und Lautstärkeregler"),
         ("phone", "Handy & Kamera", "Was das Handy darf"),
         ("sync", "Sichern & Sync", "Sichern, Windows/Linux"),
         ("fan", "RGB & Lüfter", "Licht und Temperaturen"),
@@ -450,6 +452,7 @@ class SetupPage(QWidget):
             "Töne": [self._sound_group],
             "Tastenkürzel": [self._hotkey_group],
             "Sprache": [self._voice_group],
+            "Tastenbox": [lambda: tastenbox_group(self)],
             "Sichern & Sync": [lambda: sync_group(self), lambda: backup_group(self)],
             "RGB & Lüfter": [self._hardware_group],
             "Handy & Kamera": [self._phone_group, self._camera_group],  # AirPlay: ohne Einstellungen

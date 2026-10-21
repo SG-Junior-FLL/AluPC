@@ -614,6 +614,11 @@ class SystemPage(QWidget):
         from .. import pc_control
         from .util import run_async
 
+        locked = self.controller.volume_locked()  # Tastenbox: Lautstärke nur am Regler
+        for w in (self.vol, self.mute_btn):
+            w.setEnabled(not locked)
+            w.setToolTip("Lautstärke nur am Regler der Tastenbox" if locked else "")
+
         def show(value):
             try:
                 if value is None:

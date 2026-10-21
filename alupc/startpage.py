@@ -68,6 +68,9 @@ def section_name(start_cfg: dict, section_id: str) -> str:
 # Befehle, die eine eigene Kachel ausführen kann
 COMMANDS = {
     "standbild": "Standbild an/aus",
+    "studio_uebergang": "Studio: Übergang (Vorschau live schalten)",
+    "studio": "Studio-Modus an/aus",
+    "tasten_led": "Tastenbox: LED an/aus",
     "schwarz": "Schwarz (Sichtschutz) an/aus",
     "bild-in-bild": "Bild-in-Bild an/aus",
     "bildschirmschoner": "Bildschirmschoner an/aus",

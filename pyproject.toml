@@ -47,7 +47,7 @@ alupc = "alupc.app:main"
 include = ["alupc*"]
 
 [tool.setuptools.package-data]
-alupc = ["resources/*", "resources/icons/*", "assets/fonts/*"]
+alupc = ["resources/*", "resources/icons/*", "resources/arduino/*/*", "assets/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

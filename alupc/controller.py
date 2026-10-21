@@ -57,6 +57,17 @@ class Controller(QObject):
 
         self.finger_shortcuts = FingerShortcuts(config, self)
         self.finger_shortcuts.triggered.connect(self.run_command)
+        from .tastenbox import ButtonBox, VolumeKeeper
+
+        self.buttonbox = ButtonBox(self)
+        self.volume_keeper = VolumeKeeper(self)
+        self.buttonbox.key.connect(self._box_key)
+        self.buttonbox.volume.connect(self._box_volume)
+        self.buttonbox.mute.connect(self._box_mute)
+        self.buttonbox.state_changed.connect(self._box_state)
+        self.volume_keeper.overridden.connect(self._volume_overridden)
+        self._led_level: int | None = None
+        self._override_note = 0.0
         self.finger_shortcuts.apply()
         # Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter (wie unter Windows)
         from .finger_unlock import FingerUnlock
@@ -191,6 +202,8 @@ class Controller(QObject):
         self.changed.connect(self.update_cursor_guard)
         self.changed.connect(self._cast_snapshot)
         self.changed.connect(self._overlays_visibility)
+        self.changed.connect(self.update_box_led)
+        _QTimer.singleShot(0, self.apply_buttonbox)  # Tastenbox im Hintergrund suchen
         self._overlays_shown = None
         self.overlay_window.reload()
         if self.cast.settings().get("autostart"):
@@ -1641,8 +1654,86 @@ class Controller(QObject):
 
     step_agenda = step_page  # alter Name
 
+    # ------------------------------------------------------------ Tastenbox (9 Tasten + Lautstärkeregler)
+    VOLUME_COMMANDS = ("pc_lauter", "pc_leiser", "pc_stumm_an", "pc_stumm_aus")
+
+    def apply_buttonbox(self) -> None:
+        """Einstellungen übernehmen: Box suchen (oder nicht), Lautstärke-Sperre, LED."""
+        cfg = self.config["tasten"]
+        if cfg.get("on", True):
+            if self.buttonbox._thread is None or self.buttonbox.wanted_port != cfg.get("port", ""):
+                self.buttonbox.start(cfg.get("port", ""))
+        else:
+            self.buttonbox.stop()
+        self._box_state()
+
+    def volume_locked(self) -> bool:
+        """Lautstärke nur am Regler: Box verbunden, Regler hat gemeldet, Einstellung an."""
+        return bool(self.config["tasten"].get("nur_regler", True) and self.buttonbox.connected
+                    and self.buttonbox.knob is not None)
+
+    def box_keys(self) -> dict[str, str]:
+        from .tastenbox import DEFAULT_KEYS
+
+        return {**DEFAULT_KEYS, **(self.config["tasten"].get("keys") or {})}
+
+    def _box_key(self, n: int) -> None:
+        action = self.box_keys().get(str(n), "")
+        if action:
+            self.run_command(action)
+
+    def _box_volume(self, value: int) -> None:
+        if self.config["tasten"].get("nur_regler", True):
+            self.volume_keeper.set_target(value)
+        else:  # Regler dreht die Lautstärke, andere dürfen auch
+            from .ui.util import run_async
+            from . import pc_control
+
+            run_async(lambda: pc_control.set_volume(value), lambda _r: None, lambda _e: None)
+        self.changed.emit()
+
+    def _box_mute(self) -> None:
+        if self.volume_locked():
+            self.volume_keeper.toggle_mute()
+            self.changed.emit()
+
+    def _box_state(self) -> None:
+        if self.volume_locked():
+            self.volume_keeper.set_target(self.buttonbox.knob)
+        else:
+            self.volume_keeper.set_target(None)
+        self._led_level = None
+        self.update_box_led()
+        self.changed.emit()
+
+    def _volume_overridden(self) -> None:
+        import time as _time
+
+        if _time.monotonic() - self._override_note > 15:  # nicht bei jedem Versuch melden
+            self._override_note = _time.monotonic()
+            self.message.emit("Lautstärke geht nur am Regler – zurückgestellt.")
+
+    def update_box_led(self) -> None:
+        """LED der Box: aus, an, oder „live“ (leuchtet, solange etwas auf Bildschirm 2 läuft)."""
+        if not self.buttonbox.connected:
+            return
+        mode = self.config["tasten"].get("led", "live")
+        level = 100 if mode == "an" or (mode == "live" and self.mode == "content") else 0
+        if level != self._led_level and self.buttonbox.set_led(level):
+            self._led_level = level
+
+    def toggle_box_led(self) -> None:
+        cfg = dict(self.config["tasten"])
+        cfg["led"] = "aus" if self._led_level else "an"
+        self.config["tasten"] = cfg
+        self.update_box_led()
+
     def run_command(self, command: str) -> None:
         command = command.strip()
+        if self.volume_locked() and (command in self.VOLUME_COMMANDS or command.startswith(
+                ("pc_lautstaerke:", "ton_laut:", "ton_stumm:"))):
+            self.message.emit("Lautstärke geht nur am Regler.")
+            return
         if command == "pc_sperren":  # wie Win+L
             self.lock_computer()
             return
@@ -1682,6 +1773,9 @@ class Controller(QObject):
             "standbild": self.toggle_freeze,
             "schwarz": self.toggle_privacy,
             "sichtschutz": self.toggle_privacy,
+            "studio": lambda: self.set_studio(not self.studio),
+            "studio_uebergang": lambda: self.take() if self.studio else self.message.emit("Studio-Modus ist aus."),
+            "tasten_led": self.toggle_box_led,
             "spiegeln": self.mirror,
             "erweitern": self.extend,
             "bild-in-bild": self.toggle_pip,
@@ -2632,6 +2726,8 @@ class Controller(QObject):
         if self._games_timer is not None:
             self._games_timer.stop()
         self.finger_shortcuts.stop()
+        self.buttonbox.stop()
+        self.volume_keeper.set_target(None)
         self.finger_unlock.stop()
         self.voice.stop()
         self.speaker.shutdown()

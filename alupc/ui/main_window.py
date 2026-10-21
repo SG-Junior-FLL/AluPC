@@ -2362,6 +2362,10 @@ class MainWindow(QMainWindow):
         self.t_pip.set_state(pip_on, badge="AN" if pip_on else "")
         drawing_now = bool(getattr(self, "presenter", None) and self.presenter.isVisible())
         overlays_on = bool(c.config["overlays"].get("on"))
+        locked = c.volume_locked()  # Tastenbox: PC-Ton nur am Regler
+        self.chips["mute"].setEnabled(not locked)
+        self.chips["mute"].setToolTip("Lautstärke nur am Regler der Tastenbox" if locked
+                                      else "Ton des Computers aus/an")
         for key, on in (("black", c.privacy), ("freeze", c.frozen), ("pip", pip_on), ("draw", drawing_now),
                         ("saver", c.screensaver.active), ("overlays", overlays_on),
                         ("mute", getattr(self, "_pc_muted", False))):
