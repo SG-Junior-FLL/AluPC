@@ -155,7 +155,7 @@ class StyleCard(QAbstractButton):
         accent = self.config["appearance"].get("accent", "alupc")
         a = self.config["appearance"]
         t = theme.make_theme("dunkel" if cur.dark else "hell", accent, self.style_key,
-                             a.get("wood", theme.DEFAULT_WOOD))
+                             a.get("wood", theme.DEFAULT_WOOD), custom={**a, "font": 100})
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         outer = QRectF(self.rect()).adjusted(1, 1, -1, -1)
@@ -824,17 +824,21 @@ class SetupPage(QWidget):
         for key, label in theme.MODES.items():
             mode.addItem(label, key)
         mode.setCurrentIndex(max(0, mode.findData(a.get("mode", "system"))))
-        swatches = QHBoxLayout()
-        swatches.setSpacing(8)
+        swatches = FlowLayout(spacing=8)  # bricht im kleinen Fenster um
         self._swatches = {}
         for key, (label, color) in theme.ACCENTS.items():
+            if key == "eigen":
+                color = a.get("accent_color") or color
             b = Swatch(theme.system_accent() if key == "system" else color, label)
             b.system = key == "system"
             b.brand = key == "alupc"
             b.clicked.connect(lambda _=False, k=key: self._set_accent(k))
             self._swatches[key] = b
             swatches.addWidget(b)
-        swatches.addStretch(1)
+        pick = button("Farbe wählen …", "palette")
+        pick.setToolTip("Eigene Akzentfarbe aussuchen")
+        pick.clicked.connect(self._pick_accent)
+        swatches.addWidget(pick)
         self._style_swatches(a.get("accent", "alupc"))
         from ..transitions import TRANSITIONS
 
@@ -882,6 +886,7 @@ class SetupPage(QWidget):
             card.clicked.connect(lambda _=False, k=key: self._save_appearance(style=k))
             self._style_cards[key] = card
             styles.addWidget(card)
+        form.addRow("Profil:", self._profile_row())
         form.addRow("Stil:", styles)
         woods = FlowLayout(spacing=8)
         self._wood_swatches = {}
@@ -898,6 +903,7 @@ class SetupPage(QWidget):
         form.addRow("Holzart:", self._wood_row)
         form.addRow("Hell/Dunkel:", mode)
         form.addRow("Akzentfarbe:", swatches)
+        self._fine_controls(form, a)
         form.addRow("Desktop:", self._desktop_theme_row())
         self._sync_style_rows()
         from .. import perf
@@ -1006,7 +1012,172 @@ class SetupPage(QWidget):
             b.setChecked(key == active)
 
     def _set_accent(self, key: str):
+        if key == "eigen" and not self.config["appearance"].get("accent_color"):
+            self._pick_accent()  # noch keine eigene Farbe → erst aussuchen
+            return
         self._save_appearance(accent=key)
+
+    def _pick_accent(self) -> None:
+        """Eigene Akzentfarbe (nicht-blockierender Farbdialog)."""
+        from PySide6.QtWidgets import QColorDialog
+
+        a = self.config["appearance"]
+        dlg = QColorDialog(QColor(a.get("accent_color") or theme.current().accent), self)
+        dlg.setWindowTitle("Akzentfarbe wählen")
+
+        def chosen(color):
+            if color.isValid():
+                self._swatches["eigen"].color = color.name()
+                self._save_appearance(accent="eigen", accent_color=color.name())
+
+        dlg.colorSelected.connect(chosen)
+        dlg.open()
+        self._color_dialog = dlg
+
+    # ---------------------------------------------------------------- Profile und Feinheiten
+    def _profiles(self) -> dict:
+        return {**theme.BUILTIN_PROFILES, **self.config["appearance"].get("profiles", {})}
+
+    def _profile_row(self) -> QWidget:
+        self._profile_combo = QComboBox()
+        self._profile_combo.setMinimumContentsLength(22)
+        self._profile_combo.currentIndexChanged.connect(self._apply_profile)
+        save = button("Speichern als …", "plus")
+        save.setToolTip("Die jetzige Darstellung (Stil, Farbe, Rundung, Schrift, Abstände) als Profil speichern")
+        save.clicked.connect(self._save_profile)
+        self._profile_delete = button("Löschen", "trash")
+        self._profile_delete.setToolTip("Eigenes Profil löschen (fertige Profile bleiben)")
+        self._profile_delete.clicked.connect(self._delete_profile)
+        self._profile_undo: dict | None = None
+        self._fill_profiles()
+        return flow_row(self._profile_combo, save, self._profile_delete)
+
+    def _fill_profiles(self) -> None:
+        combo = self._profile_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("Aktuelle Einstellungen", None)
+        own = self.config["appearance"].get("profiles", {})
+        for name in theme.BUILTIN_PROFILES:
+            combo.addItem(name, name)
+        for name in own:
+            if name not in theme.BUILTIN_PROFILES:
+                combo.addItem(f"{name} (eigenes)", name)
+        current = self.config["appearance"].get("profile") or None
+        combo.setCurrentIndex(max(0, combo.findData(current)) if current else 0)
+        combo.blockSignals(False)
+        self._profile_delete.setEnabled(bool(current) and current in own)
+
+    def _apply_profile(self, index: int) -> None:
+        name = self._profile_combo.itemData(index)
+        a = self.config["appearance"]
+        if name is None:  # „Aktuelle Einstellungen“: zurück zu dem, was vor dem Profil eingestellt war
+            if self._profile_undo is not None:
+                values, self._profile_undo = self._profile_undo, None
+                self._save_appearance(**values, profile="")
+            else:
+                self._save_appearance(profile="")
+        else:
+            if self._profile_undo is None:  # Stand vor dem ersten Profil merken („Aktuelle Einstellungen“)
+                self._profile_undo = {k: a[k] for k in theme.PROFILE_KEYS if k in a}
+            values = {k: v for k, v in self._profiles()[name].items() if k in theme.PROFILE_KEYS}
+            self._save_appearance(**values, profile=name)
+        self._sync_appearance_controls()
+
+    def _save_profile(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        name, ok = QInputDialog.getText(self, "Profil speichern", "Name des Profils:",
+                                        text=self.config["appearance"].get("profile") or "Mein Design")
+        name = name.strip()
+        if not ok or not name:
+            return
+        if name in theme.BUILTIN_PROFILES:
+            name += " (eigenes)"
+        a = self.config["appearance"]
+        own = dict(a.get("profiles", {}))
+        own[name] = {k: a[k] for k in theme.PROFILE_KEYS if k in a}
+        self._profile_undo = None
+        self._save_appearance(emit=False, profiles=own, profile=name)
+        self._fill_profiles()
+
+    def _delete_profile(self) -> None:
+        a = self.config["appearance"]
+        name = a.get("profile")
+        own = dict(a.get("profiles", {}))
+        if name in own:
+            del own[name]
+            self._save_appearance(emit=False, profiles=own, profile="")
+            self._fill_profiles()
+
+    def _fine_controls(self, form, a: dict) -> None:
+        """Rundung, Schriftgröße, Abstände – gelten für jeden Stil."""
+        def slider(lo, hi, value, suffix, key, step=5):
+            row = QWidget()
+            lay = QHBoxLayout(row)
+            lay.setContentsMargins(0, 0, 0, 0)
+            sl = QSlider(Qt.Horizontal)
+            sl.setRange(lo, hi)
+            sl.setSingleStep(step)
+            sl.setPageStep(step * 2)
+            sl.setValue(int(value))
+            label = QLabel(f"{int(value)} %")
+            label.setMinimumWidth(48)
+            sl.value_label = label
+            timer = QTimer(row, singleShot=True, interval=250)
+
+            def save():
+                timer.stop()
+                if int(self.config["appearance"].get(key, 100)) != sl.value():
+                    self._save_appearance(**{key: sl.value()})
+
+            sl.valueChanged.connect(lambda v: (label.setText(f"{v} %"), None if sl.isSliderDown() else timer.start()))
+            sl.sliderReleased.connect(save)
+            timer.timeout.connect(save)
+            lay.addWidget(sl, 1)
+            lay.addWidget(label)
+            return row, sl
+
+        row, self._radius_slider = slider(0, 200, a.get("radius", 100), "%", "radius", 10)
+        self._radius_slider.setToolTip("0 % = eckig, 100 % = wie der Stil, 200 % = sehr rund")
+        form.addRow("Rundung:", row)
+        row, self._font_slider = slider(85, 130, a.get("font", 100), "%", "font", 5)
+        self._font_slider.setToolTip("Größe aller Schriften in AluPC")
+        form.addRow("Schriftgröße:", row)
+        self._density_combo = QComboBox()
+        for key, (label, _f) in theme.DENSITIES.items():
+            self._density_combo.addItem(label, key)
+        self._density_combo.setCurrentIndex(max(0, self._density_combo.findData(a.get("density", "normal"))))
+        self._density_combo.currentIndexChanged.connect(
+            lambda _i: self._save_appearance(density=self._density_combo.currentData()))
+        form.addRow("Abstände:", self._density_combo)
+
+    def _sync_appearance_controls(self) -> None:
+        """Bedienelemente auf den gespeicherten Stand bringen (nach einem Profilwechsel) – ohne neu zu speichern."""
+        a = self.config["appearance"]
+        for key, card in getattr(self, "_style_cards", {}).items():
+            card.setChecked(a.get("style", "normal") == key)
+        for key, sw in getattr(self, "_wood_swatches", {}).items():
+            sw.setChecked(a.get("wood", theme.DEFAULT_WOOD) == key)
+        if "eigen" in getattr(self, "_swatches", {}) and a.get("accent_color"):
+            self._swatches["eigen"].color = a["accent_color"]
+        self._style_swatches(a.get("accent", "alupc"))
+        for widget, value in ((self.__dict__.get("_radius_slider"), a.get("radius", 100)),
+                              (self.__dict__.get("_font_slider"), a.get("font", 100)),
+                              (self.__dict__.get("_mode_combo"), None),
+                              (self.__dict__.get("_density_combo"), None)):
+            if widget is None:
+                continue
+            widget.blockSignals(True)
+            if isinstance(widget, QSlider):
+                widget.setValue(int(value))
+                widget.value_label.setText(f"{int(value)} %")
+            elif widget is self.__dict__.get("_mode_combo"):
+                widget.setCurrentIndex(max(0, widget.findData(a.get("mode", "system"))))
+            else:
+                widget.setCurrentIndex(max(0, widget.findData(a.get("density", "normal"))))
+            widget.blockSignals(False)
+        self._sync_style_rows()
 
     def _sync_style_rows(self) -> None:
         """Holzart nur im Holz-Stil zeigen; dort bestimmt das Holz hell/dunkel (Auswahl gesperrt)."""
@@ -1020,6 +1191,16 @@ class SetupPage(QWidget):
 
     def _save_appearance(self, emit: bool = True, **changes):
         a = dict(self.config["appearance"])
+        if "profile" not in changes and set(changes) & set(theme.PROFILE_KEYS) and a.get("profile"):
+            # von Hand geändert → kein Profil mehr aktiv (Auswahl zeigt „Aktuelle Einstellungen“)
+            changes["profile"] = ""
+            self._profile_undo = None
+            combo = self.__dict__.get("_profile_combo")
+            if combo is not None:
+                combo.blockSignals(True)
+                combo.setCurrentIndex(0)
+                combo.blockSignals(False)
+                self._profile_delete.setEnabled(False)
         a.update(changes)
         self.config["appearance"] = a
         if emit:
@@ -1983,6 +2164,25 @@ class SetupPage(QWidget):
             note.setObjectName("Muted")
             note.setWordWrap(True)
             lay.addWidget(note)
+
+        from .. import stage
+
+        look = QComboBox()
+        for key, label in stage.LOOKS.items():
+            look.addItem(label, key)
+        look.setCurrentIndex(max(0, look.findData(cfg.get("stage", "buehne"))))
+        look.setToolTip("Hintergrund aller Anzeigen für das Publikum (Abstimmung, Glücksrad, Uhr, Text, QR …) – "
+                        "gleich, egal welches Design die AluPC-App hat")
+
+        def save_look(_i):
+            self.config["output"] = {**self.config["output"], "stage": look.currentData()}
+            self.controller.apply_output_settings()
+
+        look.currentIndexChanged.connect(save_look)
+        look_row = QHBoxLayout()
+        look_row.addWidget(QLabel("Publikum sieht:"))
+        look_row.addWidget(look, 1)
+        lay.addLayout(look_row)
 
         hint = QLabel("„Computer sperren“ = wie Win+L (gilt auch für den Bildschirm)")
         hint.setObjectName("Muted")

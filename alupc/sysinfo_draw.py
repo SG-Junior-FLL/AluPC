@@ -193,10 +193,9 @@ class SystemSource(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        bg = QLinearGradient(0, 0, w, h)
-        bg.setColorAt(0, QColor("#070b16"))
-        bg.setColorAt(1, QColor("#151034"))
-        p.fillRect(self.rect(), bg)
+        from . import stage
+
+        stage.paint_background(p, QRectF(self.rect()))  # Publikumsansicht: überall gleich
         mon, snap = self.mon, self.mon.snapshot
         u = min(w / 16, h / 9)  # Grundmaß (16:9)
         m = u * 0.6

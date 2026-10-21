@@ -63,7 +63,8 @@ PIP_COLOR = "#8b5cf6"
 
 def tile_min_width() -> int:
     """Mindestbreite einer Kachel je Stil – Normal/Technisch legen Symbol und Text nebeneinander."""
-    return {"technisch": 212}.get(theme.current().style, 184)
+    t = theme.current()
+    return round({"technisch": 212}.get(t.style, 184) * (0.6 + 0.4 * t.font_scale))
 
 
 class FlowGrid(QWidget):
@@ -534,13 +535,19 @@ class MainWindow(QMainWindow):
             ("freeze", "snowflake", "Standbild", self.controller.toggle_freeze, "Bild einfrieren (Strg+Alt+S)"),
             ("pip", "pip", "Bild-in-Bild", self.controller.toggle_pip, "Bildschirm klein hier am PC"),
             ("draw", "edit", "Zeichnen", self.open_presenter, "Zeigen & Zeichnen (Strg+Alt+K)"),
+            ("saver", "moon", "Schoner", self.controller.toggle_screensaver, "Bildschirmschoner an/aus (Strg+Alt+W)"),
+            ("overlays", "layers", "Overlays", lambda: self.controller.set_overlays(None),
+             "Overlays über dem Bildschirm an/aus"),
+            ("mute", "mute", "Stumm", self._toggle_pc_mute, "Ton des Computers aus/an"),
+            ("next", "forward", "Weiter", lambda: self.controller.step_scene(1),
+             "Zur nächsten eigenen Szene (Strg+Alt+Bild↓)"),
         ]:
             chip = QPushButton(text)
             chip.setObjectName("Chip")
             chip_font = chip.font()  # halbfett schon beim Messen – sonst wird der Name abgeschnitten („Bild-in-Bil“)
             chip_font.setWeight(QFont.DemiBold)
             chip.setFont(chip_font)
-            chip.setCheckable(True)
+            chip.setCheckable(key != "next")  # „Nächste Szene“ ist ein einfacher Knopf, kein Schalter
             chip.setCursor(Qt.PointingHandCursor)
             chip.setToolTip(tip)
             chip.setProperty("iconName", icon_name)
@@ -1724,10 +1731,27 @@ class MainWindow(QMainWindow):
     def _system_scheme_changed(self, *_):
         QTimer.singleShot(300, self, self._sys_check)
 
+    def _toggle_pc_mute(self) -> None:
+        """Ton des Computers aus/an (im Hintergrund – Windows-Ton/PipeWire können kurz brauchen)."""
+        from .. import pc_control
+        from .util import run_async
+
+        self._pc_muted = not getattr(self, "_pc_muted", False)
+        on = self._pc_muted
+
+        def done(result):
+            ok, why = result
+            if not ok:
+                self._pc_muted = not on
+                self.toast.show_text(f"Ton: {why or 'geht hier nicht'}", "warn")
+            self.refresh()
+
+        run_async(lambda: pc_control.set_mute(on), done, owner=self)
+        self.refresh()
+
     def apply_theme(self):
         a = self.config["appearance"]
-        theme.apply(QApplication.instance(), a.get("mode", "system"), a.get("accent", "alupc"), a.get("style", "normal"),
-                    a.get("wood", theme.DEFAULT_WOOD))
+        theme.apply_appearance(QApplication.instance(), a)
         # Symbole in Knöpfen neu einfärben
         for b in self.findChildren(QPushButton):
             name = b.property("iconName")
@@ -2057,11 +2081,15 @@ class MainWindow(QMainWindow):
         self.t_black.set_state(c.privacy, badge="AN" if c.privacy else "")
         self.t_pip.set_state(pip_on, badge="AN" if pip_on else "")
         drawing_now = bool(getattr(self, "presenter", None) and self.presenter.isVisible())
-        for key, on in (("black", c.privacy), ("freeze", c.frozen), ("pip", pip_on), ("draw", drawing_now)):
+        overlays_on = bool(c.config["overlays"].get("on"))
+        for key, on in (("black", c.privacy), ("freeze", c.frozen), ("pip", pip_on), ("draw", drawing_now),
+                        ("saver", c.screensaver.active), ("overlays", overlays_on),
+                        ("mute", getattr(self, "_pc_muted", False))):
             chip = self.chips[key]
             if chip.isChecked() != bool(on):
                 chip.setChecked(bool(on))
-            color = "#ffffff" if on else theme.current().text
+            t_ = theme.current()
+            color = (t_.text if t_.wood else t_.accent) if on else t_.text  # an: getönter Chip, Symbol in Akzentfarbe
             chip.setIcon(icons.icon(chip.property("iconName"), color, 16))
         self.a_freeze.setChecked(c.frozen)
         self.a_black.setChecked(c.privacy)

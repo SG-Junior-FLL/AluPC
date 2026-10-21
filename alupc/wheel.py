@@ -14,7 +14,8 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QWidget
 
 from .sources import fitted_font
-from .ui.theme import HEAD_FONT, STAGE_BG
+from . import stage
+from .ui.theme import HEAD_FONT
 
 COLORS = ["#6366f1", "#06b6d4", "#f59e0b", "#ec4899", "#22c55e", "#f43f5e", "#8b5cf6", "#14b8a6", "#eab308",
           "#3b82f6"]
@@ -116,7 +117,7 @@ class WheelSource(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(self.rect(), QColor(STAGE_BG))
+        stage.paint_background(p, QRectF(self.rect()))
         wide = w > h * 1.2
         r = min(h * 0.43, w * (0.3 if wide else 0.42))
         cx = w * 0.36 if wide else w / 2
@@ -183,7 +184,7 @@ class WheelSource(QWidget):
             area = QRectF(cx + r * 1.3, h * 0.2, w - (cx + r * 1.3) - w * 0.04, h * 0.6)
         else:
             area = QRectF(w * 0.06, cy + r * 1.08, w * 0.88, h - (cy + r * 1.08) - h * 0.02)
-        p.setPen(QColor("#7fa6f3"))
+        p.setPen(QColor(stage.ACCENT))
         tag = QFont(HEAD_FONT)
         tag.setWeight(QFont.DemiBold)
         tag.setPixelSize(max(10, int(h * 0.045)))

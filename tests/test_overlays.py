@@ -185,7 +185,7 @@ def test_start_page_fits_window(env):  # noqa: F811
 
     controller.show_source({"type": "clock"})
     card = window.status_card
-    for width, mode in ((1500, "voll"), (950, "mittel")):
+    for width, mode in ((1920, "voll"), (950, "mittel")):  # 8 Schnellschalter mit Namen: Full HD
         window.resize(width, 820)
         pump(30)
         card._recheck()

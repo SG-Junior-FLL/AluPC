@@ -37,7 +37,7 @@ from PySide6.QtMultimedia import (
 from PySide6.QtWidgets import QWidget
 
 from .scenes import layout_slots
-from .ui.theme import STAGE_BG
+from . import stage
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tif", ".tiff"}
 MAX_SCENE_DEPTH = 4
@@ -861,7 +861,7 @@ def paint_airplay_waiting(widget, name: str, code: str, style: str = "bereit") -
         p.end()
         return
     if style != "anleitung":
-        p.fillRect(widget.rect(), QColor("#000000"))
+        stage.paint_background(p, QRectF(widget.rect()))
         unit = max(6, min(w, h) // 54)
         # AirPlay-Symbol: Bildschirm mit Dreieck
         sw, sh = unit * 7, unit * 4.6
@@ -891,7 +891,7 @@ def paint_airplay_waiting(widget, name: str, code: str, style: str = "bereit") -
         line(y, unit * 1.1, name + (f"  ·  Code {code}" if code else ""), "#6b7280")
         p.end()
         return
-    p.fillRect(widget.rect(), QColor(STAGE_BG))  # Regiepult: ruhiger Graphit-Grund
+    stage.paint_background(p, QRectF(widget.rect()))  # Publikumsansicht: überall gleich
     unit = max(8, min(w, h) // 36)
     # stilisiertes Handy mit Spiegel-Symbol
     pw, ph = unit * 6, unit * 11
@@ -1042,7 +1042,7 @@ class WifiQrSource(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(self.rect(), QColor(STAGE_BG))  # Regiepult: ruhiger Graphit-Grund
+        stage.paint_background(p, QRectF(self.rect()))  # Publikumsansicht: überall gleich
         if self._qr is None:
             msg = self.note or "Hotspot ist aus"
             p.setPen(QColor("#e2e8f0"))
@@ -1076,7 +1076,7 @@ class WifiHelpSource(WifiQrSource):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(self.rect(), QColor(STAGE_BG))  # Regiepult: ruhiger Graphit-Grund
+        stage.paint_background(p, QRectF(self.rect()))  # Publikumsansicht: überall gleich
         m = min(w, h) * 0.05
         portrait = h > w * 1.1
         x0, y0 = m, m
@@ -1434,7 +1434,11 @@ class TextBase(QWidget):
 
     def paintEvent(self, _event):
         p = QPainter(self)
-        p.fillRect(self.rect(), self.background)
+        if stage.is_default_black(self.background):  # Standard-Hintergrund → Bühne wie alle Anzeigen
+            p.setRenderHint(QPainter.Antialiasing)
+            stage.paint_background(p, QRectF(self.rect()))
+        else:
+            p.fillRect(self.rect(), self.background)
         margin = int(self.width() * 0.03)
         area = self.rect().adjusted(margin, 0, -margin, 0)
         shown = self.text()
@@ -1508,7 +1512,10 @@ class ClockSource(TextBase):
             return super().paintEvent(_event)
         # Uhrzeit groß, Datum kleiner darunter; beides passt sich der Feldbreite an
         p = QPainter(self)
-        p.fillRect(self.rect(), self.background)
+        if stage.is_default_black(self.background):  # Standard → Bühne wie alle Anzeigen
+            stage.paint_background(p, QRectF(self.rect()))
+        else:
+            p.fillRect(self.rect(), self.background)
         p.setPen(self.color)
         margin = int(self.width() * 0.04)
         area = self.rect().adjusted(margin, 0, -margin, 0)

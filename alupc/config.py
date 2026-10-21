@@ -119,6 +119,8 @@ DEFAULTS: dict = {
     "media": {"saved": [], "recent": []},
     # Monitor 2: Taskleiste dort ausblenden (Windows), Standbild-Symbol oben rechts
     "output": {"hide_taskbar": True, "freeze_badge": True,
+               # Publikumsansicht: „buehne“ (einheitlicher dunkler Verlauf) oder „schwarz“ (siehe stage.py)
+               "stage": "buehne",
                # Mauszeiger beim Spiegeln ins Bild zeichnen (die Aufnahme enthält ihn nicht)
                "mirror_cursor": True,
                # Maus bleibt auf Monitor 1, außer bei „Erweitern“ (dort ist Monitor 2 ein normaler Bildschirm)
@@ -167,7 +169,10 @@ DEFAULTS: dict = {
     "first_run_done": False,
     # Windows 11: AluPC-Symbol wurde für diesen Programmpfad schon direkt in die Taskleiste gelegt
     "tray": {"promoted_for": ""},
-    "appearance": {"mode": "dunkel", "accent": "alupc", "style": "normal", "wood": "nussbaum", "accent_v2": True, "accent_v3": True,
+    # Darstellung: Stil, Farbe, Holzart, Feinheiten (Rundung/Schrift in %, Abstände) und Profile (Setup → Darstellung)
+    "appearance": {"mode": "dunkel", "accent": "alupc", "style": "normal", "wood": "nussbaum", "radius": 100,
+                   "font": 100, "density": "normal", "profile": "", "profiles": {}, "accent_color": "",
+                   "accent_v2": True, "accent_v3": True,
                    "mode_v2": True, "fade": True},
     # Übergang zwischen Inhalten/Szenen auf Monitor 2 (Art siehe transitions.py); Szenen können
     # einen eigenen Übergang haben

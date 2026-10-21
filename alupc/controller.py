@@ -357,8 +357,14 @@ class Controller(QObject):
         self.set_camera_option(cam.device_id, zoom=zoom)
 
     def _apply_cursor_settings(self) -> None:
-        """Mauszeiger beim Spiegeln einzeichnen – aber nicht, wenn der Laserpointer an ist."""
+        """Mauszeiger beim Spiegeln einzeichnen – aber nicht, wenn der Laserpointer an ist. Dazu: Aussehen der
+        Publikumsansicht (Bühne/Schwarz)."""
+        from . import stage
         from .sources import ScreenSource, screen_settings
+
+        stage.configure(self.config["output"].get("stage", "buehne"))
+        if self.output.content is not None:
+            self.output.content.update()
 
         show = bool(self.config["output"].get("mirror_cursor", True))
         screen_settings["cursor"] = show
@@ -470,6 +476,11 @@ class Controller(QObject):
             self.system_mirror()  # Ersteinrichtung hat festgestellt: Bildaufnahme klappt hier nicht
             return
         main = self.main_screen()
+        if self._capture_would_ask(main) and self.display.available():
+            # Wayland ohne KWin-Freigabe: die Aufnahme würde jedes Mal „Welchen Bildschirm teilen?“ fragen
+            # (man müsste den Monitor von Hand wählen) → KDE spiegelt selbst, ohne Nachfrage
+            self.system_mirror()
+            return
         self.show_source({"type": "screen", "screen_name": main.name() if main else "", "mirror": True})
         content = self.output.content
         if hasattr(content, "no_signal"):
@@ -482,6 +493,18 @@ class Controller(QObject):
             if is_wayland():
                 self._mirror_hint_shown = True
                 self.message.emit("Wayland fragt nach dem Bildschirm (mit .deb unter KDE nicht)")
+
+    @staticmethod
+    def _capture_would_ask(screen) -> bool:
+        """Würde die Bildaufnahme den Menschen nach dem Bildschirm fragen? (Linux/Wayland ohne KWin-Freigabe)"""
+        import sys
+
+        if not sys.platform.startswith("linux") or screen is None:
+            return False
+        from . import sources
+        from .platform.linux_display import is_wayland
+
+        return is_wayland() and not sources._kwin_allowed(screen.name())
 
     def extend(self) -> None:
         if not self._guard():

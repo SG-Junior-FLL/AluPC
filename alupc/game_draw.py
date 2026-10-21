@@ -220,12 +220,13 @@ BG_EVERY = 0.12  # Sekunden: die Flecken wandern so langsam, dass öfter neu rec
 
 
 def _paint_background(p: QPainter, w: float, h: float, now: float) -> None:
-    grad = QLinearGradient(0, 0, w, h)
-    grad.setColorAt(0, QColor("#0b1020"))
-    grad.setColorAt(1, QColor("#1a1033"))
-    p.fillRect(QRectF(0, 0, w, h), grad)
-    # langsam wandernde, weiche Farbflecken
-    for i, color in enumerate(("#6366f1", "#ec4899", "#06b6d4")):
+    from . import stage
+
+    stage.paint_background(p, QRectF(0, 0, w, h))  # Publikumsansicht: gleich wie alle Anzeigen
+    if stage.settings["look"] == "schwarz":
+        return
+    # langsam wandernde, sehr weiche Lichtflecken (Spiele dürfen etwas lebendiger sein)
+    for i, color in enumerate((stage.ACCENT, "#ec4899", "#06b6d4")):
         cx = w * (0.5 + 0.38 * math.sin(now * 0.07 + i * 2.1))
         cy = h * (0.5 + 0.35 * math.cos(now * 0.05 + i * 1.7))
         r = max(w, h) * 0.45

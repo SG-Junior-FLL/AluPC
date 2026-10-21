@@ -15,7 +15,23 @@ ACCENTS = {
     "gruen": ("Grün", "#10b981"),
     "orange": ("Orange", "#f59e0b"),
     "rosa": ("Rosa", "#ec4899"),
+    "eigen": ("Eigene Farbe", "#5b8cff"),  # Farbe aus appearance["accent_color"]
 }
+DENSITIES = {"kompakt": ("Kompakt", 0.85), "normal": ("Normal", 1.0), "luftig": ("Luftig", 1.15)}
+# Fertige Profile (Setup → Darstellung → Profil); eigene Profile kommen dazu (appearance["profiles"])
+BUILTIN_PROFILES = {
+    "AluPC Standard": {"style": "normal", "mode": "dunkel", "accent": "alupc", "radius": 100, "font": 100,
+                       "density": "normal"},
+    "Hell & rund": {"style": "normal", "mode": "hell", "accent": "alupc", "radius": 140, "font": 100,
+                    "density": "luftig"},
+    "Werkstatt": {"style": "technisch", "mode": "dunkel", "accent": "alupc", "radius": 100, "font": 95,
+                  "density": "kompakt"},
+    "Wohnzimmer": {"style": "holz", "wood": "nussbaum", "accent": "alupc", "radius": 100, "font": 105,
+                   "density": "normal"},
+    "Werkbank Eiche": {"style": "holz", "wood": "eiche", "accent": "alupc", "radius": 100, "font": 100,
+                       "density": "normal"},
+}
+PROFILE_KEYS = ("style", "mode", "wood", "accent", "accent_color", "radius", "font", "density")
 MODES = {"system": "Wie das System", "dunkel": "Dunkel", "hell": "Hell"}
 # Drei Gestaltungen (docs/DESIGN.md), frei umschaltbar unter Setup → Darstellung
 STYLES = {"normal": "Normal", "technisch": "Technisch", "holz": "Holz"}
@@ -45,6 +61,9 @@ class Theme:
     ready: str = "#30a46c"  # bereit / verbunden
     style: str = "normal"  # siehe STYLES
     wood_kind: str = "nussbaum"  # Holzart im Holz-Stil (siehe WOODS)
+    radius_scale: float = 1.0  # Rundung: 0 = eckig, 1 = wie der Stil, 2 = doppelt so rund
+    font_scale: float = 1.0    # Schriftgröße (0.85–1.3)
+    density: float = 1.0       # Abstände: 0.85 kompakt, 1 normal, 1.15 luftig
 
     def __post_init__(self):
         if not self.accent2:
@@ -73,7 +92,12 @@ class Theme:
     @property
     def radii(self) -> tuple[int, int, int, int]:
         """Rundung: Karte, Knopf, Eingabefeld, Listenzeile."""
-        return {"technisch": (3, 3, 2, 2), "holz": (6, 5, 4, 4)}.get(self.style, (20, 17, 12, 10))
+        base = {"technisch": (3, 3, 2, 2), "holz": (6, 5, 4, 4)}.get(self.style, (20, 17, 12, 10))
+        return tuple(max(0, round(r * self.radius_scale)) for r in base)
+
+    def pt(self, size: float) -> float:
+        """Schriftgröße mit dem eingestellten Faktor."""
+        return round(size * self.font_scale, 2)
 
     def c(self, name: str) -> QColor:
         return QColor(getattr(self, name))
@@ -227,7 +251,23 @@ def system_accent() -> str:
     return c.name()
 
 
-def make_theme(mode: str = "system", accent: str = "blau", style: str = "normal", wood: str = "nussbaum") -> Theme:
+def from_appearance(a: dict) -> Theme:
+    """Theme aus den gespeicherten Einstellungen (appearance) – inkl. eigener Farbe, Rundung, Schrift, Abständen."""
+    return make_theme(a.get("mode", "system"), a.get("accent", "alupc"), a.get("style", "normal"),
+                      a.get("wood", DEFAULT_WOOD), custom=a)
+
+
+def make_theme(mode: str = "system", accent: str = "blau", style: str = "normal", wood: str = "nussbaum",
+               custom: dict | None = None) -> Theme:
+    t = _make_theme(mode, accent, style, wood, custom or {})
+    c = custom or {}
+    t.radius_scale = max(0.0, min(2.5, float(c.get("radius", 100)) / 100))
+    t.font_scale = max(0.8, min(1.4, float(c.get("font", 100)) / 100))
+    t.density = DENSITIES.get(c.get("density", "normal"), DENSITIES["normal"])[1]
+    return t
+
+
+def _make_theme(mode: str, accent: str, style: str, wood: str, custom: dict) -> Theme:
     """Drei Gestaltungen (docs/DESIGN.md), jede hell und dunkel:
     normal – ruhiges Grau, runde Ecken; technisch – Mittelgrau, Signalgelb, dichte Zeilen, Messwerte;
     holz – Furnier der gewählten Holzart, Messing als Akzent; ob hell oder dunkel, bestimmt das Holz
@@ -242,6 +282,8 @@ def make_theme(mode: str = "system", accent: str = "blau", style: str = "normal"
         accent_hex = own[0] if dark else own[1]
     elif key == "system":
         accent_hex = system_accent()
+    elif key == "eigen":
+        accent_hex = QColor(custom.get("accent_color") or ACCENTS["eigen"][1]).name()
     else:
         accent_hex = ACCENTS[key][1]
     if style == "technisch":
@@ -540,14 +582,28 @@ def load_fonts(app) -> bool:
     return ok
 
 
-def apply(app, mode: str = "system", accent: str = "blau", style: str = "normal", wood: str = "nussbaum") -> Theme:
+def apply_appearance(app, a: dict) -> Theme:
+    """Alle Darstellungs-Einstellungen anwenden (Stil, Farbe, Rundung, Schrift, Abstände)."""
+    return apply(app, a.get("mode", "system"), a.get("accent", "alupc"), a.get("style", "normal"),
+                 a.get("wood", DEFAULT_WOOD), custom=a)
+
+
+def apply(app, mode: str = "system", accent: str = "blau", style: str = "normal", wood: str = "nussbaum",
+          custom: dict | None = None) -> Theme:
     """Farbschema auf die ganze Anwendung anwenden (auch nachträglich)."""
     global _current, _sys_highlight, _sys_window
     load_fonts(app)
     if not _sys_highlight:
         _sys_highlight = app.palette().color(QPalette.Highlight).name()
         _sys_window = app.palette().color(QPalette.Window).name()
-    t = _current = make_theme(mode, accent, style, wood)
+    t = _current = make_theme(mode, accent, style, wood, custom)
+    if _fonts_loaded:  # Grundschrift mit Faktor (Schriftgröße)
+        from PySide6.QtGui import QFont
+
+        base = QFont(UI_FONT)
+        base.setPointSizeF(10 * t.font_scale)
+        base.setHintingPreference(QFont.PreferNoHinting)
+        app.setFont(base)
     if app.style().name().lower() != "fusion":
         app.setStyle("Fusion")
     pal = QPalette()
@@ -692,6 +748,16 @@ def _check_image() -> str:
 
 
 def stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
+    """Stylesheet; alle Schriftgrößen mit dem eingestellten Faktor (Setup → Darstellung → Schriftgröße)."""
+    import re
+
+    css = _stylesheet(t, check_image, arrow_image)
+    if abs(t.font_scale - 1.0) < 0.001:
+        return css
+    return re.sub(r"font-size:\s*([\d.]+)pt", lambda m: f"font-size: {float(m.group(1)) * t.font_scale:.2f}pt", css)
+
+
+def _stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
     """Stylesheet für alle drei Gestaltungen (docs/DESIGN.md). Gemeinsam: feine Ränder statt Schatten,
     Fokus/Auswahl in der Akzentfarbe. Unterschiede: Rundungen, Flächen (flach / Alu-Platten auf Holz), Schrift."""
     a1 = t.accent
@@ -724,7 +790,9 @@ def stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
         pressed = t.mix(t.surface2, t.text, 0.14).name()
         btn_hover = f"background: {hover};"
         btn_down = f"background: {pressed};"
+        hero_tint = t.mix(t.surface, a1, 0.16 if t.dark else 0.08).name()
         extra = f"""
+#Hero {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {t.surface}, stop:1 {hero_tint}); }}
 #Sidebar {{ margin: 12px 0 12px 12px; border-radius: 22px; border: none; }}
 QPushButton {{ padding: 7px 16px; }}
 QPushButton#Chip {{ border-radius: 16px; padding: 6px 14px; }}
@@ -741,6 +809,9 @@ QListWidget#SetupNav::item:selected {{ border-left: none; }}
     if t.technical:
         side = t.surface
         page_icon = f"background: transparent; border: 1px solid {line_hi};"
+        extra = f"""
+#Card, QGroupBox, #Hero {{ border-top: 2px solid {a1}; }}
+"""
     if t.wood:
         def img(part: str) -> str:
             f = wood_file(t.wood_kind, part)

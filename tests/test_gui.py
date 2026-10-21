@@ -2781,7 +2781,7 @@ def test_airplay_idle_styles(env):
     """Ohne iPhone: „AirPlay bereit“ (fast nur Schwarz), ganz schwarz oder die ausführliche Anleitung."""
     from PySide6.QtWidgets import QWidget
 
-    from alupc.sources import AIRPLAY_IDLE, paint_airplay_waiting
+    from alupc.sources import paint_airplay_waiting
 
     class View(QWidget):
         style = "bereit"
@@ -2789,17 +2789,26 @@ def test_airplay_idle_styles(env):
         def paintEvent(self, _e):
             paint_airplay_waiting(self, "AluPC", "1234", self.style)
 
+    from alupc import stage
+
     v = View()
     v.resize(640, 360)
-    dark = {}
-    for style in AIRPLAY_IDLE:
+
+    def share(style, limit):
         v.style = style
         img = v.grab().toImage()
         px = [img.pixelColor(x, y) for x in range(0, 640, 4) for y in range(0, 360, 4)]
-        dark[style] = sum(c.lightness() < 8 for c in px) / len(px)
-    assert dark["schwarz"] == 1.0
-    assert 0.9 < dark["bereit"] < 1.0  # etwas Text und Symbol, sonst schwarz
-    assert dark["anleitung"] < 0.5  # farbiger Hintergrund mit Anleitung
+        return sum(c.lightness() < limit for c in px) / len(px)
+
+    assert share("schwarz", 8) == 1.0
+    # „bereit“: ruhige, dunkle Bühne (wie alle Publikums-Anzeigen) mit etwas Text und Symbol
+    assert 0.9 < share("bereit", 40) < 1.0
+    assert share("anleitung", 8) < 0.5
+    stage.configure("schwarz")  # Publikum: reines Schwarz → auch „bereit“ fast nur Schwarz
+    try:
+        assert 0.9 < share("bereit", 8) < 1.0
+    finally:
+        stage.configure("buehne")
 
 
 def test_airplay_rename_while_running(env, tmp_path, monkeypatch):
@@ -4829,3 +4838,30 @@ def video_sources_of(controller):
     from alupc.sources import video_sources
 
     return video_sources(controller.output.content)[0]
+
+
+def test_wayland_native_mirror_never_asks_for_screen(env, monkeypatch):
+    """Wayland (natives Qt) ohne KWin-Freigabe: Spiegeln fragt NICHT „Welchen Bildschirm teilen?“, sondern lässt
+    KDE ohne Nachfrage spiegeln – der Bildschirm wird automatisch gewählt."""
+    import sys
+
+    from alupc import sources
+    from alupc.platform import linux_display
+
+    if not sys.platform.startswith("linux"):
+        pytest.skip("nur Linux")
+    controller, _window, _ = env
+    calls = []
+    monkeypatch.setattr(linux_display, "is_wayland", lambda: True)
+    monkeypatch.setattr(sources, "_kwin_allowed", lambda name: False)
+    monkeypatch.setattr(controller.display, "available", lambda: True)
+    monkeypatch.setattr(controller.display, "mirror", lambda main, out: calls.append((main, out)))
+    monkeypatch.setattr(controller, "screens_overlap", lambda: False)
+    controller.mirror()
+    assert _until(lambda: calls, 3)
+    assert calls[0] == ("Haupt", "Zweit")
+    assert controller.output.content is None or not hasattr(controller.output.content, "capture")
+    # mit KWin-Freigabe: AluPC nimmt selbst auf (dann ohne Nachfrage)
+    calls.clear()
+    monkeypatch.setattr(sources, "_kwin_allowed", lambda name: True)
+    assert not controller._capture_would_ask(controller.main_screen())

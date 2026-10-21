@@ -46,6 +46,18 @@ Holz), `alupc/ui/widgets.py` (gezeichnete Teile), `alupc/cast_page.py` (Handy-/i
   eine Kontrolllampe (aus = dunkles Glas, läuft = leuchtet rot). Akzent Messing.
 - Reglerkappen aus gebürstetem Aluminium, Vorschau in dunklem Gehäuse wie ein kleiner Fernseher.
 
+## Anpassen und Profile (ab 2.2)
+
+Setup → Darstellung: **Rundung** (0–200 % der Rundung des Stils), **Schriftgröße** (85–130 %), **Abstände**
+(kompakt/normal/luftig), **eigene Akzentfarbe**. **Profile** speichern Stil, Hell/Dunkel, Holzart, Farbe, Rundung,
+Schrift und Abstände (`theme.PROFILE_KEYS`); fertige Profile in `theme.BUILTIN_PROFILES`.
+
+## Publikumsansicht (Monitor 2)
+
+Alle Info-Anzeigen nutzen dieselbe „Bühne“ (`alupc/stage.py`): dunkler Verlauf, sanftes Leuchten in AluPC-Blau,
+gleiche Ränder und Farben – **unabhängig vom PC-Design**. Text/Uhr/Timer zeigen die Bühne, solange ihr Hintergrund
+das Standard-Schwarz ist. Setup → Bildschirm → „Publikum sieht“: Bühne oder reines Schwarz.
+
 ## Handy-/iPad-Seite
 
 Der PC liefert die Seite mit seinen Farben, Rundungen, Schriften und (Holz) den Holzflächen aus

@@ -9,18 +9,26 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 2.1.0 – Zusatzprogramme werden beim Deinstallieren mit entfernt
-- **Windows:** AluPC merkt sich, welche Zusatzprogramme es **selbst neu** installiert hat – Bonjour und
-  uxplay-windows (AirPlay), OpenRGB, FanControl, VB-CABLE (virtuelles Mikro), OBS Studio (virtuelle Kamera).
-  Egal ob über den Installer oder später in AluPC. Beim Deinstallieren fragt AluPC, ob diese auch entfernt werden
-  sollen. Programme, die du schon vorher hattest, werden nie angefasst.
-- **Linux:** Pakete, die AluPC nachinstalliert, werden als „automatisch“ markiert. Nach `sudo apt remove alupc`
-  entfernt `sudo apt autoremove` sie mit (der Hinweis steht beim Entfernen da). AluPCs eigene Einstellungsdateien
-  für die virtuelle Kamera werden mit entfernt.
-- Gilt für Installationen ab 2.1.0 – was ältere Versionen installiert haben, kennt AluPC nicht.
-- **Nicht getestet** auf einem echten Windows-PC (Installieren und Deinstallieren mit winget) – nur automatische Tests.
-
-2.0.0: drei Designs (Normal, Technisch, Holz mit 7 Holzarten) – siehe CHANGELOG.
+### Neu in 2.2.0 – eigene Design-Profile, mehr Schalter, einheitliche Publikumsansicht
+- **Design anpassen und speichern** (Setup → Darstellung):
+  - Rundung (eckig bis sehr rund), Schriftgröße (85–130 %), Abstände (kompakt, normal, luftig)
+  - eigene Akzentfarbe („Farbe wählen …“)
+  - Profile: fertige Profile („Werkstatt“, „Wohnzimmer“, „Hell & rund“ …) oder eigene speichern, wechseln,
+    löschen. „Aktuelle Einstellungen“ holt den Stand von vor dem Profil zurück.
+- **Designs aufgefrischt:**
+  - Normal: Leuchten in der Akzentfarbe, Kacheln heben sich beim Überfahren, laufende Kacheln leuchten rot.
+  - Technisch: Signalkante an Karten.
+  - Holz: Messing-Einlegeleiste.
+- **Mehr Schnellschalter oben:** neu sind Schoner, Overlays, Stumm (PC-Ton) und Weiter (nächste Szene). Bei Platz
+  mit Namen auf zwei Zeilen, sonst nur Symbole.
+- **Publikum sieht immer dasselbe:**
+  - Gilt für Abstimmung, Glücksrad, WLAN-Code, Uhr, Text, Timer, System, Musik, Spiele und AirPlay-Warten.
+  - Einheitliche dunkle „Bühne“, unabhängig vom PC-Design.
+  - Setup → Bildschirm → „Publikum sieht“: Bühne oder reines Schwarz.
+- **Linux: Spiegeln ohne Bildschirm-Auswahl.** Würde die Aufnahme nach dem Bildschirm fragen (Wayland ohne
+  KWin-Freigabe), spiegelt KDE direkt, ohne Nachfrage.
+- **Nicht getestet** auf echten Geräten (Spiegeln unter KDE/Wayland, PC-Stummschalten) – nur automatische Tests
+  und Bildschirmfotos.
 
 ### Frühere Versionen
 [CHANGELOG](https://github.com/SG-Junior-FLL/AluPC/blob/main/docs/CHANGELOG.md)

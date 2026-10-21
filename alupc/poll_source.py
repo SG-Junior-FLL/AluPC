@@ -7,7 +7,8 @@ from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter
 from PySide6.QtWidgets import QWidget
 
 from .sources import fitted_font
-from .ui.theme import HEAD_FONT, STAGE_BG
+from . import stage
+from .ui.theme import HEAD_FONT
 
 BAR_COLORS = ["#6366f1", "#06b6d4", "#f59e0b", "#ec4899", "#22c55e", "#f43f5e"]
 
@@ -56,16 +57,16 @@ class PollSource(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(self.rect(), QColor(STAGE_BG))
+        stage.paint_background(p, QRectF(self.rect()))
         poll = self.server.poll
         if poll is None or not self.ok:
-            p.setPen(QColor("#e2e8f0"))
+            p.setPen(QColor(stage.TEXT))
             p.setFont(fitted_font(p, "Keine laufende Abstimmung", int(w * 0.8), max(14, h // 16)))
             p.drawText(self.rect(), Qt.AlignCenter,
                        "Keine laufende Abstimmung" if self.ok else "Abstimmung: Netzwerk-Anschluss belegt")
             p.end()
             return
-        m = max(12, int(min(w, h) * 0.05))
+        m = max(12, int(stage.margin(w, h)))  # gleicher Rand wie alle Anzeigen
         show_qr = poll.open
         col = int(min(w * 0.24, h * 0.42)) if show_qr else 0
         left = QRectF(m, m, w - 2 * m - (col + m if show_qr else 0), h - 2 * m)
@@ -75,7 +76,7 @@ class PollSource(QWidget):
         f.setWeight(QFont.DemiBold)
         f.setPixelSize(max(10, int(h * 0.038)))
         p.setFont(f)
-        p.setPen(QColor("#7fa6f3" if poll.open else "#4cc38a"))
+        p.setPen(QColor(stage.ACCENT if poll.open else "#4cc38a"))
         p.drawText(QRectF(left.x(), left.y(), left.width(), h * 0.05), Qt.AlignLeft | Qt.AlignVCenter, tag)
         qf = QFont(HEAD_FONT)
         qf.setBold(True)
@@ -102,7 +103,7 @@ class PollSource(QWidget):
             y = top + i * row + (row - bar_h) / 2
             track = QRectF(left.x(), y, left.width(), bar_h)
             p.setPen(Qt.NoPen)
-            p.setBrush(QColor(255, 255, 255, 18))
+            p.setBrush(QColor(stage.PANEL))
             p.drawRoundedRect(track, bar_h * 0.28, bar_h * 0.28)
             share = self.shown[i] if i < len(self.shown) else 0.0
             if share > 0.001:
@@ -126,7 +127,7 @@ class PollSource(QWidget):
         sf = QFont()
         sf.setPixelSize(max(10, int(h * 0.032)))
         p.setFont(sf)
-        p.setPen(QColor("#94a3b8"))
+        p.setPen(QColor(stage.MUTED))
         p.drawText(QRectF(left.x(), left.bottom() - h * 0.05, left.width(), h * 0.05), Qt.AlignLeft | Qt.AlignVCenter,
                    f"{total} {'Stimme' if total == 1 else 'Stimmen'}")
         # Codes zum Mitmachen: 1. WLAN, 2. Abstimmungs-Seite

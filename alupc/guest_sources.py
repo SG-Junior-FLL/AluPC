@@ -11,7 +11,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPaint
 from PySide6.QtWidgets import QWidget
 
 from .sources import draw_qr, fitted_font, qr_image
-from .ui.theme import STAGE_BG
+from . import stage
 
 
 def _font(px: float, bold: bool = False) -> QFont:
@@ -127,7 +127,7 @@ class ChatWallSource(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(self.rect(), QColor(STAGE_BG))  # Regiepult: ruhiger Graphit-Grund
+        stage.paint_background(p, QRectF(self.rect()))  # Publikumsansicht: überall gleich
         m = min(w, h) * 0.05
         portrait = h > w * 1.1
         codes_rect = QRectF(m, h - m - h * 0.26, w - 2 * m, h * 0.26) if portrait else \
@@ -142,7 +142,7 @@ class ChatWallSource(QWidget):
         chat = self.server.chat
         top = area.y() + title_px * 1.7
         if chat is None or not chat.messages:
-            p.setPen(QColor("#94a3b8"))
+            p.setPen(QColor(stage.MUTED))
             p.setFont(_font(title_px * 0.5))
             p.drawText(QRectF(area.x(), top, area.width(), area.bottom() - top), Qt.AlignCenter | Qt.TextWordWrap,
                        "Der Chat ist aus" if chat is None else
@@ -258,7 +258,7 @@ class PhotoWallSource(QWidget):
 
     # ---- Zeichnen
     def _background(self, p: QPainter, w: int, h: int) -> None:
-        p.fillRect(QRectF(0, 0, w, h), QColor(STAGE_BG))  # Regiepult: ruhiger Graphit-Grund
+        stage.paint_background(p, QRectF(0, 0, w, h))  # Publikumsansicht: überall gleich
 
     def _polaroid(self, p: QPainter, photo: dict, center: QPointF, size: float, angle: float, caption: bool,
                   scale: float = 1.0) -> None:

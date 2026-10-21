@@ -239,10 +239,9 @@ class NowPlayingSource(QWidget):
             vignette.setColorAt(1, QColor(0, 0, 0, 150))
             p.fillRect(0, 0, w, h, vignette)
         else:
-            grad = QLinearGradient(0, 0, w, h)
-            grad.setColorAt(0, QColor("#0f172a"))
-            grad.setColorAt(1, QColor("#020617"))
-            p.fillRect(0, 0, w, h, grad)
+            from . import stage
+
+            stage.paint_background(p, QRectF(0, 0, w, h))  # Publikumsansicht: überall gleich
             # weiches Leuchten hinter der Mitte
             r = min(w, h) * 0.55
             glow = QRadialGradient(w / 2, h * 0.42, r)
