@@ -67,6 +67,11 @@ Dreht er falsch herum: links und rechts tauschen – oder in AluPC „Richtung u
 
 ## 5. Licht (optional, eins von beiden)
 
+- **4 LEDs in den Ecken** (5 mm, Löcher sind im Gehäuse): jede LED bekommt einen **eigenen 1-kΩ-Widerstand**
+  (aus deinem Set). Pin 9 → je 1 kΩ → langes LED-Bein; kurze Beine → blaue Leiste (−).
+  Alle 4 hängen zusammen an Pin 9, AluPC schaltet sie (Live/An/Aus, Helligkeit, Blitz bei Tastendruck).
+  Nicht kleiner als 1 kΩ: Pin 9 verträgt höchstens ca. 40 mA, 4 LEDs mit 1 kΩ brauchen zusammen ca. 12 mA.
+  (Einen 3,3-V-Pin hat der Pro Micro 5 V nicht – VCC ist 5 V.)
 - **Eine LED:** Pin 9 → 220-Ω-Widerstand → langes LED-Bein. Kurzes Bein → blaue Leiste (−).
 - **LED-Streifen WS2812B** (bis ca. 8–10 LEDs): DIN → Pin 10, 5V → rote Leiste (+), GND → blaue Leiste (−).
   Im Arduino-Programm die Zeile `// #define STREIFEN 8` aktivieren (die `//` löschen).
