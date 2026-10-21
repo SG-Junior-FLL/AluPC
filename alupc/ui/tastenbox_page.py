@@ -10,10 +10,11 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-from PySide6.QtCore import QEasingCurve, QPointF, QRectF, Qt, QVariantAnimation, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtCore import QEasingCurve, QPointF, QRectF, Qt, QTimer, QVariantAnimation, Signal
+from PySide6.QtGui import QColor, QFont, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
+    QColorDialog,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -21,6 +22,8 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QPlainTextEdit,
+    QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -32,6 +35,7 @@ from .widgets import FlowLayout, button, font, page_header
 
 SKETCH = Path(__file__).resolve().parents[1] / "resources" / "arduino" / "AluPC-Tasten" / "AluPC-Tasten.ino"
 LED_MODES = {"live": "Leuchtet, wenn etwas live ist", "an": "Immer an", "aus": "Aus"}
+LED_EFFECTS = {"ruhig": "Ruhig", "atmen": "Atmen (langsam heller/dunkler)", "blinken": "Blinken"}
 CELL = 132  # 3 × 132 passt auch ins kleinste Fenster (600 px)
 
 
@@ -46,6 +50,7 @@ class KeyCap(QWidget):
         self.text = ""
         self.long_text = ""  # Befehl bei langem Druck (klein unten)
         self.selected = False
+        self.down = False  # Fehlersuche: Taste ist gerade unten (Rohwerte der Box)
         self.glow = 0.0
         self.setFixedSize(CELL, 92)
         self.setCursor(Qt.PointingHandCursor)
@@ -85,9 +90,9 @@ class KeyCap(QWidget):
             p.setBrush(Qt.NoBrush)
             p.drawRoundedRect(r.adjusted(1, 1, -1, -1), rad, rad)
             p.setPen(Qt.NoPen)
-        if self.glow > 0:
+        if self.glow > 0 or self.down:
             g = QColor(accent)
-            g.setAlphaF(0.55 * self.glow)
+            g.setAlphaF(0.55 * (1.0 if self.down else self.glow))
             p.setBrush(g)
             p.drawRoundedRect(r, rad, rad)
             p.setPen(QPen(accent, 2.5))
@@ -178,7 +183,7 @@ class TastenboxPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(14)
-        root.addWidget(page_header("Tastenbox", "9 Tasten und ein Drehregler am USB (Arduino Pro Micro)", "grid"))
+        root.addWidget(page_header("Tastenbox", "9 Tasten und ein Drehregler am USB (Arduino Pro Micro oder Nano)", "grid"))
         self.status = QLabel()
         self.status.setWordWrap(True)
         root.addWidget(self.status)
@@ -287,6 +292,18 @@ class TastenboxPage(QWidget):
         led.setCurrentIndex(max(0, led.findData(c.config["tasten"].get("led", "live"))))
         led.currentIndexChanged.connect(lambda _i: self._save(led=led.currentData()))
         df.addRow("LED:", led)
+        effect = QComboBox()
+        for key, label in LED_EFFECTS.items():
+            effect.addItem(label, key)
+        effect.setCurrentIndex(max(0, effect.findData(c.config["tasten"].get("led_effekt", "ruhig"))))
+        effect.setToolTip("Wie die LEDs leuchten, wenn sie an sind (Box-Programm ab Version 3)")
+        effect.currentIndexChanged.connect(lambda _i: self._save(led_effekt=effect.currentData()))
+        df.addRow("Effekt:", effect)
+        self.color_btn = QPushButton()
+        self.color_btn.setToolTip("Nur LED-Streifen bzw. RGB-LEDs (WS2812B/PL9823) – einfarbige LEDs bleiben, wie sie sind")
+        self.color_btn.clicked.connect(self._pick_color)
+        self._show_color()
+        df.addRow("Farbe:", self.color_btn)
         bright = QSpinBox()
         bright.setRange(5, 100)
         bright.setSingleStep(5)
@@ -307,12 +324,14 @@ class TastenboxPage(QWidget):
         sketch = button("Arduino-Programm speichern …", "download")
         sketch.clicked.connect(self._save_sketch)
         dl.addWidget(sketch, 0, Qt.AlignLeft)
-        wiring = QLabel("Tasten an D2–D8, D14, D15 und GND · Regler (10 kΩ) Mitte an A0, außen an VCC und GND · "
-                        "LED über 220 Ω an D9 oder LED-Streifen WS2812B an D10.")
+        wiring = QLabel("Pro Micro: Tasten D2–D8, D14, D15 · LEDs D9 · Streifen D10.  Nano: Tasten D2–D10 · LEDs D11 · "
+                        "Streifen D12.  Beide: andere Tasten-Seite an GND · Regler (10 kΩ) Mitte an A0, außen an "
+                        "5V/VCC und GND · je LED ein eigener 1-kΩ-Widerstand.")
         wiring.setObjectName("Muted")
         wiring.setWordWrap(True)
         dl.addWidget(wiring)
         root.addWidget(dev)
+        root.addWidget(self._debug_box())
         root.addStretch(1)
 
         bb = c.buttonbox
@@ -321,6 +340,9 @@ class TastenboxPage(QWidget):
         bb.key.connect(self._pressed)
         bb.long_key.connect(self._pressed)
         bb.volume.connect(lambda _v: self.refresh())
+        bb.raw.connect(self._raw)
+        bb.log_line.connect(self._log)
+        bb.state_changed.connect(self._debug_info)
         c.changed.connect(self.refresh)
         self.select(1)
         self.refresh()
@@ -359,13 +381,135 @@ class TastenboxPage(QWidget):
             self.long_action.addItem(long, long)
         self.long_action.setCurrentIndex(max(0, self.long_action.findData(long)))
 
+    # ------------------------------------------------------------ LED
+    def _show_color(self) -> None:
+        col = self.controller.config["tasten"].get("led_farbe", "#00ffa0")
+        from .icons import dot_icon
+
+        self.color_btn.setText(col.upper())
+        self.color_btn.setIcon(dot_icon(col, 14))
+
+    def _pick_color(self) -> None:
+        col = QColorDialog.getColor(QColor(self.controller.config["tasten"].get("led_farbe", "#00ffa0")), self,
+                                    "Farbe der LEDs")
+        if col.isValid():
+            self._save(led_farbe=col.name())
+            self._show_color()
+
+    def _test_led(self) -> None:
+        """LEDs 3× aufblitzen lassen (zum Prüfen der Verkabelung), danach wie eingestellt."""
+        c = self.controller
+        if not c.buttonbox.connected:
+            c.message.emit("Keine Box verbunden.")
+            return
+        c.buttonbox.set_effect("ruhig")
+        for i in range(6):
+            QTimer.singleShot(i * 250, lambda on=i % 2 == 0: c.buttonbox.set_led(100 if on else 0))
+        QTimer.singleShot(1600, lambda: (setattr(c, "_led_level", None), setattr(c, "_led_extra", None),
+                                         c.update_box_led()))
+
+    # ------------------------------------------------------------ Fehlersuche
+    def _debug_box(self) -> QGroupBox:
+        box = QGroupBox("Fehlersuche")
+        lay = QVBoxLayout(box)
+        top = QHBoxLayout()
+        self.debug_toggle = QCheckBox("Anzeigen")
+        top.addWidget(self.debug_toggle)
+        self.debug_summary = QLabel()
+        self.debug_summary.setObjectName("Muted")
+        top.addWidget(self.debug_summary, 1)
+        lay.addLayout(top)
+        self.debug_body = QWidget()
+        bl = QVBoxLayout(self.debug_body)
+        bl.setContentsMargins(0, 0, 0, 0)
+        self.debug_raw = QCheckBox("Rohwerte live (Tasten leuchten oben, solange sie unten sind)")
+        self.debug_raw.toggled.connect(self._set_raw)
+        bl.addWidget(self.debug_raw)
+        self.raw_label = QLabel("–")
+        self.raw_label.setWordWrap(True)
+        bl.addWidget(self.raw_label)
+        self.log_view = QPlainTextEdit()
+        self.log_view.setReadOnly(True)
+        self.log_view.setMaximumBlockCount(300)
+        self.log_view.setMinimumHeight(150)
+        self.log_view.setPlaceholderText("Hier erscheint jede Zeile zwischen AluPC und der Box.")
+        bl.addWidget(self.log_view)
+        row = QHBoxLayout()
+        for text, icon, slot in (("LED testen", "sun", self._test_led), ("Neu verbinden", "refresh", self._reconnect),
+                                 ("Protokoll kopieren", "copy", self._copy_log)):
+            b = button(text, icon)
+            b.clicked.connect(slot)
+            row.addWidget(b)
+        row.addStretch(1)
+        bl.addLayout(row)
+        self.debug_body.setVisible(False)
+        self.debug_toggle.toggled.connect(self._show_debug)
+        lay.addWidget(self.debug_body)
+        self._debug_info()
+        return box
+
+    def _show_debug(self, on: bool) -> None:
+        self.debug_body.setVisible(on)
+        if on:
+            self.log_view.setPlainText("\n".join(self.controller.buttonbox.log))
+            self.log_view.verticalScrollBar().setValue(self.log_view.verticalScrollBar().maximum())
+        elif self.debug_raw.isChecked():
+            self.debug_raw.setChecked(False)
+
+    def _set_raw(self, on: bool) -> None:
+        bb = self.controller.buttonbox
+        bb.set_debug(on)
+        if on and bb.connected and bb.version < 3:
+            self.raw_label.setText(f"Die Box hat Programm {bb.version} – Rohwerte gibt es ab Version 3. "
+                                   "„Arduino-Programm speichern …“ und neu aufspielen.")
+        elif not on:
+            self.raw_label.setText("–")
+            for cap in self.caps.values():
+                cap.down = False
+                cap.update()
+
+    def _raw(self, keys: str, knob: int) -> None:
+        down = [str(i + 1) for i, ch in enumerate(keys) if ch == "1"]
+        self.raw_label.setText(f"Tasten unten: {', '.join(down) or 'keine'}   ·   Regler A0: {knob} von 1023 "
+                               f"({round(knob * 100 / 1023)} %)")
+        for i, cap in enumerate(self.caps.values()):
+            d = i < len(keys) and keys[i] == "1"
+            if cap.down != d:
+                cap.down = d
+                cap.update()
+
+    def _log(self, line: str) -> None:
+        if self.debug_body.isVisible():
+            self.log_view.appendPlainText(line)
+
+    def _debug_info(self) -> None:
+        bb = self.controller.buttonbox
+        if bb.connected:
+            board = f" · {bb.board}" if bb.board else ""
+            old = "  (älter – neu aufspielen für Effekte/Rohwerte)" if bb.version < 3 else ""
+            self.debug_summary.setText(f"{bb.port} · Programm {bb.version}{board}{old}")
+        else:
+            self.debug_summary.setText("Keine Box verbunden")
+
+    def _reconnect(self) -> None:
+        c = self.controller
+        c.buttonbox.stop()
+        c.buttonbox._silent.clear()
+        c.apply_buttonbox()
+        c.message.emit("Tastenbox: suche neu …")
+
+    def _copy_log(self) -> None:
+        bb = self.controller.buttonbox
+        QGuiApplication.clipboard().setText("\n".join(bb.log))
+        self.controller.message.emit("Protokoll kopiert.")
+
     def _save_sketch(self) -> None:
         path, _ = QFileDialog.getSaveFileName(self, "Arduino-Programm speichern", str(Path.home() / SKETCH.name),
                                               "Arduino-Sketch (*.ino)")
         if path:
             Path(path).write_text(SKETCH.read_text(encoding="utf-8"), encoding="utf-8")
-            self.controller.message.emit("Gespeichert. Mit der Arduino-IDE auf den Pro Micro laden "
-                                         "(Board: Arduino Leonardo).")
+            self.controller.message.emit("Gespeichert. Mit der Arduino-IDE auf die Box laden "
+                                         "(Pro Micro: Board „Arduino Leonardo“, Nano: „Arduino Nano“).")
 
     # ------------------------------------------------------------ Listen
     def _fill_targets(self) -> None:

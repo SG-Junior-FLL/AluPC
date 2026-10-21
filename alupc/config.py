@@ -89,7 +89,8 @@ DEFAULTS: dict = {
     "finger_shortcuts": {"on": False, "map": {}},
     # Tastenbox (Arduino Pro Micro): 9 Tasten → Befehle, Drehregler (Ziel: pc, medien, mikro, app:Name), LED
     "tasten": {"on": True, "port": "", "keys": {}, "nur_regler": True, "led": "live", "regler": "pc",
-               "lang": {}, "umkehren": False, "max": 100, "abgleich": True, "led_hell": 100, "led_blink": False},
+               "lang": {}, "umkehren": False, "max": 100, "abgleich": True, "led_hell": 100, "led_blink": False,
+               "led_effekt": "ruhig", "led_farbe": "#00ffa0"},
     # Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter zu drücken (wie unter Windows)
     "fingerprint": {"auto_unlock": True},
     # Videos: zuletzt geschaute Stelle (Pfad → {pos, dur, t}) fürs Weiterschauen

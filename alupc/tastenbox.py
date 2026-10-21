@@ -1,18 +1,22 @@
-"""Tastenbox: Arduino Pro Micro (ATmega32U4) mit 9 Tasten (3 × 3) und einem Lautstärke-Drehregler (Poti).
+"""Tastenbox: Arduino Pro Micro (ATmega32U4) oder Nano mit 9 Tasten (3 × 3) und einem Lautstärke-Drehregler (Poti).
 
 Die Box meldet sich am USB als serieller Anschluss (115200 Baud) und schickt kurze Textzeilen:
 
-    HALLO ALUPC-TASTEN 1     Antwort auf „WER?“ (so erkennt AluPC die Box unter allen COM-Anschlüssen)
+    HALLO ALUPC-TASTEN 3 NANO  Antwort auf „WER?“ (so erkennt AluPC die Box unter allen COM-Anschlüssen);
+                             Programmversion und (ab 3) Board
     TASTE 3                  Taste 3 gedrückt (1–9; ab Programm 2 beim Loslassen, wenn kurz gedrückt)
     LANG 3                   Taste 3 lange gedrückt (ab Programm 2, nach 0,6 s)
     LAUT 57                  Drehregler steht auf 57 % (0–100; nur bei Änderung, und auf „LAUT?“)
     STUMM                    optional: Druck auf den Drehregler (falls er einen Taster hat)
+    ROH 010000000 512        ab Programm 3, nur nach „DEBUG 1“: Tasten (1 = unten) und Regler roh (0–1023)
 
-AluPC schickt: „WER?“ (Wer bist du?), „LAUT?“ (Wo steht der Regler?) und „LED 0–100“ (Helligkeit der LED bzw.
-des LED-Streifens; 0 = aus).
+AluPC schickt: „WER?“ (Wer bist du?), „LAUT?“ (Wo steht der Regler?), „LED 0–100“ (Helligkeit der LEDs bzw.
+des LED-Streifens; 0 = aus), ab Programm 3 auch „EFFEKT 0|1|2“ (ruhig/atmen/blinken), „FARBE r g b“ (Streifen)
+und „DEBUG 0|1“ (Rohwerte für die Fehlersuche).
 
-Anschluss am Pro Micro: Tasten D2–D8, D14, D15 gegen GND · Poti 10 kΩ: Mitte an A0, außen VCC/GND ·
-LED an D9 (über 220 Ω) oder LED-Streifen WS2812B an D10. Programm für den Arduino: resources/arduino/.
+Anschluss Pro Micro: Tasten D2–D8, D14, D15 gegen GND · Poti 10 kΩ: Mitte an A0, außen VCC/GND ·
+LEDs an D9 (je LED 1 kΩ) oder LED-Streifen WS2812B an D10.
+Anschluss Nano: Tasten D2–D10 · Poti an A0 · LEDs an D11 · Streifen an D12. Programm: resources/arduino/.
 
 Was der Regler regelt, ist wählbar (Seite „Tastenbox“): PC-Ton, Ton auf Bildschirm 2, Mikrofon oder ein Programm.
 Der Regler hat eine Skala – beim Wechsel startet das neue Ziel bei 0 und folgt erst, wenn der Regler auch auf 0 steht.
@@ -24,6 +28,7 @@ AluPC sie innerhalb einer Sekunde zurück. Die Lautstärke einzelner Programme b
 
 from __future__ import annotations
 
+import collections
 import threading
 import time
 
@@ -34,13 +39,18 @@ HELLO = "HALLO ALUPC-TASTEN"
 KEYS = 9
 # Arduino/SparkFun/Adafruit-Kennungen (Pro Micro und Nachbauten melden sich meist so)
 VIDS = {0x2341, 0x2A03, 0x1B4F, 0x239A, 0x1D50}
+# USB-Seriell-Chips (Nano-Nachbauten: CH340, FTDI, CP210x) – stecken auch in anderen Geräten, deshalb fragt AluPC
+# jeden solchen Anschluss nur einmal je Einstecken (antwortet er nicht, bleibt er in Ruhe)
+SERIAL_CHIP_VIDS = {0x1A86, 0x0403, 0x10C4}
+LED_EFFECTS = {"ruhig": 0, "atmen": 1, "blinken": 2}
 DEFAULT_KEYS = {"1": "schwarz", "2": "standbild", "3": "studio_uebergang", "4": "vorherige_szene",
                 "5": "naechste_szene", "6": "bild-in-bild", "7": "timer_start_pause", "8": "spiegeln",
                 "9": "erweitern"}
 
 
 def parse_line(line: str) -> tuple[str, int | str | None] | None:
-    """Eine Zeile der Box → ("taste", 3) / ("laut", 57) / ("stumm", None) / ("hallo", "1") – sonst None."""
+    """Eine Zeile der Box → ("taste", 3) / ("laut", 57) / ("stumm", None) / ("hallo", "3 NANO") /
+    ("roh", ("010000000", 512)) – sonst None."""
     text = line.strip().upper()
     if not text:
         return None
@@ -53,25 +63,39 @@ def parse_line(line: str) -> tuple[str, int | str | None] | None:
         return "laut", max(0, min(100, int(parts[1])))
     if parts[0] == "STUMM" and len(parts) == 1:
         return "stumm", None
+    if (parts[0] == "ROH" and len(parts) == 3 and len(parts[1]) == KEYS and set(parts[1]) <= {"0", "1"}
+            and parts[2].isdigit()):
+        return "roh", (parts[1], min(1023, int(parts[2])))
     return None
 
 
-def candidate_ports(exclude: set[str] | None = None) -> list[str]:
-    """Serielle Anschlüsse, an denen die Box sein könnte – Arduino-Kennungen zuerst, Fingerabdruck-Modul nie."""
+def hello_info(value: str) -> tuple[int, str]:
+    """„3 NANO“ → (3, "Nano"); alte Programme „2“ → (2, "")."""
+    parts = (value or "1").split()
+    version = int(parts[0]) if parts and parts[0].isdigit() else 1
+    board = {"NANO": "Nano", "PROMICRO": "Pro Micro"}.get(parts[1], parts[1].title()) if len(parts) > 1 else ""
+    return version, board
+
+
+def candidate_ports(exclude: set[str] | None = None, chips: bool = True) -> list[str]:
+    """Serielle Anschlüsse, an denen die Box sein könnte – Arduino-Kennungen zuerst, dann USB-Seriell-Chips
+    (Nano-Nachbauten; mit chips=False nicht), Fingerabdruck-Modul nie."""
     try:
         from serial.tools import list_ports
     except ImportError:
         return []
     exclude = exclude or set()
-    found = []
+    found, chip = [], []
     for info in list_ports.comports():
         if info.device in exclude:
             continue
         text = f"{info.description} {info.manufacturer or ''} {info.product or ''}".lower()
         # nur Arduino-artige Geräte fragen – fremde Geräte (Drucker, Modems …) bekommen nie „WER?“ geschickt
-        if (info.vid in VIDS) or any(w in text for w in ("arduino", "pro micro", "leonardo", "sparkfun")):
+        if (info.vid in VIDS) or any(w in text for w in ("arduino", "pro micro", "leonardo", "sparkfun", "nano")):
             found.append(info.device)
-    return found
+        elif chips and (info.vid in SERIAL_CHIP_VIDS or any(w in text for w in ("ch340", "ch341", "ft232", "cp210"))):
+            chip.append(info.device)
+    return found + chip
 
 
 def _fingerprint_port() -> set[str]:
@@ -94,8 +118,11 @@ class ButtonBox(QObject):
     volume = Signal(int)       # Reglerstellung 0–100
     mute = Signal()            # Druck auf den Regler (optional)
     state_changed = Signal()   # verbunden/getrennt
+    raw = Signal(str, int)     # Fehlersuche: Tasten "010000000" und Regler roh 0–1023
+    log_line = Signal(str)     # Fehlersuche: jede Zeile hin und zurück, Suche, Fehler
     _line = Signal(str)
     _connected = Signal(str)
+    _log = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -103,11 +130,19 @@ class ButtonBox(QObject):
         self.wanted_port = ""   # aus den Einstellungen; "" = automatisch suchen
         self.knob: int | None = None  # letzte Reglerstellung
         self.last_key = 0
+        self.version = 0        # Programmversion der Box (aus „HALLO …“)
+        self.board = ""
+        self.raw_keys = ""      # nur mit Fehlersuche (DEBUG 1)
+        self.raw_knob: int | None = None
+        self.debug = False
+        self.log: collections.deque[str] = collections.deque(maxlen=300)
+        self._silent: set[str] = set()  # USB-Seriell-Anschlüsse ohne Antwort (bis sie abgezogen werden)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._serial = None
         self._line.connect(self._handle)
         self._connected.connect(self._set_port)
+        self._log.connect(self._add_log)
 
     # ------------------------------------------------------------ Start/Stopp
     def start(self, port: str = "") -> None:
@@ -142,6 +177,7 @@ class ButtonBox(QObject):
             return False
         try:
             ser.write((line.strip() + "\n").encode("ascii"))
+            self._log.emit("→ " + line.strip())
             return True
         except Exception:  # noqa: BLE001 - abgezogen: der Lesefaden merkt es und sucht neu
             return False
@@ -149,51 +185,92 @@ class ButtonBox(QObject):
     def set_led(self, level: int) -> bool:
         return self.send(f"LED {max(0, min(100, int(level)))}")
 
+    def set_effect(self, name: str) -> bool:
+        """LED-Effekt in der Box: ruhig, atmen, blinken (ab Programm 3; ältere Boxen leuchten ruhig)."""
+        return self.version >= 3 and self.send(f"EFFEKT {LED_EFFECTS.get(name, 0)}")
+
+    def set_color(self, color: str) -> bool:
+        """Farbe des LED-Streifens („#00ffa0“, ab Programm 3; einfarbige LEDs ignorieren sie)."""
+        c = color.lstrip("#")
+        if len(c) != 6 or self.version < 3:
+            return False
+        try:
+            r, g, b = (int(c[i:i + 2], 16) for i in (0, 2, 4))
+        except ValueError:
+            return False
+        return self.send(f"FARBE {r} {g} {b}")
+
+    def set_debug(self, on: bool) -> None:
+        """Fehlersuche: Box schickt alle 0,1 s die Rohwerte (Tasten, Regler)."""
+        self.debug = bool(on)
+        if not on:
+            self.raw_keys, self.raw_knob = "", None
+        if self.connected:
+            self.send(f"DEBUG {1 if on else 0}")
+
+    def _add_log(self, text: str) -> None:
+        self.log.append(time.strftime("%H:%M:%S ") + text)
+        self.log_line.emit(self.log[-1])
+
     # ------------------------------------------------------------ Hintergrund
     def _open(self, device: str):
         import serial
 
+        self._log.emit(f"Suche: {device} …")
         ser = serial.Serial(device, BAUD, timeout=0.3, write_timeout=0.5)
-        ser.dtr = True  # Pro Micro (USB-CDC) schickt erst, wenn DTR gesetzt ist
-        deadline = time.monotonic() + 2.5
+        ser.dtr = True  # Pro Micro (USB-CDC) schickt erst, wenn DTR gesetzt ist; der Nano startet dabei neu
+        deadline = time.monotonic() + 4.0  # Nano: ~1–2 s Neustart (Bootloader), dann meldet er sich selbst
         ser.reset_input_buffer()
         ser.write(b"WER?\n")
         while time.monotonic() < deadline and not self._stop.is_set():
             raw = ser.readline()
             parsed = parse_line(raw.decode("ascii", "ignore")) if raw else None
             if parsed and parsed[0] == "hallo":
+                self._log.emit("← " + raw.decode("ascii", "ignore").strip())
+                self._hello = str(parsed[1])
                 return ser
             if not raw:
                 ser.write(b"WER?\n")
         ser.close()
+        self._log.emit(f"{device}: keine Antwort")
         return None
 
     def _run(self) -> None:
         while not self._stop.is_set():
             ser = None
-            ports = [self.wanted_port] if self.wanted_port else candidate_ports(_fingerprint_port())
+            if self.wanted_port:
+                ports = [self.wanted_port]
+            else:
+                ports = candidate_ports(_fingerprint_port())
+                self._silent &= set(ports)  # abgezogen → beim nächsten Einstecken wieder fragen
+                ports = [p for p in ports if p not in self._silent]
             for device in ports:
                 if self._stop.is_set():
                     return
                 try:
                     ser = self._open(device)
-                except Exception:  # noqa: BLE001 - belegt, keine Rechte, falsches Gerät …
+                except Exception as exc:  # noqa: BLE001 - belegt, keine Rechte, falsches Gerät …
+                    self._log.emit(f"{device}: {exc}")
                     ser = None
                 if ser is not None:
                     self._serial = ser
                     self._connected.emit(device)
                     break
+                if not self.wanted_port and device not in candidate_ports(chips=False):
+                    self._silent.add(device)
             if ser is None:
                 self._stop.wait(3.0)  # in 3 s wieder suchen (Box später eingesteckt)
                 continue
             try:
                 ser.write(b"LAUT?\n")
+                if self.debug:
+                    ser.write(b"DEBUG 1\n")
                 while not self._stop.is_set():
                     raw = ser.readline()
                     if raw:
                         self._line.emit(raw.decode("ascii", "ignore"))
-            except Exception:  # noqa: BLE001 - Box abgezogen
-                pass
+            except Exception as exc:  # noqa: BLE001 - Box abgezogen
+                self._log.emit(f"Getrennt: {exc}")
             finally:
                 try:
                     ser.close()
@@ -205,8 +282,11 @@ class ButtonBox(QObject):
     # ------------------------------------------------------------ GUI-Thread
     def _set_port(self, device: str) -> None:
         self.port = device
-        if not device:
+        if device:
+            self.version, self.board = hello_info(getattr(self, "_hello", ""))
+        else:
             self.knob = None
+            self.version, self.board, self.raw_keys, self.raw_knob = 0, "", "", None
         self.state_changed.emit()
 
     def _handle(self, line: str) -> None:
@@ -215,6 +295,9 @@ class ButtonBox(QObject):
     def feed(self, line: str) -> None:
         """Eine Zeile auswerten (auch für Tests ohne Box)."""
         parsed = parse_line(line)
+        if parsed is None or parsed[0] != "roh":
+            if line.strip():
+                self._add_log("← " + line.strip())
         if parsed is None:
             return
         kind, value = parsed
@@ -226,6 +309,12 @@ class ButtonBox(QObject):
             self.volume.emit(int(value))
         elif kind == "stumm":
             self.mute.emit()
+        elif kind == "roh":
+            self.raw_keys, self.raw_knob = value
+            self.raw.emit(*value)
+        elif kind == "hallo":  # Nano nach Neustart (z. B. Reset-Knopf): Version merken
+            self.version, self.board = hello_info(str(value))
+            self.state_changed.emit()
 
 
 class VolumeKeeper(QObject):

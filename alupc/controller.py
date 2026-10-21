@@ -70,6 +70,7 @@ class Controller(QObject):
         self.buttonbox.state_changed.connect(self._box_state)
         self.volume_keeper.overridden.connect(self._volume_overridden)
         self._led_level: int | None = None
+        self._led_extra: tuple | None = None
         self._override_note = 0.0
         self.finger_shortcuts.apply()
         # Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter (wie unter Windows)
@@ -1798,6 +1799,7 @@ class Controller(QObject):
         else:
             self.volume_keeper.set_target(None)
         self._led_level = None
+        self._led_extra = None
         self.update_box_led()
         self.changed.emit()
 
@@ -1812,8 +1814,17 @@ class Controller(QObject):
         """LED der Box: aus, an, oder „live“ (leuchtet, solange etwas auf Bildschirm 2 läuft)."""
         if not self.buttonbox.connected:
             return
-        mode = self.config["tasten"].get("led", "live")
-        level = self.box_led_brightness() if mode == "an" or (mode == "live" and self.mode == "content") else 0
+        cfg = self.config["tasten"]
+        mode = cfg.get("led", "live")
+        live = self.mode == "content"
+        level = self.box_led_brightness() if mode == "an" or (mode == "live" and live) else 0
+        # Effekt und Farbe (ab Box-Programm 3): „bei Live“ blinken/atmen lassen, sonst ruhig
+        effect = cfg.get("led_effekt", "ruhig") if mode == "an" or live else "ruhig"
+        extra = (effect, cfg.get("led_farbe", "#00ffa0"))
+        if extra != self._led_extra:
+            self.buttonbox.set_effect(extra[0])
+            self.buttonbox.set_color(extra[1])
+            self._led_extra = extra
         if level != self._led_level and self.buttonbox.set_led(level):
             self._led_level = level
 

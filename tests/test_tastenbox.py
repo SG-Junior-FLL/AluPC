@@ -17,6 +17,15 @@ def test_parse_lines():
     assert parse_line("") is None and parse_line("Müll") is None and parse_line("LAUT x") is None
 
 
+def test_parse_v3_lines():
+    """Programm 3: Board in der Begrüßung, Rohwerte für die Fehlersuche."""
+    assert parse_line("HALLO ALUPC-TASTEN 3 NANO") == ("hallo", "3 NANO")
+    assert tastenbox.hello_info("3 NANO") == (3, "Nano") and tastenbox.hello_info("3 PROMICRO") == (3, "Pro Micro")
+    assert tastenbox.hello_info("2") == (2, "") and tastenbox.hello_info("") == (1, "")
+    assert parse_line("ROH 010000001 512") == ("roh", ("010000001", 512))
+    assert parse_line("ROH 0100 512") is None and parse_line("ROH 01000000x 5") is None
+
+
 def test_only_arduino_ports_are_asked(monkeypatch):
     """Fremde Geräte (Drucker, Modems, Fingerabdruck-Modul) bekommen nie „WER?“ geschickt."""
     from types import SimpleNamespace
@@ -28,8 +37,10 @@ def test_only_arduino_ports_are_asked(monkeypatch):
              SimpleNamespace(device="COM5", vid=0x1B4F, description="SparkFun Pro Micro", manufacturer="", product=""),
              SimpleNamespace(device="COM6", vid=None, description="Bluetooth", manufacturer="", product="")]
     monkeypatch.setattr(list_ports, "comports", lambda: ports)
-    assert tastenbox.candidate_ports() == ["COM3", "COM5"]
-    assert tastenbox.candidate_ports({"COM3"}) == ["COM5"]
+    # USB-Seriell-Chip (Nano-Nachbau) erst nach den Arduino-Kennungen – und nur einmal je Einstecken (siehe _silent)
+    assert tastenbox.candidate_ports() == ["COM3", "COM5", "COM4"]
+    assert tastenbox.candidate_ports(chips=False) == ["COM3", "COM5"]
+    assert tastenbox.candidate_ports({"COM3", "COM4"}) == ["COM5"]
 
 
 def test_keys_run_commands_and_volume_only_at_knob(env, monkeypatch):  # noqa: F811
@@ -162,7 +173,8 @@ def tastenbox_sketch_exists() -> bool:
     from alupc.ui.tastenbox_page import SKETCH
 
     text = SKETCH.read_text(encoding="utf-8")
-    return "HALLO ALUPC-TASTEN 2" in text and "LAUT" in text and "TASTE" in text and "LANG" in text
+    return all(w in text for w in ("HALLO ALUPC-TASTEN 3", "LAUT", "TASTE", "LANG", "EFFEKT", "FARBE", "DEBUG", "ROH",
+                                   "ARDUINO_AVR_LEONARDO"))
 
 
 def test_audio_default_output_locked(env, monkeypatch):  # noqa: F811
@@ -222,3 +234,47 @@ def test_long_press_and_knob_options(env, monkeypatch):  # noqa: F811
     box.port = ""
     box.knob = None
     controller.volume_keeper.set_target(None)
+
+
+def test_led_effect_color_and_debug_panel(env, monkeypatch):  # noqa: F811
+    """LEDs über die Software: Effekt + Farbe gehen an die Box (ab Programm 3); Fehlersuche zeigt Protokoll,
+    Rohwerte (Taste leuchtet, solange sie unten ist) und schaltet DEBUG an der Box an/aus."""
+    controller, window, _ = env
+    box = controller.buttonbox
+    sent = []
+    monkeypatch.setattr(box, "send", lambda line: sent.append(line) or True)
+    box.port, box.version, box.board = "COM9", 3, "Nano"
+    base = dict(controller.config["tasten"])
+    controller.config["tasten"] = {**base, "led": "an", "led_effekt": "atmen", "led_farbe": "#ff0010", "led_hell": 60}
+    controller._led_level = controller._led_extra = None
+    controller.update_box_led()
+    assert sent[-3:] == ["EFFEKT 1", "FARBE 255 0 16", "LED 60"]
+    sent.clear()
+    controller.update_box_led()
+    assert sent == []  # nichts doppelt schicken
+    box.version = 2  # altes Programm: kennt EFFEKT/FARBE nicht → nicht schicken
+    controller._led_level = controller._led_extra = None
+    controller.update_box_led()
+    assert sent == ["LED 60"]
+
+    box.version = 3
+    window.open_setup_section("Tastenbox")
+    pump()
+    from alupc.ui.tastenbox_page import TastenboxPage
+
+    page = window.findChild(TastenboxPage)
+    page.debug_toggle.setChecked(True)
+    page.debug_raw.setChecked(True)
+    assert sent[-1] == "DEBUG 1" and box.debug
+    box.feed("ROH 001000000 1023")
+    assert page.caps[3].down and not page.caps[1].down and "3" in page.raw_label.text()
+    box.feed("TASTE 3")
+    assert "← TASTE 3" in page.log_view.toPlainText()
+    page._debug_info()
+    assert "Programm 3" in page.debug_summary.text() and "Nano" in page.debug_summary.text()
+    page.debug_raw.setChecked(False)
+    assert sent[-1] == "DEBUG 0" and not page.caps[3].down
+    page.debug_toggle.setChecked(False)
+    controller.config["tasten"] = {**base}
+    box.port, box.version, box.board = "", 0, ""
+    window._go(0)
