@@ -125,6 +125,23 @@ def paint_design(p: QPainter, w: int, h: int, cfg: dict, now: float | None = Non
     now = time.time() if now is None else now
     design = cfg.get("design", "willkommen")
     color = QColor(cfg.get("color") or DESIGNS.get(design, DESIGNS["willkommen"])[4])
+    from . import screens_bar
+
+    if screens_bar.extras(cfg):  # Info-Leiste unten: Vorlage rückt nach oben, nichts wird verdeckt
+        top = round(h * (1 - screens_bar.BAR))
+        from . import stage
+
+        p.save()
+        p.setClipRect(0, 0, w, top)
+        stage.HIDE_CLOCK = bool(cfg.get("uhr"))
+        try:
+            paint_design(p, w, top, {k: v for k, v in cfg.items() if k not in ("uhr", "countdown", "laufschrift")},
+                         now, started)
+        finally:
+            stage.HIDE_CLOCK = False
+        p.restore()
+        screens_bar.paint_bar(p, w, h, cfg, now, started, color)
+        return
     title = cfg.get("title", "")
     text = cfg.get("text", "")
     p.setRenderHint(QPainter.Antialiasing)
@@ -542,7 +559,10 @@ class DesignSource(QWidget):
         self.setAttribute(Qt.WA_OpaquePaintEvent)
         from . import perf
 
-        interval = TIMED.get(self.cfg["design"])
+        from .screens_bar import needs_ticks
+
+        intervals = [i for i in (TIMED.get(self.cfg["design"]), needs_ticks(self.cfg)) if i]
+        interval = min(intervals) if intervals else None
         self.timer = QTimer(self, interval=perf.interval(interval) if interval else 1000)
         self.timer.timeout.connect(self.update)
         if interval:
@@ -593,114 +613,82 @@ def _scene(name, layout, slots, background="#000000"):
     return {"name": name, "layout": layout, "background": background, "slots": slots}
 
 
-def _clock():
-    return {"type": "clock", "show_date": False, "show_seconds": False, "color": "#ffffff", "size": 30}
-
-
-SCENE_TEMPLATES = {
-    "begruessung": ("Begrüßung mit Uhr", "Willkommen-Seite, Uhr klein unten rechts", ("title", "text"),
-                    lambda v: _scene(v["name"], "ecke_unten_rechts",
-                                     [{**design_defaults("willkommen"), "title": v["title"], "text": v["text"]},
-                                      _clock()])),
-    "ablauf_uhr": ("Ablauf + Uhr + Hinweis", "Agenda groß, Uhr und Hinweis daneben", ("title", "text"),
-                   lambda v: _scene(v["name"], "gross_zwei_klein",
-                                    [{**design_defaults("ablauf"), "title": v["title"], "text": v["text"]},
-                                     _clock(),
-                                     {**design_defaults("ankuendigung"), "title": "Tipp",
-                                      "text": "Fragen gerne am Ende."}])),
-    "pause": ("Pause mit Countdown", "Pause-Seite mit Restzeit", ("title", "text", "minutes"),
-              lambda v: _scene(v["name"], "vollbild",
-                               [{**design_defaults("pause"), "title": v["title"], "text": v["text"],
-                                 "minutes": v["minutes"]}])),
-    "kamera_laufschrift": ("Kamera + Laufschrift", "Kamera im Vollbild, Textleiste unten", ("text",),
-                           lambda v: _scene(v["name"], "bauchbinde",
-                                            [{"type": "camera", "fit": "cover"},
-                                             {"type": "text", "text": v["text"], "color": "#ffffff",
-                                              "background": "#111827", "size": 45}])),
-    "fragerunde": ("Fragerunde", "Fragen-Seite, Uhr klein oben rechts", ("title", "text"),
-                   lambda v: _scene(v["name"], "ecke_oben_rechts",
-                                    [{**design_defaults("frage"), "title": v["title"], "text": v["text"]},
-                                     _clock()])),
-    "gaeste_wlan": ("WLAN für Gäste", "WLAN-Name und Passwort mit QR-Code", ("title", "text"),
-                    lambda v: _scene(v["name"], "vollbild",
-                                     [{**design_defaults("wlan"), "title": v["title"], "text": v["text"]}])),
-    "countdown_start": ("Countdown bis zum Start", "Willkommen-Seite und Countdown", ("title", "minutes"),
-                        lambda v: _scene(v["name"], "uebereinander",
-                                         [{**design_defaults("willkommen"), "title": v["title"],
-                                           "text": "Es geht gleich los"},
-                                          {"type": "countdown", "minutes": v["minutes"],
-                                           "finished_text": "Los geht's!", "color": "#ffffff", "size": 40}])),
-}
 def _design(key: str, **values) -> dict:
     return {**design_defaults(key), **{k: v for k, v in values.items() if v not in (None, "")}}
 
 
-def _countdown(minutes: float) -> dict:
-    return {"type": "countdown", "minutes": minutes, "finished_text": "Zeit ist um!", "color": "#ffffff", "size": 40}
+def _card(key: str, v: dict, **extra) -> dict:
+    """Vorlage mit Titel/Text aus dem Dialog; extra: uhr=True, countdown=Minuten, laufschrift=Text (Info-Leiste)."""
+    return _design(key, title=v.get("title"), text=v.get("text"), **extra)
+
+
+def _full(v: dict, slot: dict) -> dict:
+    return _scene(v["name"], "vollbild", [slot])
 
 
 def _qr() -> dict:
     return {"type": "cast"}
 
 
-SCENE_TEMPLATES.update({
-    "quiz": ("Quiz mit Zeit", "Frage mit Antworten, Countdown klein", ("title", "text", "minutes"),
-             lambda v: _scene(v["name"], "ecke_oben_rechts",
-                              [_design("abstimmung", title=v["title"], text=v["text"]), _countdown(v["minutes"])])),
-    "abstimmung_handy": ("Abstimmung per Handy", "Frage und QR-Code: Handys scannen und senden", ("title", "text"),
-                         lambda v: _scene(v["name"], "ecke_unten_rechts",
-                                          [_design("abstimmung", title=v["title"], text=v["text"]), _qr()])),
-    "termine_uhr": ("Termine + Uhr", "Nächste Termine, Uhr klein", ("title", "text"),
-                    lambda v: _scene(v["name"], "ecke_oben_rechts",
-                                     [_design("termine", title=v["title"], text=v["text"]), _clock()])),
+# Uhr, Countdown und Laufschrift stehen in der Info-Leiste unter der Vorlage (screens_bar) – nichts liegt mehr über
+# Titel oder Antworten. Kamera und QR-Code sind echte Quellen und bekommen ein eigenes Feld.
+SCENE_TEMPLATES = {
+    "begruessung": ("Begrüßung mit Uhr", "Willkommen-Seite, Uhr in der Leiste", ("title", "text"),
+                    lambda v: _full(v, _card("willkommen", v, uhr=True))),
+    "ablauf_uhr": ("Ablauf + Uhr + Hinweis", "Agenda groß, Uhr und Hinweis in der Leiste", ("title", "text"),
+                   lambda v: _full(v, _card("ablauf", v, uhr=True, laufschrift="Fragen gerne am Ende."))),
+    "pause": ("Pause mit Countdown", "Pause-Seite mit Restzeit", ("title", "text", "minutes"),
+              lambda v: _full(v, _card("pause", v, minutes=v["minutes"]))),
+    "kamera_laufschrift": ("Kamera + Laufschrift", "Kamera im Vollbild, Textleiste unten", ("text",),
+                           lambda v: _scene(v["name"], "bauchbinde",
+                                            [{"type": "camera", "fit": "cover"},
+                                             {"type": "text", "text": v["text"], "color": "#ffffff",
+                                              "background": "#111827", "size": 45}])),
+    "fragerunde": ("Fragerunde", "Fragen-Seite, Uhr in der Leiste", ("title", "text"),
+                   lambda v: _full(v, _card("frage", v, uhr=True))),
+    "gaeste_wlan": ("WLAN für Gäste", "WLAN-Name und Passwort mit QR-Code", ("title", "text"),
+                    lambda v: _full(v, _card("wlan", v))),
+    "countdown_start": ("Countdown bis zum Start", "Willkommen-Seite, Restzeit in der Leiste", ("title", "minutes"),
+                        lambda v: _full(v, _design("willkommen", title=v["title"], text="Es geht gleich los",
+                                                   countdown=v["minutes"], uhr=True))),
+    "quiz": ("Quiz mit Zeit", "Frage mit Antworten, Restzeit in der Leiste", ("title", "text", "minutes"),
+             lambda v: _full(v, _card("abstimmung", v, countdown=v["minutes"]))),
+    "abstimmung_handy": ("Abstimmung per Handy", "Frage links, QR-Code rechts: Handys scannen und senden",
+                         ("title", "text"),
+                         lambda v: _scene(v["name"], "haupt_seite", [_card("abstimmung", v), _qr()])),
+    "termine_uhr": ("Termine + Uhr", "Nächste Termine, Uhr in der Leiste", ("title", "text"),
+                    lambda v: _full(v, _card("termine", v, uhr=True))),
     "geburtstag": ("Geburtstag", "Glückwunsch mit Konfetti", ("title", "text"),
-                   lambda v: _scene(v["name"], "vollbild", [_design("geburtstag", title=v["title"], text=v["text"])])),
+                   lambda v: _full(v, _card("geburtstag", v))),
     "siegerehrung": ("Siegerehrung", "Podest mit Konfetti", ("title", "text"),
-                     lambda v: _scene(v["name"], "vollbild", [_design("sieger", title=v["title"], text=v["text"])])),
+                     lambda v: _full(v, _card("sieger", v))),
     "event_countdown": ("Countdown zum Event", "Restzeit bis zur Uhrzeit, Laufschrift unten", ("title", "text"),
-                        lambda v: _scene(v["name"], "bauchbinde",
-                                         [_design("event_countdown", title=v["title"], text=v["text"]),
-                                          {"type": "text", "text": "Wir freuen uns auf euch!", "color": "#ffffff",
-                                           "background": "#831843", "size": 45}])),
-    "nachrichten": ("Nachrichten", "Schlagzeile groß mit Laufschrift", ("title", "text"),
-                    lambda v: _scene(v["name"], "bauchbinde",
-                                     [_design("schlagzeile", title=v["title"], text=v["text"]),
-                                      {"type": "text", "text": v["text"], "color": "#ffffff", "background": "#991b1b",
-                                       "size": 45}])),
+                        lambda v: _full(v, _card("event_countdown", v, laufschrift="Wir freuen uns auf euch!"))),
+    "nachrichten": ("Nachrichten", "Schlagzeile groß, Uhr und Laufschrift unten", ("title", "text"),
+                    lambda v: _full(v, _card("schlagzeile", v, uhr=True, laufschrift=v["text"]))),
     "handy_willkommen": ("Willkommen + Handy-QR", "Begrüßung und QR-Code zum Mitmachen", ("title", "text"),
-                         lambda v: _scene(v["name"], "nebeneinander",
-                                          [_design("willkommen", title=v["title"], text=v["text"]), _qr()])),
-})
-def _card(key: str, v: dict, **extra) -> dict:
-    return _design(key, title=v.get("title"), text=v.get("text"), **extra)
-
-
-SCENE_TEMPLATES.update({
+                         lambda v: _scene(v["name"], "haupt_seite", [_card("willkommen", v), _qr()])),
     "stream": ("Stream-Overlay", "LIVE-Karte groß, Kamera klein unten rechts", ("title", "text"),
                lambda v: _scene(v["name"], "ecke_unten_rechts", [_card("live", v), {"type": "camera", "fit": "cover"}])),
-    "stream_start": ("Stream startet gleich", "Coming soon mit Countdown", ("title", "minutes"),
-                     lambda v: _scene(v["name"], "uebereinander",
-                                      [_design("comingsoon", title=v["title"], text="Stay tuned"),
-                                       _countdown(v["minutes"])])),
-    "partynacht": ("Partynacht", "Neon-Schild mit Musik-Karte klein", ("title", "text"),
-                   lambda v: _scene(v["name"], "ecke_unten_rechts",
-                                    [_card("neon", v), _design("nowplaying")])),
+    "stream_start": ("Stream startet gleich", "Coming soon, Restzeit in der Leiste", ("title", "minutes"),
+                     lambda v: _full(v, _design("comingsoon", title=v["title"], text="Stay tuned",
+                                                countdown=v["minutes"]))),
+    "partynacht": ("Partynacht", "Neon-Schild, Uhr und Laufschrift unten", ("title", "text"),
+                   lambda v: _full(v, _card("neon", v, uhr=True, laufschrift="Getränke an der Bar · Fotos an der Wand"))),
     "musik": ("Musik läuft", "Now Playing im Vollbild", ("title", "text"),
-              lambda v: _scene(v["name"], "vollbild", [_card("nowplaying", v)])),
-    "gaming": ("Gaming-Duell", "Versus-Bildschirm mit Countdown", ("title", "text", "minutes"),
-               lambda v: _scene(v["name"], "bauchbinde",
-                                [_card("versus", v), _countdown(v["minutes"])])),
-    "retro": ("Retro-Abend", "Synthwave mit Uhr", ("title", "text"),
-              lambda v: _scene(v["name"], "ecke_oben_rechts", [_card("synthwave", v), _clock()])),
+              lambda v: _full(v, _card("nowplaying", v))),
+    "gaming": ("Gaming-Duell", "Versus-Bildschirm, Restzeit in der Leiste", ("title", "text", "minutes"),
+               lambda v: _full(v, _card("versus", v, countdown=v["minutes"]))),
+    "retro": ("Retro-Abend", "Synthwave, Uhr in der Leiste", ("title", "text"),
+              lambda v: _full(v, _card("synthwave", v, uhr=True))),
     "link_teilen": ("Link teilen", "Link-Karte mit QR-Code im Vollbild", ("title", "text"),
-                    lambda v: _scene(v["name"], "vollbild", [_card("linkkarte", v)])),
-    "praesentation_start": ("Präsentation startet", "Glas-Karte und Countdown", ("title", "text", "minutes"),
-                            lambda v: _scene(v["name"], "uebereinander",
-                                             [_card("glas", v), _countdown(v["minutes"])])),
+                    lambda v: _full(v, _card("linkkarte", v))),
+    "praesentation_start": ("Präsentation startet", "Glas-Karte, Restzeit in der Leiste", ("title", "text", "minutes"),
+                            lambda v: _full(v, _card("glas", v, countdown=v["minutes"], uhr=True))),
     "kamera_neon": ("Kamera + Neon-Titel", "Kamera groß, Neon-Schrift als Leiste unten", ("title", "text"),
                     lambda v: _scene(v["name"], "bauchbinde",
                                      [{"type": "camera", "fit": "cover"}, _card("neon", v)])),
-})
+}
 
 TEMPLATE_CATEGORIES = {
     "stream": "Party & Event", "stream_start": "Party & Event", "partynacht": "Party & Event", "musik": "Party & Event",
@@ -791,9 +779,26 @@ def render_scene_preview(scene: dict, w: int = 320, h: int = 180) -> QImage:
                 p.setPen(QColor(slot.get("color", "#ffffff")))
                 p.setFont(_fit(label, QRectF(0, 0, rw, rh), rh * 0.5))
                 p.drawText(QRectF(0, 0, rw, rh), int(Qt.AlignCenter | Qt.TextWordWrap), label)
+            elif t == "cast":  # QR-Code zum Mitmachen: weiße Karte mit Symbol und Hinweis
+                from . import stage
+
+                stage.paint_background(p, QRectF(0, 0, rw, rh))
+                s = min(rw * 0.7, rh * 0.42)
+                card = QRectF((rw - s) / 2, rh * 0.22, s, s)
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor("#ffffff"))
+                p.drawRoundedRect(card, s * 0.08, s * 0.08)
+                icons.paint(p, "qr", card.adjusted(s * 0.14, s * 0.14, -s * 0.14, -s * 0.14), "#0f172a", 2.2)
+                p.setPen(QColor(255, 255, 255, 220))
+                p.setFont(stage.font(max(6.0, rw * 0.075), 600))
+                p.drawText(QRectF(0, card.bottom() + rh * 0.05, rw, rh * 0.12), Qt.AlignCenter, "Mit dem Handy scannen")
             else:
-                icon = {"camera": "camera", "cast": "qr", "airplay": "phone", "website": "globe"}.get(t, "image")
-                s = min(rw, rh) * 0.35
+                g = QLinearGradient(0, 0, rw, rh)
+                g.setColorAt(0, QColor("#1f2937"))
+                g.setColorAt(1, QColor("#0b0f19"))
+                p.fillRect(QRectF(0, 0, rw, rh), g)
+                icon = {"camera": "camera", "airplay": "phone", "website": "globe"}.get(t, "image")
+                s = min(rw, rh) * 0.3
                 icons.paint(p, icon, QRectF((rw - s) / 2, (rh - s) / 2, s, s), "#94a3b8", 1.8)
         p.restore()
         if len(scene.get("slots", [])) > 1:  # Feldgrenzen andeuten

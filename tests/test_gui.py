@@ -4377,8 +4377,9 @@ def test_system_page_and_source(env):
     pytest.importorskip("psutil")
     from alupc import sysinfo
 
-    index = next(i for i, b in enumerate(window.nav_group.buttons()) if b.toolTip() == "System")
-    window._go(window.nav_group.id(window.nav_group.buttons()[index]))
+    geraete = next(b for b in window.nav_group.buttons() if b.toolTip() == "Geräte")
+    geraete.click()  # „Geräte“ öffnet zuerst den Reiter „PC“ (Systemstatus)
+    assert window.stack.currentIndex() == 4 and window.subnav.isVisible()
     pump(10)
     page = window.system_page
     mon = sysinfo.monitor()

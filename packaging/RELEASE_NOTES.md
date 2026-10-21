@@ -16,6 +16,13 @@
   Programm. Beim Wechsel startet das neue Ziel bei 0 und folgt erst, wenn der Regler auch auf 0 steht (Skala am
   Regler). Regelt er den PC-Ton, stellt AluPC andere Wege (Windows, Tastatur, Handy, Sprache) zurück.
   Arduino-Programm: Seite Tastenbox → „Arduino-Programm speichern“. Noch nicht mit echter Box getestet.
+- **Seitenleiste aufgeräumt:** 6 statt 8 Punkte. „Geräte“ bündelt PC-Status, Tastenbox und Fingerabdruck als
+  Reiter; „Zuhören“ und „Sperren“ stehen in einer Zeile.
+- **Vorlagen ohne Überdeckung:** Uhr, Countdown und Laufschrift stehen in einer Info-Leiste unter der Seite statt als
+  Kasten darüber. Im Szenen-Editor für jede gestaltete Seite einstellbar.
+- **Tastenbox-Optionen:** lang drücken (eigener Befehl, Arduino-Programm Version 2), Regler umkehren, Höchstwert,
+  Null-Abgleich an/aus, LED-Helligkeit, LED blitzt bei Tastendruck. Arduino-Programm nur am PC simuliert,
+  nicht auf echter Hardware getestet.
 - **Studio-Modus** (Knopf „Studio“ auf der Startseite, wie in OBS): Über dem Live-Bild klappt eine Vorschau auf.
   Kacheln und Szenen landen erst dort, „Übergang“ (oder Strg+Enter) schaltet live, „Schnitt“ ohne Überblenden.
   Live-Kachel rot, Vorschau-Kachel grün. Kamera, Bildschirm-Aufnahme und AirPlay zeigt die Vorschau nur als Schema.

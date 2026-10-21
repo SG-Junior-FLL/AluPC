@@ -162,7 +162,7 @@ def tastenbox_sketch_exists() -> bool:
     from alupc.ui.tastenbox_page import SKETCH
 
     text = SKETCH.read_text(encoding="utf-8")
-    return "HALLO ALUPC-TASTEN 1" in text and "LAUT" in text and "TASTE" in text
+    return "HALLO ALUPC-TASTEN 2" in text and "LAUT" in text and "TASTE" in text and "LANG" in text
 
 
 def test_audio_default_output_locked(env, monkeypatch):  # noqa: F811
@@ -180,3 +180,45 @@ def test_audio_default_output_locked(env, monkeypatch):  # noqa: F811
     assert not speaker.slider.isEnabled() and not speaker.mute.isEnabled()
     assert other.slider.isEnabled() and app.slider.isEnabled()
 
+
+
+def test_long_press_and_knob_options(env, monkeypatch):  # noqa: F811
+    """Lang drücken = eigener Befehl; Regler umkehren, Höchstwert, ohne Null-Abgleich; LED-Helligkeit und Blitz."""
+    controller, _window, _ = env
+    from alupc import audio, pc_control
+
+    assert parse_line("LANG 4") == ("lang", 4) and parse_line("LANG 0") is None
+    ran = []
+    monkeypatch.setattr(controller, "run_command", lambda a: ran.append(a))
+    box = controller.buttonbox
+    sent = []
+    monkeypatch.setattr(box, "send", lambda line: sent.append(line) or True)
+    box.port = "COM9"
+    base = dict(controller.config["tasten"])
+    controller.config["tasten"] = {**base, "lang": {"4": "standbild"}, "led_blink": True, "led_hell": 40,
+                                   "led": "an", "nur_regler": False}
+    box.feed("LANG 4")
+    box.feed("LANG 5")  # ohne eigenen Befehl: wie kurz (5 = nächste Szene)
+    assert ran == ["standbild", "naechste_szene"]
+    assert any(line in ("LED 0", "LED 40") for line in sent)  # Blitz
+    controller._led_level = None
+    controller.update_box_led()
+    assert sent[-1] == "LED 40"
+
+    # Regler: umgekehrt und höchstens 80 %
+    controller.config["tasten"] = {**controller.config["tasten"], "umkehren": True, "max": 80}
+    assert controller.knob_value(0) == 80 and controller.knob_value(100) == 0 and controller.knob_value(None) is None
+
+    # ohne Null-Abgleich folgt ein neues Ziel sofort der Reglerstellung
+    levels = []
+    monkeypatch.setattr(audio, "set_level", lambda kind, v: levels.append((kind, v)) or (True, ""))
+    monkeypatch.setattr(pc_control, "set_volume", lambda percent=None, step=0: (True, ""))
+    controller.config["tasten"] = {**controller.config["tasten"], "umkehren": False, "max": 100, "abgleich": False}
+    box.knob = 30
+    controller.set_knob_target("mikro")
+    assert not controller.knob_wait and _until(lambda: ("in", 30) in levels)
+    controller.config["tasten"] = {**base}
+    controller.knob_wait = False
+    box.port = ""
+    box.knob = None
+    controller.volume_keeper.set_target(None)

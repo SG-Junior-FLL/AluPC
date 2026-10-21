@@ -42,6 +42,10 @@ LAYOUTS: dict[str, tuple[str, list[tuple[float, float, float, float, str]]]] = {
             (2 / 3, 0.5, 1 / 3, 0.5, "Klein unten rechts"),
         ],
     ),
+    "haupt_seite": (
+        "Groß + Spalte rechts",
+        [(0, 0, 0.7, 1, "Groß links"), (0.7, 0, 0.3, 1, "Spalte rechts")],
+    ),
     "bauchbinde": (
         "Vollbild + Textleiste unten",
         [(0, 0, 1, 1, "Hintergrund"), (0, 0.84, 1, 0.16, "Leiste unten")],

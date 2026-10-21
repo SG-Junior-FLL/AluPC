@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -43,6 +44,7 @@ class KeyCap(QWidget):
         super().__init__(parent)
         self.number = number
         self.text = ""
+        self.long_text = ""  # Befehl bei langem Druck (klein unten)
         self.selected = False
         self.glow = 0.0
         self.setFixedSize(CELL, 92)
@@ -95,8 +97,14 @@ class KeyCap(QWidget):
         p.setFont(font(8, QFont.DemiBold))
         p.drawText(r.adjusted(10, 6, -10, -6), Qt.AlignLeft | Qt.AlignTop, str(self.number))
         p.setPen(QColor(t.text if self.text else t.muted))
-        p.setFont(font(10, QFont.DemiBold))
-        p.drawText(r.adjusted(10, 16, -10, -8), Qt.AlignCenter | Qt.TextWordWrap, self.text or "– frei –")
+        p.setFont(font(9 if self.long_text else 10, QFont.DemiBold))
+        body = r.adjusted(8, 16, -8, -20 if self.long_text else -8)
+        p.drawText(body, Qt.AlignCenter | Qt.TextWordWrap, self.text or "– frei –")
+        if self.long_text:
+            p.setPen(QColor(t.muted))
+            p.setFont(font(7.5))
+            p.drawText(r.adjusted(8, 0, -8, -6), Qt.AlignHCenter | Qt.AlignBottom,
+                       p.fontMetrics().elidedText(f"lang: {self.long_text}", Qt.ElideRight, int(r.width() - 16)))
         p.end()
 
 
@@ -211,6 +219,20 @@ class TastenboxPage(QWidget):
         row.addWidget(self.key_label)
         row.addWidget(self.action, 1)
         kl.addLayout(row)
+        long_row = QHBoxLayout()
+        long_label = QLabel("Lang:")
+        long_label.setObjectName("Muted")
+        long_label.setToolTip("Taste länger als 0,6 s halten (Arduino-Programm ab Version 2)")
+        self.long_action = QComboBox()
+        self.long_action.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.long_action.setMinimumContentsLength(16)
+        self.long_action.addItem("– wie kurz –", "")
+        for key, label in self.choices[1:]:
+            self.long_action.addItem(label, key)
+        self.long_action.activated.connect(lambda _i: self._set_long(self.long_action.currentData() or ""))
+        long_row.addWidget(long_label)
+        long_row.addWidget(self.long_action, 1)
+        kl.addLayout(long_row)
         cols.addWidget(keys_box)
 
         # ---- Regler
@@ -224,13 +246,30 @@ class TastenboxPage(QWidget):
         self._fill_targets()
         self.target.activated.connect(lambda _i: c.set_knob_target(self.target.currentData()))
         form.addRow("Regelt:", self.target)
-        self.only = QCheckBox("PC-Lautstärke nur am Regler")
+        self.only = QCheckBox("PC-Ton nur am Regler")
         self.only.setToolTip("Andere Wege (Windows, Tastatur, Handy, Sprache) werden zurückgestellt. "
                              "Programme einzeln (Seite Audio) gehen weiter.")
         self.only.setChecked(bool(c.config["tasten"].get("nur_regler", True)))
         self.only.toggled.connect(lambda v: self._save(nur_regler=v))
-        form.addRow("", self.only)
+        cfg = c.config["tasten"]
+        self.invert = QCheckBox("Richtung umkehren")
+        self.invert.setChecked(bool(cfg.get("umkehren")))
+        self.invert.toggled.connect(lambda v: self._save(umkehren=v))
+        self.pickup = QCheckBox("Bei Wechsel erst auf 0")
+        self.pickup.setToolTip("Aus: das neue Ziel springt sofort auf die Reglerstellung")
+        self.pickup.setChecked(bool(cfg.get("abgleich", True)))
+        self.pickup.toggled.connect(lambda v: self._save(abgleich=v))
+        self.top = QSpinBox()
+        self.top.setRange(10, 100)
+        self.top.setSingleStep(5)
+        self.top.setSuffix(" %")
+        self.top.setToolTip("Ganz aufgedreht = dieser Wert (z. B. nie lauter als 80 %)")
+        self.top.setValue(int(cfg.get("max", 100) or 100))
+        self.top.valueChanged.connect(lambda v: self._save(max=v))
+        form.addRow("Höchstens:", self.top)
         rl.addLayout(form)
+        for box in (self.only, self.invert, self.pickup):
+            rl.addWidget(box)
         knob_box.setFixedWidth(320)
         cols.addWidget(knob_box)
 
@@ -248,6 +287,17 @@ class TastenboxPage(QWidget):
         led.setCurrentIndex(max(0, led.findData(c.config["tasten"].get("led", "live"))))
         led.currentIndexChanged.connect(lambda _i: self._save(led=led.currentData()))
         df.addRow("LED:", led)
+        bright = QSpinBox()
+        bright.setRange(5, 100)
+        bright.setSingleStep(5)
+        bright.setSuffix(" %")
+        bright.setValue(c.box_led_brightness())
+        bright.valueChanged.connect(lambda v: self._save(led_hell=v))
+        df.addRow("Helligkeit:", bright)
+        blink = QCheckBox("LED blitzt bei jedem Tastendruck")
+        blink.setChecked(bool(c.config["tasten"].get("led_blink", False)))
+        blink.toggled.connect(lambda v: self._save(led_blink=v))
+        df.addRow("", blink)
         self.port = QComboBox()
         self.port.addItem("Automatisch", "")
         self._fill_ports()
@@ -269,6 +319,7 @@ class TastenboxPage(QWidget):
         bb.state_changed.connect(self.refresh)
         bb.state_changed.connect(self._fill_ports)
         bb.key.connect(self._pressed)
+        bb.long_key.connect(self._pressed)
         bb.volume.connect(lambda _v: self.refresh())
         c.changed.connect(self.refresh)
         self.select(1)
@@ -286,6 +337,12 @@ class TastenboxPage(QWidget):
         self._save(keys=keys)
         self.refresh()
 
+    def _set_long(self, action: str) -> None:
+        cfg = self.controller.config["tasten"]
+        lang = {**(cfg.get("lang") or {}), str(self.selected): action}
+        self._save(lang={k: v for k, v in lang.items() if v})
+        self.refresh()
+
     def select(self, n: int) -> None:
         """Taste n bearbeiten (Klick auf die Kappe oder Druck auf die echte Taste)."""
         self.selected = n
@@ -297,6 +354,10 @@ class TastenboxPage(QWidget):
             self.action.addItem(current, current)  # z. B. gelöschte Szene: nicht still verlieren
         self.action.setCurrentIndex(max(0, self.action.findData(current)))
         self.key_label.setText(f"Taste {n}:")
+        long = (self.controller.config["tasten"].get("lang") or {}).get(str(n), "")
+        if long and self.long_action.findData(long) < 0:
+            self.long_action.addItem(long, long)
+        self.long_action.setCurrentIndex(max(0, self.long_action.findData(long)))
 
     def _save_sketch(self) -> None:
         path, _ = QFileDialog.getSaveFileName(self, "Arduino-Programm speichern", str(Path.home() / SKETCH.name),
@@ -363,9 +424,12 @@ class TastenboxPage(QWidget):
             self.status.setText("Nicht gefunden – Box einstecken, AluPC sucht alle paar Sekunden.")
         labels = dict(self.choices)
         keys = c.box_keys()
+        longs = c.config["tasten"].get("lang") or {}
         for n, cap in self.caps.items():
             action = keys.get(str(n), "")
             cap.text = labels.get(action, action)
+            long = longs.get(str(n), "")
+            cap.long_text = labels.get(long, long) if long else ""
             cap.update()
         self.dial.set_state(bb.knob if bb.connected else None, c.knob_wait, c.knob_target_label())
         self.only.setEnabled(c.knob_target() == "pc")  # Sperre gilt nur, wenn der Regler den PC-Ton regelt

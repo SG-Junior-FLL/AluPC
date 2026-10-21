@@ -291,7 +291,13 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.stack.setObjectName("Content")
         self.stack.setAttribute(Qt.WA_StyledBackground, True)
-        root.addWidget(self.stack, 1)
+        content = QWidget()
+        content_lay = QVBoxLayout(content)
+        content_lay.setContentsMargins(0, 0, 0, 0)
+        content_lay.setSpacing(0)
+        content_lay.addWidget(self._subnav())
+        content_lay.addWidget(self.stack, 1)
+        root.addWidget(content, 1)
         self.setCentralWidget(central)
 
         self.setup = None
@@ -376,13 +382,12 @@ class MainWindow(QMainWindow):
         self.nav_group.setExclusive(True)
         # (Seiten-Nummer, Symbol, Text) – Reihenfolge in der Leiste, Nummer = Seite im Stapel
         for i, icon_name, text in [(0, "home", "Start"), (1, "scenes", "Szenen"), (5, "users", "Gäste"),
-                                   (6, "mixer", "Audio"), (7, "grid", "Tastenbox"), (4, "gauge", "System"), (2, "sliders", "Setup"),
-                                   (3, "fingerprint", "Fingerabdruck")]:
+                                   (6, "mixer", "Audio"), (4, "grid", "Geräte"), (2, "sliders", "Setup")]:
             b = NavButton(icon_name, text)
             b.setToolTip(text)
             self.nav_group.addButton(b, i)
             lay.addWidget(b)
-        self.nav_group.idClicked.connect(self._go)
+        self.nav_group.idClicked.connect(lambda i: self._go(self._last_device if i == 4 else i))
         self.nav_indicator = NavIndicator(side)  # gleitet zur gewählten Seite
         for b in self.nav_group.buttons():
             b.external_indicator = True
@@ -439,7 +444,14 @@ class MainWindow(QMainWindow):
         lock.setCheckable(False)
         lock.clicked.connect(self.lock)
         self.lock_button = lock
-        lay.addWidget(lock)
+        lay.removeWidget(mic)
+        self.action_row = QBoxLayout(QBoxLayout.LeftToRight)  # zwei Knöpfe in einer Zeile (schmal: untereinander)
+        self.action_row.setSpacing(4)
+        self.action_row.addWidget(mic, 1)
+        self.action_row.addWidget(lock, 0)
+        lock.set_compact(True)  # nur Symbol neben „Zuhören“
+        lock.setFixedWidth(52)
+        lay.addLayout(self.action_row)
         version = QLabel(f"Version {__version__}")
         version.setObjectName("Muted")
         version.setContentsMargins(14, 6, 0, 0)
@@ -540,6 +552,36 @@ class MainWindow(QMainWindow):
             ind.follow(obj, animate=False)
         return super().eventFilter(obj, event)
 
+    # „Geräte“ in der Seitenleiste: PC (System), Tastenbox, Fingerabdruck – oben als Reiter
+    DEVICE_TABS = [(4, "PC"), (7, "Tastenbox"), (3, "Fingerabdruck")]
+    NAV_OF = {3: 4, 7: 4}
+    _last_device = 4
+
+    def _subnav(self) -> QWidget:
+        bar = QWidget()
+        bar.setObjectName("SubNav")
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(28, 18, 28, 0)
+        row.setSpacing(6)
+        self.subnav_group = QButtonGroup(self)
+        for index, label in self.DEVICE_TABS:
+            b = QPushButton(label)
+            b.setObjectName("Segment")
+            b.setCheckable(True)
+            self.subnav_group.addButton(b, index)
+            row.addWidget(b)
+        row.addStretch(1)
+        self.subnav_group.idClicked.connect(self._go)
+        self.subnav = bar
+        bar.hide()
+        return bar
+
+    def _sync_subnav(self, index: int) -> None:
+        group = self.NAV_OF.get(index, index) == 4
+        self.subnav.setVisible(group)
+        if group:
+            self.subnav_group.button(index).setChecked(True)
+
     def _go(self, index: int):
         page = self.pages[index]
         if isinstance(page, LazyPage) and not page.built:
@@ -548,8 +590,12 @@ class MainWindow(QMainWindow):
             self.apply_compact(self.width() < self.COMPACT_WIDTH, self.width() < self.NARROW_WIDTH)
         changed = self.stack.currentIndex() != index
         self.stack.setCurrentIndex(index)
-        self.nav_group.button(index).setChecked(True)
-        self.nav_indicator.follow(self.nav_group.button(index), animate=changed)
+        nav = self.NAV_OF.get(index, index)
+        if nav == 4:
+            self._last_device = index
+        self._sync_subnav(index)
+        self.nav_group.button(nav).setChecked(True)
+        self.nav_indicator.follow(self.nav_group.button(nav), animate=changed)
         self._place_dock()
         if changed:
             fade_in(self.stack.currentWidget(), 200)  # Seitenwechsel: weich einblenden
@@ -2436,7 +2482,7 @@ class MainWindow(QMainWindow):
         for w in (*self.brand_texts, self.version_label):
             w.setVisible(not compact)
         self.brand_layout.setContentsMargins(*((11, 0, 0, 18) if compact else (14, 0, 8, 18)))  # Logo mittig, nicht abgeschnitten
-        for b in (*self.nav_group.buttons(), self.lock_button, self.mic_button, self.search_button):
+        for b in (*self.nav_group.buttons(), self.mic_button, self.search_button):
             b.set_compact(compact)
         self.side_monitor.set_compact(compact)
         self.nav_indicator.follow(self.nav_group.checkedButton(), animate=False)
@@ -2445,6 +2491,10 @@ class MainWindow(QMainWindow):
         self.wheel_names_btn.setVisible(not compact)
         self.wheel_spin.setText("" if compact else ("Dreht …" if not self.wheel_spin.isEnabled() else "Drehen"))
         margin = (12, 12, 12, 10) if narrow else ((18, 16, 18, 14) if compact else (28, 24, 28, 20))
+        self.subnav.layout().setContentsMargins(margin[0], margin[1], margin[2], 0)
+        self.action_row.setDirection(QBoxLayout.TopToBottom if compact else QBoxLayout.LeftToRight)
+        self.lock_button.setMinimumWidth(0 if compact else 52)
+        self.lock_button.setMaximumWidth(16777215 if compact else 52)
         for page in self.pages:
             if page is getattr(self, "start_root", None):
                 page = self.start_scroll

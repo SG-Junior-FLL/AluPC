@@ -63,6 +63,7 @@ class Controller(QObject):
         self.volume_keeper = VolumeKeeper(self)
         self.knob_wait = False  # Regler-Ziel gewechselt: wartet, bis der Regler auf 0 steht
         self.buttonbox.key.connect(self._box_key)
+        self.buttonbox.long_key.connect(self._box_long_key)
         self.buttonbox.volume.connect(self._box_volume)
         self.buttonbox.mute.connect(self._box_mute)
         self.buttonbox.state_changed.connect(self._box_state)
@@ -1689,10 +1690,17 @@ class Controller(QObject):
         if target == self.knob_target():
             return
         self.config["tasten"] = {**self.config["tasten"], "regler": target}
+        if not self.config["tasten"].get("abgleich", True):  # ohne Null-Abgleich: Ziel folgt sofort dem Regler
+            self.knob_wait = False
+            self._box_state()
+            if self.buttonbox.knob is not None:
+                self._knob_apply(target, self.knob_value(self.buttonbox.knob))
+            self.changed.emit()
+            return
         self.knob_wait = True
         self._knob_apply(target, 0)
         self._box_state()
-        if self.buttonbox.connected and (self.buttonbox.knob or 0) <= 2:
+        if self.buttonbox.connected and (self.knob_value(self.buttonbox.knob) or 0) <= 2:
             self.knob_wait = False  # steht schon auf 0
         else:
             self.message.emit(f"Regler: {self.knob_target_label(target)} – jetzt auf 0 drehen.")
@@ -1733,10 +1741,43 @@ class Controller(QObject):
 
     def _box_key(self, n: int) -> None:
         action = self.box_keys().get(str(n), "")
+        self._box_blink()
         if action:
             self.run_command(action)
 
+    def _box_long_key(self, n: int) -> None:
+        """Lange gedrückt: eigener Befehl – ohne einen solchen wie ein kurzer Druck."""
+        action = (self.config["tasten"].get("lang") or {}).get(str(n), "")
+        if not action:
+            return self._box_key(n)
+        self._box_blink()
+        self.run_command(action)
+
+    def _box_blink(self) -> None:
+        """LED blitzt kurz als Rückmeldung für einen Tastendruck (Einstellung)."""
+        if not (self.config["tasten"].get("led_blink", False) and self.buttonbox.connected):
+            return
+        from PySide6.QtCore import QTimer
+
+        before = self._led_level or 0
+        self.buttonbox.set_led(0 if before else self.box_led_brightness())
+        self._led_level = None
+        QTimer.singleShot(140, self.update_box_led)
+
+    def box_led_brightness(self) -> int:
+        return max(1, min(100, int(self.config["tasten"].get("led_hell", 100) or 100)))
+
+    def knob_value(self, raw: int | None) -> int | None:
+        """Reglerstellung → Wert fürs Ziel: auf Wunsch umgekehrt und mit Höchstwert (z. B. nie lauter als 80 %)."""
+        if raw is None:
+            return None
+        cfg = self.config["tasten"]
+        v = 100 - raw if cfg.get("umkehren") else raw
+        top = max(1, min(100, int(cfg.get("max", 100) or 100)))
+        return round(v * top / 100)
+
     def _box_volume(self, value: int) -> None:
+        value = self.knob_value(value)
         if self.knob_wait:  # neues Ziel: erst auf 0 drehen, dann greift der Regler
             if value > 2:
                 self.changed.emit()
@@ -1752,7 +1793,7 @@ class Controller(QObject):
 
     def _box_state(self) -> None:
         if self.volume_locked():
-            self.volume_keeper.set_target(0 if self.knob_wait else self.buttonbox.knob)
+            self.volume_keeper.set_target(0 if self.knob_wait else self.knob_value(self.buttonbox.knob))
         else:
             self.volume_keeper.set_target(None)
         self._led_level = None
@@ -1771,7 +1812,7 @@ class Controller(QObject):
         if not self.buttonbox.connected:
             return
         mode = self.config["tasten"].get("led", "live")
-        level = 100 if mode == "an" or (mode == "live" and self.mode == "content") else 0
+        level = self.box_led_brightness() if mode == "an" or (mode == "live" and self.mode == "content") else 0
         if level != self._led_level and self.buttonbox.set_led(level):
             self._led_level = level
 

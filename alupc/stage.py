@@ -130,8 +130,13 @@ def eyebrow(p: QPainter, x: float, y: float, text: str, color: QColor, unit: flo
     return r
 
 
+HIDE_CLOCK = False  # Info-Leiste zeigt schon die Uhr (screens_bar) → oben rechts keine zweite
+
+
 def clock_corner(p: QPainter, w: float, unit: float, now: float, y: float | None = None) -> None:
     """Uhrzeit oben rechts (gleiche Stelle auf allen Vorlagen)."""
+    if HIDE_CLOCK:
+        return
     p.save()
     p.setPen(QColor(255, 255, 255, 190))
     p.setFont(font(unit * 2.4, 600))

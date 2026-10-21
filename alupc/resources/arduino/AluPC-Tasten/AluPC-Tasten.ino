@@ -11,8 +11,9 @@
 //   Streifen   : WS2812B: DIN an D10, 5V an VCC, GND an GND (am USB höchstens ~8–10 LEDs, halbe Helligkeit)
 //
 // Was die Box an den PC schickt (115200 Baud, eine Zeile je Meldung):
-//   HALLO ALUPC-TASTEN 1   – Antwort auf „WER?“
-//   TASTE n                – Taste n gedrückt (1–9)
+//   HALLO ALUPC-TASTEN 2   – Antwort auf „WER?“ (2 = kann „lange drücken“)
+//   TASTE n                – Taste n kurz gedrückt (1–9), gemeldet beim Loslassen
+//   LANG n                 – Taste n lange gedrückt (ab 0,6 s, noch während sie unten ist)
 //   LAUT n                 – Regler steht auf n Prozent (0–100), nur wenn er sich bewegt hat, und auf „LAUT?“
 // Was der PC schickt: „WER?“, „LAUT?“, „LED n“ (Helligkeit 0–100, 0 = aus).
 
@@ -27,8 +28,12 @@ const uint8_t TASTEN[9] = {2, 3, 4, 5, 6, 7, 8, 14, 15};
 const uint8_t REGLER = A0;
 const uint8_t LED = 9;
 
+const unsigned long LANG_MS = 600;  // ab so langem Drücken: „LANG n“ statt „TASTE n“
+
 bool gedrueckt[9];
+bool langGemeldet[9];
 unsigned long zuletzt[9];
+unsigned long unten_seit[9];
 int regler = -1;          // zuletzt gemeldeter Wert (0–100)
 float glatt = 0;          // geglätteter Messwert (Poti rauscht etwas)
 String zeile;
@@ -47,6 +52,7 @@ void setup() {
   for (uint8_t i = 0; i < 9; i++) {
     pinMode(TASTEN[i], INPUT_PULLUP);  // offen = HIGH, gedrückt = LOW
     gedrueckt[i] = false;
+    langGemeldet[i] = false;
   }
   pinMode(LED, OUTPUT);
 #ifdef STREIFEN
@@ -60,7 +66,7 @@ void befehl(String text) {
   text.trim();
   text.toUpperCase();
   if (text == "WER?") {
-    Serial.println("HALLO ALUPC-TASTEN 1");
+    Serial.println("HALLO ALUPC-TASTEN 2");
   } else if (text == "LAUT?") {
     Serial.print("LAUT ");
     Serial.println(regler < 0 ? 0 : regler);
@@ -81,7 +87,7 @@ void loop() {
     }
   }
 
-  // Tasten (entprellt: 30 ms Ruhe nach jedem Wechsel)
+  // Tasten (entprellt: 30 ms Ruhe nach jedem Wechsel). Kurz: „TASTE n“ beim Loslassen, lang: „LANG n“ nach 0,6 s
   unsigned long jetzt = millis();
   for (uint8_t i = 0; i < 9; i++) {
     bool unten = digitalRead(TASTEN[i]) == LOW;
@@ -89,9 +95,17 @@ void loop() {
       gedrueckt[i] = unten;
       zuletzt[i] = jetzt;
       if (unten) {
+        unten_seit[i] = jetzt;
+        langGemeldet[i] = false;
+      } else if (!langGemeldet[i]) {
         Serial.print("TASTE ");
         Serial.println(i + 1);
       }
+    }
+    if (gedrueckt[i] && !langGemeldet[i] && jetzt - unten_seit[i] >= LANG_MS) {
+      langGemeldet[i] = true;
+      Serial.print("LANG ");
+      Serial.println(i + 1);
     }
   }
 

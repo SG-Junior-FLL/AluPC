@@ -3,7 +3,8 @@
 Die Box meldet sich am USB als serieller Anschluss (115200 Baud) und schickt kurze Textzeilen:
 
     HALLO ALUPC-TASTEN 1     Antwort auf „WER?“ (so erkennt AluPC die Box unter allen COM-Anschlüssen)
-    TASTE 3                  Taste 3 gedrückt (1–9)
+    TASTE 3                  Taste 3 gedrückt (1–9; ab Programm 2 beim Loslassen, wenn kurz gedrückt)
+    LANG 3                   Taste 3 lange gedrückt (ab Programm 2, nach 0,6 s)
     LAUT 57                  Drehregler steht auf 57 % (0–100; nur bei Änderung, und auf „LAUT?“)
     STUMM                    optional: Druck auf den Drehregler (falls er einen Taster hat)
 
@@ -46,8 +47,8 @@ def parse_line(line: str) -> tuple[str, int | str | None] | None:
     if text.startswith(HELLO):
         return "hallo", text[len(HELLO):].strip() or "1"
     parts = text.split()
-    if parts[0] == "TASTE" and len(parts) == 2 and parts[1].isdigit() and 1 <= int(parts[1]) <= KEYS:
-        return "taste", int(parts[1])
+    if parts[0] in ("TASTE", "LANG") and len(parts) == 2 and parts[1].isdigit() and 1 <= int(parts[1]) <= KEYS:
+        return ("taste" if parts[0] == "TASTE" else "lang"), int(parts[1])
     if parts[0] == "LAUT" and len(parts) == 2 and parts[1].isdigit():
         return "laut", max(0, min(100, int(parts[1])))
     if parts[0] == "STUMM" and len(parts) == 1:
@@ -89,6 +90,7 @@ class ButtonBox(QObject):
     """Liest die Box im Hintergrund; Signale kommen im GUI-Thread an."""
 
     key = Signal(int)          # Taste 1–9
+    long_key = Signal(int)     # Taste 1–9 lange gedrückt (Arduino-Programm ab Version 2)
     volume = Signal(int)       # Reglerstellung 0–100
     mute = Signal()            # Druck auf den Regler (optional)
     state_changed = Signal()   # verbunden/getrennt
@@ -216,9 +218,9 @@ class ButtonBox(QObject):
         if parsed is None:
             return
         kind, value = parsed
-        if kind == "taste":
+        if kind in ("taste", "lang"):
             self.last_key = int(value)
-            self.key.emit(int(value))
+            (self.key if kind == "taste" else self.long_key).emit(int(value))
         elif kind == "laut":
             self.knob = int(value)
             self.volume.emit(int(value))

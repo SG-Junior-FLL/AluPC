@@ -392,12 +392,27 @@ class SourcePicker(QDialog):
 
         design.currentIndexChanged.connect(apply_design)
         apply_design()
+        # Info-Leiste unten (screens_bar): rückt die Seite nach oben, statt etwas zu verdecken
+        bar_clock = QCheckBox("Uhrzeit")
+        bar_clock.setChecked(bool(init.get("uhr")))
+        bar_count = QSpinBox()
+        bar_count.setRange(0, 240)
+        bar_count.setSuffix(" min")
+        bar_count.setSpecialValueText("aus")
+        bar_count.setValue(int(float(init.get("countdown") or 0)))
+        bar_text = QLineEdit(init.get("laufschrift", ""))
+        bar_text.setPlaceholderText("Laufschrift (leer = keine)")
+        form.addRow("Leiste unten:", bar_clock)
+        form.addRow("Countdown:", bar_count)
+        form.addRow("Laufschrift:", bar_text)
         hint = QLabel("Passt sich der Monitorgröße an")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         form.addRow(hint)
         return page, lambda: {"design": design.currentData(), "title": title.text(), "text": text.toPlainText(),
-                              "color": color.color(), "minutes": minutes.value(), "current": current.value()}
+                              "color": color.color(), "minutes": minutes.value(), "current": current.value(),
+                              "uhr": bar_clock.isChecked(), "countdown": bar_count.value(),
+                              "laufschrift": bar_text.text().strip()}
 
     def _page_text(self, init):
         page, form = self._form()
