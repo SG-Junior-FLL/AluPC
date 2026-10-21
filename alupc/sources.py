@@ -1527,11 +1527,35 @@ class ClockSource(TextBase):
         small = fitted_font(p, date, area.width(), max(8, big.pixelSize() // 3))
         h_big = QFontMetrics(big).height()
         h_small = QFontMetrics(small).height()
-        top = area.top() + (area.height() - h_big - h_small) // 2
+        gap = h_small * 0.6
+        top = area.top() + (area.height() - h_big - h_small - gap) // 2
+        p.setRenderHint(QPainter.Antialiasing)
+        big.setWeight(QFont.DemiBold)
         p.setFont(big)
-        p.drawText(area.left(), top, area.width(), h_big, Qt.AlignCenter, clock)
+        if self.show_seconds:  # Sekunden leiser – die Uhrzeit springt ins Auge, die Sekunden laufen mit
+            main, secs = clock[:-3], clock[-3:]
+            fm = QFontMetrics(big)
+            total = fm.horizontalAdvance(template)
+            x = area.left() + (area.width() - total) / 2
+            p.drawText(QRectF(x, top, fm.horizontalAdvance(template[:-3]), h_big), Qt.AlignCenter, main)
+            dim = QColor(self.color)
+            dim.setAlphaF(0.45)
+            p.setPen(dim)
+            p.drawText(QRectF(x + fm.horizontalAdvance(template[:-3]), top, fm.horizontalAdvance(template[-3:]),
+                              h_big), Qt.AlignCenter, secs)
+        else:
+            p.drawText(area.left(), top, area.width(), h_big, Qt.AlignCenter, clock)
+        # kurzer Strich in AluPC-Blau zwischen Uhrzeit und Datum
+        line_w = area.width() * 0.08
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(stage.ACCENT))
+        p.drawRoundedRect(QRectF(area.center().x() - line_w / 2, top + h_big + gap * 0.35, line_w,
+                                 max(2.0, h_small * 0.08)), 2, 2)
+        soft = QColor(self.color)
+        soft.setAlphaF(0.75)
+        p.setPen(soft)
         p.setFont(small)
-        p.drawText(area.left(), top + h_big, area.width(), h_small, Qt.AlignCenter, date)
+        p.drawText(area.left(), int(top + h_big + gap), area.width(), h_small, Qt.AlignCenter, date)
         p.end()
 
 

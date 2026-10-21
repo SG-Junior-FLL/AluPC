@@ -127,10 +127,9 @@ MUTED = QColor(255, 255, 255, 170)
 
 
 def _font(px: float, bold: bool = False) -> QFont:
-    f = QFont()
-    f.setPixelSize(max(6, int(px)))
-    f.setBold(bold)
-    return f
+    from . import stage
+
+    return stage.font(px, 700 if bold else 400)
 
 
 def _fit(text: str, rect: QRectF, start_px: float, bold: bool = True, flags=Qt.AlignCenter | Qt.TextWordWrap) -> QFont:
@@ -151,14 +150,18 @@ def _text(c: Ctx, rect: QRectF, text: str, px: float, bold=True, color=WHITE, fl
 
 
 def _heading(c: Ctx, y: float = 0.07) -> float:
-    """Überschrift links oben mit Akzentstrich; gibt die Y-Position darunter zurück."""
+    """Überschrift links oben (groß), darunter ein kurzer Strich in der Farbe, rechts die Uhrzeit;
+    gibt die Y-Position darunter zurück."""
+    from . import stage
+
     u = c.unit
-    _text(c, QRectF(c.w * 0.07, c.h * y, c.w * 0.86, c.h * 0.11), c.title, u * 5,
+    stage.clock_corner(c.p, c.w, u, c.now, c.h * y + u * 2)
+    _text(c, QRectF(u * 6, c.h * y, c.w * 0.7, c.h * 0.13), c.title, u * 7,
           flags=Qt.AlignLeft | Qt.AlignVCenter)
     c.p.setPen(Qt.NoPen)
     c.p.setBrush(c.color)
-    c.p.drawRoundedRect(QRectF(c.w * 0.07, c.h * (y + 0.125), u * 10, u * 0.6), u * 0.3, u * 0.3)
-    return c.h * (y + 0.18)
+    c.p.drawRoundedRect(QRectF(u * 6, c.h * (y + 0.145), u * 10, u * 0.55), u * 0.27, u * 0.27)
+    return c.h * (y + 0.2)
 
 
 def _confetti(c: Ctx, count: int = 120) -> None:
@@ -210,15 +213,15 @@ def _rows(c: Ctx, top: float, rows: list[tuple[str, str]], left_pill: bool = Tru
     if not rows:
         return
     u = c.unit
-    avail = c.h * 0.9 - top
-    row_h = min(c.h * 0.13, avail / len(rows))
+    avail = c.h * 0.92 - top
+    row_h = min(c.h * 0.15, avail / len(rows))
     left_w = c.w * 0.2 if any(a for a, _b in rows) else 0
     current = c.step()
     for i in range(len(rows)):
         c.fade(c.intro(i), -(1 - c.intro(i)) * c.w * 0.05)
         band = QRectF(c.w * 0.07, top + i * row_h + row_h * 0.08, c.w * 0.86, row_h * 0.84)
-        c.p.setPen(Qt.NoPen)
-        c.p.setBrush(QColor(255, 255, 255, 18 if i % 2 == 0 else 8))
+        c.p.setPen(QPen(QColor(255, 255, 255, 22), max(1.0, u * 0.12)))
+        c.p.setBrush(QColor(255, 255, 255, 16 if i % 2 == 0 else 9))
         c.p.drawRoundedRect(band, row_h * 0.18, row_h * 0.18)
         c.restore()
     _mark_box(c, lambda n: QRectF(c.w * 0.07, top + (n - 1) * row_h + row_h * 0.08, c.w * 0.86, row_h * 0.84),
@@ -233,10 +236,10 @@ def _rows(c: Ctx, top: float, rows: list[tuple[str, str]], left_pill: bool = Tru
             if left_pill:
                 c.p.setBrush(c.color)
                 c.p.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2)
-            _text(c, pill.adjusted(u * 0.6, 0, -u * 0.6, 0), a, row_h * 0.34, True, WHITE,
+            _text(c, pill.adjusted(u * 0.6, 0, -u * 0.6, 0), a, row_h * 0.36, True, WHITE,
                   Qt.AlignCenter)
         right = QRectF(band.left() + left_w + u * 1.5, band.top(), band.width() - left_w - u * 3, band.height())
-        _text(c, right, b, row_h * 0.38, i + 1 == current, WHITE, Qt.AlignLeft | Qt.AlignVCenter)
+        _text(c, right, b, row_h * 0.44, i + 1 == current, WHITE, Qt.AlignLeft | Qt.AlignVCenter)
         c.restore()
 
 
@@ -495,21 +498,29 @@ def p_zweispaltig(c: Ctx):
     for side, (head, col) in enumerate(((left_head, "#22c55e"), (right_head, "#ef4444"))):
         x = c.w * 0.07 + side * (col_w + gap)
         box = QRectF(x, top, col_w, c.h * 0.9 - top)
-        c.p.setPen(QPen(QColor(col), c.unit * 0.3))
-        c.p.setBrush(QColor(255, 255, 255, 12))
-        c.p.drawRoundedRect(box, c.unit * 1.5, c.unit * 1.5)
-        _text(c, QRectF(x, top + c.unit, col_w, c.h * 0.09), head, c.unit * 3.6, True, QColor(col))
+        c.p.setPen(QPen(QColor(255, 255, 255, 26), c.unit * 0.15))
+        c.p.setBrush(QColor(255, 255, 255, 13))
+        c.p.drawRoundedRect(box, c.unit * 2, c.unit * 2)
+        band = QRectF(x, top, col_w, c.h * 0.1)
+        c.p.save()
+        c.p.setClipRect(band)
+        c.p.setPen(Qt.NoPen)
+        c.p.setBrush(QColor(col))
+        c.p.drawRoundedRect(box, c.unit * 2, c.unit * 2)
+        c.p.restore()
+        _text(c, band, head, c.unit * 4, True, WHITE)
         items = [(j, b if side else a) for j, (a, b) in enumerate(pairs)]
         items = [(j, i) for j, i in items if i]
         if items:
-            row_h = min(c.h * 0.11, (box.height() - c.h * 0.12) / len(items))
+            row_h = min(c.h * 0.13, (box.height() - c.h * 0.13) / len(items))
             for k, (j, item) in enumerate(items):
                 if j >= shown:
                     continue
                 a = c.intro(k + side * 0.5) * (c.changed() if j == shown - 1 and c.cfg.get("_changed") else 1)
                 c.fade(a, (1 - a) * c.unit * (3 if side else -3))
-                _text(c, QRectF(x + c.unit * 2, top + c.h * 0.11 + k * row_h, col_w - c.unit * 4, row_h),
-                      "•  " + item, row_h * 0.4, False, WHITE, Qt.AlignLeft | Qt.AlignVCenter | Qt.TextWordWrap)
+                _text(c, QRectF(x + c.unit * 2.5, top + c.h * 0.12 + k * row_h, col_w - c.unit * 5, row_h),
+                      ("✓  " if side == 0 else "✕  ") + item, row_h * 0.44, False, WHITE,
+                      Qt.AlignLeft | Qt.AlignVCenter | Qt.TextWordWrap)
                 c.restore()
 
 

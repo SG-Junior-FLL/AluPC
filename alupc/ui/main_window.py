@@ -643,6 +643,20 @@ class MainWindow(QMainWindow):
         # Seitenleiste: kleines Live-Bild nur, wenn die Startseite es nicht schon groß zeigt
         self.side_monitor.setVisible(not (show and self.stack.currentIndex() == 0))
 
+    def toggle_studio(self) -> None:
+        """Studio-Modus: Fenster „Vorschau | Übergang | Live“ öffnen bzw. schließen."""
+        from .studio_window import StudioWindow
+
+        win = getattr(self, "studio_window", None)
+        if win is not None and win.isVisible():
+            win.close()
+        else:
+            if win is None:
+                win = self.studio_window = StudioWindow(self.controller, self)
+            win.show()
+            win.raise_()
+        self.studio_button.setChecked(self.controller.studio)
+
     def _start_page(self):
         page = QWidget()
         lay = QVBoxLayout(page)
@@ -662,6 +676,11 @@ class MainWindow(QMainWindow):
         head.addWidget(self.start_title)
         head.addWidget(self.start_subtitle)
         top.addWidget(self.start_header, 1)
+        self.studio_button = button("Studio-Modus", "scenes")
+        self.studio_button.setToolTip("Zweites Fenster mit Vorschau: erst vorbereiten, dann live schalten (wie OBS)")
+        self.studio_button.setCheckable(True)
+        self.studio_button.clicked.connect(self.toggle_studio)
+        top.addWidget(self.studio_button, 0, Qt.AlignTop)
         customize = button("Startseite anpassen", "edit")
         customize.clicked.connect(self.customize_start)
         top.addWidget(customize, 0, Qt.AlignTop)
@@ -2254,6 +2273,8 @@ class MainWindow(QMainWindow):
             pills.append(("ZEICHNUNG", "#f97316"))
         self.status_card.set(icon_name, where, c.describe(), pills)
         self.stop_btn.setVisible(c.mode == "content")
+        if self.studio_button.isChecked() != c.studio:
+            self.studio_button.setChecked(c.studio)
         QTimer.singleShot(150, self._update_preview)  # Vorschau gleich nach dem Wechsel auffrischen
         self.volume_box.sync()
         self.fader_panel.pc.refresh()  # PC-Lautstärke kann sich außerhalb von AluPC geändert haben

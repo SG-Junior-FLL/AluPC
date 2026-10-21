@@ -4935,3 +4935,35 @@ def test_setup_search_filters_sections(env):
     pump()
     assert not any(setup.nav.isRowHidden(i) for i in range(len(titles)))
     window._go(0)
+
+
+def test_studio_mode_preview_and_take(env):
+    """Studio-Modus: Inhalte landen erst in der Vorschau, „Übergang“ schaltet live, der alte Inhalt wandert in
+    die Vorschau. Kamera wird in der Vorschau nur als Schema gezeigt (gibt es nur einmal)."""
+    controller, window, _ = env
+    controller.show_source({"type": "clock"})
+    pump()
+    window.toggle_studio()
+    pump()
+    studio = window.studio_window
+    assert controller.studio and studio.isVisible() and window.studio_button.isChecked()
+    assert controller.preview == {"type": "clock"}  # aktueller Inhalt steht auch in der Vorschau
+    controller.show_source({"type": "text", "text": "Hallo"})
+    pump()
+    assert controller.content == {"type": "clock"}  # live unverändert
+    assert controller.preview["type"] == "text" and studio._preview_widget is not None
+    studio.take(("schnitt", 0))
+    pump()
+    assert controller.content["type"] == "text" and controller.preview == {"type": "clock"}
+    controller.show_source({"type": "camera"})
+    pump()
+    assert studio._preview_widget is None and studio.preview.placeholder is not None
+    controller.clear_preview()
+    pump()
+    assert not studio.take_button.isEnabled()
+    studio.close()
+    pump()
+    assert not controller.studio and not window.studio_button.isChecked()
+    controller.show_source({"type": "clock"})
+    assert controller.content == {"type": "clock"}  # ohne Studio-Modus wieder sofort live
+    controller.extend()

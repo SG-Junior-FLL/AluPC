@@ -40,11 +40,15 @@ class Controller(QObject):
     sender_requested = Signal()  # Fenster „An Fernseher senden“ (Chromecast/AirPlay) öffnen
     board_guest_requested = Signal(str, str)  # Gast möchte aufs Whiteboard schreiben: (Geräte-ID, Name)
     duel_requested = Signal()  # Schiffe versenken: Fenster für Spieler 1 öffnen (macht das Hauptfenster)
+    studio_changed = Signal()  # Studio-Modus an/aus oder neue Vorschau (Fenster „Studio-Modus“)
     presenter_requested = Signal()  # Fenster „Zeigen & Zeichnen“ öffnen (macht die Oberfläche)  # kurze Meldung für die Statusleiste / Benachrichtigung
 
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
+        # Studio-Modus (wie OBS): Inhalte landen erst in der Vorschau, „Übergang“ schaltet sie live
+        self.studio = False
+        self.preview: dict | None = None
         self.display = create_display_backend()
         self.windows = create_window_backend()
         self.fingerprint = create_fingerprint_backend()
@@ -403,7 +407,12 @@ class Controller(QObject):
         self.screensaver.activity()
         return True
 
-    def show_source(self, cfg: dict, remember: bool = True, sound: bool = True) -> None:
+    def show_source(self, cfg: dict, remember: bool = True, sound: bool = True, live: bool = False,
+                    transition: tuple[str, int] | None = None) -> None:
+        if self.studio and not live:  # Studio-Modus: erst vorbereiten, dann mit „Übergang“ live schalten
+            self.preview = cfg
+            self.studio_changed.emit()
+            return
         if not self._guard():
             return
         if self.output_screen() is None:
@@ -421,7 +430,7 @@ class Controller(QObject):
         self._remember_video_positions()  # bevor das alte Video verschwindet
         self.resume_offer = None
         self._resume_timer.stop()
-        self.output.set_content(create_source(cfg, self.config.get_scene), self.transition_for(cfg))
+        self.output.set_content(create_source(cfg, self.config.get_scene), transition or self.transition_for(cfg))
         self._offer_resume()
         if cfg.get("type") == "airplay":
             self._follow_airplay_window()
@@ -433,6 +442,30 @@ class Controller(QObject):
         if sound and remember:
             self.sounds.play_event("szene" if cfg.get("type") == "scene" else "inhalt")
         self.changed.emit()
+
+    # ------------------------------------------------------------ Studio-Modus
+    def set_studio(self, on: bool) -> None:
+        """Studio-Modus an/aus. Beim Einschalten steht der aktuelle Inhalt auch in der Vorschau."""
+        self.studio = bool(on)
+        if self.studio and self.preview is None and self.mode == "content" and self.content:
+            self.preview = dict(self.content)
+        self.studio_changed.emit()
+        self.changed.emit()
+
+    def take(self, transition: tuple[str, int] | None = None) -> bool:
+        """Vorschau live schalten (wie „Übergang“ in OBS). Der bisherige Inhalt wandert in die Vorschau –
+        so kann man mit einem zweiten Klick zurückwechseln."""
+        if self.preview is None:
+            return False
+        old = dict(self.content) if self.mode == "content" and self.content else None
+        self.show_source(self.preview, live=True, transition=transition)
+        self.preview = old if old is not None else self.preview
+        self.studio_changed.emit()
+        return True
+
+    def clear_preview(self) -> None:
+        self.preview = None
+        self.studio_changed.emit()
 
     # ------------------------------------------------------------ Ton der Medien auf Monitor 2
     def media_state(self) -> dict | None:

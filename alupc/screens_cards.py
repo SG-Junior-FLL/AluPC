@@ -48,7 +48,7 @@ CARD_LABELS = {"nowplaying": ("Song:", "Künstler:"), "versus": ("Links:", "Rech
 
 
 def _font(px: float, bold: bool = True, family: str | None = None, italic: bool = False) -> QFont:
-    f = QFont(family) if family else QFont()
+    f = QFont(family or "Inter")
     f.setPixelSize(max(6, int(px)))
     f.setBold(bold)
     f.setItalic(italic)
@@ -442,8 +442,8 @@ def c_versus(p, w, h, cfg, t, color, u):
     _static_bg(p, ("versus", left_c.rgba()), w, h, halves)
     p.setPen(QPen(QColor("#ffffff"), u * 0.6))
     p.drawLine(QPointF(w * 0.56, 0), QPointF(w * 0.44, h))
-    lr = QRectF(w * 0.03, h * 0.35, w * 0.42, h * 0.3)
-    rr = QRectF(w * 0.55, h * 0.35, w * 0.42, h * 0.3)
+    lr = QRectF(w * 0.04, h * 0.3, w * 0.33, h * 0.4)  # Platz für „VS“ in der Mitte lassen
+    rr = QRectF(w * 0.63, h * 0.3, w * 0.33, h * 0.4)
     _draw(p, lr, cfg["title"], _fit(cfg["title"], lr, u * 7), QColor("#ffffff"))
     _draw(p, rr, cfg["text"], _fit(cfg["text"], rr, u * 7), QColor("#ffffff"))
     vs = QRectF(w / 2 - u * 9 + shake, h / 2 - u * 7, u * 18, u * 14)
