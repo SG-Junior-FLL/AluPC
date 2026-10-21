@@ -34,10 +34,11 @@ BUILTIN_PROFILES = {
 PROFILE_KEYS = ("style", "mode", "wood", "accent", "accent_color", "radius", "font", "density")
 MODES = {"system": "Wie das System", "dunkel": "Dunkel", "hell": "Hell"}
 # Drei Gestaltungen (docs/DESIGN.md), frei umschaltbar unter Setup → Darstellung
-STYLES = {"normal": "Normal", "technisch": "Technisch", "holz": "Holz"}
+STYLES = {"normal": "Normal", "technisch": "Technisch", "holz": "Holz", "matrix": "Matrix"}
 STYLE_INFO = {"normal": "Modern, weich und rund",
               "technisch": "Dicht, mit Messwerten",
-              "holz": "Echtes Furnier, 7 Holzarten"}
+              "holz": "Echtes Furnier, 7 Holzarten",
+              "matrix": "Grüner Code auf Schwarz"}
 # Anzeigen auf Monitor 2 (Abstimmung, Glücksrad, Codes …): ruhiger, dunkler Grund
 STAGE_BG = "#121315"
 STAGE_PANEL = "#1c1d20"
@@ -71,7 +72,17 @@ class Theme:
 
     @property
     def technical(self) -> bool:
-        return self.style == "technisch"
+        """Technisch und Matrix: Pads, Messwerte, Ziffernschrift (Matrix ist eine grüne Spielart davon)."""
+        return self.style in ("technisch", "matrix")
+
+    @property
+    def matrix(self) -> bool:
+        return self.style == "matrix"
+
+    @property
+    def kind(self) -> str:
+        """Form der Bausteine: normal / technisch / holz (Matrix baut wie Technisch)."""
+        return "technisch" if self.technical else self.style
 
     @property
     def wood(self) -> bool:
@@ -87,12 +98,12 @@ class Theme:
     @property
     def head_font(self) -> str:
         """Schrift für Titel und Kachelnamen: Holz wie Gravur auf Geräten (Barlow), sonst Inter."""
-        return WOOD_FONT if self.wood else UI_FONT
+        return WOOD_FONT if self.wood else (MONO_FONT if self.matrix else UI_FONT)
 
     @property
     def radii(self) -> tuple[int, int, int, int]:
         """Rundung: Karte, Knopf, Eingabefeld, Listenzeile."""
-        base = {"technisch": (3, 3, 2, 2), "holz": (6, 5, 4, 4)}.get(self.style, (20, 17, 12, 10))
+        base = {"technisch": (3, 3, 2, 2), "holz": (6, 5, 4, 4)}.get(self.kind, (20, 17, 12, 10))
         return tuple(max(0, round(r * self.radius_scale)) for r in base)
 
     def pt(self, size: float) -> float:
@@ -277,7 +288,9 @@ def _make_theme(mode: str, accent: str, style: str, wood: str, custom: dict) -> 
     dark = WOODS[wood][5] if style == "holz" else (system_prefers_dark() if mode == "system" else mode == "dunkel")
     key = accent if accent in ACCENTS else "alupc"
     own = {"normal": ("#5b8cff", "#2f62e9"), "technisch": ("#f5c400", "#c99a00"),
-           "holz": ("#e0b354", "#8a5a12")}[style]
+           "holz": ("#e0b354", "#8a5a12"), "matrix": ("#00ff66", "#00ff66")}[style]
+    if style == "matrix":
+        dark = True  # Matrix gibt es nur dunkel
     if key == "alupc":
         accent_hex = own[0] if dark else own[1]
     elif key == "system":
@@ -286,6 +299,10 @@ def _make_theme(mode: str, accent: str, style: str, wood: str, custom: dict) -> 
         accent_hex = QColor(custom.get("accent_color") or ACCENTS["eigen"][1]).name()
     else:
         accent_hex = ACCENTS[key][1]
+    if style == "matrix":  # Phosphorgrün auf Schwarz
+        return Theme(True, accent_hex, bg="#010403", surface="#04110a", surface2="#082016", border="#0f3a22",
+                     text="#c8ffd8", muted="#6fd394", danger="#ff5c5c", live="#ff3b3b", ready="#00ff66",
+                     style=style)
     if style == "technisch":
         if dark:
             return Theme(True, accent_hex, bg="#18191b", surface="#202124", surface2="#292a2e", border="#36383d",
@@ -600,6 +617,7 @@ def apply(app, mode: str = "system", accent: str = "blau", style: str = "normal"
     if _fonts_loaded:  # Grundschrift mit Faktor (Schriftgröße)
         from PySide6.QtGui import QFont
 
+        # Grundschrift bleibt Inter (auch Monitor 2 zeichnet damit); Matrix setzt die Ziffernschrift per Stylesheet
         base = QFont(UI_FONT)
         base.setPointSizeF(10 * t.font_scale)
         base.setHintingPreference(QFont.PreferNoHinting)
@@ -771,7 +789,7 @@ def _stylesheet(t: Theme, check_image: str = "", arrow_image: str = "") -> str:
     sel = t.soft(a1, 0.18 if t.dark else 0.12)
     field = t.mix(t.bg, t.surface, 0.5).name() if t.dark else "#ffffff"
     number_font = f'font-family: "{MONO_FONT}";' if t.technical else ""
-    title_pt, title_w = {"technisch": (19, 600), "holz": (25, 600)}.get(t.style, (22, 700))
+    title_pt, title_w = {"technisch": (19, 600), "holz": (25, 600)}.get(t.kind, (22, 700))
     group_pt = 13.5 if t.wood else 11.5
     window_bg = t.bg
     side = t.mix(t.bg, "#000000", 0.18).name() if t.dark else t.mix(t.bg, "#ffffff", 0.5).name()
@@ -812,6 +830,17 @@ QListWidget#SetupNav {{ border-color: transparent; padding: 6px; }}
 QListWidget#SetupNav::item {{ border-left: none; border-radius: 12px; }}
 QListWidget#SetupNav::item:selected {{ border-left: none; }}
 """
+    matrix_extra = ""
+    if t.matrix:
+        matrix_extra = f"""
+QWidget {{ font-family: "{MONO_FONT}"; }}
+#Output, #Output QWidget {{ font-family: "{UI_FONT}"; }}
+#PageTitle, #PanelTitle, #Brand {{ color: {a1}; }}
+#Sidebar, #LiveDock {{ border-color: {line}; }}
+QPushButton[primary="true"] {{ background: {a1}; color: #001a09; }}
+QLineEdit, QComboBox, QSpinBox {{ background: #000000; border-color: {line}; }}
+QLineEdit:focus, QComboBox:focus {{ border-color: {a1}; }}
+"""
     if t.technical:
         side = t.surface
         page_icon = f"background: transparent; border: 1px solid {line_hi};"
@@ -822,6 +851,7 @@ QPushButton#Chip {{ background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {
     stop:1 {t.mix(t.surface, "#000000", 0.15).name()}); border: 1px solid {line}; border-bottom: 2px solid {t.mix(t.bg, "#000000", 0.4).name()}; }}
 QPushButton#Chip:checked {{ background: {a1}; color: {on_accent}; border-color: {a1}; border-bottom-color: {t.mix(a1, "#000000", 0.35).name()}; }}
 QPushButton#Chip:pressed {{ border-bottom-width: 1px; padding-top: 6px; }}
+{matrix_extra}
 QDialog {{ border-top: 2px solid {a1}; }}
 #DockTitle {{ font-family: "{MONO_FONT}"; font-weight: 600; border-left: 3px solid {a1}; padding-left: 7px; }}
 """
@@ -887,6 +917,7 @@ QPushButton[primary="true"]:disabled {{ background: {t.surface2}; border-color: 
 QPushButton[danger="true"] {{ color: {t.danger}; }}
 QPushButton[danger="true"]:hover {{ border-color: {t.danger}; background: {t.soft(t.danger, 0.10)}; }}
 QPushButton:default {{ border-color: {a1}; }}
+QPushButton:checked {{ background: {sel}; border-color: {a1}; }}
 QPushButton#Segment {{ border-radius: {rb}px; padding: 6px 15px; min-width: 56px; }}
 QPushButton#Segment:checked {{ background: {sel}; border-color: {a1}; }}
 

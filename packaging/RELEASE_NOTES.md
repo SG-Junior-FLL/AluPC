@@ -10,6 +10,16 @@
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
 ### Neu in 2.2.0 – neuer Aufbau, Design-Profile, mehr Schalter, einheitliche Publikumsansicht
+- **Studio-Modus** (Knopf „Studio“ auf der Startseite, wie in OBS): Über dem Live-Bild klappt eine Vorschau auf.
+  Kacheln und Szenen landen erst dort, „Übergang“ (oder Strg+Enter) schaltet live, „Schnitt“ ohne Überblenden.
+  Live-Kachel rot, Vorschau-Kachel grün. Kamera, Bildschirm-Aufnahme und AirPlay zeigt die Vorschau nur als Schema.
+- **Neues Design „Matrix“:** grüne Ziffernschrift auf Schwarz, Code-Regen im Hintergrund.
+- **Bildschirm 2 neu gestaltet:** alle Vorlagen mit neuem Hintergrund und neuer Schrift; Ablauf, Pause, Hinweis,
+  WLAN, Laufschrift, Listen und Pro & Contra neu aufgebaut.
+- **Technisch wie ein DJ-Pult:** Kacheln als beleuchtete Pads, leuchtende Tasten, Pegel für den PC-Ton.
+- **Alle Seiten überarbeitet:** Szenen mit Suche und Detail-Spalte, Setup mit Gruppen und Suche, neuer Szenen-Editor.
+- **Design-Knopf** unten links: Stil, Hell/Dunkel, Profil (abschaltbar in Darstellung).
+- **Lautstärkeregler nicht mehr auf der Startseite** – PC-Ton: System → PC steuern; Programme: Audio.
 - **Neuer Aufbau der Startseite („Studio“):**
   - Breites Fenster (ab ca. 1240 px): rechts ein festes **Live-Dock** mit großem Live-Bild, allen Schnellschaltern
     mit Namen, Reglern und „Beenden“. Es bleibt stehen, während man die Kacheln scrollt.
@@ -34,7 +44,7 @@
   - Setup → Bildschirm → „Publikum sieht“: Bühne oder reines Schwarz.
 - **Linux: Spiegeln ohne Bildschirm-Auswahl.** Würde die Aufnahme nach dem Bildschirm fragen (Wayland ohne
   KWin-Freigabe), spiegelt KDE direkt, ohne Nachfrage.
-- **Nicht getestet** auf echten Geräten (Spiegeln unter KDE/Wayland, PC-Stummschalten, Temperatur-Anzeige) – nur automatische Tests
+- **Nicht getestet** auf echten Geräten (Spiegeln unter KDE/Wayland, PC-Stummschalten, Temperatur, Ton-Pegel, Studio-Modus) – nur automatische Tests
   und Bildschirmfotos.
 
 ### Frühere Versionen

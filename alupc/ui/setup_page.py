@@ -1014,8 +1014,8 @@ class SetupPage(QWidget):
         form.addRow("Hell/Dunkel:", mode)
         form.addRow("Akzentfarbe:", swatches)
         self._fine_controls(form, a)
-        self.quick_switch = QCheckBox("Knopf unten links in der Seitenleiste")
-        self.quick_switch.setToolTip("Ein Klick: Stil, Hell/Dunkel oder Profil wechseln – ohne ins Setup zu gehen")
+        self.quick_switch = QCheckBox("Knopf unten links zeigen")
+        self.quick_switch.setToolTip("Stil, Hell/Dunkel und Profil mit einem Klick")
         self.quick_switch.setChecked(bool(a.get("quick_switch", True)))
         self.quick_switch.toggled.connect(lambda on: self._save_appearance(quick_switch=on))
         form.addRow("Schnellwahl:", self.quick_switch)
@@ -1304,10 +1304,12 @@ class SetupPage(QWidget):
         form = self.__dict__.get("_appearance_form")
         if form is None:
             return
-        wood = self.config["appearance"].get("style") == "holz"
+        style = self.config["appearance"].get("style")
+        wood = style == "holz"
         form.setRowVisible(self._wood_row, wood)
-        self._mode_combo.setEnabled(not wood)
-        self._mode_combo.setToolTip("Im Holz-Stil bestimmt die Holzart, ob hell oder dunkel" if wood else "")
+        self._mode_combo.setEnabled(style not in ("holz", "matrix"))
+        self._mode_combo.setToolTip("Im Holz-Stil bestimmt die Holzart, ob hell oder dunkel" if wood else
+                                    ("Matrix ist immer dunkel" if style == "matrix" else ""))
 
     def _save_appearance(self, emit: bool = True, **changes):
         a = dict(self.config["appearance"])

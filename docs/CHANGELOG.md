@@ -5,7 +5,8 @@ Die aktuellen Neuerungen stehen in den [Release-Notizen](../packaging/RELEASE_NO
 
 
 ## 2.2.0 – neuer Aufbau, Design-Profile, mehr Schalter, einheitliche Publikumsansicht
-- Startseite „Studio“: Live-Dock rechts (Live-Bild, Schalter, Regler), Befehlsleiste oben; Technisch mit Messwerten.
+- Startseite mit Live-Dock und Befehlsleiste; Studio-Modus (Vorschau → Übergang); Design „Matrix“.
+- Bildschirm 2: alle Vorlagen neu gestaltet. Technisch wie ein DJ-Pult. Alle Seiten überarbeitet.
 - Darstellung: Rundung, Schriftgröße, Abstände, eigene Farbe; Profile speichern/wechseln.
 - Statusleiste: Schoner, Overlays, Stumm, Weiter.
 - Monitor 2: einheitliche „Bühne“ (oder Schwarz) für alle Info-Anzeigen.

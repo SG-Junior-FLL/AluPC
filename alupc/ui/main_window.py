@@ -67,7 +67,7 @@ PIP_COLOR = "#8b5cf6"
 def tile_min_width() -> int:
     """Mindestbreite einer Kachel je Stil (Technisch: Pads wie am DJ-Controller, 4 nebeneinander)."""
     t = theme.current()
-    return round({"technisch": 180}.get(t.style, 184) * (0.6 + 0.4 * t.font_scale))
+    return round({"technisch": 180}.get(t.kind, 184) * (0.6 + 0.4 * t.font_scale))
 
 
 class FlowGrid(QWidget):
@@ -313,6 +313,7 @@ class MainWindow(QMainWindow):
         from PySide6.QtGui import QKeySequence, QShortcut
 
         QShortcut(QKeySequence("Ctrl+K"), self, activated=self.open_command_palette)
+        QShortcut(QKeySequence("Ctrl+Return"), self, activated=lambda: self.controller.studio and self.controller.take())
         self._build_tray()
         controller.changed.connect(self.refresh)
         controller.games_changed.connect(self.refresh)
@@ -453,7 +454,7 @@ class MainWindow(QMainWindow):
         self.style_button.setIcon(icons.icon("palette", theme.current().text, 18))
         self.style_button.setFixedSize(36, 36)
         self.style_button.setCursor(Qt.PointingHandCursor)
-        self.style_button.setToolTip("Design schnell wechseln: Stil, Hell/Dunkel, Profil")
+        self.style_button.setToolTip("Design wechseln")
         self.style_menu = QMenu(self)
         self.style_menu.aboutToShow.connect(self._fill_style_menu)
         self.style_button.clicked.connect(
@@ -597,11 +598,8 @@ class MainWindow(QMainWindow):
         self.dock_lay = QVBoxLayout(self.dock_inner)
         self.dock_lay.setContentsMargins(18, 22, 18, 18)
         self.dock_lay.setSpacing(16)
-        head = QLabel("Gerade auf dem Bildschirm")
-        head.setObjectName("DockTitle")
-        self.dock_lay.addWidget(head)
         self.telemetry = Telemetry()
-        self.telemetry.setToolTip("Prozessor, Speicher und Temperatur dieses PCs – gemessen jede Sekunde")
+        self.telemetry.setToolTip("Werte dieses PCs, jede Sekunde neu")
         self.dock_lay.addWidget(self.telemetry)
         self.level_meter = LevelMeter()
         self.dock_lay.addWidget(self.level_meter)
@@ -625,7 +623,7 @@ class MainWindow(QMainWindow):
         if docked != (card.parentWidget() is self.dock_inner):
             if docked:
                 self._start_lay.removeWidget(card)
-                self.dock_lay.insertWidget(1, card)
+                self.dock_lay.insertWidget(0, card)  # Live-Bild ganz oben
             else:
                 self.dock_lay.removeWidget(card)
                 self._start_lay.insertWidget(self._card_index, card)
@@ -634,7 +632,8 @@ class MainWindow(QMainWindow):
             card.style().polish(card)
         self.live_dock.ensurePolished()  # Rand aus dem Stylesheet (Normal: schwebt) ist erst danach bekannt
         dm, dl = self.live_dock.contentsMargins(), self.dock_lay.contentsMargins()
-        card.set_docked(self.DOCK_W - dm.left() - dm.right() - dl.left() - dl.right() if docked else 0)
+        scroll = 12  # Platz für die Scrollleiste, falls das Dock (z. B. mit Vorschau) höher als das Fenster wird
+        card.set_docked(self.DOCK_W - dm.left() - dm.right() - dl.left() - dl.right() - scroll if docked else 0)
         card.setVisible(show)
         self.live_dock.setVisible(docked and show)
         tech = docked and show and theme.current().technical
@@ -644,17 +643,8 @@ class MainWindow(QMainWindow):
         self.side_monitor.setVisible(not (show and self.stack.currentIndex() == 0))
 
     def toggle_studio(self) -> None:
-        """Studio-Modus: Fenster „Vorschau | Übergang | Live“ öffnen bzw. schließen."""
-        from .studio_window import StudioWindow
-
-        win = getattr(self, "studio_window", None)
-        if win is not None and win.isVisible():
-            win.close()
-        else:
-            if win is None:
-                win = self.studio_window = StudioWindow(self.controller, self)
-            win.show()
-            win.raise_()
+        """Studio-Modus an/aus: über dem Live-Bild klappt die Vorschau auf (wie OBS)."""
+        self.controller.set_studio(not self.controller.studio)
         self.studio_button.setChecked(self.controller.studio)
 
     def _start_page(self):
@@ -676,8 +666,8 @@ class MainWindow(QMainWindow):
         head.addWidget(self.start_title)
         head.addWidget(self.start_subtitle)
         top.addWidget(self.start_header, 1)
-        self.studio_button = button("Studio-Modus", "scenes")
-        self.studio_button.setToolTip("Zweites Fenster mit Vorschau: erst vorbereiten, dann live schalten (wie OBS)")
+        self.studio_button = button("Studio", "scenes")
+        self.studio_button.setToolTip("Erst vorbereiten, dann live schalten")
         self.studio_button.setCheckable(True)
         self.studio_button.clicked.connect(self.toggle_studio)
         top.addWidget(self.studio_button, 0, Qt.AlignTop)
@@ -686,9 +676,8 @@ class MainWindow(QMainWindow):
         top.addWidget(customize, 0, Qt.AlignTop)
         lay.addLayout(top)
         # Befehlsleiste: der schnellste Weg zu allem (öffnet die Befehlssuche)
-        self.command_bar = CommandBar("Suchen oder schreiben, was laufen soll …")
-        self.command_bar.setToolTip("Befehle, Szenen und Einstellungen suchen – oder einfach schreiben, was "
-                                    "passieren soll („Timer 5 Minuten“, „Szene Pause“) · Strg+K")
+        self.command_bar = CommandBar("Suchen oder Befehl eingeben …")
+        self.command_bar.setToolTip("z. B. „Timer 5 Minuten“ oder „Szene Pause“ (Strg+K)")
         self.command_bar.setIcon(icons.icon("search", theme.current().muted, 18))
         self.command_bar.clicked.connect(self.open_command_palette)
         lay.addWidget(self.command_bar)
@@ -730,8 +719,16 @@ class MainWindow(QMainWindow):
         self._preview_timer.timeout.connect(self._update_preview)
         self._preview_timer.start()
         self.volume_box = VolumeBox(self.controller)
-        self.fader_panel = FaderPanel(self.volume_box)  # Regler wie am Mischpult: PC + Medien
-        self.status_card.actions.addWidget(self.fader_panel)
+        # Regler nicht mehr auf der Startseite (Lautstärke: Medienleiste, Audio-Seite, System → PC steuern);
+        # das Objekt bleibt, damit Medien-Lautstärke und Tests wie bisher funktionieren
+        self.fader_panel = FaderPanel(self.volume_box, self.status_card)
+        self.fader_panel.hide()
+        from .studio_panel import StudioPanel
+
+        self.studio_panel = StudioPanel(self.controller)
+        self.status_card.add_studio(self.studio_panel)
+        self.controller.studio_changed.connect(self.refresh)
+        self.controller.studio_changed.connect(self._mark_live_scene)
         self._start_lay, self._card_index = lay, lay.count()
         lay.addWidget(self.status_card)
         self.media_bar = MediaBar(self.controller)
@@ -1670,7 +1667,7 @@ class MainWindow(QMainWindow):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(14)
         top = QHBoxLayout()
-        top.addWidget(page_header("Meine Szenen", "Mehrere Quellen auf einmal – mit einem Klick auf dem Bildschirm"), 1)
+        top.addWidget(page_header("Meine Szenen", "Mehrere Quellen auf einem Bild"), 1)
         new = button("Neue Szene", "plus", primary=True)
         new.clicked.connect(self.new_scene)
         top.addWidget(new, 0, Qt.AlignTop)
@@ -1691,7 +1688,7 @@ class MainWindow(QMainWindow):
         bar = QHBoxLayout()
         self.scene_search = QLineEdit()
         self.scene_search.setObjectName("SearchField")
-        self.scene_search.setPlaceholderText("Szenen durchsuchen …")
+        self.scene_search.setPlaceholderText("Szene suchen …")
         self.scene_search.setClearButtonEnabled(True)
         self.scene_search.addAction(icons.icon("search", theme.current().muted, 16), QLineEdit.LeadingPosition)
         self.scene_search.textChanged.connect(lambda _t: self._filter_scenes())
@@ -1748,7 +1745,7 @@ class MainWindow(QMainWindow):
         pl.addStretch(1)
         self.scene_actions = QVBoxLayout()
         self.scene_actions.setSpacing(8)
-        show = button("Auf dem Bildschirm zeigen", "play", primary=True)
+        show = button("Zeigen", "play", primary=True)
         show.clicked.connect(self.show_scene)
         self.scene_actions.addWidget(show)
         row = QHBoxLayout()
@@ -1850,8 +1847,10 @@ class MainWindow(QMainWindow):
         c = self.controller
         live = c.content.get("scene") if c.mode == "content" and c.content and c.content.get("type") == "scene" \
             else None
+        cue = c.preview if c.studio and c.preview and c.preview.get("type") == "scene" else {}
         for card in getattr(self, "scene_cards", []):
             card.live = card.scene["name"] == live
+            card.cued = card.scene["name"] == cue.get("scene")
             card.update()
         self._update_scene_thumb()
 
@@ -2298,6 +2297,20 @@ class MainWindow(QMainWindow):
         handy_desktop = c.mode == "desktop" and c.desktop_note.startswith(HANDY_NOTES)
         desktop = c.mode == "desktop" and not c.desktop_note.startswith("Programm") and not handy_desktop
         self.t_extend.set_state(desktop, badge="AKTIV" if desktop else "")
+        cue = (c.preview or {}) if c.studio else {}
+        ctyp = cue.get("type")
+        self.t_mirror.set_cued(bool(cue.get("mirror")))
+        for tile, kinds in [
+            (self.t_camera, ("camera",)), (self.t_program, ("window",)), (self.t_web, ("website",)),
+            (self.t_text, ("text",)), (self.t_music, ("nowplaying",)), (self.t_board, ("whiteboard",)),
+            (self.t_weather, ("wetter",)), (self.t_system, ("system",)), (self.t_wheel, ("zufall",)),
+            (self.t_media, ("image", "video", "slideshow")), (self.t_scenes, ("scene",)),
+            (self.t_airplay, ("airplay",)),
+        ]:
+            tile.set_cued(ctyp in kinds and not cue.get("mirror"))
+        for key, tile in self.custom_tiles.items():
+            action = (find_custom(self.config["start_page"], key) or {}).get("action") or {}
+            tile.set_cued(bool(cue) and action.get("kind") == "source" and action.get("source") == cue)
         for tile, on in [
             (self.t_camera, typ == "camera"),
             (self.t_program, typ == "window" or (c.mode == "desktop" and c.desktop_note.startswith("Programm"))),

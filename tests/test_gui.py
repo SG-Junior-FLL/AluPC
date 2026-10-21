@@ -4938,32 +4938,38 @@ def test_setup_search_filters_sections(env):
 
 
 def test_studio_mode_preview_and_take(env):
-    """Studio-Modus: Inhalte landen erst in der Vorschau, „Übergang“ schaltet live, der alte Inhalt wandert in
-    die Vorschau. Kamera wird in der Vorschau nur als Schema gezeigt (gibt es nur einmal)."""
+    """Studio-Modus auf der Startseite: Vorschau klappt über dem Live-Bild auf; Inhalte gehen erst dorthin,
+    „Übergang“ schaltet live, der alte Inhalt wandert in die Vorschau. Kacheln: Live rot, Vorschau grün.
+    Kamera zeigt die Vorschau nur als Schema (gibt es nur einmal)."""
     controller, window, _ = env
+    window.show()
     controller.show_source({"type": "clock"})
     pump()
+    panel = window.studio_panel
+    assert panel.isHidden()
     window.toggle_studio()
     pump()
-    studio = window.studio_window
-    assert controller.studio and studio.isVisible() and window.studio_button.isChecked()
+    assert controller.studio and window.studio_button.isChecked() and panel.isVisible() and panel.height() > 100
     assert controller.preview == {"type": "clock"}  # aktueller Inhalt steht auch in der Vorschau
     controller.show_source({"type": "text", "text": "Hallo"})
     pump()
     assert controller.content == {"type": "clock"}  # live unverändert
-    assert controller.preview["type"] == "text" and studio._preview_widget is not None
-    studio.take(("schnitt", 0))
+    assert controller.preview["type"] == "text" and panel.preview_widget is not None
+    assert window.t_text.cued and not window.t_text.active
+    controller.take(("schnitt", 0))
     pump()
     assert controller.content["type"] == "text" and controller.preview == {"type": "clock"}
+    assert window.t_text.active and not window.t_text.cued
     controller.show_source({"type": "camera"})
     pump()
-    assert studio._preview_widget is None and studio.preview.placeholder is not None
+    assert panel.preview_widget is None and panel.screen.placeholder is not None and window.t_camera.cued
     controller.clear_preview()
     pump()
-    assert not studio.take_button.isEnabled()
-    studio.close()
+    assert not panel.take_button.isEnabled()
+    window.toggle_studio()
     pump()
-    assert not controller.studio and not window.studio_button.isChecked()
+    assert not controller.studio and not window.studio_button.isChecked() and panel.isHidden()
+    assert not window.t_camera.cued
     controller.show_source({"type": "clock"})
     assert controller.content == {"type": "clock"}  # ohne Studio-Modus wieder sofort live
     controller.extend()

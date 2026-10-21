@@ -39,7 +39,7 @@ from . import icons, theme
 def font(size_pt: float | None = None, weight: QFont.Weight = QFont.Normal, head: bool = False) -> QFont:
     """Schrift der Oberfläche (Inter); head=True: Schrift für Titel und Kachelnamen (im Holz-Stil Barlow)."""
     t = theme.current()
-    f = QFont(t.head_font) if head else QFont()
+    f = QFont(t.head_font) if head or t.matrix else QFont()
     if size_pt:
         f.setPointSizeF(size_pt * t.font_scale)
     f.setWeight(weight)
@@ -191,6 +191,7 @@ class Tile(HoverMixin, QAbstractButton):
         self.active = False
         self.alert = False
         self.badge = ""
+        self.cued = False  # Studio-Modus: liegt in der Vorschau (grün markiert)
         self.menu = None
         self.split = False
         self._press_pos = None
@@ -231,15 +232,45 @@ class Tile(HoverMixin, QAbstractButton):
 
     def sizeHint(self):
         t = theme.current()
-        base = {"technisch": 92, "holz": 106}.get(t.style, 118)
+        base = {"technisch": 92, "holz": 106}.get(t.kind, 118)
         return QSize(200, round(base * t.density * (0.5 + 0.5 * t.font_scale)))
 
     def minimumSizeHint(self):
         return QSize(160, self.sizeHint().height())
 
+    def set_cued(self, on: bool) -> None:
+        if on != self.cued:
+            self.cued = on
+            self.update()
+
     def paintEvent(self, _e):
-        style = theme.current().style
+        style = theme.current().kind
         {"technisch": self._paint_pad, "holz": self._paint_plate}.get(style, self._paint_card)()
+        if self.cued and not (self.active or self.alert):
+            self._paint_cue()
+
+    def _paint_cue(self) -> None:
+        """Grüner Rahmen + Etikett „Vorschau“: ist im Studio-Modus als Nächstes dran."""
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(2, 2, -2, -4)
+        green = QColor("#2fd27a")
+        p.setPen(QPen(green, 2.2))
+        p.setBrush(Qt.NoBrush)
+        rad = max(2, t.radii[0] - 1)
+        p.drawRoundedRect(r, rad, rad)
+        f = font(7.6, QFont.Bold)
+        label = "Vorschau"
+        tw = QFontMetrics(f).horizontalAdvance(label) + 14
+        pill = QRectF(r.right() - tw - 8, r.bottom() - 26, tw, 18)
+        p.setPen(Qt.NoPen)
+        p.setBrush(green)
+        p.drawRoundedRect(pill, 9 if t.style == "normal" else 3, 9 if t.style == "normal" else 3)
+        p.setPen(QColor("#062b16"))
+        p.setFont(f)
+        p.drawText(pill, Qt.AlignCenter, label)
+        p.end()
 
     def _state(self) -> tuple[bool, QColor, str]:
         """(läuft?, Lampenfarbe, Zustand in Worten)."""
@@ -713,7 +744,7 @@ class PreviewThumb(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
-        radius = {"technisch": 2, "holz": 8}.get(t.style, 16)
+        radius = {"technisch": 2, "holz": 8}.get(t.kind, 16)
         if t.wood:  # Gehäuse
             bezel = QLinearGradient(r.topLeft(), r.bottomLeft())
             bezel.setColorAt(0, QColor("#2c2c2e"))
@@ -787,10 +818,14 @@ class StatusCard(QWidget):
         text.addStretch(1)
         self.actions = QVBoxLayout()
         self.actions.setSpacing(8)
-        lay.addWidget(self.preview)
+        self.screens = QVBoxLayout()  # Studio-Modus: Vorschau (StudioPanel) klappt über dem Live-Bild auf
+        self.screens.setSpacing(10)
+        self.screens.addWidget(self.preview)
+        lay.addLayout(self.screens)
         lay.addLayout(text, 1)
         lay.addLayout(self.actions)
         self._lay = lay
+        self.studio = None
         self._narrow = False  # vom Hauptfenster: sehr schmales Fenster
         self._dock = 0  # >0: steht im Live-Dock rechts (Breite) – alles untereinander, Schalter als Raster
         self._mode = ""
@@ -815,7 +850,7 @@ class StatusCard(QWidget):
     @staticmethod
     def _title_font(narrow: bool) -> QFont:
         t = theme.current()
-        size = {"technisch": 15, "holz": 21}.get(t.style, 17)
+        size = {"technisch": 15, "holz": 21}.get(t.kind, 17)
         return font(size - (2 if narrow else 0), QFont.DemiBold, head=True)
 
     def _tick_since(self) -> None:
@@ -826,6 +861,12 @@ class StatusCard(QWidget):
             return
         secs = int(_time.monotonic() - self._since_t0)
         self.since.setText(f"läuft seit {secs // 3600:d}:{secs // 60 % 60:02d}:{secs % 60:02d}")
+
+    def add_studio(self, panel: QWidget) -> None:
+        """Studio-Modus: Vorschau-Leiste über dem Live-Bild einsetzen (klappt dort auf)."""
+        self.studio = panel
+        self.screens.insertWidget(0, panel)
+        panel.set_width(self.preview.width())
 
     def set_compact(self, on: bool) -> None:
         """Sehr schmales Fenster: Vorschau oben, Text darunter. Sonst wählt die Karte ihre Form selbst."""
@@ -904,7 +945,7 @@ class StatusCard(QWidget):
         dock = mode == "dock"
         stacked = narrow or dock
         self._lay.setDirection(QBoxLayout.TopToBottom if stacked else QBoxLayout.LeftToRight)
-        self._lay.setAlignment(self.preview, Qt.AlignHCenter if narrow else Qt.Alignment())
+        self._lay.setAlignment(self.screens, Qt.AlignHCenter if narrow else Qt.Alignment())
         self._lay.setContentsMargins(*((0, 0, 0, 0) if dock else (16, 16, 20, 16)))
         self._lay.setSpacing(14 if dock else 20)
         inner = self._dock
@@ -913,6 +954,8 @@ class StatusCard(QWidget):
         else:
             self.preview.setFixedSize(QSize(240, 135) if narrow else QSize(320, 180))
         # Dock: Regler links, „Beenden“ rechts unten
+        if self.studio is not None:
+            self.studio.set_width(self.preview.width())
         self.actions.setDirection(QBoxLayout.RightToLeft if dock else QBoxLayout.TopToBottom)
         for i in range(self.actions.count()):
             w = self.actions.itemAt(i).widget()
@@ -1286,9 +1329,53 @@ class AuroraBackdrop(QWidget):
                 g.setColorAt(0, c0)
                 g.setColorAt(1, c1)
                 p.fillRect(r, g)
+        elif t.matrix:  # „Code-Regen“: senkrechte Zeichenketten, unten hell, oben verblassend
+            p.drawPixmap(r.topLeft(), _code_rain(int(r.width()), int(r.height())))
         elif t.technical:  # feines Punktraster wie Millimeterpapier
             p.fillRect(r, QBrush(_dot_grid(t)))
         p.end()
+
+
+_RAIN_CACHE: dict[tuple, QPixmap] = {}
+
+
+def _code_rain(w: int, h: int) -> QPixmap:
+    """Matrix-Hintergrund: Spalten aus Zeichen (Katakana + Ziffern), jede Spalte mit hellem Kopf und
+    verblassendem Schweif. Einmal je Größe gezeichnet (fester Zufall) – kostet beim Neuzeichnen nichts."""
+    import random
+
+    key = (w // 40, h // 40)
+    if key in _RAIN_CACHE:
+        return _RAIN_CACHE[key]
+    W, H = max(1, key[0] * 40 + 40), max(1, key[1] * 40 + 40)
+    px = QPixmap(W, H)
+    px.fill(QColor("#010403"))
+    q = QPainter(px)
+    rng = random.Random(42)
+    glyphs = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜ0123456789Z:+-*<>"
+    f = QFont(theme.MONO_FONT)
+    f.setPixelSize(15)
+    q.setFont(f)
+    step = 18
+    for x in range(4, W, step):
+        if rng.random() < 0.35:
+            continue  # Lücken – sonst wird es unruhig
+        length = rng.randint(6, 26)
+        head = rng.randint(0, H // step + length)
+        for i in range(length):
+            y = (head - i) * step
+            if y < -step or y > H:
+                continue
+            a = 0.55 if i == 0 else 0.28 * (1 - i / length)
+            col = QColor("#c8ffd8" if i == 0 else "#00ff66")
+            col.setAlphaF(a * 0.55)
+            q.setPen(col)
+            q.drawText(QRectF(x, y, step, step), Qt.AlignCenter, rng.choice(glyphs))
+    q.end()
+    if len(_RAIN_CACHE) > 4:
+        _RAIN_CACHE.clear()
+    _RAIN_CACHE[key] = px
+    return px
 
 
 _DOT_CACHE: dict[tuple, QPixmap] = {}
@@ -1516,6 +1603,10 @@ class SceneCard(HoverMixin, QAbstractButton):
                    f"{filled} Quelle{'n' if filled != 1 else ''}")
         if self.live:
             paint_live_pill(p, QRectF(thumb.right() - 56, thumb.top() + 8, 48, 20))
+        elif getattr(self, "cued", False):  # Studio-Modus: liegt in der Vorschau
+            p.setPen(QPen(QColor("#2fd27a"), 2.2))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(rounded(r.adjusted(1, 1, -1, -1), max(0, rad - 1)))
         p.end()
 
 
@@ -1587,7 +1678,7 @@ class NewSceneCard(HoverMixin, QAbstractButton):
         self.setText("Neue Szene")
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedSize(236, 200)
-        self.setToolTip("Neue Szene aus einer Vorlage anlegen")
+        self.setToolTip("Neue Szene")
         self._init_hover()
 
     hover = Property(float, HoverMixin._get_hover, HoverMixin._set_hover)
@@ -2009,7 +2100,7 @@ class LevelMeter(QWidget):
         self._timer = QTimer(self, interval=50)
         self._timer.timeout.connect(self._tick)
         self.setFixedHeight(40)
-        self.setToolTip("Lautstärke, die gerade aus dem PC kommt (Standard-Ausgang)")
+        self.setToolTip("Was gerade aus dem PC kommt")
 
     def showEvent(self, e):
         super().showEvent(e)

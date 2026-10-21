@@ -187,7 +187,7 @@ class SceneEditor(QDialog):
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(14)
         lay.addWidget(page_header("Szene bearbeiten" if scene else "Neue Szene",
-                                  "Layout wählen, Felder füllen, speichern"))
+                                  "Layout, Felder, fertig"))
         lay.addLayout(body, 1)
         self._rebuild_slots()
 

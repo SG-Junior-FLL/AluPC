@@ -1,6 +1,6 @@
 # AluPC – Gestaltung (ab 2.0)
 
-Drei Designs, umschaltbar unter **Setup → Darstellung → Stil**. Alle drei teilen Aufbau und Funktionen; sie
+Vier Designs (ab 2.2 auch Matrix), umschaltbar unter **Setup → Darstellung → Stil**. Alle drei teilen Aufbau und Funktionen; sie
 unterscheiden sich in Flächen, Rundungen, Schrift und Kachelform. Code: `alupc/ui/theme.py` (Farben, Stylesheet,
 Holz), `alupc/ui/widgets.py` (gezeichnete Teile), `alupc/cast_page.py` (Handy-/iPad-Seite).
 
@@ -22,6 +22,21 @@ Holz), `alupc/ui/widgets.py` (gezeichnete Teile), `alupc/cast_page.py` (Handy-/i
 - Schmaler: die Statuskarte steht wie vorher über den Kacheln (mit Namen, nur Symbole oder untereinander).
 - Technisch zusätzlich: Messwerte im Dock (`Telemetry`: Prozessor, Speicher, Temperatur – echte Werte aus
   `sysinfo.monitor()`, „–“ wenn es keinen Sensor gibt), Punktraster im Hintergrund, gelbe Kante am Dock.
+
+## Studio-Modus (ab 2.2)
+
+Knopf „Studio“: über dem Live-Bild klappt die Vorschau auf (Animation: Bild teilt sich, dann kommen die Knöpfe).
+Grün = Vorschau, Rot = live – auch an den Kacheln. Code: `alupc/ui/studio_panel.py`, `Controller.take()`.
+
+## Matrix – grüner Code
+
+Wie Technisch aufgebaut (Pads, Messwerte), aber Phosphorgrün auf Schwarz, JetBrains Mono überall, Code-Regen im
+Hintergrund. Immer dunkel. Monitor 2 bleibt unverändert (`#Output` behält Inter).
+
+## Monitor 2 – Vorlagen (ab 2.2)
+
+Gemeinsame Bausteine in `alupc/stage.py`: `paint_aurora` (dunkler Grund in der Farbe der Vorlage, zwei
+Lichtflecken, Rand), `font`, `eyebrow` (Etikett oben links), `clock_corner` (Uhrzeit oben rechts).
 
 ## Normal (Standard) – modern, weich, rund
 

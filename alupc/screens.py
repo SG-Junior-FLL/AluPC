@@ -450,7 +450,7 @@ def paint_design(p: QPainter, w: int, h: int, cfg: dict, now: float | None = Non
         p.setPen(QColor(255, 255, 255, 160))
         p.setFont(_font(unit * 2.3))
         p.drawText(QRectF(left.left(), y + unit * 3, left.width(), unit * 8), Qt.AlignLeft | Qt.TextWordWrap,
-                   "Handy-Kamera auf den Code richten – das Handy verbindet sich von selbst.")
+                   "Code mit der Handy-Kamera scannen.")
 
 
 # --------------------------------------------------------------------------- Weiterschalten

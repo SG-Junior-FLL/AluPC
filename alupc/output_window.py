@@ -78,6 +78,7 @@ class OutputWindow(QWidget):
         super().__init__(None, Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
                          | Qt.WindowDoesNotAcceptFocus)
         self.setWindowTitle(self.TITLE)
+        self.setObjectName("Output")  # Stylesheet: Monitor 2 behält seine Schrift, egal welches PC-Design
         self.setAutoFillBackground(True)
         pal = self.palette()
         pal.setColor(self.backgroundRole(), Qt.black)

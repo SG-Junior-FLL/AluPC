@@ -76,7 +76,7 @@ def test_alupc_theme_same_everywhere_and_branded(qapp):
         la, lb = sorted((lum(a), lum(b)), reverse=True)
         return (la + 0.05) / (lb + 0.05)
 
-    hues = {"normal": (215, 235), "technisch": (40, 55), "holz": (30, 45)}  # Blau / Signalgelb / Messing
+    hues = {"normal": (215, 235), "technisch": (40, 55), "holz": (30, 45), "matrix": (135, 150)}  # Blau / Signalgelb / Messing / Grün
     for style in theme.STYLES:
         for mode in ("hell", "dunkel"):
             for wood in (theme.WOODS if style == "holz" else [theme.DEFAULT_WOOD]):

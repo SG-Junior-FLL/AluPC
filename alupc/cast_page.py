@@ -1823,5 +1823,6 @@ def themed_page(appearance: dict) -> str:
                   ("Barlow Semi Condensed", "BarlowSemiCondensed-Bold", 700)]
     css = "".join(f"@font-face{{font-family:'{fam}';src:url(/fonts/{file}.ttf);font-weight:{w};font-display:swap}}"
                   for fam, file, w in faces) + css
-    page = PAGE.replace('<html lang="de">', f'<html lang="de" data-style="{style}">', 1)
+    shape = "technisch" if style == "matrix" else style  # Matrix: Formen wie Technisch, Farben grün
+    page = PAGE.replace('<html lang="de">', f'<html lang="de" data-style="{shape}">', 1)
     return page.replace("</head>", f'<style id="alupc-theme">{css}</style>\n</head>', 1)
