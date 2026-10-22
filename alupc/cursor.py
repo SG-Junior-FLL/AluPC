@@ -273,6 +273,10 @@ class CursorGuard(QObject):
         return (r.x(), r.y(), round(r.width() * dpr), round(r.height() * dpr))
 
     def _apply(self):
+        import os
+
+        if os.environ.get("ALUPC_NO_CONFINE"):  # Schalter nur für Fehlersuche in der CI
+            return
         try:
             if IS_WINDOWS:
                 from .platform.cursor_native import clip_cursor

@@ -173,6 +173,8 @@ def _on_com(fn, *args, timeout: float = 8.0):
     Core Audio (COM) im Programm selbst ließ AluPC zufällig einfrieren (Qt-Hauptfaden blieb in Windows hängen –
     in der CI hingen so die Oberflächentests). Hängt jetzt etwas, wird nur der Hilfsprozess neu gestartet.
     `fn` muss eine Funktion auf Modulebene sein; Argumente und Ergebnis müssen JSON sein."""
+    if IS_WINDOWS and os.environ.get("ALUPC_NO_WINAUDIO"):  # Schalter nur für Fehlersuche in der CI
+        raise RuntimeError("Windows-Ton abgeschaltet (ALUPC_NO_WINAUDIO)")
     if IS_WINDOWS and not _IN_HELPER and os.environ.get("ALUPC_TON_IM_PROZESS") != "1":
         return _helper_call(fn, args, timeout)
     return _on_com_local(fn, *args, timeout=timeout)

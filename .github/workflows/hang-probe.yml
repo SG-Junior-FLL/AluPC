@@ -1,5 +1,6 @@
 # Fehlersuche: Windows-Oberflächentest hängt nach test_theme_switch (test_crossfade_layer_is_removed, in env/pump).
-# Drei Varianten je 8 Läufe – welche hängt? Läuft nur bei Änderungen an dieser Datei oder von Hand.
+# Runde 1 (nur die 2 Tests, 3 Varianten × 8): nie gehangen → es sammelt sich über viele Tests an.
+# Runde 2: ganze tests/test_gui.py, 4 Varianten × 4 Läufe. Läuft nur bei Änderungen an dieser Datei oder von Hand.
 name: Hänger-Probe (Windows)
 on:
   workflow_dispatch:
@@ -12,23 +13,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [beide, ohne-titelleiste, nur-crossfade]
+        variant: [normal, ohne-winton, ohne-mausgrenze, ohne-titelleiste]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install ".[test]"
-      - name: 8 Läufe
+      - name: 4 Läufe der ganzen Oberflächentests
         shell: pwsh
+        timeout-minutes: 30
         run: |
-          $env:ALUPC_TEST_HANG_EXIT = "60"
-          $k = "test_theme_switch or test_crossfade_layer_is_removed"
+          $env:ALUPC_TEST_HANG_EXIT = "90"
+          if ("${{ matrix.variant }}" -eq "ohne-winton") { $env:ALUPC_NO_WINAUDIO = "1" }
+          if ("${{ matrix.variant }}" -eq "ohne-mausgrenze") { $env:ALUPC_NO_CONFINE = "1" }
           if ("${{ matrix.variant }}" -eq "ohne-titelleiste") { $env:ALUPC_NO_TITLEBAR = "1" }
-          if ("${{ matrix.variant }}" -eq "nur-crossfade") { $k = "test_crossfade_layer_is_removed" }
           $ok = 0; $hang = 0
-          for ($i = 1; $i -le 8; $i++) {
-            python -X faulthandler -m pytest -q -p no:cacheprovider tests/test_gui.py -k $k 2>&1 | Out-File -FilePath "lauf$i.log"
-            if ($LASTEXITCODE -eq 0) { $ok++ } else { $hang++; Get-Content gui-haenger.txt -ErrorAction SilentlyContinue | Select-Object -First 3 | ForEach-Object { Write-Output "::warning title=Lauf $i::$_" } }
+          for ($i = 1; $i -le 4; $i++) {
+            python -X faulthandler -m pytest -q -p no:cacheprovider tests/test_gui.py 2>&1 | Out-File -FilePath "lauf$i.log"
+            if ($LASTEXITCODE -eq 0) { $ok++ } else { $hang++; Get-Content gui-haenger.txt -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object { Write-Output "::warning title=Lauf $i::$_" } }
           }
-          Write-Output "::notice title=${{ matrix.variant }}::$ok von 8 ok, $hang hängen/fehlen"
+          Write-Output "::notice title=${{ matrix.variant }}::$ok von 4 ok, $hang hängen/fehlen"
