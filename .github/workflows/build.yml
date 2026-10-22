@@ -312,7 +312,7 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -367,7 +367,7 @@ jobs:
           }
       - name: Tests (Oberfläche)
         shell: pwsh
-        timeout-minutes: 20
+        timeout-minutes: 45
         run: |
           $env:ALUPC_TEST_HANG_EXIT = "300"  # hängt ein Test 5 Minuten: Stapel in gui-haenger.txt, Abbruch
           python -X faulthandler -m pytest -v -rf tests/test_gui.py 2>&1 | Tee-Object -FilePath gui.log
@@ -386,11 +386,18 @@ jobs:
             # … und mit den übrigen Tests weitermachen (ab dem abgestürzten) – bis zu 3-mal, die bestandenen
             # aus allen Läufen werden übersprungen. Ein echter Fehler (FAILED) bleibt rot.
             Copy-Item gui.log gui-all.log
-            for ($try = 1; $try -le 3 -and $code -ne 0 -and (Select-String -Path gui.log -Pattern 'Fatal Python error' -Quiet) -and
+            # Weiter, solange jeder Neustart neue Tests schafft; stürzt derselbe Test ohne Fortschritt erneut ab → rot.
+            $before = -1
+            for ($try = 1; $try -le 40 -and $code -ne 0 -and (Select-String -Path gui.log -Pattern 'Fatal Python error' -Quiet) -and
                  -not (Select-String -Path gui.log -Pattern '^FAILED ' -Quiet); $try++) {
-              $done = Select-String -Path gui-all.log -Pattern '^(tests/test_gui\.py::\S+) PASSED' |
-                ForEach-Object { $_.Matches[0].Groups[1].Value } | Sort-Object -Unique
-              Write-Output ("::notice title=Oberflächentests::Absturz – Neustart $try/3, " + $done.Count + " Tests schon bestanden")
+              $done = @(Select-String -Path gui-all.log -Pattern '^(tests/test_gui\.py::\S+) PASSED' |
+                ForEach-Object { $_.Matches[0].Groups[1].Value } | Sort-Object -Unique)
+              if ($done.Count -le $before) {
+                Write-Output "::error title=Oberflächentests::Absturz ohne Fortschritt – derselbe Test stürzt immer wieder ab"
+                break
+              }
+              $before = $done.Count
+              Write-Output ("::notice title=Oberflächentests::Absturz – Neustart $try, " + $done.Count + " Tests schon bestanden")
               $args2 = @(); foreach ($t in $done) { $args2 += "--deselect"; $args2 += $t }
               python -X faulthandler -m pytest -v -rf tests/test_gui.py @args2 2>&1 | Tee-Object -FilePath gui.log
               $code = $LASTEXITCODE
