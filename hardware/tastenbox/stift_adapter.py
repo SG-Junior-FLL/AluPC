@@ -152,7 +152,7 @@ def export_mini(nr: int = 3) -> None:
 # ============================================================
 m2_wall = 0.4                    # eine Druckbahn bei 0,4-mm-Düse (viele Slicer lassen das weg → Datei „wand08“ mit 0,8)
 m2_slot_w = 1.45                 # Schlitz quer (Beinchen 1,5 → klemmt auch hier leicht)
-m2_tunnel = 0.70                 # Tunnel für den Jumper-Stift 0,64
+m2_tunnel = 0.85                 # Tunnel für den Jumper-Stift 0,64 (0,70 war beim Druck zu eng)
 m2_overlap = 0.10                # so weit ragt der Tunnel in den Schlitz (Stift drückt aufs Beinchen)
 m2_h = 6.0
 m2_slots = [0.35, 0.40, 0.45, 0.50, 0.55]   # Schlitz-Dicke (Beinchen 0,5) – Probe Nr. 1–5
