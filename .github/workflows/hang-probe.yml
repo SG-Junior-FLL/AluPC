@@ -1,7 +1,8 @@
 # Fehlersuche: Windows-Oberflächentest hängt nach test_theme_switch (test_crossfade_layer_is_removed, in env/pump).
 # Runde 1 (nur die 2 Tests, 3 Varianten × 8): nie gehangen → es sammelt sich über viele Tests an.
 # Runde 2: ganze tests/test_gui.py, 4 Varianten × 4 Läufe – hängt in jeder Variante (Ton, Mausgrenze, Titelleiste
-# sind es nicht). Runde 3: beim Hänger ein Speicherabbild schreiben und offline mit cdb die C++-Stapel lesen.
+# sind es nicht). Runde 3: Abbild im eigenen Prozess blieb selbst hängen (Verdacht: Loader-Lock).
+# Runde 4: Abbild von einem getrennten Prozess, offline mit cdb: Besitzer des Loader-Locks + Stapel.
 name: Hänger-Probe (Windows)
 on:
   workflow_dispatch:
@@ -38,8 +39,10 @@ jobs:
           if (-not (Test-Path gui-haenger.dmp)) { Write-Output "::notice title=Abbild::kein Hänger in 5 Läufen"; exit 0 }
           $cdb = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           $env:_NT_SYMBOL_PATH = "srv*C:\sym*https://msdl.microsoft.com/download/symbols"
-          & $cdb -z gui-haenger.dmp -c "~0kn 40; ~*kn 12; q" 2>&1 | Out-File -FilePath stapel.txt
-          $main = Get-Content stapel.txt | Where-Object { $_ -match '^\s*[0-9a-f]{2} [0-9a-f`]+ [0-9a-f`]+ ' } | Select-Object -First 45
+          & $cdb -z gui-haenger.dmp -c "!cs -o ntdll!LdrpLoaderLock; ~0kn 30; ~*kn 14; q" 2>&1 | Out-File -FilePath stapel.txt
+          Get-Content gui-haenger-nativ.txt -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "::notice title=Abbild::$_" }
+          Get-Content stapel.txt | Select-String -Pattern 'OwningThread|LockCount|Critsec' | ForEach-Object { Write-Output ("::warning title=Loader-Lock::" + $_.Line.Trim()) }
+          $main = Get-Content stapel.txt | Where-Object { $_ -match '^\s*[0-9a-f]{2} [0-9a-f`]+ [0-9a-f`]+ |^\s*[#.]?\s*\d+\s+Id: ' } | Select-Object -First 48
           $main | ForEach-Object { Write-Output ("::warning title=Stapel::" + ($_ -replace '\s+', ' ').Trim()) }
       - uses: actions/upload-artifact@v4
         if: always()

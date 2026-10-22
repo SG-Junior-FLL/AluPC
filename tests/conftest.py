@@ -100,21 +100,25 @@ def _native_dump_later(seconds: int):
     cancel = threading.Event()
     pid = str(os.getpid())
     if sys.platform == "win32" and os.environ.get("ALUPC_TEST_MINIDUMP"):
-        # Speicherabbild aus dem eigenen Prozess (dbghelp) – braucht keinen Debugger, der sich anhängt (das hing);
-        # ausgewertet wird es danach offline mit „cdb -z“
+        # Speicherabbild von einem GETRENNTEN Prozess schreiben lassen (Probe 3: im eigenen Prozess blieb das Laden
+        # von dbghelp hängen → Verdacht Loader-Lock). Der Helfer lädt dbghelp vorab und injiziert nichts.
+        script = (
+            "import ctypes,sys\nfrom ctypes import wintypes as w\nk=ctypes.windll.kernel32;d=ctypes.windll.dbghelp\n"
+            "k.OpenProcess.restype=w.HANDLE;k.CreateFileW.restype=w.HANDLE\n"
+            "p=k.OpenProcess(0x1F0FFF,False,int(sys.argv[1]))\n"
+            "f=k.CreateFileW(sys.argv[2],0x40000000,0,None,2,0x80,None)\n"
+            "ok=d.MiniDumpWriteDump(w.HANDLE(p),int(sys.argv[1]),w.HANDLE(f),0x1|0x4|0x1000|0x2,None,None,None)\n"
+            "k.CloseHandle(w.HANDLE(f));print('ok' if ok else 'fehler',k.GetLastError())\n")
+
         def dump():
             if cancel.wait(seconds):
                 return
-            import ctypes
-            from ctypes import wintypes
-
-            k32, dbg = ctypes.windll.kernel32, ctypes.windll.dbghelp
-            k32.CreateFileW.restype = wintypes.HANDLE
-            h = k32.CreateFileW(os.path.abspath("gui-haenger.dmp"), 0x40000000, 0, None, 2, 0x80, None)
-            ok = dbg.MiniDumpWriteDump(wintypes.HANDLE(k32.GetCurrentProcess()), int(pid), wintypes.HANDLE(h),
-                                       0x1 | 0x4 | 0x1000, None, None, None)  # Daten-Segmente, Handles, Thread-Infos
-            k32.CloseHandle(wintypes.HANDLE(h))
-            Path("gui-haenger-nativ.txt").write_text(f"Speicherabbild geschrieben: {bool(ok)}", encoding="utf-8")
+            try:
+                out = subprocess.run([sys.executable, "-c", script, pid, os.path.abspath("gui-haenger.dmp")],
+                                     capture_output=True, text=True, timeout=60)
+                Path("gui-haenger-nativ.txt").write_text("Abbild: " + out.stdout + out.stderr, encoding="utf-8")
+            except Exception as exc:  # noqa: BLE001 - nur Diagnose
+                Path("gui-haenger-nativ.txt").write_text(f"Abbild: {exc}", encoding="utf-8")
 
         threading.Thread(target=dump, name="haenger-abbild", daemon=True).start()
         return cancel
