@@ -1,11 +1,12 @@
-"""AluPC-Tastenbox – Einbau-Gehäuse für ein Loch in einer Holzplatte (CadQuery). Entwurf 3.
+"""AluPC-Tastenbox – Einbau-Gehäuse für ein Loch in einer Holzplatte (CadQuery). Entwurf 4.
 
-Flach: nur so hoch wie nötig (Dupont-Stecker ~14 mm stehen senkrecht auf Steckbrett und Tasten).
-In der Mitte der Höhe läuft ein dünner Rand (Flansch) rundum 10 mm über – er liegt auf der Holzplatte auf,
-die obere Hälfte der Box schaut heraus. In jeder Ecke ein Loch für eine 5-mm-LED.
+So hoch, dass das 10-Gang-Poti (Ø 22 × 39 mm + Lötfahne) stehend hineinpasst. Ein dünner Rand (Flansch) läuft
+rundum 10 mm über – er liegt auf der Holzplatte auf; oben schauen 16 mm heraus, der Rest steckt unter dem Holz.
+In jeder Ecke ein Loch für eine 5-mm-LED.
 
 Oberseite von links nach rechts: 9 Tastatur-Schalter (MX, 3 × 3) → Steckbrett darunter → rechte Spalte mit
-Zündschloss (hinten), Fingerabdrucksensor Ø 17 mm (Mitte) und Drehregler (vorne, Bohrung folgt mit den Maßen).
+Zählwerk vorne (Fenster für die 3 Ziffern, hängt an 4 Säulen unter dem Deckel), dahinter 10-Gang-Poti
+(Gewindehals durch den Deckel, Mutter oben) und Zündschloss nebeneinander.
 
 Zwei Teile:
   * Oberteil mit Flansch. Druck: Oberseite nach UNTEN aufs Bett; Stützen NUR unter dem Rand
@@ -13,8 +14,9 @@ Zwei Teile:
   * Boden: wird von unten eingesteckt, rastet mit zwei Federlaschen ein (Nasen bündig in Schlitzen der
     Seitenwand – nichts steht über, die Box passt ins Loch). Lösen: Nasen von außen eindrücken, Boden ziehen.
     Auf dem Boden: Rahmen fürs Steckbrett (400 Kontakte) mit Rastleiste für den Bügel aus klemme_pro_micro.py,
-    Wanne für den USB-Adapter des Fingerabdrucksensors, Loch unter dem Zündschloss (falls es länger ist).
-Kabel: USB-C des Pro Micro hinten (Fenster), USB-Kabel des Fingerabdruck-Adapters hinten (Ausschnitt).
+    Loch unter dem Zündschloss (falls es länger ist).
+Kabel: USB-C des Pro Micro hinten (Fenster).
+Zählwerk und Poti: Maße aus Fotos geschätzt – mit „NACHMESSEN“ markierte Werte vor dem Druck prüfen.
 Material: PETG empfohlen (Laschen federn). Alle Maße in mm.
 """
 
@@ -23,13 +25,13 @@ import cadquery as cq
 # ============================================================
 # PARAMETER
 # ============================================================
-box_h = 32.0           # Gesamthöhe ohne Flansch-Überstand (innen 26 mm) – Minimum mit Steckbrett + Dupont
+box_h = 52.0           # Gesamthöhe (innen 46 mm) – Poti Ø 22 × 39 mm + Lötfahne hinten steht senkrecht darin
 wall = 2.4
 top_t = 3.0
 corner_r = 8.0
 flange = 10.0          # Rand rundum über die Box hinaus
 flange_t = 2.5         # Dicke des Randes
-flange_z = 16.0        # Höhe der Rand-Mitte über der Unterkante: darüber schaut die Box aus der Holzplatte
+flange_z = box_h - 16.0  # Höhe der Rand-Mitte über der Unterkante: darüber schaut die Box 16 mm aus dem Holz
 flange_edge_r = 1.2    # Kanten am Rand gerundet
 top_r = 3.0            # obere Kante der Box gerundet (steht über die Holzplatte)
 
@@ -71,13 +73,27 @@ lip_out = 1.2
 lip_h = 1.6
 
 # Rechte Spalte
-col_w = 30.0
+col_w = 52.0
 lock_d = 20.0
 lock_clear = 0.4
 lock_hole_base_d = 26.0  # Loch im Boden unter dem Schloss (längeres Schloss darf unten herausschauen)
-fp_d = 17.0            # Fingerabdrucksensor Ø 17 mm (Angabe)
-fp_clear = 0.3
-lock_dy, fp_dy, knob_dy = 28.0, 0.0, -28.0   # Lage in der Spalte (hinten / Mitte / vorne)
+lock_dy = 24.0         # Schloss und Poti nebeneinander hinten in der Spalte
+
+# 10-Gang-Poti (DDR, 490.02xx) – Gewindehals durch den Deckel, Mutter + Zahnscheibe oben
+pot_body_d = 22.0      # NACHMESSEN
+pot_neck_d = 10.0      # Gewindehals – NACHMESSEN (Loch = Hals + 0,4)
+pot_dx, pot_dy = -13.0, 24.0   # Lage relativ zur Spaltenmitte
+
+# Zählwerk (3 Ziffern) – hängt an 4 Säulen unter dem Deckel, M3-Schrauben von unten durch seine Langlöcher
+cnt_w, cnt_d = 46.0, 36.0     # Grundplatte (Ziffernachse in x) – NACHMESSEN
+cnt_h = 26.0           # Unterkante Grundplatte bis Oberkante Ziffernrollen – NACHMESSEN
+cnt_gap = 1.0          # Luft Ziffernrollen ↔ Deckel
+cnt_holes = [(-21.0, -11.5), (21.0, -11.5), (-21.0, 11.5), (21.0, 11.5)]  # Langloch-Mitten – NACHMESSEN
+cnt_dy = -25.0         # Mitte der Grundplatte (vorne in der Spalte)
+win_w, win_h = 32.0, 13.0      # Fenster für die Ziffernzeile
+win_dy = 15.0          # Ziffernzeile liegt so weit hinter der Plattenmitte – NACHMESSEN
+pillar_d = 6.0
+pillar_hole = 2.5      # M3 selbstschneidend
 
 # Abstände zwischen den Bereichen
 gap = 3.0
@@ -95,16 +111,9 @@ nose_h = 4.0           # Einführschräge
 nose_hold = 1.5        # Halteschräge
 slot_clear = 0.4
 
-# USB-Adapter des Fingerabdrucksensors – NACHMESSEN
-ad_len = 30.0
-ad_w = 16.0
-ad_wall_h = 7.0
-
 # Kabelausschnitte hinten
 usb_win_w = 14.0       # Pro Micro USB-C
 usb_win_h = 11.0
-ad_cut_w = 14.0        # Adapter-Kabel, offen nach unten
-ad_cut_h = 12.0
 
 eps = 0.01
 
@@ -122,8 +131,9 @@ x0 = -inner_w / 2                                   # linke Innenwand
 grid_cx = x0 + key_margin + keys_w / 2
 bb_cx = x0 + key_margin + keys_w + gap + lip_out + rim_out_w / 2
 col_cx = inner_w / 2 - col_w / 2 - 1.0
-lock_x = fp_x = knob_x = col_cx
-ad_x, ad_y = col_cx - 2.0, fp_dy
+lock_x = col_cx - pot_dx            # Schloss rechts, Poti links daneben
+pot_x, pot_y = col_cx + pot_dx, pot_dy
+cnt_x, cnt_y = col_cx, cnt_dy
 
 # ============================================================
 # OBERTEIL
@@ -160,8 +170,18 @@ for (lx, ly) in leds:
                       .circle(led_fit / 2).extrude(boss_h + 2 * eps))
 shell = shell.cut(cq.Workplane("XY").workplane(offset=under).pushPoints(leds).circle(led_d / 2)
                   .extrude(top_t - led_skin + (eps if led_skin == 0 else 0)))
-shell = shell.cut(cq.Workplane("XY").pushPoints([(fp_x, fp_dy)])
-                  .circle((fp_d + fp_clear) / 2).extrude(box_h + 1))
+# Poti: Loch für den Gewindehals
+shell = shell.cut(cq.Workplane("XY").center(pot_x, pot_y).circle((pot_neck_d + 0.4) / 2).extrude(box_h + 1))
+# Zählwerk: Fenster (oben leicht angefast) + 4 Säulen bis zur Grundplatte
+shell = shell.cut(cq.Workplane("XY").workplane(offset=under - eps).center(cnt_x, cnt_y + win_dy)
+                  .rect(win_w, win_h).extrude(top_t + 2 * eps).edges(">Z").chamfer(0.8))
+cnt_bottom = under - cnt_gap - cnt_h                 # Unterkante der Zählwerk-Grundplatte
+for hx, hy in cnt_holes:
+    col = (cq.Workplane("XY").workplane(offset=cnt_bottom).center(cnt_x + hx, cnt_y + hy)
+           .circle(pillar_d / 2).extrude(under - cnt_bottom + eps)
+           .cut(cq.Workplane("XY").workplane(offset=cnt_bottom - eps).center(cnt_x + hx, cnt_y + hy)
+                .circle(pillar_hole / 2).extrude(10)))
+    shell = shell.union(col)
 
 # Lichtleiste: Schlitz vor den Tasten + Schiene darunter (Streifen von rechts einschieben, Klebeseite nach unten)
 bar_y = -(19.05 + mx_relief / 2 + (box_d / 2 - wall - 19.05 - mx_relief / 2) / 2)  # Mitte zwischen Tasten und Wand
@@ -199,8 +219,6 @@ for sx in (-1, 1):
 usb_z = base_t + 8.5 + 2.5 + 1.6 + 1.6               # Mitte USB-C über dem Boden
 shell = shell.cut(cq.Workplane("XY").workplane(offset=usb_z - usb_win_h / 2)
                   .center(bb_cx, box_d / 2 - wall / 2).rect(usb_win_w, wall * 3).extrude(usb_win_h))
-shell = shell.cut(cq.Workplane("XY").workplane(offset=-eps)
-                  .center(ad_x, box_d / 2 - wall / 2).rect(ad_cut_w, wall * 3).extrude(ad_cut_h))
 
 # ============================================================
 # BODEN
@@ -232,13 +250,6 @@ for s in (-1, 1):
                         .center(bb_cx + s * (rim_out_w / 2 + lip_out / 2), 0)
                         .rect(lip_out, rim_out_l - 8).extrude(lip_h))
 base = base.union(frame)
-
-# Wanne für den USB-Adapter (unter dem Fingerabdrucksensor, Kabelseite hinten offen)
-cradle = (cq.Workplane("XY").workplane(offset=base_t).center(ad_x, ad_y)
-          .rect(ad_w + 0.6 + 4.0, ad_len + 2.0).extrude(ad_wall_h)
-          .cut(cq.Workplane("XY").workplane(offset=base_t - eps).center(ad_x, ad_y + 1.0)
-               .rect(ad_w + 0.6, ad_len + 2.0).extrude(ad_wall_h + 2 * eps)))
-base = base.union(cradle)
 
 # ============================================================
 # EXPORT

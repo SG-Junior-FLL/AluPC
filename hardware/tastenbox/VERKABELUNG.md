@@ -54,6 +54,15 @@ USB-C zeigt nach oben, Bauteile zu dir:
 
 Jeder Schalter hat 2 Beinchen. Auf jedes Beinchen eine **Dupont-Buchse** stecken.
 
+**Beinchen zu dünn, Dupont-Buchse wackelt?** Ohne Löten, in dieser Reihenfolge:
+1. **Wickeln (Wire-Wrap):** Litze/Draht 0,14–0,25 mm² 15 mm abisolieren, 4–5 Windungen fest um das Beinchen,
+   Schrumpfschlauch oder Isoband drüber. Hält dauerhaft, das andere Ende hat einen Dupont-Stecker fürs Steckbrett.
+2. **Minus als ein Draht:** alle 9 „B“-Beinchen nacheinander mit EINEM blanken Draht umwickeln (Masse-Schiene) →
+   nur 10 statt 18 Verbindungen, ein Ende in die blaue Leiste.
+3. **Buchse enger machen:** Dupont-Buchse mit einer Spitzzange leicht zusammendrücken – klemmt dann auf dem flachen
+   Beinchen (schnell, kann sich mit der Zeit lockern).
+4. Notlösung zum Testen: Mini-Abgreifklemmen (Prüfklemmen) – passen, sind aber groß.
+
 | Taste (Lage auf der Box) | Beinchen A → Pin | Beinchen B → |
 |---|---|---|
 | 1 (oben links)   | 2  | blaue Leiste (−) |
@@ -82,6 +91,18 @@ und probieren: wackelt → „eng“, geht nicht drauf → „locker“. Druck: 
 | rechts | rote Leiste (+) |
 
 Dreht er falsch herum: links und rechts tauschen – oder in AluPC „Richtung umkehren“.
+
+**Dein 10-Gang-Poti (DDR, 490.02xx) mit den 3 Drähten:** Vermutung – bitte mit dem Messgerät (Ω) prüfen:
+rot und grau (seitliche Fahnen) = die Enden, **gelb (hinten, Mitte der Achse) = Schleifer → A0**.
+Prüfen: rot↔grau = immer gleich (z. B. 10 kΩ); gelb↔rot ändert sich beim Drehen. Dann rot → rote Leiste (+),
+grau → blaue Leiste (−), gelb → A0. Jeder Wert von 1 kΩ bis 100 kΩ geht; 10 kΩ ist ideal.
+
+**Einbau (tastenbox_gehaeuse.py, Entwurf 4):** Poti steht senkrecht, Gewindehals von unten durch das Loch im
+Deckel, oben Zahnscheibe + Mutter, darauf `drehknopf.stl` (M3-Madenschraube seitlich). Das **Zählwerk** hängt an
+4 Säulen unter dem Deckel: M3-Schrauben von unten durch seine Langlöcher in die Säulen; die Ziffernzeile liegt
+unter dem Fenster. Schnitt: `tastenbox_schnitt.png`. Die Maße von Poti und Zählwerk sind aus Fotos geschätzt –
+Werte mit „NACHMESSEN“ im Skript prüfen (v. a. Gewindehals-Ø, Höhe des Zählwerks, Lage der Langlöcher).
+Zählwerk und Poti sind **nicht** miteinander verbunden (Zahnräder fehlen) – siehe offene Frage im Chat.
 
 **Zahl 0–999 (für Wenn → Dann):** Ab Programm 5 meldet die Box den Regler zusätzlich fein als `WERT 0–999`.
 Gut dafür: ein 10-Gang-Poti (10 kΩ) mit Zählwerk-Drehknopf – gleich angeschlossen wie oben.
@@ -155,7 +176,6 @@ Tipp: Wer das Oberteil in hellem Filament druckt, kann in `tastenbox_gehaeuse.py
 
 ## 6. Nicht am Pro Micro
 
-- **Fingerabdrucksensor:** bleibt an seinem eigenen USB-Adapter → USB-Kabel hinten raus zum PC.
 - **Zündschloss:** vorerst nur mechanisch. Wenn es mitmelden soll: ein Kontakt → Pin 16, anderer → Minus.
   (Arduino-Programm und AluPC brauchen dafür noch eine Erweiterung – sag Bescheid.)
 

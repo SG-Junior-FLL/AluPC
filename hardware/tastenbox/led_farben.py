@@ -43,7 +43,10 @@ for ax, (name, note, cc, bc) in zip(axes.flat, SCHEMES):
     for (kx, ky) in g["keys"]:
         ax.add_patch(Rectangle((kx - 7, ky - 7), 14, 14, fc="#222428", ec="#2f3236"))
     ax.add_patch(Circle((g["lock_x"], g["lock_dy"]), g["lock_d"] / 2, fc="#222428", ec="#2f3236"))
-    ax.add_patch(Circle((g["fp_x"], g["fp_dy"]), g["fp_d"] / 2, fc="#222428", ec="#2f3236"))
+    ax.add_patch(Circle((g["pot_x"], g["pot_y"]), 6, fc="#222428", ec="#2f3236"))  # Mutter/Knopf
+    ax.add_patch(Rectangle((g["cnt_x"] - g["win_w"] / 2, g["cnt_y"] + g["win_dy"] - g["win_h"] / 2), g["win_w"],
+                           g["win_h"], fc="#0b0c0e", ec="#2f3236"))
+    ax.text(g["cnt_x"], g["cnt_y"] + g["win_dy"], "2 5 0", color="#f4f4f6", ha="center", va="center", fontsize=9)
     for (x, y), c in zip(corners, cc):  # Leuchten = großer weicher Kreis + heller Kern
         ax.add_patch(Circle((x, y), 9, fc=c, ec="none", alpha=0.18))
         ax.add_patch(Circle((x, y), 2.6, fc=c, ec="white", lw=0.6))

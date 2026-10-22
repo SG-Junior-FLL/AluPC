@@ -22,9 +22,14 @@ ax.add_patch(Rectangle((g["bb_cx"] - g["rim_in_w"] / 2, -g["rim_in_l"] / 2), g["
 ax.text(g["bb_cx"], 0, "Steckbrett\n(darunter)\nPin 9 / GND", ha="center", va="center", color="#678", fontsize=10)
 ax.add_patch(Circle((g["lock_x"], g["lock_dy"]), g["lock_d"] / 2, fc="#e6e6e6", ec="#777"))
 ax.text(g["lock_x"], g["lock_dy"], "Schloss", ha="center", va="center", fontsize=8)
-ax.add_patch(Circle((g["fp_x"], g["fp_dy"]), g["fp_d"] / 2, fc="#e6e6e6", ec="#777"))
-ax.text(g["fp_x"], g["fp_dy"], "Finger", ha="center", va="center", fontsize=8)
-ax.text(g["knob_x"], g["knob_dy"], "Regler\n(folgt)", ha="center", va="center", fontsize=8, color="#888")
+ax.add_patch(Circle((g["pot_x"], g["pot_y"]), g["pot_body_d"] / 2, fc="#e6e6e6", ec="#777"))
+ax.text(g["pot_x"], g["pot_y"], "Poti", ha="center", va="center", fontsize=8)
+ax.add_patch(Rectangle((g["cnt_x"] - g["cnt_w"] / 2, g["cnt_y"] - g["cnt_d"] / 2), g["cnt_w"], g["cnt_d"], fc="none",
+                       ec="#9aa", ls="--"))
+ax.add_patch(Rectangle((g["cnt_x"] - g["win_w"] / 2, g["cnt_y"] + g["win_dy"] - g["win_h"] / 2), g["win_w"], g["win_h"],
+                       fc="#222428", ec="#555"))
+ax.text(g["cnt_x"], g["cnt_y"] + g["win_dy"], "0 0 0", ha="center", va="center", fontsize=9, color="white")
+ax.text(g["cnt_x"], g["cnt_y"] - 8, "Zählwerk\n(darunter)", ha="center", va="center", fontsize=8, color="#678")
 # Eck-LEDs + Kabelwege zu den Haken und zum Steckbrett
 for i, (lx, ly) in enumerate(g["leds"]):
     ax.add_patch(Circle((lx, ly), 4.5, fc="#ffe9a8", ec="#d79a00", lw=1.5))
