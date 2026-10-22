@@ -53,10 +53,39 @@ int stellung(uint8_t e1, uint8_t e2, uint8_t w) {
   return (long)mitte * 1000 / oben;
 }
 
+void jtagAus() {
+#if defined(__AVR_ATmega32U4__)
+  // Pro Micro: A0–A3 sind beim ATmega32U4 auch JTAG-Pins. Bei manchen Nachbauten ist JTAG an – dann hängen
+  // die Pins fest auf „hoch“ und lesen immer 1023. Abschalten: JTD zweimal kurz hintereinander setzen.
+  MCUCR |= (1 << JTD);
+  MCUCR |= (1 << JTD);
+#endif
+}
+
+// Selbsttest: lässt sich jeder Pin auf 0 V und 5 V schalten? (ohne Poti-Einfluss: kurz, nur ein Pin aktiv)
+void pinTest() {
+  for (uint8_t i = 0; i < 3; i++) {
+    alleLos();
+    pinMode(PIN[i], OUTPUT);
+    digitalWrite(PIN[i], LOW);
+    delay(2);
+    int tief = analogRead(PIN[i]);
+    digitalWrite(PIN[i], HIGH);
+    delay(2);
+    int hoch = analogRead(PIN[i]);
+    alleLos();
+    Serial.print(F("Pin-Test ")); Serial.print(NAME[i]); Serial.print(F(": LOW=")); Serial.print(tief);
+    Serial.print(F(" HIGH=")); Serial.print(hoch);
+    Serial.println(tief < 100 && hoch > 900 ? F("  ok") : F("  FEHLER: Pin laesst sich nicht schalten"));
+  }
+}
+
 void setup() {
+  jtagAus();
   Serial.begin(115200);
   while (!Serial && millis() < 4000) {}  // Pro Micro: kurz auf den Seriellen Monitor warten
   Serial.println(F("Poti-Test: Draehte an A0, A1, A2. Poti einmal etwas drehen."));
+  pinTest();
 }
 
 void loop() {

@@ -186,6 +186,12 @@ void hallo() {
 }
 
 void setup() {
+#if defined(__AVR_ATmega32U4__)
+  // Pro Micro: A0–A3 sind auch JTAG-Pins; bei manchen Nachbauten ist JTAG an → Regler (A0) und weiße LEDs (A1)
+  // gingen nicht. Abschalten: JTD zweimal kurz hintereinander setzen.
+  MCUCR |= (1 << JTD);
+  MCUCR |= (1 << JTD);
+#endif
   Serial.begin(115200);
   for (uint8_t i = 0; i < 9; i++) {
     pinMode(TASTEN[i], INPUT_PULLUP);  // offen = HIGH, gedrückt = LOW
