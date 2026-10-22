@@ -13,6 +13,8 @@
 - **Wenn → Dann (Seite Tastenbox):** Code auf den 9 Tasten (Code-Taste lang drücken, Ziffern tippen) und/oder
   Reglerzahl 0–999 → Programm starten, Webseite öffnen, Video/Datei oder Webseite auf Bildschirm 2, eigener Befehl
   oder AluPC-Befehl. Regeln auch auf Tasten legbar. Reglerzahl braucht Arduino-Programm 5 und Regler-Ziel „Zahl 0–999“.
+- **Regler-Vorlagen und Skala:** Lautstärke über das Zählwerk – 000–999 ÷ 10 (fein) oder 000–100 direkt;
+  auch für Mikrofon und Ton auf Bildschirm 2.
 - **Vorlagen auf Bildschirm 2 neu (taste-skill):** flache, tiefe Farbfelder statt Lichtflecken und Verläufe,
   keine Etiketten über Überschriften, Fließtext kräftiger; „Glas-Karte“ wird zur „Farbfeld-Karte“.
 - **Handy-Seite im Regie-Design:** flach, Haarlinien, keine Glas-Leiste, Auswahl als dünne Linie.

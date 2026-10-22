@@ -439,3 +439,44 @@ def test_rule_dialog(env):  # noqa: F811
     dlg.value.setValue(321)
     assert dlg.rule()["wenn"] == {"code": "42", "wert": 321, "toleranz": 3}
     dlg.deleteLater()
+
+
+def test_knob_scale_presets(env, monkeypatch):  # noqa: F811
+    """Voreinstellungen: Lautstärke über das Zählwerk – 000–999 ÷ 10 oder 000–100 direkt; LAUT zählt dann nicht."""
+    controller, window, _ = env
+    from alupc import pc_control
+
+    vols = []
+    monkeypatch.setattr(pc_control, "set_volume", lambda percent=None, step=0: vols.append(percent) or (True, ""))
+    box = controller.buttonbox
+    monkeypatch.setattr(box, "send", lambda line: True)
+    box.port, box.version = "COM9", 5
+    base = dict(controller.config["tasten"])
+    controller.config["tasten"] = {**base, "nur_regler": False, "abgleich": False, "regler": "pc"}
+    names = [p[0] for p in controller.KNOB_PRESETS]
+    controller.apply_knob_preset(names.index("Lautstärke – Zählwerk 000–999 ÷ 10 (fein)"))
+    assert controller.knob_scale() == "zahl_10"
+    box.feed("WERT 455")
+    box.feed("LAUT 90")  # grober Wert wird bei Zählwerk-Skala nicht benutzt
+    assert _until(lambda: vols and vols[-1] == 46) and 90 not in vols
+    controller.apply_knob_preset(names.index("Lautstärke – Zählwerk 000–100"))
+    box.feed("WERT 73")
+    assert _until(lambda: vols[-1] == 73)
+    box.feed("WERT 640")
+    assert _until(lambda: vols[-1] == 100)
+    controller.config["tasten"] = {**controller.config["tasten"], "umkehren": True}
+    assert controller.knob_level() == 100  # 999 - 640 = 359 → über 100
+    controller.config["tasten"] = {**controller.config["tasten"], "umkehren": False, "skala": "prozent"}
+    box.knob = 30
+    assert controller.knob_level() == 30
+    window.open_setup_section("Tastenbox")
+    pump()
+    from alupc.ui.tastenbox_page import TastenboxPage
+
+    page = window.findChild(TastenboxPage)
+    page.preset.setCurrentIndex(page.preset.findData(names.index("Mikrofon – Zählwerk ÷ 10")))
+    page.preset.activated.emit(page.preset.currentIndex())
+    assert controller.knob_target() == "mikro" and page.scale.currentData() == "zahl_10"
+    controller.config["tasten"] = {**base}
+    box.port, box.version, box.fine_value, box.knob = "", 0, None, None
+    controller.knob_wait = False

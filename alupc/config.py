@@ -91,7 +91,7 @@ DEFAULTS: dict = {
     "tasten": {"on": True, "port": "", "keys": {}, "nur_regler": True, "led": "live", "regler": "pc",
                "lang": {}, "umkehren": False, "max": 100, "abgleich": True, "led_hell": 100, "led_blink": False,
                "led_effekt": "ruhig", "led_farbe": "#00ffa0", "led_schema": "einfarbig", "led_ecken": [],
-               "regeln": [], "code_taste": 9},
+               "regeln": [], "code_taste": 9, "skala": "prozent"},
     # Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter zu drücken (wie unter Windows)
     "fingerprint": {"auto_unlock": True},
     # Videos: zuletzt geschaute Stelle (Pfad → {pos, dur, t}) fürs Weiterschauen

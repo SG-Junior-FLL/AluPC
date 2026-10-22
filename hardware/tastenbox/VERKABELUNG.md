@@ -84,6 +84,9 @@ In AluPC „Regelt:“ auf „Zahl 0–999“ stellen. Zählwerk und Messwert we
 (Poti-Toleranz, 10-Bit-Messung = 1024 Stufen) – deshalb hat jede Regel „± Toleranz“ (Standard 3).
 Mit „Jetzt“ im Regel-Fenster die echte Zahl übernehmen.
 
+**Lautstärke übers Zählwerk:** „Vorlage:“ bzw. „Skala:“ am Regler – „Zählwerk 000–999 ÷ 10“ (Zählwerk 455 = 46 %)
+oder „Zählwerk 000–100 = Prozent“ (Zählwerk 073 = 73 %, ab 100 voll).
+
 ## 5. Licht – Plan
 
 ![LED-Plan](led_plan.png)

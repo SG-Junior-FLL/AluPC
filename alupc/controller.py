@@ -81,6 +81,7 @@ class Controller(QObject):
         self._value_timer = QTimer(self, singleShot=True, timeout=self._value_settled)
         self._value_hits: set[str] | None = None  # Regeln, die beim letzten ruhigen Wert passten (None = noch keiner)
         self._rule_depth = 0
+        self._fine_level: int | None = None  # zuletzt gesetzte Stufe bei Zählwerk-Skala
         self.finger_shortcuts.apply()
         # Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter (wie unter Windows)
         from .finger_unlock import FingerUnlock
@@ -1687,7 +1688,7 @@ class Controller(QObject):
     def volume_locked(self) -> bool:
         """Lautstärke nur am Regler: Box verbunden, Regler hat gemeldet, Einstellung an."""
         return bool(self.config["tasten"].get("nur_regler", True) and self.buttonbox.connected
-                    and self.buttonbox.knob is not None and self.knob_target() == "pc")
+                    and self.knob_level() is not None and self.knob_target() == "pc")
 
     # Wofür der Regler ist: PC-Ton, Ton auf Bildschirm 2, Mikrofon oder ein Programm („app:Spotify“)
     KNOB_TARGETS = {"pc": "PC-Lautstärke", "medien": "Ton auf Bildschirm 2", "mikro": "Mikrofon",
@@ -1710,14 +1711,14 @@ class Controller(QObject):
         if target == "wert" or not self.config["tasten"].get("abgleich", True):  # ohne Null-Abgleich: Ziel folgt sofort dem Regler
             self.knob_wait = False
             self._box_state()
-            if self.buttonbox.knob is not None:
-                self._knob_apply(target, self.knob_value(self.buttonbox.knob))
+            if self.knob_level() is not None:
+                self._knob_apply(target, self.knob_level())
             self.changed.emit()
             return
         self.knob_wait = True
         self._knob_apply(target, 0)
         self._box_state()
-        if self.buttonbox.connected and (self.knob_value(self.buttonbox.knob) or 0) <= 2:
+        if self.buttonbox.connected and (self.knob_level() or 0) <= 2:
             self.knob_wait = False  # steht schon auf 0
         else:
             self.message.emit(f"Regler: {self.knob_target_label(target)} – jetzt auf 0 drehen.")
@@ -1800,8 +1801,53 @@ class Controller(QObject):
         top = max(1, min(100, int(cfg.get("max", 100) or 100)))
         return round(v * top / 100)
 
+    # Skala des Reglers: „prozent“ = ganzer Drehweg 0–100 %; mit Zählwerk (Programm 5) „zahl_10“ = 000–999 ÷ 10,
+    # „zahl_direkt“ = 000–100 ist gleich die Prozentzahl (darüber 100 %)
+    KNOB_SCALES = {"prozent": "Ganzer Drehweg = 0–100 %", "zahl_10": "Zählwerk 000–999 ÷ 10",
+                   "zahl_direkt": "Zählwerk 000–100 = Prozent"}
+    # Voreinstellungen: (Name, Ziel, Skala)
+    KNOB_PRESETS = [
+        ("Lautstärke – ganzer Drehweg 0–100 %", "pc", "prozent"),
+        ("Lautstärke – Zählwerk 000–100", "pc", "zahl_direkt"),
+        ("Lautstärke – Zählwerk 000–999 ÷ 10 (fein)", "pc", "zahl_10"),
+        ("Ton Bildschirm 2 – Zählwerk ÷ 10", "medien", "zahl_10"),
+        ("Mikrofon – Zählwerk ÷ 10", "mikro", "zahl_10"),
+        ("Zahl 0–999 für Wenn → Dann", "wert", "prozent"),
+    ]
+
+    def knob_scale(self) -> str:
+        scale = self.config["tasten"].get("skala", "prozent")
+        return scale if scale in self.KNOB_SCALES else "prozent"
+
+    def knob_level(self) -> int | None:
+        """Reglerstellung fürs Ziel (0–100) nach Skala, Richtung und Höchstwert; None ohne Meldung der Box."""
+        scale = self.knob_scale()
+        if scale == "prozent":
+            return self.knob_value(self.buttonbox.knob)
+        n = self.box_number()  # schon umgekehrt, falls gewünscht
+        if n is None:
+            return None
+        pct = min(100, n) if scale == "zahl_direkt" else round(n / 9.99)
+        top = max(1, min(100, int(self.config["tasten"].get("max", 100) or 100)))
+        return round(pct * top / 100)
+
+    def apply_knob_preset(self, index: int) -> None:
+        _name, target, scale = self.KNOB_PRESETS[index]
+        self.config["tasten"] = {**self.config["tasten"], "skala": scale}
+        if target == self.knob_target():
+            self._box_state()
+            if self.knob_level() is not None and target != "wert":
+                self._knob_apply(target, self.knob_level())
+            self.changed.emit()
+        else:
+            self.set_knob_target(target)
+
     def _box_volume(self, value: int) -> None:
-        value = self.knob_value(value)
+        if self.knob_scale() != "prozent":  # Skala mit Zählwerk: zählt WERT (siehe _box_fine)
+            return
+        self._knob_moved(self.knob_value(value))
+
+    def _knob_moved(self, value: int) -> None:
         if self.knob_wait:  # neues Ziel: erst auf 0 drehen, dann greift der Regler
             if value > 2:
                 self.changed.emit()
@@ -1868,6 +1914,11 @@ class Controller(QObject):
         if self.knob_target() == "wert":
             self._value_timer.start(VALUE_SETTLE_MS)
             self.changed.emit()
+        elif self.knob_scale() != "prozent" and self.knob_level() is not None:
+            level = self.knob_level()
+            if level != self._fine_level or self.knob_wait:  # ÷ 10: 10 Zahlen = 1 %
+                self._fine_level = level
+                self._knob_moved(level)
 
     def _value_settled(self) -> None:
         """Regler steht 1 s ruhig: Regeln ohne Code mit dieser Zahl auslösen – jede nur einmal, bis der Regler den
@@ -1917,7 +1968,7 @@ class Controller(QObject):
         if not self.buttonbox.connected:
             self._value_hits = None
         if self.volume_locked():
-            self.volume_keeper.set_target(0 if self.knob_wait else self.knob_value(self.buttonbox.knob))
+            self.volume_keeper.set_target(0 if self.knob_wait else self.knob_level())
         else:
             self.volume_keeper.set_target(None)
         self._led_level = None

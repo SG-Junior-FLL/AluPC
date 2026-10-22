@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -172,7 +171,7 @@ class UpdatesPage(QWidget):
         from .. import pc_updates
 
         try:
-            ok, text = pc_updates.open_updater(kind)
+            _ok, text = pc_updates.open_updater(kind)
         except OSError as exc:
-            ok, text = False, str(exc)
+            text = str(exc)
         self.controller.message.emit(text)

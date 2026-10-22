@@ -253,7 +253,24 @@ class TastenboxPage(QWidget):
         self.target.setToolTip("Wechselt das Ziel, startet es bei 0 – den Regler dann auch auf 0 drehen.")
         self._fill_targets()
         self.target.activated.connect(lambda _i: c.set_knob_target(self.target.currentData()))
+        self.preset = QComboBox()
+        self.preset.addItem("– Voreinstellung wählen –", -1)
+        for i, (name, _t, _s) in enumerate(c.KNOB_PRESETS):
+            self.preset.addItem(name, i)
+        self.preset.setToolTip("Ziel und Skala in einem Schritt (Zählwerk = 10-Gang-Poti, Arduino-Programm 5)")
+        self.preset.activated.connect(self._apply_preset)
+        form.addRow("Vorlage:", self.preset)
         form.addRow("Regelt:", self.target)
+        self.scale = QComboBox()
+        for key, label in c.KNOB_SCALES.items():
+            self.scale.addItem(label, key)
+        self.scale.setCurrentIndex(max(0, self.scale.findData(c.knob_scale())))
+        self.scale.setToolTip("Mit Zählwerk-Drehknopf: die Zahl darauf bestimmt die Lautstärke")
+        self.scale.activated.connect(lambda _i: (self._save(skala=self.scale.currentData()), self.refresh()))
+        form.addRow("Skala:", self.scale)
+        for combo in (self.preset, self.scale):
+            combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            combo.setMinimumContentsLength(12)
         self.only = QCheckBox("PC-Ton nur am Regler")
         self.only.setToolTip("Andere Wege (Windows, Tastatur, Handy, Sprache) werden zurückgestellt. "
                              "Programme einzeln (Seite Audio) gehen weiter.")
@@ -424,6 +441,15 @@ class TastenboxPage(QWidget):
                                          c.update_box_led()))
 
     # ------------------------------------------------------------ Fehlersuche
+    def _apply_preset(self, _i: int) -> None:
+        index = self.preset.currentData()
+        self.preset.setCurrentIndex(0)
+        if index is None or index < 0:
+            return
+        self.controller.apply_knob_preset(index)
+        self.controller.message.emit(f"Regler: {self.controller.KNOB_PRESETS[index][0]}")
+        self.refresh()
+
     # ------------------------------------------------------------ Wenn → Dann
     def _rules_box(self) -> QGroupBox:
         box = QGroupBox("Wenn → Dann")
@@ -709,7 +735,10 @@ class TastenboxPage(QWidget):
             long = longs.get(str(n), "")
             cap.long_text = labels.get(long, long) if long else ""
             cap.update()
-        self.dial.set_state(bb.knob if bb.connected else None, c.knob_wait, c.knob_target_label())
+        self.dial.set_state(c.knob_level() if bb.connected else None, c.knob_wait, c.knob_target_label())
+        if self.scale.currentData() != c.knob_scale():
+            self.scale.setCurrentIndex(max(0, self.scale.findData(c.knob_scale())))
+        self.scale.setEnabled(c.knob_target() != "wert")
         self.only.setEnabled(c.knob_target() == "pc")  # Sperre gilt nur, wenn der Regler den PC-Ton regelt
         if self.target.currentData() != c.knob_target():
             self._fill_targets()
