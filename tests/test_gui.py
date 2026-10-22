@@ -47,6 +47,7 @@ def env(tmp_path, monkeypatch):
     from alupc.ui.main_window import MainWindow
     from alupc.ui.pip_window import PipWindow
 
+    before = set(map(id, APP.topLevelWidgets()))
     config = Config(tmp_path / "config.json")
     config["handy"] = {**config["handy"], "setup_done": True}  # im Test nichts installieren
     controller = Controller(config)
@@ -70,10 +71,17 @@ def env(tmp_path, monkeypatch):
     window._sys_timer.stop()  # sonst färbt das alte (unsichtbare) Fenster die nächsten Tests um
     window.hide()
     window.deleteLater()
+    # Alle Fenster dieses Tests wirklich löschen (Monitor-2-Fenster, Bild-in-Bild, Dialoge …): vorher blieben je
+    # Test ~14 übrig – nach ~100 Tests brach Qt unter Windows ab („Fatal Python error: Aborted“ in pump)
+    for widget in APP.topLevelWidgets():
+        if id(widget) not in before:
+            widget.hide()
+            widget.deleteLater()
     pump()
     from PySide6.QtCore import QCoreApplication, QEvent
 
     QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    pump()
 
 
 def test_screens(env):

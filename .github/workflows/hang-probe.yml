@@ -2,6 +2,7 @@
 # Runde 1 (nur die 2 Tests, 3 Varianten × 8): nie gehangen → es sammelt sich über viele Tests an.
 # Runde 2: ganze tests/test_gui.py, 4 Varianten × 4 Läufe – hängt in jeder Variante (Ton, Mausgrenze, Titelleiste
 # sind es nicht). Runde 3: Abbild im eigenen Prozess blieb selbst hängen (Verdacht: Loader-Lock).
+# Runde 5: Ressourcen je Test mitschreiben + Qt-Fehlermeldungen sichtbar (Verdacht: Windows-Limit).
 # Runde 4b: Lauf 1 grün, Lauf 2+3 „Windows fatal exception“ (Absturz, nicht nur Hänger) → Absturzstapel zeigen.
 # Runde 4 brach nach Sekunden ab (Fehler in der Probe selbst) – jetzt mit Logzeilen.
 # Runde 4: Abbild von einem getrennten Prozess, offline mit cdb: Besitzer des Loader-Locks + Stapel.
@@ -30,8 +31,14 @@ jobs:
         run: |
           $env:ALUPC_TEST_HANG_EXIT = "120"
           $env:ALUPC_TEST_MINIDUMP = "1"
+          $env:QT_FORCE_STDERR_LOGGING = "1"  # qFatal-Meldung von Qt landet sonst unsichtbar in OutputDebugString
           for ($i = 1; $i -le 4; $i++) {
+            $env:ALUPC_TEST_RESLOG = "$PWD\res$i.txt"
             python -X faulthandler -m pytest -q -p no:cacheprovider tests/test_gui.py 2>&1 | Out-File -FilePath "lauf$i.log"
+            $res = Get-Content "res$i.txt" -ErrorAction SilentlyContinue
+            if ($res) { Write-Output ("::notice title=Ressourcen $i::" + (@($res[0], $res[[int]($res.Count/2)], $res[-3], $res[-2], $res[-1]) -join ' | ')) }
+            $qt = $log = Get-Content "lauf$i.log" | Select-String -Pattern 'QWindows|qt\.|Failed to|ASSERT|fatal|Cannot|could not' | Select-Object -First 6
+            if ($qt) { Write-Output ("::notice title=Qt-Meldungen $i::" + (($qt | ForEach-Object { $_.Line.Trim() }) -join ' | ')) }
             $log = Get-Content "lauf$i.log"
             $at = ($log | Select-String -Pattern 'Windows fatal exception|Fatal Python error|Timeout \(' | Select-Object -First 1).LineNumber
             if ($at) {

@@ -44,6 +44,42 @@ def _close_fake_servers():
         fake_openrgb.ALIVE.pop().close()
 
 
+@pytest.fixture(autouse=True)
+def _resource_log(request):
+    """Fehlersuche (ALUPC_TEST_RESLOG=Datei): nach jedem Test Fenster, Threads, Handles, GDI/USER-Objekte und
+    Speicher mitschreiben – wächst etwas, bis Windows abbricht?"""
+    yield
+    path = os.environ.get("ALUPC_TEST_RESLOG")
+    if not path:
+        return
+    import threading
+
+    parts = [request.node.name, f"threads={threading.active_count()}"]
+    try:
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if app is not None:
+            parts.append(f"toplevel={len(app.topLevelWidgets())}")
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import psutil
+
+        proc = psutil.Process()
+        parts += [f"mem={proc.memory_info().rss // 1048576}MB", f"os_threads={proc.num_threads()}"]
+        if sys.platform == "win32":
+            import ctypes
+
+            h = ctypes.windll.kernel32.GetCurrentProcess()
+            parts += [f"handles={proc.num_handles()}", f"gdi={ctypes.windll.user32.GetGuiResources(h, 0)}",
+                      f"user={ctypes.windll.user32.GetGuiResources(h, 1)}"]
+    except Exception as exc:  # noqa: BLE001
+        parts.append(f"psutil:{exc}")
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(" ".join(parts) + "\n")
+
+
 def pytest_sessionfinish(session, exitstatus):
     """Am Ende alle übrig gebliebenen Fenster löschen, solange Qt (samt QML/WebEngine) noch läuft. Sonst räumt PySide
     sie erst beim Beenden von Python auf – in falscher Reihenfolge; das gab selten einen Segfault nach allen Tests
