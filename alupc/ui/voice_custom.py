@@ -15,6 +15,9 @@ def action_choices(config) -> list[tuple[str, str]]:
     out += [(f"szene:{name}", f"Szene: {name}") for name in config.scene_names()]
     for tile in config["start_page"].get("custom", []) or []:
         out.append((f"kachel:{tile.get('id')}", f"Eigene Kachel: {tile.get('title', '?')}"))
+    for rule in config["tasten"].get("regeln") or []:
+        if rule.get("name"):
+            out.append((f"regel:{rule['name']}", f"Wenn → Dann: {rule['name']}"))
     return out
 
 

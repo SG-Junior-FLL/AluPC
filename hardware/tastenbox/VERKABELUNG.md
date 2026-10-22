@@ -78,6 +78,12 @@ Egal, welches Beinchen A oder B ist. Wackelt eine Buchse: ein Tropfen Heißklebe
 
 Dreht er falsch herum: links und rechts tauschen – oder in AluPC „Richtung umkehren“.
 
+**Zahl 0–999 (für Wenn → Dann):** Ab Programm 5 meldet die Box den Regler zusätzlich fein als `WERT 0–999`.
+Gut dafür: ein 10-Gang-Poti (10 kΩ) mit Zählwerk-Drehknopf – gleich angeschlossen wie oben.
+In AluPC „Regelt:“ auf „Zahl 0–999“ stellen. Zählwerk und Messwert weichen um ein paar Schritte ab
+(Poti-Toleranz, 10-Bit-Messung = 1024 Stufen) – deshalb hat jede Regel „± Toleranz“ (Standard 3).
+Mit „Jetzt“ im Regel-Fenster die echte Zahl übernehmen.
+
 ## 5. Licht – Plan
 
 ![LED-Plan](led_plan.png)

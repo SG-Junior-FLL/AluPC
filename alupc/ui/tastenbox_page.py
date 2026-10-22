@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QPlainTextEdit,
     QPushButton,
     QSpinBox,
@@ -342,6 +344,7 @@ class TastenboxPage(QWidget):
         wiring.setWordWrap(True)
         dl.addWidget(wiring)
         root.addWidget(dev)
+        root.addWidget(self._rules_box())
         root.addWidget(self._debug_box())
         root.addStretch(1)
 
@@ -351,6 +354,7 @@ class TastenboxPage(QWidget):
         bb.key.connect(self._pressed)
         bb.long_key.connect(self._pressed)
         bb.volume.connect(lambda _v: self.refresh())
+        bb.fine.connect(lambda _v: self._rules_live())
         bb.raw.connect(self._raw)
         bb.log_line.connect(self._log)
         bb.state_changed.connect(self._debug_info)
@@ -420,6 +424,125 @@ class TastenboxPage(QWidget):
                                          c.update_box_led()))
 
     # ------------------------------------------------------------ Fehlersuche
+    # ------------------------------------------------------------ Wenn → Dann
+    def _rules_box(self) -> QGroupBox:
+        box = QGroupBox("Wenn → Dann")
+        lay = QVBoxLayout(box)
+        hint = QLabel("Code auf den Tasten und/oder eine Zahl am Regler starten Programme, Webseiten, Videos, "
+                      "eigene Befehle oder AluPC-Befehle.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+        self.rules_live = QLabel()
+        self.rules_live.setWordWrap(True)
+        lay.addWidget(self.rules_live)
+        self.rules_list = QListWidget()
+        self.rules_list.setMinimumHeight(110)
+        self.rules_list.itemChanged.connect(self._rule_toggled)
+        self.rules_list.itemDoubleClicked.connect(lambda _i: self._edit_rule())
+        lay.addWidget(self.rules_list)
+        row = QHBoxLayout()
+        for text, icon, slot in (("Neu", "plus", self._new_rule), ("Bearbeiten", "edit", self._edit_rule),
+                                 ("Testen", "play", self._test_rule), ("Löschen", "trash", self._delete_rule)):
+            b = button(text, icon, primary=text == "Neu")
+            b.clicked.connect(slot)
+            row.addWidget(b)
+        row.addStretch(1)
+        lay.addLayout(row)
+        row = QHBoxLayout()  # eigene Zeile: passt auch ins kleinste Fenster
+        row.addWidget(QLabel("Code-Taste:"))
+        self.code_key = QSpinBox()
+        self.code_key.setRange(1, 9)
+        self.code_key.setValue(self.controller.code_key())
+        self.code_key.setToolTip("Diese Taste lang drücken = Code-Eingabe (nur wenn eine Regel einen Code hat)")
+        self.code_key.valueChanged.connect(lambda v: (self._save(code_taste=v), self._rules_live()))
+        row.addWidget(self.code_key)
+        row.addStretch(1)
+        lay.addLayout(row)
+        self._fill_rules()
+        return box
+
+    def _rules(self) -> list[dict]:
+        return self.controller.box_rules()
+
+    def _store_rules(self, rules: list[dict]) -> None:
+        self._save(regeln=rules)
+        self._fill_rules()
+
+    def _fill_rules(self) -> None:
+        from ..automations import describe
+
+        self.rules_list.blockSignals(True)
+        self.rules_list.clear()
+        for rule in self._rules():
+            item = QListWidgetItem(f"{rule['name']}  ·  {describe(rule)}")
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if rule["an"] else Qt.Unchecked)
+            item.setData(Qt.UserRole, rule["name"])
+            self.rules_list.addItem(item)
+        if not self._rules():
+            item = QListWidgetItem("Noch keine Regel – „Neu“ drücken.")
+            item.setFlags(Qt.NoItemFlags)
+            self.rules_list.addItem(item)
+        self.rules_list.blockSignals(False)
+        self._rules_live()
+
+    def _rules_live(self) -> None:
+        c = self.controller
+        value = c.box_number()
+        parts = [f"Regler jetzt: <b>{value:03d}</b>" if value is not None else "Regler: –"]
+        if c.knob_target() != "wert":
+            parts.append("Reglerzahl-Regeln ruhen (Regler „Regelt:“ auf „Zahl 0–999“ stellen)")
+        if any(r["wenn"]["code"] for r in self._rules()):
+            parts.append(f"Code: Taste {c.code_key()} lang drücken, Ziffern tippen, 1,5 s warten")
+        if c.box_code is not None:
+            parts.append("Eingabe läuft: " + ("-".join(c.box_code) or "…"))
+        self.rules_live.setText(" · ".join(parts))
+
+    def _current_rule(self) -> dict | None:
+        item = self.rules_list.currentItem()
+        name = item.data(Qt.UserRole) if item else None
+        return next((r for r in self._rules() if r["name"] == name), None)
+
+    def _new_rule(self) -> None:
+        self._open_rule(None)
+
+    def _edit_rule(self) -> None:
+        rule = self._current_rule()
+        if rule is not None:
+            self._open_rule(rule)
+
+    def _open_rule(self, rule: dict | None) -> None:
+        from .rules_dialog import RuleDialog
+
+        rules = self._rules()
+        taken = {r["name"] for r in rules} - ({rule["name"]} if rule else set())
+        dlg = RuleDialog(self.controller, rule, taken, self)
+        if not dlg.exec():
+            return
+        new = dlg.rule()
+        if rule is not None:
+            new["an"] = rule["an"]
+            rules = [new if r["name"] == rule["name"] else r for r in rules]
+        else:
+            rules.append(new)
+        self._store_rules(rules)
+
+    def _rule_toggled(self, item) -> None:
+        name = item.data(Qt.UserRole)
+        on = item.checkState() == Qt.Checked
+        self._store_rules([{**r, "an": on} if r["name"] == name else r for r in self._rules()])
+
+    def _test_rule(self) -> None:
+        rule = self._current_rule()
+        if rule is not None:
+            self.controller.run_rule(rule)
+
+    def _delete_rule(self) -> None:
+        rule = self._current_rule()
+        if rule is not None:
+            self._store_rules([r for r in self._rules() if r["name"] != rule["name"]])
+
     def _debug_box(self) -> QGroupBox:
         box = QGroupBox("Fehlersuche")
         lay = QVBoxLayout(box)
@@ -590,3 +713,4 @@ class TastenboxPage(QWidget):
         self.only.setEnabled(c.knob_target() == "pc")  # Sperre gilt nur, wenn der Regler den PC-Ton regelt
         if self.target.currentData() != c.knob_target():
             self._fill_targets()
+        self._rules_live()

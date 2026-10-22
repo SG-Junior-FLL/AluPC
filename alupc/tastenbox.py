@@ -9,6 +9,7 @@ Die Box meldet sich am USB als serieller Anschluss (115200 Baud) und schickt kur
     LAUT 57                  Drehregler steht auf 57 % (0–100; nur bei Änderung, und auf „LAUT?“)
     STUMM                    optional: Druck auf den Drehregler (falls er einen Taster hat)
     ROH 010000000 512        ab Programm 3, nur nach „DEBUG 1“: Tasten (1 = unten) und Regler roh (0–1023)
+    WERT 250                 ab Programm 5: derselbe Regler fein als Zahl 0–999 (für Wenn → Dann; auf „WERT?“)
 
 AluPC schickt: „WER?“ (Wer bist du?), „LAUT?“ (Wo steht der Regler?), „LED 0–100“ (Helligkeit der LEDs bzw.
 des LED-Streifens; 0 = aus), ab Programm 3 auch „EFFEKT 0|1|2“ (ruhig/atmen/blinken), „FARBE r g b“ (Streifen)
@@ -55,7 +56,7 @@ DEFAULT_KEYS = {"1": "schwarz", "2": "standbild", "3": "studio_uebergang", "4": 
 
 def parse_line(line: str) -> tuple[str, int | str | None] | None:
     """Eine Zeile der Box → ("taste", 3) / ("laut", 57) / ("stumm", None) / ("hallo", "3 NANO") /
-    ("roh", ("010000000", 512)) – sonst None."""
+    ("roh", ("010000000", 512)) / ("wert", 250) – sonst None."""
     text = line.strip().upper()
     if not text:
         return None
@@ -71,6 +72,8 @@ def parse_line(line: str) -> tuple[str, int | str | None] | None:
     if (parts[0] == "ROH" and len(parts) == 3 and len(parts[1]) == KEYS and set(parts[1]) <= {"0", "1"}
             and parts[2].isdigit()):
         return "roh", (parts[1], min(1023, int(parts[2])))
+    if parts[0] == "WERT" and len(parts) == 2 and parts[1].isdigit():
+        return "wert", min(999, int(parts[1]))
     return None
 
 
@@ -121,6 +124,7 @@ class ButtonBox(QObject):
     key = Signal(int)          # Taste 1–9
     long_key = Signal(int)     # Taste 1–9 lange gedrückt (Arduino-Programm ab Version 2)
     volume = Signal(int)       # Reglerstellung 0–100
+    fine = Signal(int)         # Reglerstellung fein 0–999 (ab Programm 5; älter: aus LAUT hochgerechnet)
     mute = Signal()            # Druck auf den Regler (optional)
     state_changed = Signal()   # verbunden/getrennt
     raw = Signal(str, int)     # Fehlersuche: Tasten "010000000" und Regler roh 0–1023
@@ -134,6 +138,7 @@ class ButtonBox(QObject):
         self.port = ""          # verbundener Anschluss ("" = nicht verbunden)
         self.wanted_port = ""   # aus den Einstellungen; "" = automatisch suchen
         self.knob: int | None = None  # letzte Reglerstellung
+        self.fine_value: int | None = None  # dieselbe fein (0–999)
         self.last_key = 0
         self.version = 0        # Programmversion der Box (aus „HALLO …“)
         self.board = ""
@@ -281,7 +286,7 @@ class ButtonBox(QObject):
                 self._stop.wait(3.0)  # in 3 s wieder suchen (Box später eingesteckt)
                 continue
             try:
-                ser.write(b"LAUT?\n")
+                ser.write(b"LAUT?\nWERT?\n")
                 if self.debug:
                     ser.write(b"DEBUG 1\n")
                 while not self._stop.is_set():
@@ -304,7 +309,7 @@ class ButtonBox(QObject):
         if device:
             self.version, self.board = hello_info(getattr(self, "_hello", ""))
         else:
-            self.knob = None
+            self.knob = self.fine_value = None
             self.version, self.board, self.raw_keys, self.raw_knob = 0, "", "", None
         self.state_changed.emit()
 
@@ -326,6 +331,12 @@ class ButtonBox(QObject):
         elif kind == "laut":
             self.knob = int(value)
             self.volume.emit(int(value))
+            if self.version < 5:  # altes Programm ohne WERT: grob aus den Prozent
+                self.fine_value = round(int(value) * 9.99)
+                self.fine.emit(self.fine_value)
+        elif kind == "wert":
+            self.fine_value = int(value)
+            self.fine.emit(int(value))
         elif kind == "stumm":
             self.mute.emit()
         elif kind == "roh":

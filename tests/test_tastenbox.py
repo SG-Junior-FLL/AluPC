@@ -173,7 +173,7 @@ def tastenbox_sketch_exists() -> bool:
     from alupc.ui.tastenbox_page import SKETCH
 
     text = SKETCH.read_text(encoding="utf-8")
-    return all(w in text for w in ("HALLO ALUPC-TASTEN 4", "LAUT", "TASTE", "LANG", "EFFEKT", "FARBE", "DEBUG", "ROH", "PIXEL",
+    return all(w in text for w in ("HALLO ALUPC-TASTEN 5", "LAUT", "WERT", "TASTE", "LANG", "EFFEKT", "FARBE", "DEBUG", "ROH", "PIXEL",
                                    "ARDUINO_AVR_LEONARDO"))
 
 
@@ -317,3 +317,125 @@ def test_led_commands_and_color_schemes(env, monkeypatch):  # noqa: F811
     controller.config["tasten"] = {**base}
     box.port, box.version = "", 0
     del snap
+
+
+def test_automation_rules_model(monkeypatch):
+    """Wenn → Dann: Regeln säubern, Code/Reglerzahl vergleichen, eigener Befehl ohne Shell-Zeichenkette."""
+    from alupc import automations as a
+
+    r = a.clean_rule({"name": " Intro ", "wenn": {"code": "1a20 3", "wert": "1200", "toleranz": 99},
+                      "dann": {"art": "quatsch", "ziel": " standbild "}})
+    assert r == {"name": "Intro", "an": True, "wenn": {"code": "123", "wert": 999, "toleranz": 50},
+                 "dann": {"art": "alupc", "ziel": "standbild"}}
+    assert not a.is_valid(a.clean_rule({"wenn": {}, "dann": {"art": "alupc", "ziel": "x"}}))
+    code = a.clean_rule({"name": "c", "wenn": {"code": "12"}, "dann": {"art": "alupc", "ziel": "x"}})
+    both = a.clean_rule({"name": "b", "wenn": {"code": "12", "wert": 250}, "dann": {"art": "alupc", "ziel": "y"}})
+    val = a.clean_rule({"name": "v", "wenn": {"wert": 500, "toleranz": 3}, "dann": {"art": "alupc", "ziel": "z"}})
+    off = {**val, "an": False}
+    rules = [code, both, val, off]
+    assert a.rules_for_code(rules, "12", None) == [code]
+    assert a.rules_for_code(rules, "12", 252) == [code, both]
+    assert a.rules_for_code(rules, "21", 250) == []
+    assert a.rules_for_value(rules, 503) == [val] and a.rules_for_value(rules, 504) == []
+    assert "Code 1-2 und Regler 250 ± 3" in a.describe(both)
+    assert a.command_line("echo hi && dir")[-1] == "echo hi && dir"
+    started = []
+    monkeypatch.setattr(a.subprocess, "Popen", lambda args, **kw: started.append(args))
+    assert a.run_external("befehl", "echo hi")[0] and started[-1] == a.command_line("echo hi")
+    assert a.run_external("programm", "prog --x 1")[0] and started[-1][-2:] == ["--x", "1"]
+
+
+def _wait(seconds: float) -> None:
+    import time
+
+    end = time.time() + seconds
+    while time.time() < end:
+        pump()
+        time.sleep(0.01)
+
+
+def test_code_entry_and_value_rules(env, monkeypatch):  # noqa: F811
+    """Code-Taste lang → Tasten sind Ziffern, nach der Pause passende Regel; Reglerzahl löst einmal aus."""
+    controller, window, _ = env
+    from alupc import automations
+
+    assert parse_line("WERT 250") == ("wert", 250) and parse_line("WERT 1500") == ("wert", 999)
+    monkeypatch.setattr(automations, "CODE_PAUSE_MS", 50)
+    monkeypatch.setattr(automations, "VALUE_SETTLE_MS", 50)
+    ran, ext = [], []
+    real_run = controller.run_command
+    monkeypatch.setattr(controller, "run_command",
+                        lambda a: real_run(a) if a.startswith("regel:") else ran.append(a))
+    monkeypatch.setattr(automations, "run_external", lambda art, ziel: ext.append((art, ziel)) or (True, "ok"))
+    box = controller.buttonbox
+    monkeypatch.setattr(box, "send", lambda line: True)
+    box.port, box.version = "COM9", 5
+    base = dict(controller.config["tasten"])
+    rules = [{"name": "Video", "wenn": {"code": "123"}, "dann": {"art": "alupc", "ziel": "standbild"}},
+             {"name": "Web", "wenn": {"code": "12", "wert": 250}, "dann": {"art": "webseite", "ziel": "example.org"}},
+             {"name": "Prog", "wenn": {"wert": 700, "toleranz": 2}, "dann": {"art": "befehl", "ziel": "echo 7"}}]
+    controller.config["tasten"] = {**base, "regeln": rules, "regler": "pc", "lang": {"9": "schwarz"}}
+
+    # Code 1-2-3: Ziffern lösen ihre normalen Aktionen nicht aus
+    box.feed("LANG 9")
+    assert controller.box_code == ""
+    for n in (1, 2, 3):
+        box.feed(f"TASTE {n}")
+    assert ran == [] and controller.box_code == "123"
+    assert _until(lambda: ran == ["standbild"]) and controller.box_code is None
+    # Code 1-2 mit Reglerzahl: nur wenn der Regler auf „Zahl“ steht und im Bereich
+    controller.set_knob_target("wert")
+    assert not controller.knob_wait
+    box.feed("WERT 251")
+    box.feed("LANG 9")
+    box.feed("TASTE 1")
+    box.feed("TASTE 2")
+    assert _until(lambda: ext == [("webseite", "example.org")])
+    # Reglerzahl allein: erst nach Ruhe, nur einmal, wieder nach Verlassen des Bereichs
+    _wait(0.15)  # erster ruhiger Wert nach dem Wechsel löst nichts aus
+    box.feed("WERT 699")
+    assert _until(lambda: ("befehl", "echo 7") in ext)
+    box.feed("WERT 701")
+    _wait(0.15)
+    assert ext.count(("befehl", "echo 7")) == 1
+    box.feed("WERT 400")
+    _wait(0.15)
+    box.feed("WERT 700")
+    assert _until(lambda: ext.count(("befehl", "echo 7")) == 2)
+    # ohne Code-Regeln: lange Taste 9 macht wieder ihren Befehl; regel:Name von einer Taste
+    controller.config["tasten"] = {**controller.config["tasten"], "regeln": rules[2:]}
+    box.feed("LANG 9")
+    assert controller.box_code is None and ran[-1] == "schwarz"
+    controller.run_command("regel:Prog")
+    assert ext.count(("befehl", "echo 7")) == 3
+    # Seite: Liste + Livewert
+    window.open_setup_section("Tastenbox")
+    pump()
+    from alupc.ui.tastenbox_page import TastenboxPage
+
+    page = window.findChild(TastenboxPage)
+    page._fill_rules()
+    assert page.rules_list.count() == 1 and "700" in page.rules_live.text()
+    controller.config["tasten"] = {**base}
+    box.port, box.version, box.fine_value = "", 0, None
+    controller._value_hits = None
+
+
+def test_rule_dialog(env):  # noqa: F811
+    controller, window, _ = env
+    from alupc.ui.rules_dialog import RuleDialog
+
+    dlg = RuleDialog(controller, None, {"Alt"}, window)
+    assert not dlg.ok.isEnabled()
+    dlg.name.setText("Alt")
+    dlg.code.setText("42")
+    dlg.ziel.setText("vlc")
+    assert not dlg.ok.isEnabled()  # Name schon vergeben
+    dlg.name.setText("Neu")
+    assert dlg.ok.isEnabled()
+    dlg.art.setCurrentIndex(dlg.art.findData("alupc"))
+    assert dlg.rule()["dann"]["ziel"] == dlg.command.currentData()
+    dlg.use_value.setChecked(True)
+    dlg.value.setValue(321)
+    assert dlg.rule()["wenn"] == {"code": "42", "wert": 321, "toleranz": 3}
+    dlg.deleteLater()

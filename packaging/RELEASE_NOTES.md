@@ -9,7 +9,10 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 2.3.0 – Vorlagen und Handy im neuen Design, LEDs am Handy, bunte LEDs
+### Neu in 2.3.0 – Wenn → Dann, Vorlagen und Handy im neuen Design, LEDs am Handy, bunte LEDs
+- **Wenn → Dann (Seite Tastenbox):** Code auf den 9 Tasten (Code-Taste lang drücken, Ziffern tippen) und/oder
+  Reglerzahl 0–999 → Programm starten, Webseite öffnen, Video/Datei oder Webseite auf Bildschirm 2, eigener Befehl
+  oder AluPC-Befehl. Regeln auch auf Tasten legbar. Reglerzahl braucht Arduino-Programm 5 und Regler-Ziel „Zahl 0–999“.
 - **Vorlagen auf Bildschirm 2 neu (taste-skill):** flache, tiefe Farbfelder statt Lichtflecken und Verläufe,
   keine Etiketten über Überschriften, Fließtext kräftiger; „Glas-Karte“ wird zur „Farbfeld-Karte“.
 - **Handy-Seite im Regie-Design:** flach, Haarlinien, keine Glas-Leiste, Auswahl als dünne Linie.

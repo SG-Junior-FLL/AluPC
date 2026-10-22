@@ -66,12 +66,21 @@ class Controller(QObject):
         self.buttonbox.key.connect(self._box_key)
         self.buttonbox.long_key.connect(self._box_long_key)
         self.buttonbox.volume.connect(self._box_volume)
+        self.buttonbox.fine.connect(self._box_fine)
         self.buttonbox.mute.connect(self._box_mute)
         self.buttonbox.state_changed.connect(self._box_state)
         self.volume_keeper.overridden.connect(self._volume_overridden)
         self._led_level: int | None = None
         self._led_extra: tuple | None = None
         self._override_note = 0.0
+        # Wenn → Dann: Code-Eingabe auf den 9 Tasten und Reglerzahl (siehe automations)
+        from PySide6.QtCore import QTimer
+
+        self.box_code: str | None = None  # None = keine Code-Eingabe, sonst die bisher getippten Ziffern
+        self._code_timer = QTimer(self, singleShot=True, timeout=self._code_done)
+        self._value_timer = QTimer(self, singleShot=True, timeout=self._value_settled)
+        self._value_hits: set[str] | None = None  # Regeln, die beim letzten ruhigen Wert passten (None = noch keiner)
+        self._rule_depth = 0
         self.finger_shortcuts.apply()
         # Linux: Sperrbildschirm mit dem Finger entsperren, ohne Enter (wie unter Windows)
         from .finger_unlock import FingerUnlock
@@ -1681,7 +1690,8 @@ class Controller(QObject):
                     and self.buttonbox.knob is not None and self.knob_target() == "pc")
 
     # Wofür der Regler ist: PC-Ton, Ton auf Bildschirm 2, Mikrofon oder ein Programm („app:Spotify“)
-    KNOB_TARGETS = {"pc": "PC-Lautstärke", "medien": "Ton auf Bildschirm 2", "mikro": "Mikrofon"}
+    KNOB_TARGETS = {"pc": "PC-Lautstärke", "medien": "Ton auf Bildschirm 2", "mikro": "Mikrofon",
+                    "wert": "Zahl 0–999 (für Wenn → Dann)"}
 
     def knob_target(self) -> str:
         return self.config["tasten"].get("regler", "pc") or "pc"
@@ -1696,7 +1706,8 @@ class Controller(QObject):
         if target == self.knob_target():
             return
         self.config["tasten"] = {**self.config["tasten"], "regler": target}
-        if not self.config["tasten"].get("abgleich", True):  # ohne Null-Abgleich: Ziel folgt sofort dem Regler
+        self._value_hits = None  # erst ab dem nächsten Drehen auslösen
+        if target == "wert" or not self.config["tasten"].get("abgleich", True):  # ohne Null-Abgleich: Ziel folgt sofort dem Regler
             self.knob_wait = False
             self._box_state()
             if self.buttonbox.knob is not None:
@@ -1746,13 +1757,20 @@ class Controller(QObject):
         return {**DEFAULT_KEYS, **(self.config["tasten"].get("keys") or {})}
 
     def _box_key(self, n: int) -> None:
+        if self.box_code is not None:  # Code-Eingabe: Tasten sind Ziffern
+            return self._code_digit(n)
         action = self.box_keys().get(str(n), "")
         self._box_blink()
         if action:
             self.run_command(action)
 
     def _box_long_key(self, n: int) -> None:
-        """Lange gedrückt: eigener Befehl – ohne einen solchen wie ein kurzer Druck."""
+        """Lange gedrückt: eigener Befehl – ohne einen solchen wie ein kurzer Druck. Die Code-Taste startet die
+        Code-Eingabe (nur, wenn es eine Regel mit Code gibt)."""
+        if self.box_code is not None:
+            return self._code_digit(n)
+        if n == self.code_key() and any(r["wenn"]["code"] for r in self.box_rules() if r["an"]):
+            return self._code_start()
         action = (self.config["tasten"].get("lang") or {}).get(str(n), "")
         if not action:
             return self._box_key(n)
@@ -1792,12 +1810,112 @@ class Controller(QObject):
         self._knob_apply(self.knob_target(), value)
         self.changed.emit()
 
+    # ------------------------------------------------------------ Wenn → Dann
+    def box_rules(self) -> list[dict]:
+        from .automations import clean_rule
+
+        return [clean_rule(r) for r in self.config["tasten"].get("regeln") or []]
+
+    def code_key(self) -> int:
+        return max(1, min(9, int(self.config["tasten"].get("code_taste", 9) or 9)))
+
+    def _code_start(self) -> None:
+        from .automations import CODE_TIMEOUT_MS
+
+        self.box_code = ""
+        self._code_timer.start(CODE_TIMEOUT_MS)
+        if self.buttonbox.connected:
+            self.buttonbox.set_effect("blinken")
+            self._led_extra = None  # nach der Eingabe wieder wie eingestellt
+        self.message.emit("Code eingeben …")
+        self.changed.emit()
+
+    def _code_digit(self, n: int) -> None:
+        from .automations import CODE_PAUSE_MS
+
+        self.box_code = (self.box_code or "") + str(n)
+        self._code_timer.start(CODE_PAUSE_MS)
+        self._box_blink()
+        self.message.emit("Code: " + "-".join(self.box_code))
+        self.changed.emit()
+
+    def _code_done(self) -> None:
+        from .automations import rules_for_code
+
+        code, self.box_code = self.box_code or "", None
+        self.update_box_led()
+        self.changed.emit()
+        if not code:
+            self.message.emit("Code-Eingabe abgebrochen.")
+            return
+        value = self.box_number() if self.knob_target() == "wert" else None
+        hits = rules_for_code(self.box_rules(), code, value)
+        if not hits:
+            self.message.emit(f"Code {'-'.join(code)}: keine passende Regel.")
+        for rule in hits:
+            self.run_rule(rule)
+
+    def box_number(self) -> int | None:
+        """Reglerzahl 0–999 (auf Wunsch umgekehrt), None ohne Box."""
+        raw = self.buttonbox.fine_value
+        if raw is None or not self.buttonbox.connected:
+            return None
+        return 999 - raw if self.config["tasten"].get("umkehren") else raw
+
+    def _box_fine(self, value: int) -> None:
+        from .automations import VALUE_SETTLE_MS
+
+        if self.knob_target() == "wert":
+            self._value_timer.start(VALUE_SETTLE_MS)
+            self.changed.emit()
+
+    def _value_settled(self) -> None:
+        """Regler steht 1 s ruhig: Regeln ohne Code mit dieser Zahl auslösen – jede nur einmal, bis der Regler den
+        Bereich verlassen hat. Der erste Wert nach dem Verbinden löst nichts aus (Box eingesteckt ≠ gedreht)."""
+        from .automations import rules_for_value
+
+        value = self.box_number()
+        if value is None or self.knob_target() != "wert":
+            return
+        hits = rules_for_value(self.box_rules(), value)
+        before, self._value_hits = self._value_hits, {r["name"] for r in hits}
+        if before is None:
+            return
+        for rule in hits:
+            if rule["name"] not in before:
+                self.run_rule(rule)
+
+    def run_rule(self, rule: dict) -> None:
+        """Das „Dann“ einer Regel ausführen."""
+        from .automations import run_external
+
+        art, ziel = rule["dann"]["art"], rule["dann"]["ziel"]
+        if self._rule_depth > 3:  # Regel ruft Regel ruft Regel …
+            self.message.emit("Wenn → Dann: zu viele Regeln hintereinander.")
+            return
+        self._rule_depth += 1
+        try:
+            if art in ("programm", "webseite", "befehl"):
+                ok, text = run_external(art, ziel)
+                self.message.emit(f"{rule['name']}: {text}")
+            elif art == "webseite_m2":
+                url = ziel if "://" in ziel else "https://" + ziel
+                self.show_source({"type": "website", "url": url})
+            elif art == "datei":
+                self.show_file(ziel)
+            else:
+                self.run_command(ziel)
+        finally:
+            self._rule_depth -= 1
+
     def _box_mute(self) -> None:
         if self.volume_locked():
             self.volume_keeper.toggle_mute()
             self.changed.emit()
 
     def _box_state(self) -> None:
+        if not self.buttonbox.connected:
+            self._value_hits = None
         if self.volume_locked():
             self.volume_keeper.set_target(0 if self.knob_wait else self.knob_value(self.buttonbox.knob))
         else:
@@ -1900,6 +2018,13 @@ class Controller(QObject):
             from . import pc_control
 
             self.message.emit(pc_control.run(command))  # Lautstärke, Programme, Fenster … (Ein/Aus nur mit Rückfrage)
+            return
+        if command.startswith("regel:"):
+            rule = next((r for r in self.box_rules() if r["name"] == command[6:]), None)
+            if rule is None:
+                self.message.emit(f"Regel „{command[6:]}“ gibt es nicht.")
+            else:
+                self.run_rule(rule)
             return
         if command.startswith("box_"):
             if not self.box_led_command(command):

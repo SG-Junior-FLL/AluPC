@@ -17,13 +17,15 @@
 //   Streifen/RGB-LEDs (WS2812B, PL9823): DIN an den Streifen-Pin, 5V, GND (am USB höchstens ~8–10 LEDs).
 //
 // Was die Box an den PC schickt (115200 Baud, eine Zeile je Meldung):
-//   HALLO ALUPC-TASTEN 4 NANO – Antwort auf „WER?“ (und einmal beim Start); 4 = Programmversion, dann das Board
+//   HALLO ALUPC-TASTEN 5 NANO – Antwort auf „WER?“ (und einmal beim Start); 5 = Programmversion, dann das Board
 //   TASTE n                   – Taste n kurz gedrückt (1–9), gemeldet beim Loslassen
 //   LANG n                    – Taste n lange gedrückt (ab 0,6 s, noch während sie unten ist)
 //   LAUT n                    – Regler steht auf n Prozent (0–100), nur wenn er sich bewegt hat, und auf „LAUT?“
+//   WERT n                    – derselbe Regler fein als Zahl 0–999 (z. B. 10-Gang-Poti mit Zählwerk), nur bei
+//                               Änderung und auf „WERT?“ (16-fach gemittelt, mit Hysterese gegen Zittern)
 //   ROH 010000000 512         – nur mit „DEBUG 1“: alle 0,1 s jede Taste (1 = unten) und der Regler roh (0–1023)
 // Was der PC schickt:
-//   WER?  LAUT?  LED n (Helligkeit 0–100, 0 = aus)  EFFEKT n (0 = ruhig, 1 = atmen, 2 = blinken, 3 = Regenbogen)
+//   WER?  LAUT?  WERT?  LED n (Helligkeit 0–100, 0 = aus)  EFFEKT n (0 = ruhig, 1 = atmen, 2 = blinken, 3 = Regenbogen)
 //   FARBE r g b (alle RGB-LEDs, je 0–255)  PIXEL i r g b (eine RGB-LED, i ab 0)  DEBUG 0|1
 //
 // RGB-LEDs (Farben je LED): eine Kette aus adressierbaren LEDs am Streifen-Pin. Reihenfolge wie im LED-Plan:
@@ -59,6 +61,8 @@ unsigned long zuletzt[9];
 unsigned long unten_seit[9];
 int regler = -1;          // zuletzt gemeldeter Wert (0–100)
 float glatt = 0;          // geglätteter Messwert (Poti rauscht etwas)
+float fein = 0;           // stärker geglättet für WERT (0–999)
+int wert = -1;            // zuletzt gemeldeter WERT
 String zeile;
 
 int hell = 0;             // gewünschte Helligkeit 0–100
@@ -106,7 +110,7 @@ int effektHelligkeit(unsigned long t) {
 }
 
 void hallo() {
-  Serial.print("HALLO ALUPC-TASTEN 4 ");
+  Serial.print("HALLO ALUPC-TASTEN 5 ");
   Serial.println(BOARD);
 }
 
@@ -124,6 +128,7 @@ void setup() {
 #endif
   ledZeigen(0);
   glatt = analogRead(REGLER);
+  fein = glatt;
   hallo();  // Nano startet beim Öffnen des Anschlusses neu – so weiß AluPC sofort Bescheid
 }
 
@@ -132,6 +137,9 @@ void befehl(String text) {
   text.toUpperCase();
   if (text == "WER?") {
     hallo();
+  } else if (text == "WERT?") {
+    Serial.print("WERT ");
+    Serial.println(wert < 0 ? 0 : wert);
   } else if (text == "LAUT?") {
     Serial.print("LAUT ");
     Serial.println(regler < 0 ? 0 : regler);
@@ -213,6 +221,20 @@ void loop() {
       regler = prozent;
       Serial.print("LAUT ");
       Serial.println(regler);
+    }
+  }
+
+  // Feiner Wert 0–999: 16 Messungen mitteln, stark glätten, erst bei mehr als 0,6 Schritten Abstand melden
+  long summe = 0;
+  for (uint8_t k = 0; k < 16; k++) summe += analogRead(REGLER);
+  fein = fein * 0.8 + (summe / 16.0) * 0.2;
+  float genau = fein * 999.0 / 1023.0;
+  if (wert < 0 || fabs(genau - wert) > 0.6) {
+    int neu = constrain((int)round(genau), 0, 999);
+    if (neu != wert) {
+      wert = neu;
+      Serial.print("WERT ");
+      Serial.println(wert);
     }
   }
 
