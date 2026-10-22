@@ -142,3 +142,49 @@ def export_mini(nr: int = 3) -> None:
         p = adapter_mini(one).translate(((i % 6) * 5.0, (i // 6) * 5.0, 0))
         grid = p if grid is None else grid.union(p)
     cq.exporters.export(grid, f"stift_adapter_mini_18x_nr{nr}.stl", tolerance=0.003, angularTolerance=0.05)
+
+
+# ============================================================
+# MINI 2 (Entwurf 4): zwei Kanäle statt einem Schlitz
+#   Schlitz fürs Schalter-Beinchen: etwas DÜNNER als das Beinchen (0,5) → klemmt das Beinchen selbst fest.
+#   Tunnel für den Jumper-Stift (0,64 Vierkant, ohne Gehäuse) direkt daneben; er schneidet ein Stück in den Schlitz
+#   → der Stift drückt seitlich auf das Beinchen = Kontakt.
+# ============================================================
+m2_wall = 0.4                    # eine Druckbahn bei 0,4-mm-Düse
+m2_slot_w = 1.45                 # Schlitz quer (Beinchen 1,5 → klemmt auch hier leicht)
+m2_tunnel = 0.70                 # Tunnel für den Jumper-Stift 0,64
+m2_overlap = 0.10                # so weit ragt der Tunnel in den Schlitz (Stift drückt aufs Beinchen)
+m2_h = 6.0
+m2_slots = [0.35, 0.40, 0.45, 0.50, 0.55]   # Schlitz-Dicke (Beinchen 0,5) – Probe Nr. 1–5
+
+
+def adapter_mini2(slot_t: float = 0.45) -> cq.Workplane:
+    x_slot0 = 0.0                                   # Schlitz von x = 0 … slot_t
+    x_tun0 = slot_t - m2_overlap                    # Tunnel schließt an und ragt m2_overlap in den Schlitz
+    x_min, x_max = -m2_wall, x_tun0 + m2_tunnel + m2_wall
+    half_y = max(m2_slot_w, m2_tunnel) / 2 + m2_wall
+    body = (cq.Workplane("XY").center((x_min + x_max) / 2, 0).rect(x_max - x_min, 2 * half_y).extrude(m2_h)
+            .edges("|Z").fillet(0.25))
+    body = body.cut(cq.Workplane("XY").workplane(offset=-eps).center(x_slot0 + slot_t / 2, 0)
+                    .rect(slot_t, m2_slot_w).extrude(m2_h + 2 * eps))
+    body = body.cut(cq.Workplane("XY").workplane(offset=-eps).center(x_tun0 + m2_tunnel / 2, 0)
+                    .rect(m2_tunnel, m2_tunnel).extrude(m2_h + 2 * eps))
+    # Einführschrägen: oben fürs Beinchen, unten für den Stift
+    body = body.cut(cq.Workplane("XY").workplane(offset=m2_h - 0.3).center(x_slot0 + slot_t / 2, 0)
+                    .rect(slot_t, m2_slot_w).workplane(offset=0.3 + eps).rect(slot_t + 0.4, m2_slot_w + 0.3).loft())
+    body = body.cut(cq.Workplane("XY").workplane(offset=-eps).center(x_tun0 + m2_tunnel / 2, 0)
+                    .rect(m2_tunnel + 0.3, m2_tunnel + 0.3).workplane(offset=0.3 + eps).rect(m2_tunnel, m2_tunnel).loft())
+    return body
+
+
+def export_mini2(nr: int = 3) -> None:
+    row = None
+    for i, t in enumerate(m2_slots):
+        p = adapter_mini2(t).translate((i * 4.0, 0, 0))
+        row = p if row is None else row.union(p)
+    cq.exporters.export(row, "stift_adapter_mini2_probe.stl", tolerance=0.003, angularTolerance=0.05)
+    grid = None
+    for i in range(18):
+        p = adapter_mini2(m2_slots[nr - 1]).translate(((i % 6) * 4.0, (i // 6) * 4.0, 0))
+        grid = p if grid is None else grid.union(p)
+    cq.exporters.export(grid, f"stift_adapter_mini2_18x_nr{nr}.stl", tolerance=0.003, angularTolerance=0.05)
