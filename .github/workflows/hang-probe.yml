@@ -26,15 +26,22 @@ jobs:
       - run: pip install ".[test]"
       - name: Bis zum ersten Hänger laufen, Speicherabbild schreiben
         shell: pwsh
-        timeout-minutes: 30
+        timeout-minutes: 34
         run: |
           $env:ALUPC_TEST_HANG_EXIT = "120"
           $env:ALUPC_TEST_MINIDUMP = "1"
-          for ($i = 1; $i -le 5; $i++) {
+          for ($i = 1; $i -le 4; $i++) {
             python -X faulthandler -m pytest -q -p no:cacheprovider tests/test_gui.py 2>&1 | Out-File -FilePath "lauf$i.log"
             $log = Get-Content "lauf$i.log"
             $at = ($log | Select-String -Pattern 'Windows fatal exception|Fatal Python error|Timeout \(' | Select-Object -First 1).LineNumber
-            if ($at) { $log[($at - 3)..($at + 30)] | Where-Object { $_.Trim() } | ForEach-Object { Write-Output ("::warning title=Lauf $i Absturz::" + $_.Trim()) } }
+            if ($at) {
+              # GitHub zeigt nur 10 Warnungen je Schritt → alles in EINE Meldung: Fehlerzeile, dann der abstürzende Thread
+              $cur = ($log | Select-String -Pattern '^Current thread' | Select-Object -First 1).LineNumber
+              $part = @($log[$at - 1]) + @($log[($at - 3)..($at - 2)])
+              if ($cur) { $part += $log[($cur - 1)..($cur + 25)] }
+              $msg = ($part | Where-Object { $_.Trim() } | ForEach-Object { $_.Trim() -replace 'C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\', '' -replace 'D:\\a\\AluPC\\AluPC\\', '' }) -join ' | '
+              Write-Output ("::error title=Lauf $i Absturz::" + $msg.Substring(0, [Math]::Min(3500, $msg.Length)))
+            }
             else { $log | Select-Object -Last 3 | ForEach-Object { Write-Output ("::notice title=Lauf $i::" + $_.Trim()) } }
             Get-Content gui-haenger-nativ.txt -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "::notice title=Abbild $i::$_" }
             if (Test-Path gui-haenger.dmp) { Write-Output "::notice title=Abbild::Lauf $i hängt – $(Get-Content gui-haenger.txt -First 1)"; break }
