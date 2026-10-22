@@ -173,7 +173,7 @@ def tastenbox_sketch_exists() -> bool:
     from alupc.ui.tastenbox_page import SKETCH
 
     text = SKETCH.read_text(encoding="utf-8")
-    return all(w in text for w in ("HALLO ALUPC-TASTEN 5", "LAUT", "WERT", "TASTE", "LANG", "EFFEKT", "FARBE", "DEBUG", "ROH", "PIXEL",
+    return all(w in text for w in ("HALLO ALUPC-TASTEN 6", "VIER_FARBEN", "LAUT", "WERT", "TASTE", "LANG", "EFFEKT", "FARBE", "DEBUG", "ROH", "PIXEL",
                                    "ARDUINO_AVR_LEONARDO"))
 
 

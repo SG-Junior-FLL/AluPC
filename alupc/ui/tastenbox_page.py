@@ -38,7 +38,7 @@ from .widgets import FlowLayout, button, font, page_header
 SKETCH = Path(__file__).resolve().parents[1] / "resources" / "arduino" / "AluPC-Tasten" / "AluPC-Tasten.ino"
 LED_MODES = {"live": "Leuchtet, wenn etwas live ist", "an": "Immer an", "aus": "Aus"}
 LED_EFFECTS = {"ruhig": "Ruhig", "atmen": "Atmen (langsam heller/dunkler)", "blinken": "Blinken",
-               "regenbogen": "Regenbogen (nur RGB-LEDs)"}
+               "regenbogen": "Farbwechsel / Regenbogen"}
 CELL = 132  # 3 × 132 passt auch ins kleinste Fenster (600 px)
 
 

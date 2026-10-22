@@ -1,6 +1,7 @@
 // AluPC-Tasten – Programm für die Tastenbox (Arduino Pro Micro oder Arduino Nano)
 //
-// 9 Tasten (3 × 3), 1 Drehregler (was er regelt, stellt man in AluPC ein), LEDs oder ein LED-Streifen.
+// 9 Tasten (3 × 3), 1 Drehregler (was er regelt, stellt man in AluPC ein), LEDs: 4 Farben (rot, grün, blau, weiß –
+// normale 5-mm-LEDs, je Farbe ein Pin) oder ein einfarbiger LED-Pin oder RGB-LEDs (Streifen).
 // In der Arduino-IDE das Board wählen – Pro Micro: „Arduino Leonardo“ (technisch gleich), Nano: „Arduino Nano“
 // (bei Nachbauten evtl. Prozessor „ATmega328P (Old Bootloader)“) –, Anschluss wählen, hochladen.
 // AluPC findet die Box danach von selbst (Seite „Tastenbox“). Die Pins passen sich dem Board an:
@@ -8,16 +9,20 @@
 //                 Pro Micro                        Nano (und Uno/Mega, z. B. in der Wokwi-Simulation)
 //   Tasten 1–9 :  D2 D3 D4 D5 D6 D7 D8 D14 D15       D2 D3 D4 D5 D6 D7 D8 D9 D10
 //   Regler     :  A0                                 A0
-//   LEDs       :  D9                                 D11
-//   Streifen   :  D10                                D12
+//   4 Farben   :  rot D9 · grün D10 · blau D16 · weiß A1     rot D11 · grün D12 · blau D13 · weiß A1   (Standard)
+//   LEDs       :  D9                                 D11       (nur ohne VIER_FARBEN: alle LEDs an einem Pin)
+//   Streifen   :  D10                                D12       (nur mit STREIFEN, statt VIER_FARBEN)
 //
 //   Tasten: jeweils das andere Bein an GND (keine Widerstände nötig).
 //   Regler: Potentiometer 10 kΩ linear – Mitte an A0, die beiden Außenbeine an 5V/VCC und GND.
 //   LEDs:   Pin → je LED ein eigener Widerstand (1 kΩ; nur eine LED: 220 Ω) → langes Bein, kurzes Bein an GND.
+//           4 Farben: je Farbe 2 LEDs (eine in zwei diagonalen Ecken), jede mit eigenem 1-kΩ-Widerstand am Farb-Pin.
+//           Farbe aus AluPC (FARBE r g b) → rot/grün/blau, der gemeinsame Weißanteil → weiß; reines Weiß/Grau → alle 4;
+//           Regenbogen = Farbwechsel rot → grün → blau → weiß.
 //   Streifen/RGB-LEDs (WS2812B, PL9823): DIN an den Streifen-Pin, 5V, GND (am USB höchstens ~8–10 LEDs).
 //
 // Was die Box an den PC schickt (115200 Baud, eine Zeile je Meldung):
-//   HALLO ALUPC-TASTEN 5 NANO – Antwort auf „WER?“ (und einmal beim Start); 5 = Programmversion, dann das Board
+//   HALLO ALUPC-TASTEN 6 NANO – Antwort auf „WER?“ (und einmal beim Start); 6 = Programmversion, dann das Board
 //   TASTE n                   – Taste n kurz gedrückt (1–9), gemeldet beim Loslassen
 //   LANG n                    – Taste n lange gedrückt (ab 0,6 s, noch während sie unten ist)
 //   LAUT n                    – Regler steht auf n Prozent (0–100), nur wenn er sich bewegt hat, und auf „LAUT?“
@@ -32,6 +37,7 @@
 //   0 = Ecke vorne links, 1 = hinten links, 2 = hinten rechts, 3 = vorne rechts, ab 4 = Lichtleiste.
 // STREIFEN = Anzahl aller LEDs der Kette (z. B. 4 Ecken + 7 Leiste = 11).
 
+#define VIER_FARBEN  // 4 einfarbige LED-Gruppen (rot, grün, blau, weiß) – ausschalten (// davor) für eine LED-Gruppe an D11
 // #define STREIFEN 11  // Zeile einschalten (// weg) für RGB-LEDs, hier 11 Stück (Bibliothek „Adafruit NeoPixel“)
 // #define ECKEN_PL9823 // einschalten, wenn die 4 Ecken 5-mm-LEDs vom Typ PL9823 sind (andere Farbreihenfolge als WS2812B)
 
@@ -39,14 +45,43 @@
 const uint8_t TASTEN[9] = {2, 3, 4, 5, 6, 7, 8, 14, 15};
 const uint8_t LED = 9;
 const uint8_t STREIFEN_PIN = 10;
+const uint8_t KANAL_PIN[4] = {9, 10, 16, A1};   // rot, grün, blau, weiß
 const char BOARD[] = "PROMICRO";
 #else
 const uint8_t TASTEN[9] = {2, 3, 4, 5, 6, 7, 8, 9, 10};
 const uint8_t LED = 11;
 const uint8_t STREIFEN_PIN = 12;
+const uint8_t KANAL_PIN[4] = {11, 12, 13, A1};  // rot, grün, blau, weiß
 const char BOARD[] = "NANO";
 #endif
 const uint8_t REGLER = A0;
+
+#if defined(VIER_FARBEN) && defined(STREIFEN)
+#error "VIER_FARBEN und STREIFEN gehen nicht zusammen (gleicher Pin) – eins von beiden ausschalten"
+#endif
+
+#ifdef VIER_FARBEN
+// Helligkeit je Farbe weich (64 Stufen, 125 Hz) für alle 4 Pins – auch die ohne PWM: Timer 1 schaltet sie
+volatile uint8_t kanal[4];
+ISR(TIMER1_COMPA_vect) {
+  static uint8_t schritt = 0;
+  schritt = (schritt + 1) & 63;
+  for (uint8_t k = 0; k < 4; k++) digitalWrite(KANAL_PIN[k], kanal[k] > schritt ? HIGH : LOW);
+}
+void kanaeleStarten() {
+  for (uint8_t k = 0; k < 4; k++) pinMode(KANAL_PIN[k], OUTPUT);
+  noInterrupts();
+  TCCR1A = 0;
+  TCCR1B = _BV(WGM12) | _BV(CS11);  // CTC, 16 MHz / 8
+  OCR1A = 249;                      // → 8 kHz Takt, 64 Stufen = 125 Hz
+  TIMSK1 = _BV(OCIE1A);
+  interrupts();
+}
+uint8_t stufe(uint16_t v, int prozent) {  // 0–255 → 0–63, quadratisch (das Auge sieht dunkle Stufen feiner)
+  v = v * prozent / 100;
+  return (uint32_t)v * v / 1032;
+}
+#endif
 
 #ifdef STREIFEN
 #include <Adafruit_NeoPixel.h>
@@ -76,7 +111,30 @@ unsigned long debugZuletzt = 0;
 
 void ledZeigen(int prozent) {
   prozent = constrain(prozent, 0, 100);
+#ifdef VIER_FARBEN
+  uint16_t r = farbe[0], g = farbe[1], b = farbe[2];
+  uint16_t w = min(r, min(g, b));  // gemeinsamer Anteil → weiße LEDs
+  if (r == g && g == b) {           // Weiß/Grau: alle 8 LEDs an (Arbeitslicht)
+    w = r;
+  } else {
+    r -= w; g -= w; b -= w;
+  }
+  if (effekt == 3) {  // „Regenbogen“ mit einfarbigen LEDs: rot → grün → blau → weiß, weich überblendet
+    unsigned long t = millis() % 6000;
+    uint8_t phase = t / 1500;
+    uint16_t f = (t % 1500) * 255 / 1500;
+    uint16_t v[4] = {0, 0, 0, 0};
+    v[phase] = 255 - f;
+    v[(phase + 1) % 4] = f;
+    r = v[0]; g = v[1]; b = v[2]; w = v[3];
+  }
+  kanal[0] = stufe(r, prozent);
+  kanal[1] = stufe(g, prozent);
+  kanal[2] = stufe(b, prozent);
+  kanal[3] = stufe(w, prozent);
+#else
   analogWrite(LED, map(prozent, 0, 100, 0, 255));
+#endif
 #ifdef STREIFEN
   for (int i = 0; i < STREIFEN; i++) {
     uint16_t r = px[i][0], g = px[i][1], b = px[i][2];
@@ -110,7 +168,7 @@ int effektHelligkeit(unsigned long t) {
 }
 
 void hallo() {
-  Serial.print("HALLO ALUPC-TASTEN 5 ");
+  Serial.print("HALLO ALUPC-TASTEN 6 ");
   Serial.println(BOARD);
 }
 
@@ -121,7 +179,11 @@ void setup() {
     gedrueckt[i] = false;
     langGemeldet[i] = false;
   }
+#ifdef VIER_FARBEN
+  kanaeleStarten();
+#else
   pinMode(LED, OUTPUT);
+#endif
 #ifdef STREIFEN
   streifen.begin();
   for (int i = 0; i < STREIFEN; i++) for (int k = 0; k < 3; k++) px[i][k] = farbe[k];

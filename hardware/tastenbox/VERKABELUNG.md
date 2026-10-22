@@ -1,7 +1,8 @@
 # Tastenbox – Verdrahtungsplan (nur stecken, nichts löten)
 
-Teile: Pro Micro (USB-C) **oder Arduino Nano** · Steckbrett 400 Kontakte · 9 MX-Schalter · Drehregler 10 kΩ linear ·
-Dupont-Kabel Buchse–Stecker und Stecker–Stecker · optional LED + 220-Ω-Widerstand oder LED-Streifen WS2812B.
+Teile: Pro Micro (USB-C) **oder Arduino Nano** · Steckbrett 400 Kontakte · 9 MX-Schalter (Outemu) ·
+10-Gang-Poti mit Zählwerk · 8 LEDs 5 mm (2 × rot, 2 × grün, 2 × blau, 2 × weiß) + 8 × 1 kΩ ·
+Dupont-Kabel Buchse–Stecker und Stecker–Stecker.
 
 Ausnahme: Die Stiftleisten am Pro Micro müssen einmal angelötet werden. Bis dahin hält die gedruckte
 Klemme (`klemme_pro_micro.py`) die Platine auf die Stifte gedrückt.
@@ -12,8 +13,10 @@ Klemme (`klemme_pro_micro.py`) die Platine auf die Stifte gedrückt.
 |---|---|---|
 | Tasten 1–9 | 2, 3, 4, 5, 6, 7, 8, 14, 15 | 2, 3, 4, 5, 6, 7, 8, 9, 10 |
 | Drehregler (Mitte) | A0 | A0 |
-| Eck-LEDs (je 1 kΩ) | 9 | 11 |
-| Lichtleiste (WS2812B, DIN) | 10 | 12 |
+| LEDs rot (2 Stück, je 1 kΩ) | 9 | 11 |
+| LEDs grün (2 Stück, je 1 kΩ) | 10 | 12 |
+| LEDs blau (2 Stück, je 1 kΩ) | 16 | 13 |
+| LEDs weiß (2 Stück, je 1 kΩ) | A1 | A1 |
 | Plus / Minus | VCC / GND | 5V / GND |
 
 Hochladen: Arduino-IDE → Board „Arduino Leonardo“ (Pro Micro) bzw. „Arduino Nano“ → Programm aus AluPC
@@ -32,12 +35,12 @@ USB-C zeigt nach oben, Bauteile zu dir:
    GND  ──┤           ├─ VCC  ◄── Plus-Leiste
   Taste1 2 ─┤         ├─ A3
   Taste2 3 ─┤         ├─ A2
-  Taste3 4 ─┤         ├─ A1
+  Taste3 4 ─┤         ├─ A1   ◄── LEDs weiß
   Taste4 5 ─┤         ├─ A0   ◄── Regler (Mitte)
   Taste5 6 ─┤         ├─ 15   ◄── Taste 9
   Taste6 7 ─┤         ├─ 14   ◄── Taste 8
-  Taste7 8 ─┤         ├─ 16      (frei – später Zündschloss)
-     LED 9 ─┤         ├─ 10   ◄── LED-Streifen DIN (optional)
+  Taste7 8 ─┤         ├─ 16   ◄── LEDs blau
+ LEDs rot 9 ─┤        ├─ 10   ◄── LEDs grün
           └───────────┘
 ```
 
@@ -117,69 +120,58 @@ oder „Zählwerk 000–100 = Prozent“ (Zählwerk 073 = 73 %, ab 100 voll).
 
 ![LED-Plan](led_plan.png)
 
-| Was | Wo | Pin | In AluPC einstellbar |
-|---|---|---|---|
-| 4 Eck-LEDs (5 mm) | je ein Halter innen in jeder Ecke | Pro Micro 9 / Nano 11 | an, aus, bei Live; Helligkeit; ruhig/atmen/blinken; Blitz bei Tastendruck |
-| Lichtleiste vorn | Schlitz vor den Tasten, Schiene darunter | Pro Micro 10 / Nano 12 | zusätzlich die **Farbe** |
+**Konzept „Kreuz“:** 8 einfarbige 5-mm-LEDs, **2 pro Ecke**, 4 Farben. Jede Farbe sitzt in zwei
+**diagonal gegenüberliegenden** Ecken – so leuchtet jeder Zustand symmetrisch über Kreuz:
 
-**Eck-LEDs einbauen (ca. 10 Min.):**
-1. LED von innen in den Halter drücken, bis der Rand anliegt – die Kuppe ist dann bündig mit der Oberseite.
-2. Beine zeigen in die Kerbe (Richtung Box-Mitte).
-3. Langes Bein: 1-kΩ-Widerstand mit Dupont-Buchse aufstecken; kurzes Bein: Dupont-Buchse.
-4. Kabel durch den nächsten Kabelhaken, an der Wand entlang zum Steckbrett.
-5. Alle 4 Widerstände → Pin 9 (Nano 11), alle kurzen Beine → Minus-Leiste.
-
-**Lichtleiste (optional, ca. 10 Min.):** WS2812B-Streifen, 10 mm breit, **mit fertig angelötetem Kabel** kaufen
-(sonst müsste man löten). 60 LEDs/m → 3 LEDs passen, 144 LEDs/m → 7.
-1. Streifen von rechts in die Schiene schieben, LEDs nach oben, Klebeseite auf den Schienenboden.
-2. Kabel durch das Fenster im Schienenboden: DIN → Pin 10 (Nano 12), 5V → Plus, GND → Minus.
-3. Im Arduino-Programm `// #define STREIFEN 8` → `#define STREIFEN 3` (bzw. 7), neu hochladen.
-
-### Bunt: RGB-LEDs (jede LED eigene Farbe) – empfohlen
+| Ecke | außen | innen |
+|---|---|---|
+| vorne links | rot | weiß |
+| hinten rechts | rot | weiß |
+| hinten links | blau | grün |
+| vorne rechts | blau | grün |
 
 ![LED-Farbplan](led_farben.png)
 
-Statt einfarbiger LEDs: **adressierbare RGB-LEDs in einer Kette** an einem einzigen Pin. AluPC kann dann
-jede LED einzeln färben – Farbschemata in AluPC (Tastenbox → Box → Farbschema, auch am Handy):
-**Eine Farbe**, **Ecken bunt** (jede Ecke eigene Farbe), **Zustand** (Rot = läuft auf Bildschirm 2,
-Gelb = Schwarz/Standbild, sonst Grundfarbe), **Regenbogen** (läuft in der Box selbst).
+So leuchtet die Box (Farbe und Schema stellst du in AluPC ein: Tastenbox → Box, auch am Handy):
 
-Teile (ohne Löten):
-- 4 × **PL9823**, 5 mm, adressierbar (4 Beine, passen in die Eck-Halter, Dupont-Buchsen steckbar)
-- Lichtleiste: WS2812B-Streifen 10 mm **mit fertig angelötetem Kabel**, 144 LEDs/m → 7 LEDs
-- Dupont-Kabel Buchse–Buchse
+| Zustand | was leuchtet | in AluPC |
+|---|---|---|
+| Bereit | grün + weiß (alle 4 Ecken) | Grundfarbe z. B. `#80ff80` |
+| Live (läuft auf Bildschirm 2) | rot (2 Ecken über Kreuz) | Farbschema „Zustand“ |
+| Schwarz / Standbild | rot + grün | Farbschema „Zustand“ |
+| Code-Eingabe (Wenn → Dann) | blinkt | automatisch |
+| Farbwechsel | rot → grün → blau → weiß wandert über Kreuz | Effekt „Farbwechsel / Regenbogen“ |
+| Arbeitslicht | alle 8 | Farbe weiß `#ffffff` |
 
-Kette (Reihenfolge = Nummer im Bild): Pin → **0** vorne links → **1** hinten links → **2** hinten rechts →
-**3** vorne rechts → Lichtleiste (ab **4**).
-1. Pin 10 (Nano 12) → DIN von LED 0.
-2. DOUT von LED 0 → DIN von LED 1, und so weiter bis LED 3. DOUT von LED 3 → DIN der Lichtleiste.
-3. Jede LED: 5V-Bein an die Plus-Leiste, GND-Bein an die Minus-Leiste (über die Kabelhaken führen).
-4. Im Arduino-Programm: `#define STREIFEN 11` (4 + 7) und `#define ECKEN_PL9823` einschalten, hochladen.
+Wie das geht: AluPC schickt eine Farbe (rot, grün, blau). Die Box schaltet damit die roten, grünen und blauen
+LEDs; was alle drei gemeinsam haben, übernehmen die weißen. Reines Weiß = alle 8 an. Helligkeit, Atmen,
+Blinken und der Blitz bei Tastendruck gehen wie bisher. (Arduino-Programm 6, `#define VIER_FARBEN` – ist an.)
 
-Strom: 11 LEDs bei voller Helligkeit weiß ≈ 0,6 A – am USB in AluPC die Helligkeit auf höchstens 50 % lassen.
-Nicht getestet: Programm 4 läuft nur in der PC-Simulation; Farbreihenfolge der PL9823 kann je Hersteller
-abweichen (falsche Farben → `ECKEN_PL9823` aus- bzw. einschalten).
+**LEDs einbauen (ca. 20 Min.):**
+1. LED von innen in ihren Halter drücken, bis der Rand anliegt – die Kuppe ist dann bündig mit der Oberseite.
+   Farbe nach der Tabelle oben (außen = an der Ecke, innen = 10 mm daneben).
+2. Beine zeigen in die Kerbe (Richtung Box-Mitte).
+3. **Langes Bein (+):** 1-kΩ-Widerstand anschließen, sein anderes Ende an ein Kabel zum Farb-Pin
+   (rot → D11, grün → D12, blau → D13, weiß → A1). Die zwei LEDs einer Farbe gehen an denselben Pin –
+   jede mit **eigenem** Widerstand.
+4. **Kurzes Bein (−):** an die blaue Minus-Leiste.
+5. Kabel über den nächsten Kabelhaken an der Wand entlang zum Steckbrett.
 
-Tipp: Wer das Oberteil in hellem Filament druckt, kann in `tastenbox_gehaeuse.py` `led_skin = 0.6` bzw.
-`bar_skin = 0.6` setzen – dann sind die Löcher oben zu und das Licht scheint weich durch (unsichtbar, solange aus).
+Strom: jede LED ~3 mA, alle 8 zusammen ~25 mA – passt locker an USB. Kleiner als 1 kΩ nicht nötig.
+Pin D13 hat auf dem Nano eine eigene kleine LED – die leuchtet mit Blau mit, das ist normal.
 
-### Licht – technische Details
+Tipp: Wer das Oberteil in hellem Filament druckt, kann in `tastenbox_gehaeuse.py` `led_skin = 0.6` setzen –
+dann sind die Löcher oben zu und das Licht scheint weich durch (unsichtbar, solange aus).
 
-- **4 LEDs in den Ecken** (5 mm, Halter sind im Gehäuse): jede LED bekommt einen **eigenen 1-kΩ-Widerstand**
-  (aus deinem Set). Pin 9 → je 1 kΩ → langes LED-Bein; kurze Beine → blaue Leiste (−).
-  Alle 4 hängen zusammen an Pin 9, AluPC schaltet sie (Live/An/Aus, Helligkeit, Blitz bei Tastendruck).
-  Nicht kleiner als 1 kΩ: Pin 9 verträgt höchstens ca. 40 mA, 4 LEDs mit 1 kΩ brauchen zusammen ca. 12 mA.
-  (Einen 3,3-V-Pin hat der Pro Micro 5 V nicht – VCC ist 5 V.)
-- **Eine LED:** Pin 9 → 220-Ω-Widerstand → langes LED-Bein. Kurzes Bein → blaue Leiste (−).
-- **LED-Streifen WS2812B** (bis ca. 8–10 LEDs): DIN → Pin 10, 5V → rote Leiste (+), GND → blaue Leiste (−).
-  Im Arduino-Programm die Zeile `// #define STREIFEN 8` aktivieren (die `//` löschen).
+Nicht getestet: Programm 6 lief nur in der PC-Simulation (Farben → Pins, Farbwechsel, Helligkeit stimmen dort).
 
-## 6. Nicht am Pro Micro
+### Andere LEDs (alte Varianten)
 
-- **Zündschloss:** vorerst nur mechanisch. Wenn es mitmelden soll: ein Kontakt → Pin 16, anderer → Minus.
-  (Arduino-Programm und AluPC brauchen dafür noch eine Erweiterung – sag Bescheid.)
+- **Alle LEDs an einem Pin** (nur an/aus/Helligkeit): im Programm `#define VIER_FARBEN` ausschalten (`//` davor),
+  alle Widerstände an D11 (Pro Micro D9).
+- **RGB-LEDs/Streifen (WS2812B, PL9823):** `VIER_FARBEN` aus, `#define STREIFEN n` an, DIN an D12 (Pro Micro D10).
 
-## 7. Fehlersuche in AluPC
+## 6. Fehlersuche in AluPC
 
 Seite **Geräte → Tastenbox → Fehlersuche → Anzeigen**:
 - oben: Anschluss, Programmversion, Board (Nano/Pro Micro)
@@ -187,7 +179,7 @@ Seite **Geräte → Tastenbox → Fehlersuche → Anzeigen**:
 - **Protokoll**: jede Zeile zwischen AluPC und Box (→ gesendet, ← empfangen), auch „keine Antwort“ bei der Suche
 - **LED testen** (blitzt 3×), **Neu verbinden**, **Protokoll kopieren** (zum Schicken)
 
-## 8. Testen ohne Bauteile: Online-Simulation (Wokwi)
+## 7. Testen ohne Bauteile: Online-Simulation (Wokwi)
 
 1. https://wokwi.com öffnen → „Arduino Mega“ neues Projekt.
    (Einen Pro Micro gibt es dort nicht. Auf Mega/Nano nimmt das Programm die Nano-Belegung: Tasten 2–10, LEDs 11.)
