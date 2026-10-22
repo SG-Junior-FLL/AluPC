@@ -2043,3 +2043,29 @@ def test_old_shell_settings_dropped(tmp_path):
     path.write_text(json.dumps({"shell": {"autostart": True}, "hotkeys": {"oberflaeche": "Ctrl+Alt+O"}}))
     cfg = Config(path)
     assert "shell" not in cfg.data and "oberflaeche" not in cfg.data["hotkeys"]
+
+def test_dual_boot_sync_tastenbox(tmp_path):
+    """Tastenbox (Belegung, Regler, LEDs, Wenn → Dann) wandert zwischen Windows und Linux – der Anschluss
+    (COM-Port vs. /dev/tty…) bleibt je System."""
+    from alupc import settings_sync as ss
+    from alupc.config import Config
+
+    shared = tmp_path / "C" / ss.FOLDER_NAME
+    shared.mkdir(parents=True)
+    win, lin = Config(tmp_path / "win.json"), Config(tmp_path / "lin.json")
+    for cfg in (win, lin):
+        cfg.data["sync"] = {**cfg.data["sync"], "enabled": True, "folder": str(shared)}
+    win["tasten"] = {**win["tasten"], "port": "COM5", "keys": {"3": "standbild"}, "regler": "wert", "led_farbe": "#ff00ff",
+                     "regeln": [{"name": "Web", "wenn": {"wert": 250}, "dann": {"art": "webseite", "ziel": "x.org"}}]}
+    lin["tasten"] = {**lin["tasten"], "port": "/dev/ttyACM0"}
+    assert "Gespeichert" in ss.sync_once(win)[0]
+    msg, changed = ss.sync_once(lin)
+    assert "tasten" in changed
+    t = lin["tasten"]
+    assert t["port"] == "/dev/ttyACM0" and t["keys"] == {"3": "standbild"} and t["regler"] == "wert"
+    assert t["led_farbe"] == "#ff00ff" and t["regeln"][0]["name"] == "Web"
+    # zurück: Linux ändert eine Taste → Windows übernimmt, behält COM5
+    lin["tasten"] = {**lin["tasten"], "keys": {"3": "schwarz"}}
+    assert "Gespeichert" in ss.sync_once(lin)[0]
+    msg, changed = ss.sync_once(win)
+    assert changed == ["tasten"] and win["tasten"]["keys"] == {"3": "schwarz"} and win["tasten"]["port"] == "COM5"

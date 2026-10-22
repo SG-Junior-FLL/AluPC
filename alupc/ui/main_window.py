@@ -2024,6 +2024,8 @@ class MainWindow(QMainWindow):
             self._apply_hotkeys()
         if "appearance" in keys:
             self.apply_theme()
+        if "tasten" in keys:  # Tastenbox: Belegung, Regler, LEDs vom anderen System sofort übernehmen
+            self.controller.apply_buttonbox()
         self.refresh()
 
     def _watch_system_theme(self):

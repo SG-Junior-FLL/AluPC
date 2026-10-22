@@ -480,3 +480,48 @@ def test_knob_scale_presets(env, monkeypatch):  # noqa: F811
     controller.config["tasten"] = {**base}
     box.port, box.version, box.fine_value, box.knob = "", 0, None, None
     controller.knob_wait = False
+
+
+def test_tastenbox_in_dual_boot_sync(env, monkeypatch):  # noqa: F811
+    """Dual-Boot-Abgleich nimmt die Tastenbox mit (Tasten, Regler, LEDs, Regeln) – den Anschluss (COM3 vs.
+    /dev/ttyACM0) nicht; nach dem Übernehmen wird die Box sofort neu eingestellt."""
+    controller, window, _ = env
+    from alupc import settings_sync as ss
+
+    assert "tastenbox" in ss.SECTIONS and "tasten" in ss.synced_keys(controller.config)
+    rules = [{"name": "Intro", "wenn": {"code": "12"}, "dann": {"art": "alupc", "ziel": "standbild"}}]
+    controller.config["tasten"] = {**controller.config["tasten"], "port": "COM7", "keys": {"1": "schwarz"},
+                                   "regeln": rules, "led_farbe": "#ff0000", "skala": "zahl_10"}
+    exported = ss.export_settings(controller.config, ["tastenbox"])
+    data = exported["data"]["tasten"]
+    assert "port" not in data and data["keys"] == {"1": "schwarz"} and data["regeln"] == rules
+    # anderes System: eigener Anschluss bleibt, alles andere kommt an
+    controller.config["tasten"] = {**controller.config["tasten"], "port": "/dev/ttyACM0", "keys": {}, "regeln": [],
+                                   "led_farbe": "#00ffa0", "skala": "prozent"}
+    applied = []
+    monkeypatch.setattr(controller, "apply_buttonbox", lambda: applied.append(True))
+    changed = ss.import_settings(controller.config, exported, ["tastenbox"])
+    t = controller.config["tasten"]
+    assert changed == ["tasten"] and t["port"] == "/dev/ttyACM0" and t["keys"] == {"1": "schwarz"}
+    assert t["regeln"] == rules and t["led_farbe"] == "#ff0000" and t["skala"] == "zahl_10"
+    controller.settings_imported.emit(changed)
+    pump()
+    assert applied
+
+
+def test_arduino_sketches_download(env, monkeypatch, tmp_path):  # noqa: F811
+    """Beide Arduino-Programme lassen sich aus der App als fertiger IDE-Ordner speichern."""
+    _controller, window, _ = env
+    from alupc.ui import tastenbox_page
+    from alupc.ui.tastenbox_page import SKETCHES, TastenboxPage
+
+    window.open_setup_section("Tastenbox")
+    pump()
+    page = window.findChild(TastenboxPage)
+    monkeypatch.setattr(tastenbox_page.QFileDialog, "getExistingDirectory", lambda *a, **k: str(tmp_path))
+    for name in SKETCHES:
+        out = page._save_sketch(name)
+        assert out == tmp_path / name / f"{name}.ino" and out.exists()
+        text = out.read_text(encoding="utf-8")
+        assert "void setup()" in text and "void loop()" in text and "JTD" in text  # Pro Micro: JTAG aus
+    assert "VIER_FARBEN" in (tmp_path / "AluPC-Tasten" / "AluPC-Tasten.ino").read_text(encoding="utf-8")

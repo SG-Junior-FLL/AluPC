@@ -9,7 +9,13 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 2.3.0 – Wenn → Dann, Vorlagen und Handy im neuen Design, LEDs am Handy, bunte LEDs
+### Neu in 2.3.0 – Tastenbox fertig (Pro Micro, 12 Farb-LEDs, Wenn → Dann), Dual-Boot-Abgleich, neues Design
+- **Arduino-Programme direkt aus AluPC** (Seite Tastenbox): Tastenbox-Programm und Poti-Test als fertiger Ordner
+  für die Arduino-IDE speichern.
+- **Arduino-Programm 6:** 3 LEDs je Ecke (rot, grün, blau) mischen jede Farbe, eigener Pin je Farbe, weiche
+  Helligkeit; Pro Micro: JTAG wird abgeschaltet (sonst gingen A0–A3 nicht); Poti-Test findet den Schleifer selbst.
+- **Dual-Boot-Abgleich nimmt die Tastenbox mit:** Tasten, Regler, LEDs, Wenn → Dann – der Anschluss (COM/tty)
+  bleibt je System.
 - **Wenn → Dann (Seite Tastenbox):** Code auf den 9 Tasten (Code-Taste lang drücken, Ziffern tippen) und/oder
   Reglerzahl 0–999 → Programm starten, Webseite öffnen, Video/Datei oder Webseite auf Bildschirm 2, eigener Befehl
   oder AluPC-Befehl. Regeln auch auf Tasten legbar. Reglerzahl braucht Arduino-Programm 5 und Regler-Ziel „Zahl 0–999“.
@@ -19,8 +25,9 @@
   keine Etiketten über Überschriften, Fließtext kräftiger; „Glas-Karte“ wird zur „Farbfeld-Karte“.
 - **Handy-Seite im Regie-Design:** flach, Haarlinien, keine Glas-Leiste, Auswahl als dünne Linie.
 - **Tastenbox-LEDs am Handy** (Seite Start): an/aus/bei Live, Effekt, Farbschema, Farbe, Helligkeit.
-- **Bunte LEDs (Arduino-Programm 4):** jede RGB-LED eigene Farbe – Schemata Eine Farbe, Ecken bunt, Zustand
-  (Rot = live), Regenbogen. Plan mit Teileliste: hardware/tastenbox/VERKABELUNG.md. Nur am PC simuliert.
+- **Bunte LEDs:** Schemata Eine Farbe, Zustand (Rot = live), Regenbogen; RGB-LED-Ketten gehen weiterhin.
+  Plan, Steckplan und 3D-Teile (Gehäuse, Tastenkappen, Drehknopf, Stift-Adapter): hardware/tastenbox/.
+  Arduino-Programme nur am PC simuliert.
 
 ### Neu in 2.2.0 – neues Design „Regie“, Updates-Seite, Tastenbox 3, neuer Aufbau
 - **Neues Standard-Design „Regie“:** fast schwarz, ruhig für lange Abende, 1-px-Haarlinien statt Schatten,

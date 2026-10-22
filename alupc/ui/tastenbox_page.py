@@ -35,7 +35,9 @@ from . import theme
 from .voice_custom import action_choices
 from .widgets import FlowLayout, button, font, page_header
 
-SKETCH = Path(__file__).resolve().parents[1] / "resources" / "arduino" / "AluPC-Tasten" / "AluPC-Tasten.ino"
+ARDUINO = Path(__file__).resolve().parents[1] / "resources" / "arduino"
+SKETCH = ARDUINO / "AluPC-Tasten" / "AluPC-Tasten.ino"
+SKETCHES = {"AluPC-Tasten": "Tastenbox-Programm", "Poti-Test": "Poti-Test (welcher Draht ist die Mitte?)"}
 LED_MODES = {"live": "Leuchtet, wenn etwas live ist", "an": "Immer an", "aus": "Aus"}
 LED_EFFECTS = {"ruhig": "Ruhig", "atmen": "Atmen (langsam heller/dunkler)", "blinken": "Blinken",
                "regenbogen": "Farbwechsel / Regenbogen"}
@@ -330,7 +332,7 @@ class TastenboxPage(QWidget):
         scheme.currentIndexChanged.connect(lambda _i: self._save(led_schema=scheme.currentData()))
         df.addRow("Farbschema:", scheme)
         self.color_btn = QPushButton()
-        self.color_btn.setToolTip("Nur LED-Streifen bzw. RGB-LEDs (WS2812B/PL9823) – einfarbige LEDs bleiben, wie sie sind")
+        self.color_btn.setToolTip("Mischfarbe der Ecken (rote, grüne, blaue LEDs, Programm 6) bzw. RGB-LEDs/Streifen")
         self.color_btn.clicked.connect(self._pick_color)
         self._show_color()
         df.addRow("Farbe:", self.color_btn)
@@ -351,12 +353,15 @@ class TastenboxPage(QWidget):
         self.port.currentIndexChanged.connect(lambda _i: self._save(port=self.port.currentData()))
         df.addRow("Anschluss:", self.port)
         dl.addLayout(df)
-        sketch = button("Arduino-Programm speichern …", "download")
-        sketch.clicked.connect(self._save_sketch)
-        dl.addWidget(sketch, 0, Qt.AlignLeft)
-        wiring = QLabel("Pro Micro: Tasten D2–D8, D14, D15 · LEDs D9 · Streifen D10.  Nano: Tasten D2–D10 · LEDs D11 · "
-                        "Streifen D12.  Beide: andere Tasten-Seite an GND · Regler (10 kΩ) Mitte an A0, außen an "
-                        "5V/VCC und GND · je LED ein eigener 1-kΩ-Widerstand.")
+        for name, label in SKETCHES.items():  # untereinander: passt auch ins kleinste Fenster
+            b = button(label.split(" (")[0] + " speichern …", "download")
+            b.setToolTip(label + " – speichert einen fertigen Ordner für die Arduino-IDE (Ordner + .ino gleichen Namens)")
+            b.clicked.connect(lambda _c=False, n=name: self._save_sketch(n))
+            dl.addWidget(b, 0, Qt.AlignLeft)
+        wiring = QLabel("Hochladen: Arduino-IDE → Board „Arduino Leonardo“ (Pro Micro) bzw. „Arduino Nano“ → Anschluss → "
+                        "Hochladen.  Pro Micro: Tasten D2–D8, D14, D15 · Regler-Mitte A0 · LEDs rot D9, grün D10, blau D16, "
+                        "weiß A1.  Nano: Tasten D2–D10 · A0 · LEDs D11, D12, D13, A1.  Je Farbe ein 220-Ω-Widerstand "
+                        "für 4 LEDs (oder 1 kΩ je LED) · andere Tasten-Seite und kurze LED-Beine an GND.")
         wiring.setObjectName("Muted")
         wiring.setWordWrap(True)
         dl.addWidget(wiring)
@@ -663,13 +668,21 @@ class TastenboxPage(QWidget):
         QGuiApplication.clipboard().setText("\n".join(bb.log))
         self.controller.message.emit("Protokoll kopiert.")
 
-    def _save_sketch(self) -> None:
-        path, _ = QFileDialog.getSaveFileName(self, "Arduino-Programm speichern", str(Path.home() / SKETCH.name),
-                                              "Arduino-Sketch (*.ino)")
-        if path:
-            Path(path).write_text(SKETCH.read_text(encoding="utf-8"), encoding="utf-8")
-            self.controller.message.emit("Gespeichert. Mit der Arduino-IDE auf die Box laden "
-                                         "(Pro Micro: Board „Arduino Leonardo“, Nano: „Arduino Nano“).")
+    def _save_sketch(self, name: str = "AluPC-Tasten") -> Path | None:
+        """Sketch als Ordner speichern – die Arduino-IDE will „Name/Name.ino“."""
+        base = QFileDialog.getExistingDirectory(self, f"{SKETCHES[name]}: Ordner wählen", str(Path.home()))
+        if not base:
+            return None
+        target = Path(base) / name
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+            out = target / f"{name}.ino"
+            out.write_text((ARDUINO / name / f"{name}.ino").read_text(encoding="utf-8"), encoding="utf-8")
+        except OSError as exc:
+            self.controller.message.emit(f"Speichern ging nicht: {exc}")
+            return None
+        self.controller.message.emit(f"Gespeichert: {out} – in der Arduino-IDE öffnen, Board wählen, hochladen.")
+        return out
 
     # ------------------------------------------------------------ Listen
     def _fill_targets(self) -> None:

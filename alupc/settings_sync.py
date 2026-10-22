@@ -57,6 +57,7 @@ SECTIONS: dict[str, tuple[str, list[str]]] = {
     "szenen": ("Szenen", ["scenes"]),
     "favoriten": ("Websites und Mediathek", ["websites", "media", "video_positions"]),
     "tasten": ("Tastenkürzel", ["hotkeys"]),
+    "tastenbox": ("Tastenbox (Tasten, Regler, LEDs, Wenn → Dann)", ["tasten"]),
     "aussehen": ("Darstellung und Übergänge", ["appearance", "transition"]),
     "schoner": ("Bildschirmschoner und Timer", ["screensaver", "timer"]),
     "toene": ("Töne", ["sounds"]),
@@ -104,6 +105,8 @@ def _portable(key: str, value):
         value.pop("openrgb_path", None)
     elif key == "whiteboard" and isinstance(value, dict):
         value.pop("board", None)  # offene Tafel: die Tafel-Dateien liegen je System im eigenen Ordner
+    elif key == "tasten" and isinstance(value, dict):
+        value.pop("port", None)  # COM3 unter Windows, /dev/ttyACM0 unter Linux – bleibt je System
     elif key == "voice" and isinstance(value, dict):
         value.pop("device", None)  # Mikrofon und System-Stimme heißen je System anders
         value.pop("speak_voice", None)
