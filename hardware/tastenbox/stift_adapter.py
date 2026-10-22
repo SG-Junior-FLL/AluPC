@@ -1,77 +1,90 @@
-"""AluPC-Tastenbox – Stift-Adapter: flaches Schalter-Beinchen (Outemu, ca. 1,5 × 0,5 mm) ↔ Dupont-Stecker (CadQuery).
+"""AluPC-Tastenbox – Stift-Adapter: flaches Schalter-Beinchen (Outemu/MX) ↔ Dupont-Jumper-Stecker (CadQuery). Entwurf 2.
 
-Ohne Löten: Unten steckt man ein normales Jumper-Kabel (Stecker, Kunststoff-Gehäuse 2,5 × 2,5 mm) hinein, oben das
-Schalter-Beinchen. Beide Metallteile liegen im selben Schlitz nebeneinander, eine federnde Zunge drückt sie
-zusammen → Kontakt. 18 Stück: je Schalter 2 Beinchen.
+Ohne Löten: unten steckt das Kunststoff-Gehäuse eines normalen Jumper-Kabels (Stecker) in einer Buchse, sein
+Metallstift ragt hoch in einen engen Schlitz. Von oben kommt das Schalter-Beinchen in denselben Schlitz und wird
+gegen den Stift gepresst (Schlitz etwas schmaler als Stift + Beinchen, unten noch enger → klemmt).
 
-    oben:  Schlitz mit Einführschräge für das Schalter-Beinchen
-           [Wand] [Dupont-Stift | Beinchen] [Feder-Zunge] [Luft] [Wand]
-    unten: viereckige Buchse für das Kunststoff-Gehäuse des Jumper-Kabels
+Maße vom MX-Footprint (KiCad-Bibliothek keyswitches.pretty, SW_MX): Beinchen bei (2,54 | −5,08) und (−3,81 | −2,54),
+Loch Ø 1,5; Mittelzapfen Ø 4,0; Kunststoffstifte Ø 1,7 bei ±5,08. Neben Beinchen 2 sind bis zum Kunststoffstift nur
+~2 mm frei → oben nur ein dünner runder „Finger“ (Ø 3,4, so lang wie das Beinchen + Luft); die breite Buchse fürs
+Jumper-Gehäuse sitzt darunter, wo der Schalter nichts mehr hat.
 
-Druck: stehend, Buchse unten auf dem Bett, ohne Stützen. PETG (federt besser) oder PLA, Düse 0,4, Schicht 0,12–0,16,
-100 % Füllung. Zuerst die drei Probestücke eng/mittel/locker drucken und mit einem echten Schalter probieren:
-   Beinchen geht nicht rein → locker · wackelt / kein Kontakt → eng.
-Prüfen: Durchgangsprüfer (Piepser) zwischen Jumper-Stift und Beinchen, dabei leicht am Kabel wackeln.
+Druck: stehend, Buchse unten aufs Bett, ohne Stützen. PETG oder PLA, Düse 0,4, Schicht 0,1–0,12, 100 % Füllung.
+Zuerst den Probestreifen (5 Größen, Kerben 1–5 an der Seite) drucken, mit einem Schalter probieren: die kleinste
+Nummer, bei der das Beinchen noch ganz hineingeht, ist richtig. Dann 18 Stück dieser Nummer drucken.
 Alle Maße in mm.
 """
 
 import cadquery as cq
 
 # ============================================================
-# PARAMETER
+# PARAMETER (Schalter laut Angabe/Footprint)
 # ============================================================
-blade_w, blade_t = 1.5, 0.5     # Schalter-Beinchen (Angabe)
+blade_w, blade_t = 1.5, 0.5     # Schalter-Beinchen (Angabe; PCB-Loch der MX-Norm ist Ø 1,5)
+blade_len = 3.3                 # so weit steht das Beinchen unter dem Schalter heraus (MX-Norm)
 dupont = 0.64                   # Vierkant-Stift des Jumper-Kabels
-housing = 2.5                   # Kunststoff-Gehäuse des Jumper-Steckers
-housing_fit = 0.2               # Luft am Gehäuse (klemmt leicht)
-socket_h = 6.0                  # so tief steckt das Gehäuse
-slot_h = 7.0                    # Schlitz über der Buchse (Dupont-Stift ragt ~6 mm aus seinem Gehäuse)
-slot_w = 2.0                    # Schlitzbreite (Beinchen 1,5 + Luft)
-wall = 1.0
-tongue_t = 0.9                  # Feder-Zunge (Dicke)
-flex_gap = 0.6                  # Luft hinter der Zunge zum Ausweichen
-slit = 0.6                      # Schlitze links/rechts der Zunge (Düse 0,4 → 0,6 bleibt offen)
-lead = 0.6                      # Einführschräge oben
-# Schlitz-Dicke = Platz für Dupont-Stift + Beinchen. Kleiner als 0,64 + 0,5 = 1,14 → Zunge muss federn = Druck.
-gaps = {"eng": 0.95, "mittel": 1.02, "locker": 1.10}
+dupont_len = 6.0                # so weit ragt der Stift aus seinem Gehäuse
+housing = 2.54                  # Kunststoff-Gehäuse des Jumper-Steckers
+housing_fit = 0.2
+
+finger_d = 3.4                  # dünner Teil oben (passt zwischen Beinchen und Kunststoffstift)
+finger_h = blade_len + 0.4      # so hoch wie das Beinchen + Luft → die breite Buchse bleibt unter Zapfen/Stiften
+socket_h = 5.0                  # so tief steckt das Gehäuse
+wall = 0.6
+slot_w = 1.65                   # Schlitz quer (Beinchen 1,5)
+taper = 0.08                    # Schlitz unten so viel enger als oben → Beinchen klemmt beim Hineinschieben
+lead = 0.4                      # Einführschräge oben
+# Schlitz-Dicke oben (Platz für Stift 0,64 + Beinchen 0,5 = 1,14). Gedruckte Schlitze werden meist ~0,1 enger.
+gaps = [1.00, 1.06, 1.12, 1.18, 1.24]
 
 eps = 0.01
 
 
-def adapter(fit: str = "mittel") -> cq.Workplane:
-    gap = gaps[fit]
-    x_wall = -dupont / 2 - 0.05               # feste Schlitzwand (Dupont-Stift liegt daran an)
-    x_tongue = x_wall + gap                   # Zungen-Innenseite
-    x_back = x_tongue + tongue_t + flex_gap   # Ende der Luft hinter der Zunge
-    sock = housing + housing_fit
-    x0 = min(-sock / 2 - wall, x_wall - wall)
-    x1 = x_back + wall
-    tw = slot_w                                # Zungenbreite = Schlitzbreite
-    y_half = tw / 2 + slit + wall
-    h = socket_h + slot_h
-    body = cq.Workplane("XY").center((x0 + x1) / 2, 0).rect(x1 - x0, 2 * y_half).extrude(h)
-    body = body.edges("|Z").fillet(0.6)
-    # Buchse unten für das Stecker-Gehäuse (Stift sitzt mittig bei x = 0)
-    body = body.cut(cq.Workplane("XY").workplane(offset=-eps).rect(sock, sock).extrude(socket_h + eps))
-    # Schlitz für beide Metallteile, durch bis oben
-    body = body.cut(cq.Workplane("XY").workplane(offset=socket_h - eps).center((x_wall + x_tongue) / 2, 0)
-                    .rect(gap, slot_w).extrude(slot_h + 2 * eps))
-    # Luft hinter der Zunge + Schlitze links/rechts: Zunge hängt nur unten am Körper und federt nach außen
-    z_free = socket_h + 1.2
-    body = body.cut(cq.Workplane("XY").workplane(offset=z_free).center(x_tongue + tongue_t + flex_gap / 2, 0)
-                    .rect(flex_gap, tw + 2 * slit).extrude(h))
-    for sy in (-1, 1):  # Schlitze vom Schlitz bis hinter die Zunge – sonst hängt die Zunge seitlich fest
-        body = body.cut(cq.Workplane("XY").workplane(offset=z_free).center((x_wall + x_back) / 2, sy * (tw / 2 + slit / 2))
-                        .rect(x_back - x_wall, slit).extrude(h))
-    # Einführschräge oben (Trichter)
-    body = body.cut(cq.Workplane("XY").workplane(offset=h - lead).center((x_wall + x_tongue) / 2, 0)
-                    .rect(gap, slot_w).workplane(offset=lead + eps).rect(gap + 2 * lead, slot_w + 2 * lead)
-                    .loft())
+def total_h() -> float:
+    # Stift endet 0,5 unter der Oberkante (darf nicht am Schalterboden anstoßen)
+    return socket_h + dupont_len + 0.5
+
+
+def adapter(gap: float = 1.12, mark: int = 0) -> cq.Workplane:
+    h = total_h()
+    block = housing + housing_fit + 2 * wall
+    neck_top = h - finger_h
+    guide = dupont + 0.16                     # Führung für den Stift (Stift-Achse bei x = 0, mittig im Gehäuse)
+    x0 = -guide / 2                           # Schlitz: −x-Wand = Wand der Stift-Führung
+    sc = x0 + gap / 2                         # Schlitz-Mitte = Finger-Mitte (Stift links, Beinchen rechts)
+    body = cq.Workplane("XY").rect(block, block).extrude(neck_top).edges("|Z").fillet(0.5)
+    body = body.union(cq.Workplane("XY").workplane(offset=neck_top - eps).center(sc, 0).circle(finger_d / 2)
+                      .extrude(finger_h + eps))
+    body = body.union(cq.Workplane("XY").workplane(offset=neck_top - 1.0).rect(block, block)
+                      .workplane(offset=1.0).center(sc, 0).circle(finger_d / 2).loft())   # weicher Übergang
+    # Buchse für das Stecker-Gehäuse
+    body = body.cut(cq.Workplane("XY").workplane(offset=-eps).rect(housing + housing_fit, housing + housing_fit)
+                    .extrude(socket_h + eps))
+    # Führung für den Stift vom Gehäuse bis oben
+    body = body.cut(cq.Workplane("XY").workplane(offset=socket_h - eps).rect(guide, guide).extrude(h))
+    # Schlitz im Finger (unten um „taper“ enger) + Einführschräge
+    body = body.cut(cq.Workplane("XY").workplane(offset=neck_top).center(sc + taper / 2, 0)
+                    .rect(gap - taper, slot_w - taper).workplane(offset=finger_h - lead).center(-taper / 2, 0)
+                    .rect(gap, slot_w).loft())
+    body = body.cut(cq.Workplane("XY").workplane(offset=h - lead).center(sc, 0).rect(gap, slot_w)
+                    .workplane(offset=lead + eps).rect(gap + 2 * lead, slot_w + 2 * lead).loft())
+    # Kerben an der Seite = Größen-Nummer (zum Wiederfinden)
+    for i in range(mark):
+        body = body.cut(cq.Workplane("XY").workplane(offset=0.8 + i * 0.9).center(block / 2, 0)
+                        .rect(0.8, block + 1).extrude(0.4))
     return body
 
 
-def plate(fit: str = "mittel", n: int = 18, cols: int = 6, pitch: float = 9.0) -> cq.Workplane:
-    one = adapter(fit)
+def strip() -> cq.Workplane:
+    out = None
+    for i, gap in enumerate(gaps):
+        p = adapter(gap, i + 1).translate((i * 6.0, 0, 0))
+        out = p if out is None else out.union(p)
+    return out
+
+
+def plate(gap: float, n: int = 18, cols: int = 6, pitch: float = 6.0) -> cq.Workplane:
+    one = adapter(gap)
     out = None
     for i in range(n):
         p = one.translate(((i % cols) * pitch, (i // cols) * pitch, 0))
@@ -80,8 +93,10 @@ def plate(fit: str = "mittel", n: int = 18, cols: int = 6, pitch: float = 9.0) -
 
 
 if __name__ == "__main__":
-    for fit in gaps:
-        cq.exporters.export(adapter(fit), f"stift_adapter_{fit}.stl", tolerance=0.005, angularTolerance=0.05)
-    cq.exporters.export(plate("mittel"), "stift_adapter_18x.stl", tolerance=0.005, angularTolerance=0.05)
+    import sys
+
+    cq.exporters.export(strip(), "stift_adapter_probe.stl", tolerance=0.005, angularTolerance=0.05)
+    nr = int(sys.argv[1]) if len(sys.argv) > 1 else 3   # Größe aus dem Probestreifen (1–5)
+    cq.exporters.export(plate(gaps[nr - 1]), f"stift_adapter_18x_nr{nr}.stl", tolerance=0.005, angularTolerance=0.05)
     bb = adapter().val().BoundingBox()
-    print(f"Ein Adapter: {bb.xlen:.1f} × {bb.ylen:.1f} × {bb.zlen:.1f} mm")
+    print(f"Ein Adapter: {bb.xlen:.1f} × {bb.ylen:.1f} × {bb.zlen:.1f} mm, Finger Ø {finger_d} × {finger_h:.1f}")

@@ -58,9 +58,12 @@ USB-C zeigt nach oben, Bauteile zu dir:
 Jeder Schalter hat 2 Beinchen. Auf jedes Beinchen eine **Dupont-Buchse** stecken.
 
 **Beinchen zu dünn, Dupont-Buchse wackelt? → Stift-Adapter (3D-Druck, `stift_adapter.py`):** unten ein normales
-Jumper-Kabel (Stecker) hinein, oben das Schalter-Beinchen – eine Feder-Zunge drückt beide Metallteile zusammen.
-18 Stück auf einer Platte: `stift_adapter_18x.stl`. Zuerst die Probestücke `stift_adapter_eng/mittel/locker.stl`
-drucken (stehend, ohne Stützen, PETG oder PLA, 0,12 mm Schicht) und mit dem Piepser prüfen.
+Jumper-Kabel (Stecker) hinein, oben das Schalter-Beinchen – der enge Schlitz presst beide Metallteile zusammen.
+Oben nur ein dünner Finger (Ø 3,4), passt zwischen Beinchen, Mittelzapfen und Kunststoffstifte (MX-Maße geprüft).
+1. `stift_adapter_probe.stl` drucken: 5 Größen, Kerben 1–5 an der Seite (stehend, ohne Stützen, 0,1 mm Schicht).
+2. Auf ein Beinchen stecken: die **kleinste Nummer, bei der das Beinchen noch ganz hineingeht**, ist richtig.
+   Mit dem Piepser prüfen (Jumper-Stift ↔ Beinchen).
+3. `python stift_adapter.py <Nummer>` → `stift_adapter_18x_nr<Nummer>.stl` (18 Stück) drucken. Nr. 3 liegt schon bei.
 ![Stift-Adapter](stift_adapter_preview.png)
 
 Ohne Druck, in dieser Reihenfolge:
