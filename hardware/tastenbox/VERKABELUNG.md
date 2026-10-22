@@ -216,3 +216,8 @@ Seite **Geräte → Tastenbox → Fehlersuche → Anzeigen**:
 3. Inhalt von `wokwi/diagram.json` in `diagram.json` kopieren (Reiter oben).
 4. ▶ starten. Taste anklicken → unten im Serial Monitor erscheint `TASTE 1`, gedrückt halten → `LANG 1`,
    Regler drehen → `LAUT 57`.
+
+## Buzzer (optional)
+
+Buzzer **+** (langes Bein) → **A2** (Steckbrett j6), Buzzer **−** → Minus-Leiste. Aktiver Buzzer: 100 Ω davor geht auch.
+Test: in AluPC „Buzzer-Test“ speichern und hochladen → Taste 1–9 spielt je ein Lied, nochmal drücken stoppt.

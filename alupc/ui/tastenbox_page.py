@@ -37,7 +37,8 @@ from .widgets import FlowLayout, button, font, page_header
 
 ARDUINO = Path(__file__).resolve().parents[1] / "resources" / "arduino"
 SKETCH = ARDUINO / "AluPC-Tasten" / "AluPC-Tasten.ino"
-SKETCHES = {"AluPC-Tasten": "Tastenbox-Programm", "Poti-Test": "Poti-Test (welcher Draht ist die Mitte?)"}
+SKETCHES = {"AluPC-Tasten": "Tastenbox-Programm", "Poti-Test": "Poti-Test (welcher Draht ist die Mitte?)",
+            "Buzzer-Test": "Buzzer-Test (Taste drücken = Lied, Buzzer an A2)"}
 LED_MODES = {"live": "Leuchtet, wenn etwas live ist", "an": "Immer an", "aus": "Aus"}
 LED_EFFECTS = {"ruhig": "Ruhig", "atmen": "Atmen (langsam heller/dunkler)", "blinken": "Blinken",
                "regenbogen": "Farbwechsel / Regenbogen"}
