@@ -64,6 +64,13 @@ Oben nur ein dünner Finger (Ø 3,4), passt zwischen Beinchen, Mittelzapfen und 
 2. Auf ein Beinchen stecken: die **kleinste Nummer, bei der das Beinchen noch ganz hineingeht**, ist richtig.
    Mit dem Piepser prüfen (Jumper-Stift ↔ Beinchen).
 3. `python stift_adapter.py <Nummer>` → `stift_adapter_18x_nr<Nummer>.stl` (18 Stück) drucken. Nr. 3 liegt schon bei.
+
+**Mini-Variante (kleinste, empfohlen wenn der normale Adapter zu groß ist):** Kunststoff-Gehäuse vom Jumper-Stecker
+mit einer Nadel abziehen (Rastnase anheben) → nur Metallstift bleibt. Hülse nur 1,7–2,0 × 2,55 × 6,5 mm:
+Jumper-Stift von unten, Schalter-Beinchen von oben hineinschieben. `stift_adapter_mini_probe.stl` (5 Größen,
+links = Nr. 1 … rechts = Nr. 5 – nach dem Druck mit Stift nummerieren), dann `stift_adapter_mini_18x_nr3.stl`.
+Druck: Brim 3 mm, Schicht 0,08–0,1, „dünne Wände erkennen“ an (Wand 0,5 mm). Danach mit Isoband/Schrumpfschlauch
+über Hülse + Crimp sichern.
 ![Stift-Adapter](stift_adapter_preview.png)
 
 Ohne Druck, in dieser Reihenfolge:

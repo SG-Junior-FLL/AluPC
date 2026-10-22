@@ -100,3 +100,45 @@ if __name__ == "__main__":
     cq.exporters.export(plate(gaps[nr - 1]), f"stift_adapter_18x_nr{nr}.stl", tolerance=0.005, angularTolerance=0.05)
     bb = adapter().val().BoundingBox()
     print(f"Ein Adapter: {bb.xlen:.1f} × {bb.ylen:.1f} × {bb.zlen:.1f} mm, Finger Ø {finger_d} × {finger_h:.1f}")
+
+
+# ============================================================
+# MINI-VARIANTE (Entwurf 3): ohne das Kunststoff-Gehäuse des Jumper-Steckers
+# Gehäuse mit einer Nadel abziehen (Rastnase anheben) → nur der Metallstift + Crimp bleiben.
+# Dann ist der Adapter nur noch eine winzige Hülse: Stift von unten, Beinchen von oben, beide nebeneinander gepresst.
+# ============================================================
+mini_wall = 0.5
+mini_h = 6.5          # Beinchen 3,3 von oben, Jumper-Stift ~3,2 von unten → ~2,8 mm aneinander
+mini_lead = 0.3
+
+
+def adapter_mini(gap: float = 0.86) -> cq.Workplane:
+    w = gap + 2 * mini_wall
+    d = slot_w + 2 * mini_wall
+    body = cq.Workplane("XY").rect(w, d).extrude(mini_h).edges("|Z").fillet(0.3)
+    body = body.cut(cq.Workplane("XY").workplane(offset=-eps).rect(gap - taper, slot_w - taper)
+                    .workplane(offset=mini_h / 2 + eps).rect(gap, slot_w).loft())          # unten etwas enger
+    body = body.cut(cq.Workplane("XY").workplane(offset=mini_h / 2).rect(gap, slot_w)
+                    .workplane(offset=mini_h / 2 + eps).rect(gap, slot_w).loft())
+    for z0, sign in ((0, 1), (mini_h, -1)):                                                  # Einführschrägen
+        body = body.cut(cq.Workplane("XY").workplane(offset=z0 - sign * eps).rect(gap + 2 * mini_lead, slot_w + 2 * mini_lead)
+                        .workplane(offset=sign * (mini_lead + eps)).rect(gap - taper, slot_w - taper).loft())
+    return body
+
+
+def mini_row(gaps_, pitch: float = 5.0) -> cq.Workplane:
+    out = None
+    for i, g in enumerate(gaps_):
+        p = adapter_mini(g).translate((i * pitch, 0, 0))
+        out = p if out is None else out.union(p)
+    return out
+
+
+def export_mini(nr: int = 3) -> None:
+    cq.exporters.export(mini_row(gaps), "stift_adapter_mini_probe.stl", tolerance=0.003, angularTolerance=0.05)
+    one = gaps[nr - 1]
+    grid = None
+    for i in range(18):
+        p = adapter_mini(one).translate(((i % 6) * 5.0, (i // 6) * 5.0, 0))
+        grid = p if grid is None else grid.union(p)
+    cq.exporters.export(grid, f"stift_adapter_mini_18x_nr{nr}.stl", tolerance=0.003, angularTolerance=0.05)
