@@ -99,6 +99,25 @@ def _native_dump_later(seconds: int):
 
     cancel = threading.Event()
     pid = str(os.getpid())
+    if sys.platform == "win32" and os.environ.get("ALUPC_TEST_MINIDUMP"):
+        # Speicherabbild aus dem eigenen Prozess (dbghelp) – braucht keinen Debugger, der sich anhängt (das hing);
+        # ausgewertet wird es danach offline mit „cdb -z“
+        def dump():
+            if cancel.wait(seconds):
+                return
+            import ctypes
+            from ctypes import wintypes
+
+            k32, dbg = ctypes.windll.kernel32, ctypes.windll.dbghelp
+            k32.CreateFileW.restype = wintypes.HANDLE
+            h = k32.CreateFileW(os.path.abspath("gui-haenger.dmp"), 0x40000000, 0, None, 2, 0x80, None)
+            ok = dbg.MiniDumpWriteDump(wintypes.HANDLE(k32.GetCurrentProcess()), int(pid), wintypes.HANDLE(h),
+                                       0x1 | 0x4 | 0x1000, None, None, None)  # Daten-Segmente, Handles, Thread-Infos
+            k32.CloseHandle(wintypes.HANDLE(h))
+            Path("gui-haenger-nativ.txt").write_text(f"Speicherabbild geschrieben: {bool(ok)}", encoding="utf-8")
+
+        threading.Thread(target=dump, name="haenger-abbild", daemon=True).start()
+        return cancel
     if sys.platform == "win32":
         cdb = shutil.which("cdb") or next(iter(sorted(glob.glob(
             r"C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe"))), None)
