@@ -1,7 +1,7 @@
 # Tastenbox – Verdrahtungsplan (nur stecken, nichts löten)
 
 Teile: Pro Micro (USB-C) **oder Arduino Nano** · Steckbrett 400 Kontakte · 9 MX-Schalter (Outemu) ·
-10-Gang-Poti mit Zählwerk · 8 LEDs 5 mm (2 × rot, 2 × grün, 2 × blau, 2 × weiß) + 8 × 1 kΩ ·
+10-Gang-Poti mit Zählwerk · 12 LEDs 5 mm (4 × rot, 4 × grün, 4 × blau) + 12 × 1 kΩ ·
 Dupont-Kabel Buchse–Stecker und Stecker–Stecker.
 
 Ausnahme: Die Stiftleisten am Pro Micro müssen einmal angelötet werden. Bis dahin hält die gedruckte
@@ -13,10 +13,10 @@ Klemme (`klemme_pro_micro.py`) die Platine auf die Stifte gedrückt.
 |---|---|---|
 | Tasten 1–9 | 2, 3, 4, 5, 6, 7, 8, 14, 15 | 2, 3, 4, 5, 6, 7, 8, 9, 10 |
 | Drehregler (Mitte) | A0 | A0 |
-| LEDs rot (2 Stück, je 1 kΩ) | 9 | 11 |
-| LEDs grün (2 Stück, je 1 kΩ) | 10 | 12 |
-| LEDs blau (2 Stück, je 1 kΩ) | 16 | 13 |
-| LEDs weiß (2 Stück, je 1 kΩ) | A1 | A1 |
+| LEDs rot (4 Stück, je 1 kΩ) | 9 | 11 |
+| LEDs grün (4 Stück, je 1 kΩ) | 10 | 12 |
+| LEDs blau (4 Stück, je 1 kΩ) | 16 | 13 |
+| (frei: weiß, optional) | A1 | A1 |
 | Plus / Minus | VCC / GND | 5V / GND |
 
 Hochladen: Arduino-IDE → Board „Arduino Leonardo“ (Pro Micro) bzw. „Arduino Nano“ → Programm aus AluPC
@@ -120,53 +120,59 @@ oder „Zählwerk 000–100 = Prozent“ (Zählwerk 073 = 73 %, ab 100 voll).
 
 ![LED-Plan](led_plan.png)
 
-**Konzept „Kreuz“:** 8 einfarbige 5-mm-LEDs, **2 pro Ecke**, 4 Farben. Jede Farbe sitzt in zwei
-**diagonal gegenüberliegenden** Ecken – so leuchtet jeder Zustand symmetrisch über Kreuz:
-
-| Ecke | außen | innen |
-|---|---|---|
-| vorne links | rot | weiß |
-| hinten rechts | rot | weiß |
-| hinten links | blau | grün |
-| vorne rechts | blau | grün |
+**Konzept „Farbmischer“:** 12 einfarbige 5-mm-LEDs, **3 pro Ecke in einer Reihe: rot (außen), grün, blau (innen)**.
+Jede Ecke mischt wie eine RGB-LED – AluPC kann damit jede Farbe zeigen (gelb = rot + grün, lila = rot + blau,
+türkis = grün + blau, alle drei ≈ weiß). Die 4 roten hängen an einem Pin, die 4 grünen an einem, die 4 blauen an einem.
 
 ![LED-Farbplan](led_farben.png)
 
-So leuchtet die Box (Farbe und Schema stellst du in AluPC ein: Tastenbox → Box, auch am Handy):
-
 | Zustand | was leuchtet | in AluPC |
 |---|---|---|
-| Bereit | grün + weiß (alle 4 Ecken) | Grundfarbe z. B. `#80ff80` |
-| Live (läuft auf Bildschirm 2) | rot (2 Ecken über Kreuz) | Farbschema „Zustand“ |
-| Schwarz / Standbild | rot + grün | Farbschema „Zustand“ |
+| Bereit | Grundfarbe in allen Ecken | Farbe wählen (z. B. türkis) |
+| Live (läuft auf Bildschirm 2) | rot | Farbschema „Zustand“ |
+| Schwarz / Standbild | gelb | Farbschema „Zustand“ |
 | Code-Eingabe (Wenn → Dann) | blinkt | automatisch |
-| Farbwechsel | rot → grün → blau → weiß wandert über Kreuz | Effekt „Farbwechsel / Regenbogen“ |
-| Arbeitslicht | alle 8 | Farbe weiß `#ffffff` |
+| Regenbogen | alle Ecken laufen durch den Farbkreis | Effekt „Farbwechsel / Regenbogen“ |
 
-Wie das geht: AluPC schickt eine Farbe (rot, grün, blau). Die Box schaltet damit die roten, grünen und blauen
-LEDs; was alle drei gemeinsam haben, übernehmen die weißen. Reines Weiß = alle 8 an. Helligkeit, Atmen,
-Blinken und der Blitz bei Tastendruck gehen wie bisher. (Arduino-Programm 6, `#define VIER_FARBEN` – ist an.)
+Helligkeit, Atmen, Blinken und der Blitz bei Tastendruck gehen wie bisher (Arduino-Programm 6, `#define VIER_FARBEN`
+ist an). Weiße LEDs: nicht in den Ecken nötig – Pin A1 bleibt frei (z. B. später als Licht fürs Zählwerk).
 
-**LEDs einbauen (ca. 20 Min.):**
+### Steckplan (Pro Micro auf dem Steckbrett, Reihe 1–12)
+
+![Steckplan](steckbrett_plan.png)
+
+„a“ = das freie Loch links außen neben dem Pin, „j“ = rechts außen (je nachdem, wo dein Pro Micro steckt,
+kann das auch b oder i sein – Hauptsache dieselbe **Reihe** wie der Pin).
+
+1. **Strom:** GND (Reihe 2 rechts) → blaue Minus-Leiste rechts; GND (Reihe 3 links) → Minus-Leiste links;
+   VCC (Reihe 4 rechts) → rote Plus-Leiste rechts. (Prüfen, ob die Leisten in der Mitte getrennt sind – dann brücken.)
+2. **Tasten:** Taste 1–7 in a5–a11 (Pins 2–8), Taste 8 in j10 (Pin 14), Taste 9 in j9 (Pin 15).
+   Das andere Beinchen aller 9 Tasten über **einen** gewickelten Draht an Minus.
+3. **Poti:** gelb → j8 (A0), rot → Plus, grau → Minus.
+4. **LEDs, je Farbe gleich:** Kabel vom Farb-Pin in eine freie **Verteiler-Reihe** (rot: a12 → a15,
+   grün: j12 → j15, blau: j11 → j22). Von der Verteiler-Reihe 4 Widerstände (1 kΩ) in 4 **eigene** Reihen
+   (je Widerstand eine andere Reihe!). Dort das Kabel zum langen Bein der LED in der jeweiligen Ecke.
+5. **Kurze LED-Beine:** je Ecke die 3 zusammenwickeln → 1 Kabel an Minus (4 Kabel für alle 12 LEDs).
+
+**LEDs einbauen (ca. 25 Min.):**
 1. LED von innen in ihren Halter drücken, bis der Rand anliegt – die Kuppe ist dann bündig mit der Oberseite.
-   Farbe nach der Tabelle oben (außen = an der Ecke, innen = 10 mm daneben).
+   Reihenfolge je Ecke: außen rot, Mitte grün, innen blau.
 2. Beine zeigen in die Kerbe (Richtung Box-Mitte).
-3. **Langes Bein (+):** 1-kΩ-Widerstand anschließen, sein anderes Ende an ein Kabel zum Farb-Pin
-   (rot → D11, grün → D12, blau → D13, weiß → A1). Die zwei LEDs einer Farbe gehen an denselben Pin –
-   jede mit **eigenem** Widerstand.
-4. **Kurzes Bein (−):** an die blaue Minus-Leiste.
-5. Kabel über den nächsten Kabelhaken an der Wand entlang zum Steckbrett.
+3. Langes Bein (+) → Kabel zum Steckbrett (Reihe laut Steckplan), kurzes Bein (−) → Minus.
+4. Kabel über den nächsten Kabelhaken an der Wand entlang zum Steckbrett.
 
-Strom: jede LED ~3 mA, alle 8 zusammen ~25 mA – passt locker an USB. Kleiner als 1 kΩ nicht nötig.
-Pin D13 hat auf dem Nano eine eigene kleine LED – die leuchtet mit Blau mit, das ist normal.
+Strom: jede LED ~3 mA, 4 an einem Pin ~12 mA (erlaubt: 40 mA), alle 12 zusammen ~36 mA – passt locker an USB.
+Kleiner als 1 kΩ nicht nötig. (Nano: D13 hat eine eigene kleine LED – die leuchtet mit Blau mit, das ist normal.)
 
 Tipp: Wer das Oberteil in hellem Filament druckt, kann in `tastenbox_gehaeuse.py` `led_skin = 0.6` setzen –
 dann sind die Löcher oben zu und das Licht scheint weich durch (unsichtbar, solange aus).
 
-Nicht getestet: Programm 6 lief nur in der PC-Simulation (Farben → Pins, Farbwechsel, Helligkeit stimmen dort).
+Nicht getestet: Programm 6 lief nur in der PC-Simulation (Farben → Pins, Regenbogen, Helligkeit stimmen dort,
+für Nano und Pro Micro). Es braucht einen Pro Micro mit 16 MHz (USB-C-Nachbauten meist 5 V / 16 MHz).
 
 ### Andere LEDs (alte Varianten)
 
+- **Weiße LEDs als 4. Farbe in den Ecken** (Konzept „Kreuz“): `#define WEISS_IN_ECKEN` einschalten, weiß an A1.
 - **Alle LEDs an einem Pin** (nur an/aus/Helligkeit): im Programm `#define VIER_FARBEN` ausschalten (`//` davor),
   alle Widerstände an D11 (Pro Micro D9).
 - **RGB-LEDs/Streifen (WS2812B, PL9823):** `VIER_FARBEN` aus, `#define STREIFEN n` an, DIN an D12 (Pro Micro D10).

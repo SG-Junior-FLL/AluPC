@@ -16,9 +16,10 @@
 //   Tasten: jeweils das andere Bein an GND (keine Widerstände nötig).
 //   Regler: Potentiometer 10 kΩ linear – Mitte an A0, die beiden Außenbeine an 5V/VCC und GND.
 //   LEDs:   Pin → je LED ein eigener Widerstand (1 kΩ; nur eine LED: 220 Ω) → langes Bein, kurzes Bein an GND.
-//           4 Farben: je Farbe 2 LEDs (eine in zwei diagonalen Ecken), jede mit eigenem 1-kΩ-Widerstand am Farb-Pin.
-//           Farbe aus AluPC (FARBE r g b) → rot/grün/blau, der gemeinsame Weißanteil → weiß; reines Weiß/Grau → alle 4;
-//           Regenbogen = Farbwechsel rot → grün → blau → weiß.
+//           4 Farben: je Ecke 3 LEDs rot, grün, blau („Farbmischer“, wie eine RGB-LED) – alle LEDs einer Farbe am
+//           selben Farb-Pin, jede mit eigenem 1-kΩ-Widerstand. Farbe aus AluPC (FARBE r g b) → rot/grün/blau direkt,
+//           Mischfarben entstehen in jeder Ecke; Regenbogen = Farbkreis. Weiß-Pin: gemeinsamer Weißanteil (optional).
+//           Mit WEISS_IN_ECKEN (weiße LEDs als 4. Farbe in den Ecken): Weißanteil geht an weiß statt an r/g/b.
 //   Streifen/RGB-LEDs (WS2812B, PL9823): DIN an den Streifen-Pin, 5V, GND (am USB höchstens ~8–10 LEDs).
 //
 // Was die Box an den PC schickt (115200 Baud, eine Zeile je Meldung):
@@ -37,7 +38,8 @@
 //   0 = Ecke vorne links, 1 = hinten links, 2 = hinten rechts, 3 = vorne rechts, ab 4 = Lichtleiste.
 // STREIFEN = Anzahl aller LEDs der Kette (z. B. 4 Ecken + 7 Leiste = 11).
 
-#define VIER_FARBEN  // 4 einfarbige LED-Gruppen (rot, grün, blau, weiß) – ausschalten (// davor) für eine LED-Gruppe an D11
+#define VIER_FARBEN  // 4 einfarbige LED-Gruppen
+// #define WEISS_IN_ECKEN  // einschalten, wenn weiße LEDs als eigene Farbe in den Ecken sitzen (Konzept „Kreuz“) (rot, grün, blau, weiß) – ausschalten (// davor) für eine LED-Gruppe an D11
 // #define STREIFEN 11  // Zeile einschalten (// weg) für RGB-LEDs, hier 11 Stück (Bibliothek „Adafruit NeoPixel“)
 // #define ECKEN_PL9823 // einschalten, wenn die 4 Ecken 5-mm-LEDs vom Typ PL9823 sind (andere Farbreihenfolge als WS2812B)
 
@@ -73,7 +75,7 @@ void kanaeleStarten() {
   noInterrupts();
   TCCR1A = 0;
   TCCR1B = _BV(WGM12) | _BV(CS11);  // CTC, 16 MHz / 8
-  OCR1A = 249;                      // → 8 kHz Takt, 64 Stufen = 125 Hz
+  OCR1A = F_CPU / 8 / 8000 - 1;     // → 8 kHz Takt, 64 Stufen = 125 Hz (16 MHz: 249; 8-MHz-Boards: 124)
   TIMSK1 = _BV(OCIE1A);
   interrupts();
 }
@@ -114,12 +116,13 @@ void ledZeigen(int prozent) {
 #ifdef VIER_FARBEN
   uint16_t r = farbe[0], g = farbe[1], b = farbe[2];
   uint16_t w = min(r, min(g, b));  // gemeinsamer Anteil → weiße LEDs
-  if (r == g && g == b) {           // Weiß/Grau: alle 8 LEDs an (Arbeitslicht)
+#ifdef WEISS_IN_ECKEN
+  if (r == g && g == b) {           // Weiß/Grau: alle LEDs an (Arbeitslicht)
     w = r;
   } else {
     r -= w; g -= w; b -= w;
   }
-  if (effekt == 3) {  // „Regenbogen“ mit einfarbigen LEDs: rot → grün → blau → weiß, weich überblendet
+  if (effekt == 3) {  // „Regenbogen“ mit 4 Farben: rot → grün → blau → weiß, weich überblendet
     unsigned long t = millis() % 6000;
     uint8_t phase = t / 1500;
     uint16_t f = (t % 1500) * 255 / 1500;
@@ -128,6 +131,16 @@ void ledZeigen(int prozent) {
     v[(phase + 1) % 4] = f;
     r = v[0]; g = v[1]; b = v[2]; w = v[3];
   }
+#else
+  if (effekt == 3) {  // Regenbogen: rot/grün/blau mischen sich in jeder Ecke zum Farbkreis (6 s rundum)
+    uint16_t hue = (millis() / 24) % 256;
+    uint8_t seg = hue / 43, f = (hue % 43) * 6;
+    uint8_t q = 255 - f;
+    const uint8_t rgb[6][3] = {{255, f, 0}, {q, 255, 0}, {0, 255, f}, {0, q, 255}, {f, 0, 255}, {255, 0, q}};
+    r = rgb[seg % 6][0]; g = rgb[seg % 6][1]; b = rgb[seg % 6][2];
+    w = 0;
+  }
+#endif
   kanal[0] = stufe(r, prozent);
   kanal[1] = stufe(g, prozent);
   kanal[2] = stufe(b, prozent);

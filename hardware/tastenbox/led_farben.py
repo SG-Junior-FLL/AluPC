@@ -1,5 +1,5 @@
-"""LED-Farbkonzept der Tastenbox mit einfarbigen 5-mm-LEDs: je Ecke 2 LEDs, 4 Farben (rot, grün, blau, weiß),
-jede Farbe in zwei diagonalen Ecken („Kreuz“). Zeigt, wie die Box bei den Zuständen aus AluPC leuchtet.
+"""LED-Farbkonzept der Tastenbox mit einfarbigen 5-mm-LEDs: je Ecke 3 LEDs (rot, grün, blau) = ein „Farbmischer“
+wie eine RGB-LED. Zeigt, wie die Box bei den Zuständen aus AluPC leuchtet.
 Draufsicht, Maße aus tastenbox_gehaeuse.py → led_farben.png"""
 
 import runpy
@@ -14,17 +14,17 @@ g = runpy.run_path("tastenbox_gehaeuse.py")
 bw, bd = g["box_w"], g["box_d"]
 HEX = {"rot": "#ff3b30", "grün": "#34e07a", "blau": "#3d7bff", "weiß": "#f4f4f6"}
 # g["leds"]: vorne links außen/innen, hinten links außen/innen, vorne rechts außen/innen, hinten rechts außen/innen
-FARBE = ["rot", "weiß", "blau", "grün", "blau", "grün", "rot", "weiß"]
-PIN = {"rot": "D11", "grün": "D12", "blau": "D13", "weiß": "A1"}
+FARBE = ["rot", "grün", "blau"] * 4
+PIN = {"rot": "9", "grün": "10", "blau": "16"}
 
 # (Titel, AluPC-Farbe/Einstellung, Helligkeit je Farbkanal 0–1)
 STATES = [
-    ("Bereit", "Farbe #80ff80 (Grundfarbe)", {"grün": 1, "weiß": 0.6}),
-    ("Live", "läuft auf Bildschirm 2 (Schema „Zustand“)", {"rot": 1}),
-    ("Schwarz / Standbild", "Schema „Zustand“ (#ffb000)", {"rot": 1, "grün": 0.6}),
-    ("Code-Eingabe", "Wenn → Dann: blinkt in der Grundfarbe", {"grün": 1, "weiß": 0.6}),
-    ("Farbwechsel", "Effekt „Regenbogen“: rot → grün → blau → weiß", {"blau": 1, "grün": 0.35}),
-    ("Arbeitslicht", "Farbe weiß (#ffffff): alle 8 LEDs", {"rot": 1, "grün": 1, "blau": 1, "weiß": 1}),
+    ("Bereit", "Grundfarbe z. B. türkis #00ffa0 (grün + blau)", {"grün": 1, "blau": 0.6}),
+    ("Live", "läuft auf Bildschirm 2 (Farbschema „Zustand“)", {"rot": 1}),
+    ("Schwarz / Standbild", "Farbschema „Zustand“: gelb (rot + grün)", {"rot": 1, "grün": 0.6}),
+    ("Code-Eingabe", "Wenn → Dann: blinkt in der Grundfarbe", {"grün": 1, "blau": 0.6}),
+    ("Regenbogen", "Effekt „Regenbogen“: alle Ecken laufen durch den Farbkreis", {"blau": 1, "rot": 0.7}),
+    ("Lila / Weißlich", "#ff00ff = rot + blau · #ffffff = alle 12", {"rot": 1, "blau": 1}),
 ]
 
 fig, axes = plt.subplots(2, 3, figsize=(17, 8.2), dpi=110)
@@ -56,8 +56,8 @@ for ax, (name, note, on) in zip(axes.flat, STATES):
     ax.axis("off")
     ax.set_title(name, color="#f4f4f6", fontsize=13, loc="left")
     ax.text(-bw / 2, -bd / 2 - 10, note, color="#9c9c9d", fontsize=9)
-legend = "   ".join(f"● {f} = Pin {PIN[f]}" for f in HEX)
-fig.suptitle("Tastenbox – 8 LEDs, 4 Farben, je Farbe 2 LEDs in diagonalen Ecken („Kreuz“)   " + legend,
+legend = "   ".join(f"● {f} = Pin {PIN[f]}" for f in PIN)
+fig.suptitle("Tastenbox – 12 LEDs, je Ecke rot + grün + blau (mischt jede Farbe)   Pro Micro: " + legend,
              color="#f4f4f6", fontsize=12, x=0.02, ha="left")
 fig.tight_layout(rect=(0, 0, 1, 0.94))
 fig.savefig("led_farben.png", facecolor=fig.get_facecolor())

@@ -5,7 +5,7 @@ rundum 10 mm über – er liegt auf der Holzplatte auf; oben schauen 16 mm herau
 
 Oberseite von links nach rechts: 9 Tastatur-Schalter (MX, 3 × 3) → Steckbrett darunter → rechte Spalte mit
 Zählwerk (Fenster für die 3 Ziffern, hängt an 4 Säulen unter dem Deckel) und dahinter 10-Gang-Poti
-(Gewindehals durch den Deckel, Mutter oben). In jeder Ecke ZWEI 5-mm-LEDs nebeneinander (8 Stück, 4 Farben).
+(Gewindehals durch den Deckel, Mutter oben). In jeder Ecke DREI 5-mm-LEDs in einer Reihe (rot, grün, blau).
 
 Zwei Teile:
   * Oberteil mit Flansch. Druck: Oberseite nach UNTEN aufs Bett; Stützen NUR unter dem Rand
@@ -41,7 +41,8 @@ led_fit = 5.15         # Bohrung im Halter (5-mm-LED klemmt; zu stramm → 5,3)
 led_len = 8.6          # LED vom Kragen bis zur Kuppe (Standard 5 mm)
 led_boss_d = 9.0
 led_inset = 7.0        # Abstand der Loch-Mitte (äußere LED) von den Außenkanten
-led_pair = 10.0        # zweite LED je Ecke: so weit zur Mitte hin (entlang der langen Seite)
+led_pair = 10.0        # Abstand der LEDs einer Ecke (in einer Reihe entlang der langen Seite)
+led_per_corner = 3
 led_skin = 0.0         # > 0 (z. B. 0,6): Loch oben geschlossen, Licht scheint durch (nur helles Filament)
 
 # Lichtleiste vorne über den Tasten (WS2812B-Streifen, 10 mm breit, z. B. 60 LEDs/m → 3 LEDs, 144/m → 7)
@@ -78,7 +79,7 @@ col_w = 56.0
 # 10-Gang-Poti (DDR, 490.02xx) – Gewindehals durch den Deckel, Mutter + Zahnscheibe oben
 pot_body_d = 22.0      # NACHMESSEN
 pot_neck_d = 10.0      # Gewindehals – NACHMESSEN (Loch = Hals + 0,4)
-pot_dx, pot_dy = -6.0, 29.0    # Lage relativ zur Spaltenmitte (hinten, frei von den Eck-LEDs)
+pot_dx, pot_dy = -6.0, 24.0    # Lage relativ zur Spaltenmitte (hinten, frei von den Eck-LEDs)
 
 # Zählwerk (3 Ziffern) – hängt an 4 Säulen unter dem Deckel, M3-Schrauben von unten durch seine Langlöcher
 cnt_w, cnt_d = 46.0, 36.0     # Grundplatte (Ziffernachse in x) – NACHMESSEN
@@ -150,7 +151,7 @@ shell = shell.cut(cq.Workplane("XY").pushPoints(keys).rect(mx_cut, mx_cut).extru
 shell = shell.cut(cq.Workplane("XY").workplane(offset=box_h - top_t - eps)
                   .pushPoints(keys).rect(mx_relief, mx_relief).extrude(top_t - mx_plate_t + eps))
 leds = [(sx * (box_w / 2 - led_inset - k * led_pair), sy * (box_d / 2 - led_inset))
-        for sx in (-1, 1) for sy in (-1, 1) for k in (0, 1)]     # je Ecke: außen (k=0), innen (k=1)
+        for sx in (-1, 1) for sy in (-1, 1) for k in range(led_per_corner)]  # je Ecke: außen (k=0) … innen
 under = box_h - top_t                                 # Unterseite der Deckplatte
 boss_h = led_len - top_t                              # Kuppe bündig mit der Oberseite
 footprint = (cq.Workplane("XY").rect(inner_w, inner_d).extrude(box_h).edges("|Z").fillet(corner_r - wall))
@@ -195,7 +196,7 @@ if light_bar:
     shell = shell.union(rail.intersect(footprint))
 
 # Kabelhaken an den Längswänden innen: LED-Kabel von den Ecken zum Steckbrett führen
-for hx in (x0 + 25, bb_cx + rim_out_w / 2 + lip_out + gap / 2):  # neben den linken LED-Paaren, rechts neben dem Steckbrett
+for hx in (x0 + 36, bb_cx + rim_out_w / 2 + lip_out + gap / 2):  # neben den linken LED-Paaren, rechts neben dem Steckbrett
     for sy in (-1, 1):
         wy = sy * (inner_d / 2)
         hook = (cq.Workplane("XY").workplane(offset=under - 7).center(hx, wy - sy * 2.5)
