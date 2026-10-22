@@ -150,7 +150,7 @@ def export_mini(nr: int = 3) -> None:
 #   Tunnel für den Jumper-Stift (0,64 Vierkant, ohne Gehäuse) direkt daneben; er schneidet ein Stück in den Schlitz
 #   → der Stift drückt seitlich auf das Beinchen = Kontakt.
 # ============================================================
-m2_wall = 0.4                    # eine Druckbahn bei 0,4-mm-Düse
+m2_wall = 0.4                    # eine Druckbahn bei 0,4-mm-Düse (viele Slicer lassen das weg → Datei „wand08“ mit 0,8)
 m2_slot_w = 1.45                 # Schlitz quer (Beinchen 1,5 → klemmt auch hier leicht)
 m2_tunnel = 0.70                 # Tunnel für den Jumper-Stift 0,64
 m2_overlap = 0.10                # so weit ragt der Tunnel in den Schlitz (Stift drückt aufs Beinchen)
