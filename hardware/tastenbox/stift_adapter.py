@@ -31,11 +31,11 @@ finger_d = 3.4                  # dünner Teil oben (passt zwischen Beinchen und
 finger_h = blade_len + 0.4      # so hoch wie das Beinchen + Luft → die breite Buchse bleibt unter Zapfen/Stiften
 socket_h = 5.0                  # so tief steckt das Gehäuse
 wall = 0.6
-slot_w = 1.65                   # Schlitz quer (Beinchen 1,5)
+slot_w = 1.55                   # Schlitz quer (Beinchen 1,5) – Entwurf 2 mit 1,65 war zu weit
 taper = 0.08                    # Schlitz unten so viel enger als oben → Beinchen klemmt beim Hineinschieben
 lead = 0.4                      # Einführschräge oben
 # Schlitz-Dicke oben (Platz für Stift 0,64 + Beinchen 0,5 = 1,14). Gedruckte Schlitze werden meist ~0,1 enger.
-gaps = [1.00, 1.06, 1.12, 1.18, 1.24]
+gaps = [0.72, 0.79, 0.86, 0.93, 1.00]   # Entwurf 2 (1,00–1,24) war bei allen Größen zu weit
 
 eps = 0.01
 
@@ -49,7 +49,7 @@ def adapter(gap: float = 1.12, mark: int = 0) -> cq.Workplane:
     h = total_h()
     block = housing + housing_fit + 2 * wall
     neck_top = h - finger_h
-    guide = dupont + 0.16                     # Führung für den Stift (Stift-Achse bei x = 0, mittig im Gehäuse)
+    guide = dupont + 0.08                     # Führung für den Stift (Stift-Achse bei x = 0, mittig im Gehäuse)
     x0 = -guide / 2                           # Schlitz: −x-Wand = Wand der Stift-Führung
     sc = x0 + gap / 2                         # Schlitz-Mitte = Finger-Mitte (Stift links, Beinchen rechts)
     body = cq.Workplane("XY").rect(block, block).extrude(neck_top).edges("|Z").fillet(0.5)

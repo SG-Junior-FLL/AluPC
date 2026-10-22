@@ -1,7 +1,7 @@
 # Tastenbox – Verdrahtungsplan (nur stecken, nichts löten)
 
 Teile: Pro Micro (USB-C) **oder Arduino Nano** · Steckbrett 400 Kontakte · 9 MX-Schalter (Outemu) ·
-10-Gang-Poti mit Zählwerk · 12 LEDs 5 mm (4 × rot, 4 × grün, 4 × blau) + 12 × 1 kΩ ·
+10-Gang-Poti mit Zählwerk · 12 LEDs 5 mm (4 × rot, 4 × grün, 4 × blau) + 3 × 220 Ω ·
 Dupont-Kabel Buchse–Stecker und Stecker–Stecker.
 
 Ausnahme: Die Stiftleisten am Pro Micro müssen einmal angelötet werden. Bis dahin hält die gedruckte
@@ -158,9 +158,11 @@ kann das auch b oder i sein – Hauptsache dieselbe **Reihe** wie der Pin).
 2. **Tasten:** Taste 1–7 in a5–a11 (Pins 2–8), Taste 8 in j10 (Pin 14), Taste 9 in j9 (Pin 15).
    Das andere Beinchen aller 9 Tasten über **einen** gewickelten Draht an Minus.
 3. **Poti:** gelb → j8 (A0), rot → Plus, grau → Minus.
-4. **LEDs, je Farbe gleich:** Kabel vom Farb-Pin in eine freie **Verteiler-Reihe** (rot: a12 → a15,
-   grün: j12 → j15, blau: j11 → j22). Von der Verteiler-Reihe 4 Widerstände (1 kΩ) in 4 **eigene** Reihen
-   (je Widerstand eine andere Reihe!). Dort das Kabel zum langen Bein der LED in der jeweiligen Ecke.
+4. **LEDs, je Farbe gleich – nur 3 Widerstände (220 Ω):** Widerstand vom freien Loch der Pin-Reihe in eine
+   freie **Verteiler-Reihe** (rot: a12 → a15, grün: j12 → j15, blau: j11 → j18 – den blauen seitlich am grünen
+   vorbeibiegen). In die übrigen 4 Löcher der Verteiler-Reihe die Kabel zu den 4 LEDs dieser Farbe (langes Bein).
+   Nur gleiche Farben teilen sich einen Widerstand (rot braucht weniger Spannung als grün/blau).
+   220 Ω für 4 LEDs ≈ 3 mA je LED, wie vorher mit 1 kΩ je LED.
 5. **Kurze LED-Beine:** je Ecke die 3 zusammenwickeln → 1 Kabel an Minus (4 Kabel für alle 12 LEDs).
 
 **LEDs einbauen (ca. 25 Min.):**

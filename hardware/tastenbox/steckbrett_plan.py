@@ -74,31 +74,29 @@ ax.text(RAIL["R-"] + 0.4, y(9), "← Taste 9 (in j)", va="center", fontsize=8.5,
 ax.text(RAIL["R-"] + 0.4, y(10), "← Taste 8 (in j)", va="center", fontsize=8.5, color="#060")
 ax.text(RAIL["R-"] + 0.4, y(8), "← Poti gelb (in j)", va="center", fontsize=8.5, color="#a80")
 ax.text(RAIL["R-"] + 0.4, y(7), "(A1: weiß, frei)", va="center", fontsize=8, color="#999")
-# LED-Gruppen: Pin → Verteilreihe → 4 Widerstände 1 kΩ → 4 eigene Reihen → Kabel zu den 4 Ecken
-groups = [("rot", "#e33", X["a"], 12, 15, "l", COLS[:5], -0.6), ("grün", "#2a2", X["j"], 12, 15, "r", COLS[5:], 0.6),
-          ("blau", "#36f", X["j"], 11, 22, "r", COLS[5:], 1.2)]
-for name, col, x_pin, r_pin, r_v, side, half, bow in groups:
-    xv = X[half[0]] if side == "l" else X[half[-1]]
-    wire(x_pin, r_pin, xv, r_v, col, bow=bow)
+# LED-Gruppen: Pin-Reihe → EIN Widerstand 220 Ω → Verteiler-Reihe → 4 Kabel zu den 4 LEDs dieser Farbe
+groups = [("rot", "#e33", "a", 12, 15, "l"), ("grün", "#2a2", "j", 12, 15, "r"), ("blau", "#36f", "j", 11, 18, "r")]
+for name, col, c_pin, r_pin, r_v, side in groups:
+    if name == "blau":  # Beine seitlich am grünen Widerstand vorbei biegen
+        xo = X[c_pin] + 0.8
+        ax.plot([X[c_pin], xo, xo, X[c_pin]], [y(r_pin), y(r_pin), y(r_v), y(r_v)], color="#8a6d3b", lw=1.2, zorder=5)
+        resistor(xo, r_pin + 1, xo, r_v - 1)
+    else:
+        resistor(X[c_pin], r_pin, X[c_pin], r_v)
+    holes = list("bcde") if side == "l" else list("fghi")
+    corners = ["vorne links", "hinten links", "hinten rechts", "vorne rechts"]
+    for k, c in enumerate(holes):
+        ax.plot([X[c]], [y(r_v)], "s", color=col, ms=7, zorder=6)
     lx = -3.4 if side == "l" else RAIL["R-"] + 0.4
-    ax.text(lx, y(r_v), f"{name}: Verteiler-Reihe {r_v} (Kabel vom Pin)", ha="right" if side == "l" else "left",
-            va="center", fontsize=8.5, color=col)
-    inner = half[1:] if side == "l" else half[:-1]
-    for k, c in enumerate(inner):
-        resistor(X[c], r_v, X[c], r_v + 2 + k)
-        xo = X[half[0]] if side == "l" else X[half[-1]]
-        ax.plot([xo], [y(r_v + 2 + k)], "s", color=col, ms=6, zorder=6)
-        corner = ["vorne links", "hinten links", "hinten rechts", "vorne rechts"][k]
-        lx = -3.4 if side == "l" else RAIL["R-"] + 0.4
-        ax.text(lx, y(r_v + 2 + k), f"{'a' if side == 'l' else 'j'}{r_v + 2 + k} → {name} {corner}", ha="right" if side == "l" else "left",
-                va="center", fontsize=8, color=col)
-ax.text(-3.4, y(29.6), "Kurze LED-Beine: je Ecke die 3 zusammen wickeln → 1 Kabel an Minus\n"
+    ax.text(lx, y(r_v), f"{name}: Pin → 220 Ω → Reihe {r_v}\n■ {'b–e' if side == 'l' else 'f–i'}{r_v}: Kabel zu den 4 {name}en LEDs",
+            ha="right" if side == "l" else "left", va="center", fontsize=8.5, color=col)
+ax.text(-3.4, y(29.6), "Kurze LED-Beine: je Ecke die 3 zusammen wickeln → 1 Kabel an Minus (4 Kabel)\n"
         "Tasten: anderes Beinchen aller 9 Tasten über EINEN Draht an Minus\n"
         "Poti: rot → Plus, grau → Minus, gelb → A0 (Reihe 8, j)", fontsize=9, va="bottom")
 ax.set_xlim(-14, X["j"] + 14)
 ax.set_ylim(-31.5, 2)
 ax.set_aspect("equal")
 ax.axis("off")
-ax.set_title("Tastenbox – Steckplan (Pro Micro, Reihe 1–12). ■ = hier das Kabel zur LED einstecken, ▭ = 1 kΩ", fontsize=12)
+ax.set_title("Tastenbox – Steckplan (Pro Micro, Reihe 1–12). ■ = Kabel zur LED, ▭ = 220 Ω (einer je Farbe)", fontsize=12)
 fig.tight_layout()
 fig.savefig("steckbrett_plan.png")
