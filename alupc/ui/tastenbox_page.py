@@ -359,7 +359,7 @@ class TastenboxPage(QWidget):
             b.clicked.connect(lambda _c=False, n=name: self._save_sketch(n))
             dl.addWidget(b, 0, Qt.AlignLeft)
         wiring = QLabel("Hochladen: Arduino-IDE → Board „Arduino Leonardo“ (Pro Micro) bzw. „Arduino Nano“ → Anschluss → "
-                        "Hochladen.  Pro Micro: Tasten D2–D8, D14, D15 · Regler-Mitte A0 · LEDs rot D9, grün D10, blau D16, "
+                        "Hochladen.  Pro Micro: Tasten D2–D8, D14, D15 · Regler-Mitte A0 · LEDs rot D10, grün D9, blau D16, "
                         "weiß A1.  Nano: Tasten D2–D10 · A0 · LEDs D11, D12, D13, A1.  Je Farbe ein 220-Ω-Widerstand "
                         "für 4 LEDs (oder 1 kΩ je LED) · andere Tasten-Seite und kurze LED-Beine an GND.")
         wiring.setObjectName("Muted")

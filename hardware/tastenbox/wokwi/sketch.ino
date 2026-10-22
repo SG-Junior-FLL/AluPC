@@ -9,7 +9,7 @@
 //                 Pro Micro                        Nano (und Uno/Mega, z. B. in der Wokwi-Simulation)
 //   Tasten 1–9 :  D2 D3 D4 D5 D6 D7 D8 D14 D15       D2 D3 D4 D5 D6 D7 D8 D9 D10
 //   Regler     :  A0                                 A0
-//   4 Farben   :  rot D9 · grün D10 · blau D16 · weiß A1     rot D11 · grün D12 · blau D13 · weiß A1   (Standard)
+//   4 Farben   :  rot D10 · grün D9 · blau D16 · weiß A1     rot D11 · grün D12 · blau D13 · weiß A1   (Standard)
 //   LEDs       :  D9                                 D11       (nur ohne VIER_FARBEN: alle LEDs an einem Pin)
 //   Streifen   :  D10                                D12       (nur mit STREIFEN, statt VIER_FARBEN)
 //
@@ -47,7 +47,7 @@
 const uint8_t TASTEN[9] = {2, 3, 4, 5, 6, 7, 8, 14, 15};
 const uint8_t LED = 9;
 const uint8_t STREIFEN_PIN = 10;
-const uint8_t KANAL_PIN[4] = {9, 10, 16, A1};   // rot, grün, blau, weiß
+const uint8_t KANAL_PIN[4] = {10, 9, 16, A1};   // rot, grün, blau, weiß
 const char BOARD[] = "PROMICRO";
 #else
 const uint8_t TASTEN[9] = {2, 3, 4, 5, 6, 7, 8, 9, 10};

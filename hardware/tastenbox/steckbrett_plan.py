@@ -37,9 +37,9 @@ ax.add_patch(FancyBboxPatch((X["b"] - 0.5, y(12) - 0.6), X["i"] - X["b"] + 1.0, 
 ax.add_patch(Rectangle(((X["b"] + X["i"]) / 2 - 1.0, y(0.2)), 2.0, 1.2, fc="#bbb", ec="#777"))
 ax.text((X["b"] + X["i"]) / 2, y(-0.4), "USB-C", ha="center", va="center", fontsize=8)
 ax.text((X["b"] + X["i"]) / 2, y(7), "Pro Micro", ha="center", va="center", color="white", fontsize=11, rotation=90)
-for i, (l, r) in enumerate(zip(LEFT, RIGHT), start=1):
-    ax.text(X["b"], y(i), l, ha="center", va="center", color="white", fontsize=7, fontweight="bold")
-    ax.text(X["i"], y(i), r, ha="center", va="center", color="white", fontsize=7, fontweight="bold")
+for i, (lft, rgt) in enumerate(zip(LEFT, RIGHT), start=1):
+    ax.text(X["b"], y(i), lft, ha="center", va="center", color="white", fontsize=7, fontweight="bold")
+    ax.text(X["i"], y(i), rgt, ha="center", va="center", color="white", fontsize=7, fontweight="bold")
 
 
 def wire(x0, r0, x1, r1, color, label=None, side="r", bow=0.0):
@@ -75,9 +75,9 @@ ax.text(RAIL["R-"] + 0.4, y(10), "← Taste 8 (in j)", va="center", fontsize=8.5
 ax.text(RAIL["R-"] + 0.4, y(8), "← Poti gelb (in j)", va="center", fontsize=8.5, color="#a80")
 ax.text(RAIL["R-"] + 0.4, y(7), "(A1: weiß, frei)", va="center", fontsize=8, color="#999")
 # LED-Gruppen: Pin-Reihe → EIN Widerstand 220 Ω → Verteiler-Reihe → 4 Kabel zu den 4 LEDs dieser Farbe
-groups = [("rot", "#e33", "a", 12, 15, "l"), ("grün", "#2a2", "j", 12, 15, "r"), ("blau", "#36f", "j", 11, 18, "r")]
+groups = [("grün", "#2a2", "a", 12, 15, "l"), ("rot", "#e33", "j", 12, 15, "r"), ("blau", "#36f", "j", 11, 18, "r")]
 for name, col, c_pin, r_pin, r_v, side in groups:
-    if name == "blau":  # Beine seitlich am grünen Widerstand vorbei biegen
+    if name == "blau":  # Beine seitlich am roten Widerstand vorbei biegen
         xo = X[c_pin] + 0.8
         ax.plot([X[c_pin], xo, xo, X[c_pin]], [y(r_pin), y(r_pin), y(r_v), y(r_v)], color="#8a6d3b", lw=1.2, zorder=5)
         resistor(xo, r_pin + 1, xo, r_v - 1)

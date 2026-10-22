@@ -42,7 +42,7 @@ for (lx, ly) in g["leds"][::g["led_per_corner"]]:  # Kabel je Ecke: LEDs → Hak
     hx, hy = min(hooks, key=lambda h: (h[0] - lx) ** 2 + (h[1] - ly) ** 2)
     edge = g["bb_cx"] + (-1 if hx < g["bb_cx"] else 1) * (g["rim_in_w"] / 2 - 4)
     ax.plot([lx, hx, edge, edge], [ly, hy, hy, hy * 0.8], color="#d79a00", lw=1.4, ls=":")
-ax.annotate("3 LEDs je Ecke (5 mm, im Halter): rot, grün, blau\nPro Micro: rot 9 · grün 10 · blau 16 (Nano: 11 · 12 · 13)\njede LED eigener 1-kΩ-Widerstand",
+ax.annotate("3 LEDs je Ecke (5 mm, im Halter): rot, grün, blau\nPro Micro: rot 10 · grün 9 · blau 16 (Nano: 11 · 12 · 13)\njede LED eigener 1-kΩ-Widerstand",
             g["leds"][4], (g["leds"][4][0] + 6, bd / 2 + 14), fontsize=9, ha="center",
             arrowprops=dict(arrowstyle="->", color="#d79a00"))
 ax.annotate("Kabelhaken (innen)", hooks[1], (hooks[1][0] + 40, bd / 2 + 12), fontsize=9, ha="center",

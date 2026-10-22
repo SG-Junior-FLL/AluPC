@@ -15,7 +15,7 @@ bw, bd = g["box_w"], g["box_d"]
 HEX = {"rot": "#ff3b30", "grün": "#34e07a", "blau": "#3d7bff", "weiß": "#f4f4f6"}
 # g["leds"]: vorne links außen/innen, hinten links außen/innen, vorne rechts außen/innen, hinten rechts außen/innen
 FARBE = ["rot", "grün", "blau"] * 4
-PIN = {"rot": "9", "grün": "10", "blau": "16"}
+PIN = {"rot": "10", "grün": "9", "blau": "16"}
 
 # (Titel, AluPC-Farbe/Einstellung, Helligkeit je Farbkanal 0–1)
 STATES = [

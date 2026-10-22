@@ -13,8 +13,8 @@ Klemme (`klemme_pro_micro.py`) die Platine auf die Stifte gedrückt.
 |---|---|---|
 | Tasten 1–9 | 2, 3, 4, 5, 6, 7, 8, 14, 15 | 2, 3, 4, 5, 6, 7, 8, 9, 10 |
 | Drehregler (Mitte) | A0 | A0 |
-| LEDs rot (4 Stück, je 1 kΩ) | 9 | 11 |
-| LEDs grün (4 Stück, je 1 kΩ) | 10 | 12 |
+| LEDs rot (4 Stück, je 1 kΩ) | 10 | 11 |
+| LEDs grün (4 Stück, je 1 kΩ) | 9 | 12 |
 | LEDs blau (4 Stück, je 1 kΩ) | 16 | 13 |
 | (frei: weiß, optional) | A1 | A1 |
 | Plus / Minus | VCC / GND | 5V / GND |
@@ -40,7 +40,7 @@ USB-C zeigt nach oben, Bauteile zu dir:
   Taste5 6 ─┤         ├─ 15   ◄── Taste 9
   Taste6 7 ─┤         ├─ 14   ◄── Taste 8
   Taste7 8 ─┤         ├─ 16   ◄── LEDs blau
- LEDs rot 9 ─┤        ├─ 10   ◄── LEDs grün
+LEDs grün 9 ─┤        ├─ 10   ◄── LEDs rot
           └───────────┘
 ```
 
@@ -171,7 +171,7 @@ kann das auch b oder i sein – Hauptsache dieselbe **Reihe** wie der Pin).
    Das andere Beinchen aller 9 Tasten über **einen** gewickelten Draht an Minus.
 3. **Poti:** gelb → j8 (A0), rot → Plus, grau → Minus.
 4. **LEDs, je Farbe gleich – nur 3 Widerstände (220 Ω):** Widerstand vom freien Loch der Pin-Reihe in eine
-   freie **Verteiler-Reihe** (rot: a12 → a15, grün: j12 → j15, blau: j11 → j18 – den blauen seitlich am grünen
+   freie **Verteiler-Reihe** (grün: a12 → a15, rot: j12 → j15, blau: j11 → j18 – den blauen seitlich am roten
    vorbeibiegen). In die übrigen 4 Löcher der Verteiler-Reihe die Kabel zu den 4 LEDs dieser Farbe (langes Bein).
    Nur gleiche Farben teilen sich einen Widerstand (rot braucht weniger Spannung als grün/blau).
    220 Ω für 4 LEDs ≈ 3 mA je LED, wie vorher mit 1 kΩ je LED.
