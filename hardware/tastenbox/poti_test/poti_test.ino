@@ -12,6 +12,9 @@
 // Die beiden Enden haben IMMER den größten Widerstand zueinander (ganzer Poti) → größter Messwert.
 // Der Draht, der in diesem Paar NICHT dabei ist, ist der Schleifer.
 // Läuft auf Pro Micro (Board „Arduino Leonardo“) und Nano.
+//
+// KONTAKT-TEST ohne Poti: A0 und A1 direkt mit einem Jumper-Kabel verbinden → „A0-A1“ muss fast 0 zeigen.
+// Zeigt es 1023, kommt das Kabel nicht am Pin an (falsche Reihe, falsche Seite vom Graben, Pin nicht angelötet).
 
 const uint8_t PIN[3] = {A0, A1, A2};
 const char* FARBE[3] = {"rot", "grau", "gelb"};   // ← hier deine Farben eintragen (Draht an A0, A1, A2)
@@ -68,8 +71,16 @@ void loop() {
   Serial.print(F("  A0-A2: ")); Serial.print(ac);
   Serial.print(F("  A1-A2: ")); Serial.print(bc);
 
-  if (werte[w] > 1000) {  // Pull-up kommt ungebremst durch: kein Poti dazwischen
-    Serial.println(F("   -> nichts angeschlossen oder ein Draht lose?"));
+  uint8_t offen = 0, verbunden = 3;  // Paare ohne Verbindung zählen (Pull-up kommt ungebremst durch)
+  for (uint8_t i = 0; i < 3; i++) {
+    if (werte[i] > 1000) offen++;
+    else verbunden = i;               // werte[i] = Paar OHNE Draht i
+  }
+  if (offen == 3) {
+    Serial.println(F("   -> KEINE Verbindung: mind. 2 Draehte ohne Kontakt (Reihe/Seite am Steckbrett? Pro Micro angeloetet?)"));
+  } else if (offen == 2) {
+    Serial.print(F("   -> Draht an ")); Serial.print(NAME[verbunden]); Serial.print(F(" (")); Serial.print(FARBE[verbunden]);
+    Serial.println(F(") hat KEINEN Kontakt – die anderen zwei sind ok"));
   } else if (werte[w] - zweit < werte[w] / 20) {
     Serial.println(F("   -> Schleifer steht am Ende – Poti etwas in die Mitte drehen"));
   } else {
