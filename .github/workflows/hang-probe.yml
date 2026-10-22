@@ -2,6 +2,8 @@
 # Runde 1 (nur die 2 Tests, 3 Varianten × 8): nie gehangen → es sammelt sich über viele Tests an.
 # Runde 2: ganze tests/test_gui.py, 4 Varianten × 4 Läufe – hängt in jeder Variante (Ton, Mausgrenze, Titelleiste
 # sind es nicht). Runde 3: Abbild im eigenen Prozess blieb selbst hängen (Verdacht: Loader-Lock).
+# Runde 6: Fenster-Aufräumen half nicht (0 Fenster übrig, Ressourcen klein). Threads springen mit QtWebEngine;
+# keine Qt-Meldung vor dem Abbruch → Chromium? Vergleich offscreen gegen echten Windows-Fenstermodus.
 # Runde 5: Ressourcen je Test mitschreiben + Qt-Fehlermeldungen sichtbar (Verdacht: Windows-Limit).
 # Runde 4b: Lauf 1 grün, Lauf 2+3 „Windows fatal exception“ (Absturz, nicht nur Hänger) → Absturzstapel zeigen.
 # Runde 4 brach nach Sekunden ab (Fehler in der Probe selbst) – jetzt mit Logzeilen.
@@ -18,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [abbild]
+        variant: [offscreen, windows]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,7 +33,8 @@ jobs:
         run: |
           $env:ALUPC_TEST_HANG_EXIT = "120"
           $env:ALUPC_TEST_MINIDUMP = "1"
-          $env:QT_FORCE_STDERR_LOGGING = "1"  # qFatal-Meldung von Qt landet sonst unsichtbar in OutputDebugString
+          $env:QT_FORCE_STDERR_LOGGING = "1"
+          if ("${{ matrix.variant }}" -eq "windows") { $env:QT_QPA_PLATFORM = "windows" }  # echter Fenster-Modus  # qFatal-Meldung von Qt landet sonst unsichtbar in OutputDebugString
           for ($i = 1; $i -le 4; $i++) {
             $env:ALUPC_TEST_RESLOG = "$PWD\res$i.txt"
             python -X faulthandler -m pytest -q -p no:cacheprovider tests/test_gui.py 2>&1 | Out-File -FilePath "lauf$i.log"
