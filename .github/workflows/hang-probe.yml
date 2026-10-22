@@ -2,6 +2,7 @@
 # Runde 1 (nur die 2 Tests, 3 Varianten × 8): nie gehangen → es sammelt sich über viele Tests an.
 # Runde 2: ganze tests/test_gui.py, 4 Varianten × 4 Läufe – hängt in jeder Variante (Ton, Mausgrenze, Titelleiste
 # sind es nicht). Runde 3: Abbild im eigenen Prozess blieb selbst hängen (Verdacht: Loader-Lock).
+# Runde 4b: Lauf 1 grün, Lauf 2+3 „Windows fatal exception“ (Absturz, nicht nur Hänger) → Absturzstapel zeigen.
 # Runde 4 brach nach Sekunden ab (Fehler in der Probe selbst) – jetzt mit Logzeilen.
 # Runde 4: Abbild von einem getrennten Prozess, offline mit cdb: Besitzer des Loader-Locks + Stapel.
 name: Hänger-Probe (Windows)
@@ -31,7 +32,10 @@ jobs:
           $env:ALUPC_TEST_MINIDUMP = "1"
           for ($i = 1; $i -le 5; $i++) {
             python -X faulthandler -m pytest -q -p no:cacheprovider tests/test_gui.py 2>&1 | Out-File -FilePath "lauf$i.log"
-            Get-Content "lauf$i.log" -Tail 6 | ForEach-Object { Write-Output ("::notice title=Lauf $i::" + $_.Trim()) }
+            $log = Get-Content "lauf$i.log"
+            $at = ($log | Select-String -Pattern 'Windows fatal exception|Fatal Python error|Timeout \(' | Select-Object -First 1).LineNumber
+            if ($at) { $log[($at - 3)..($at + 30)] | Where-Object { $_.Trim() } | ForEach-Object { Write-Output ("::warning title=Lauf $i Absturz::" + $_.Trim()) } }
+            else { $log | Select-Object -Last 3 | ForEach-Object { Write-Output ("::notice title=Lauf $i::" + $_.Trim()) } }
             Get-Content gui-haenger-nativ.txt -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "::notice title=Abbild $i::$_" }
             if (Test-Path gui-haenger.dmp) { Write-Output "::notice title=Abbild::Lauf $i hängt – $(Get-Content gui-haenger.txt -First 1)"; break }
           }
