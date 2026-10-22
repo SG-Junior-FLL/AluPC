@@ -68,6 +68,11 @@ Jeder Schalter hat 2 Beinchen. Auf jedes Beinchen eine **Dupont-Buchse** stecken
 
 Egal, welches Beinchen A oder B ist. Wackelt eine Buchse: ein Tropfen Heißkleber.
 
+**Tastenkappen (3D-Druck):** `tastenkappe.py` → `tastenkappe_1.stl` … `_9.stl` (Ziffer vertieft) und
+`tastenkappe_eng/mittel/locker.stl` (leer). Passt auf Outemu/MX (Kreuz „+“). Zuerst **eine** „mittel“ drucken
+und probieren: wackelt → „eng“, geht nicht drauf → „locker“. Druck: Oberseite nach unten, ohne Stützen,
+0,12–0,16 mm Schicht. Vorschau: `tastenkappe_preview.png`.
+
 ## 4. Drehregler (3 Beinchen)
 
 | Beinchen | → |
