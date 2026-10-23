@@ -9,6 +9,10 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
+### Neu in 2.4.2 – Tastenbox ohne weiße LEDs
+- **Arduino-Programm 8:** nur noch rot, grün, blau (Pins 10, 9, 16). Weiß entsteht aus allen drei; Pin A1 ist frei.
+  Programm neu hochladen (Seite Tastenbox → „Tastenbox-Programm speichern …“).
+
 ### Neu in 2.4.1 – Tastenbox-Eingaben am Monitor
 - **Anzeige unten links am Hauptmonitor** (Seite Tastenbox → „Eingaben unten links am Monitor anzeigen“): das
   Tastenfeld mit allen 9 Funktionen, die gedrückte Taste leuchtet. Kann eine Taste eine Tastenfolge beginnen, läuft

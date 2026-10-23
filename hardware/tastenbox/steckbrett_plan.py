@@ -73,7 +73,8 @@ for i, row in enumerate(range(5, 12), start=1):
 ax.text(RAIL["R-"] + 0.4, y(9), "← Taste 9 (in j)", va="center", fontsize=8.5, color="#060")
 ax.text(RAIL["R-"] + 0.4, y(10), "← Taste 8 (in j)", va="center", fontsize=8.5, color="#060")
 ax.text(RAIL["R-"] + 0.4, y(8), "← Poti gelb (in j)", va="center", fontsize=8.5, color="#a80")
-ax.text(RAIL["R-"] + 0.4, y(7), "(A1: weiß, frei)", va="center", fontsize=8, color="#999")
+ax.text(RAIL["R-"] + 0.4, y(7), "(A1: frei)", va="center", fontsize=8, color="#999")
+ax.text(RAIL["R-"] + 0.4, y(6), "← Buzzer + (in j)", va="center", fontsize=8.5, color="#a80")
 # LED-Gruppen: Pin-Reihe → EIN Widerstand 220 Ω → Verteiler-Reihe → 4 Kabel zu den 4 LEDs dieser Farbe
 groups = [("grün", "#2a2", "a", 12, 15, "l"), ("rot", "#e33", "j", 12, 15, "r"), ("blau", "#36f", "j", 11, 18, "r")]
 for name, col, c_pin, r_pin, r_v, side in groups:

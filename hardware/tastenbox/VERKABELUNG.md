@@ -16,7 +16,8 @@ Klemme (`klemme_pro_micro.py`) die Platine auf die Stifte gedrückt.
 | LEDs rot (4 Stück, je 1 kΩ) | 10 | 11 |
 | LEDs grün (4 Stück, je 1 kΩ) | 9 | 12 |
 | LEDs blau (4 Stück, je 1 kΩ) | 16 | 13 |
-| (frei: weiß, optional) | A1 | A1 |
+| Buzzer + (optional) | A2 | A2 |
+| (frei) | A1, A3 | A1, A3 |
 | Plus / Minus | VCC / GND | 5V / GND |
 
 Hochladen: Arduino-IDE → Board „Arduino Leonardo“ (Pro Micro) bzw. „Arduino Nano“ → Programm aus AluPC
@@ -34,8 +35,8 @@ USB-C zeigt nach oben, Bauteile zu dir:
    GND  ──┤           ├─ RST
    GND  ──┤           ├─ VCC  ◄── Plus-Leiste
   Taste1 2 ─┤         ├─ A3
-  Taste2 3 ─┤         ├─ A2
-  Taste3 4 ─┤         ├─ A1   ◄── LEDs weiß
+  Taste2 3 ─┤         ├─ A2   ◄── Buzzer +
+  Taste3 4 ─┤         ├─ A1   (frei)
   Taste4 5 ─┤         ├─ A0   ◄── Regler (Mitte)
   Taste5 6 ─┤         ├─ 15   ◄── Taste 9
   Taste6 7 ─┤         ├─ 14   ◄── Taste 8
@@ -155,8 +156,8 @@ türkis = grün + blau, alle drei ≈ weiß). Die 4 roten hängen an einem Pin, 
 | Code-Eingabe (Wenn → Dann) | blinkt | automatisch |
 | Regenbogen | alle Ecken laufen durch den Farbkreis | Effekt „Farbwechsel / Regenbogen“ |
 
-Helligkeit, Atmen, Blinken und der Blitz bei Tastendruck gehen wie bisher (Arduino-Programm 6, `#define VIER_FARBEN`
-ist an). Weiße LEDs: nicht in den Ecken nötig – Pin A1 bleibt frei (z. B. später als Licht fürs Zählwerk).
+Helligkeit, Atmen, Blinken und der Blitz bei Tastendruck gehen wie bisher (Arduino-Programm 8, `#define DREI_FARBEN`
+ist an). Weiße LEDs gibt es nicht mehr – Weiß entsteht aus rot + grün + blau; Pin A1 ist frei.
 
 ### Steckplan (Pro Micro auf dem Steckbrett, Reihe 1–12)
 
@@ -195,10 +196,9 @@ für Nano und Pro Micro). Es braucht einen Pro Micro mit 16 MHz (USB-C-Nachbaute
 
 ### Andere LEDs (alte Varianten)
 
-- **Weiße LEDs als 4. Farbe in den Ecken** (Konzept „Kreuz“): `#define WEISS_IN_ECKEN` einschalten, weiß an A1.
-- **Alle LEDs an einem Pin** (nur an/aus/Helligkeit): im Programm `#define VIER_FARBEN` ausschalten (`//` davor),
+- **Alle LEDs an einem Pin** (nur an/aus/Helligkeit): im Programm `#define DREI_FARBEN` ausschalten (`//` davor),
   alle Widerstände an D11 (Pro Micro D9).
-- **RGB-LEDs/Streifen (WS2812B, PL9823):** `VIER_FARBEN` aus, `#define STREIFEN n` an, DIN an D12 (Pro Micro D10).
+- **RGB-LEDs/Streifen (WS2812B, PL9823):** `DREI_FARBEN` aus, `#define STREIFEN n` an, DIN an D12 (Pro Micro D10).
 
 ## 6. Fehlersuche in AluPC
 

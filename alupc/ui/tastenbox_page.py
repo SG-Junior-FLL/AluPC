@@ -564,8 +564,8 @@ class TastenboxPage(QWidget):
             what.setWordWrap(True)
             row.addWidget(what, 1)
             dl.addLayout(row)
-        wiring = QLabel("Anschlüsse Pro Micro: Tasten 2–8, 14, 15 · Regler-Mitte A0 · LEDs rot 10, grün 9, blau 16, "
-                        "weiß A1 · Buzzer A2.  Nano: Tasten 2–10 · A0 · LEDs 11, 12, 13, A1 · Buzzer A2.  Je Farbe ein "
+        wiring = QLabel("Anschlüsse Pro Micro: Tasten 2–8, 14, 15 · Regler-Mitte A0 · LEDs rot 10, grün 9, blau 16 · "
+                        "Buzzer A2.  Nano: Tasten 2–10 · A0 · LEDs 11, 12, 13 · Buzzer A2.  Je Farbe ein "
                         "220-Ω-Widerstand für 4 LEDs · das andere Tasten-Bein und die kurzen LED-Beine an Minus (GND).")
         wiring.setObjectName("Muted")
         wiring.setWordWrap(True)

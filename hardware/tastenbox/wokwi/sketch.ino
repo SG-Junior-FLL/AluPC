@@ -1,6 +1,6 @@
 // AluPC-Tasten – Programm für die Tastenbox (Arduino Pro Micro oder Arduino Nano)
 //
-// 9 Tasten (3 × 3), 1 Drehregler (was er regelt, stellt man in AluPC ein), LEDs: 4 Farben (rot, grün, blau, weiß –
+// 9 Tasten (3 × 3), 1 Drehregler (was er regelt, stellt man in AluPC ein), LEDs: 3 Farben (rot, grün, blau –
 // normale 5-mm-LEDs, je Farbe ein Pin) oder ein einfarbiger LED-Pin oder RGB-LEDs (Streifen).
 // In der Arduino-IDE das Board wählen – Pro Micro: „Arduino Leonardo“ (technisch gleich), Nano: „Arduino Nano“
 // (bei Nachbauten evtl. Prozessor „ATmega328P (Old Bootloader)“) –, Anschluss wählen, hochladen.
@@ -9,24 +9,23 @@
 //                 Pro Micro                        Nano (und Uno/Mega, z. B. in der Wokwi-Simulation)
 //   Tasten 1–9 :  D2 D3 D4 D5 D6 D7 D8 D14 D15       D2 D3 D4 D5 D6 D7 D8 D9 D10
 //   Regler     :  A0                                 A0
-//   4 Farben   :  rot D10 · grün D9 · blau D16 · weiß A1     rot D11 · grün D12 · blau D13 · weiß A1   (Standard)
-//   LEDs       :  D9                                 D11       (nur ohne VIER_FARBEN: alle LEDs an einem Pin)
-//   Streifen   :  D10                                D12       (nur mit STREIFEN, statt VIER_FARBEN)
+//   3 Farben   :  rot D10 · grün D9 · blau D16          rot D11 · grün D12 · blau D13   (Standard)
+//   LEDs       :  D9                                 D11       (nur ohne DREI_FARBEN: alle LEDs an einem Pin)
+//   Streifen   :  D10                                D12       (nur mit STREIFEN, statt DREI_FARBEN)
 //   Buzzer     :  A2                                 A2        (optional: + an A2, − an GND)
 //
 //   Tasten: jeweils das andere Bein an GND (keine Widerstände nötig).
 //   Regler: Potentiometer 10 kΩ linear – Mitte an A0, die beiden Außenbeine an 5V/VCC und GND.
-//   LEDs:   Pin → je LED ein eigener Widerstand (1 kΩ; nur eine LED: 220 Ω) → langes Bein, kurzes Bein an GND.
-//           4 Farben: je Ecke 3 LEDs rot, grün, blau („Farbmischer“, wie eine RGB-LED) – alle LEDs einer Farbe am
-//           selben Farb-Pin, jede mit eigenem 1-kΩ-Widerstand. Farbe aus AluPC (FARBE r g b) → rot/grün/blau direkt,
-//           Mischfarben entstehen in jeder Ecke; Regenbogen = Farbkreis. Weiß-Pin: gemeinsamer Weißanteil (optional).
-//           Mit WEISS_IN_ECKEN (weiße LEDs als 4. Farbe in den Ecken): Weißanteil geht an weiß statt an r/g/b.
+//   LEDs:   je Farbe ein 220-Ω-Widerstand vom Pin zu den 4 LEDs dieser Farbe (langes Bein), kurze Beine an GND.
+//           3 Farben: je Ecke 3 LEDs rot, grün, blau („Farbmischer“, wie eine RGB-LED) – alle LEDs einer Farbe am
+//           selben Farb-Pin. Farbe aus AluPC (FARBE r g b) → rot/grün/blau direkt, Mischfarben (auch Weiß = alle
+//           drei) entstehen in jeder Ecke; Regenbogen = Farbkreis.
 //   Streifen/RGB-LEDs (WS2812B, PL9823): DIN an den Streifen-Pin, 5V, GND (am USB höchstens ~8–10 LEDs).
 //   Buzzer: passiver Buzzer spielt Töne und Melodien (AluPC schickt Note für Note), aktiver piept nur.
-//           (Nano ohne VIER_FARBEN: Buzzer und LED-Pin D11 teilen sich Timer 2 – dann flackert die LED beim Ton.)
+//           (Nano ohne DREI_FARBEN: Buzzer und LED-Pin D11 teilen sich Timer 2 – dann flackert die LED beim Ton.)
 //
 // Was die Box an den PC schickt (115200 Baud, eine Zeile je Meldung):
-//   HALLO ALUPC-TASTEN 7 NANO – Antwort auf „WER?“ (und einmal beim Start); 7 = Programmversion, dann das Board
+//   HALLO ALUPC-TASTEN 8 NANO – Antwort auf „WER?“ (und einmal beim Start); 8 = Programmversion, dann das Board
 //   TASTE n                   – Taste n kurz gedrückt (1–9), gemeldet beim Loslassen
 //   LANG n                    – Taste n lange gedrückt (ab 0,6 s, noch während sie unten ist)
 //   LAUT n                    – Regler steht auf n Prozent (0–100), nur wenn er sich bewegt hat, und auf „LAUT?“
@@ -42,8 +41,7 @@
 //   0 = Ecke vorne links, 1 = hinten links, 2 = hinten rechts, 3 = vorne rechts, ab 4 = Lichtleiste.
 // STREIFEN = Anzahl aller LEDs der Kette (z. B. 4 Ecken + 7 Leiste = 11).
 
-#define VIER_FARBEN  // 4 einfarbige LED-Gruppen
-// #define WEISS_IN_ECKEN  // einschalten, wenn weiße LEDs als eigene Farbe in den Ecken sitzen (Konzept „Kreuz“) (rot, grün, blau, weiß) – ausschalten (// davor) für eine LED-Gruppe an D11
+#define DREI_FARBEN  // 3 einfarbige LED-Gruppen (rot, grün, blau) – ausschalten (// davor) für eine LED-Gruppe an D11
 // #define STREIFEN 11  // Zeile einschalten (// weg) für RGB-LEDs, hier 11 Stück (Bibliothek „Adafruit NeoPixel“)
 // #define ECKEN_PL9823 // einschalten, wenn die 4 Ecken 5-mm-LEDs vom Typ PL9823 sind (andere Farbreihenfolge als WS2812B)
 
@@ -51,32 +49,32 @@
 const uint8_t TASTEN[9] = {2, 3, 4, 5, 6, 7, 8, 14, 15};
 const uint8_t LED = 9;
 const uint8_t STREIFEN_PIN = 10;
-const uint8_t KANAL_PIN[4] = {10, 9, 16, A1};   // rot, grün, blau, weiß
+const uint8_t KANAL_PIN[3] = {10, 9, 16};   // rot, grün, blau
 const char BOARD[] = "PROMICRO";
 #else
 const uint8_t TASTEN[9] = {2, 3, 4, 5, 6, 7, 8, 9, 10};
 const uint8_t LED = 11;
 const uint8_t STREIFEN_PIN = 12;
-const uint8_t KANAL_PIN[4] = {11, 12, 13, A1};  // rot, grün, blau, weiß
+const uint8_t KANAL_PIN[3] = {11, 12, 13};  // rot, grün, blau
 const char BOARD[] = "NANO";
 #endif
 const uint8_t REGLER = A0;
 const uint8_t BUZZER = A2;
 
-#if defined(VIER_FARBEN) && defined(STREIFEN)
-#error "VIER_FARBEN und STREIFEN gehen nicht zusammen (gleicher Pin) – eins von beiden ausschalten"
+#if defined(DREI_FARBEN) && defined(STREIFEN)
+#error "DREI_FARBEN und STREIFEN gehen nicht zusammen (gleicher Pin) – eins von beiden ausschalten"
 #endif
 
-#ifdef VIER_FARBEN
+#ifdef DREI_FARBEN
 // Helligkeit je Farbe weich (64 Stufen, 125 Hz) für alle 4 Pins – auch die ohne PWM: Timer 1 schaltet sie
-volatile uint8_t kanal[4];
+volatile uint8_t kanal[3];
 ISR(TIMER1_COMPA_vect) {
   static uint8_t schritt = 0;
   schritt = (schritt + 1) & 63;
-  for (uint8_t k = 0; k < 4; k++) digitalWrite(KANAL_PIN[k], kanal[k] > schritt ? HIGH : LOW);
+  for (uint8_t k = 0; k < 3; k++) digitalWrite(KANAL_PIN[k], kanal[k] > schritt ? HIGH : LOW);
 }
 void kanaeleStarten() {
-  for (uint8_t k = 0; k < 4; k++) pinMode(KANAL_PIN[k], OUTPUT);
+  for (uint8_t k = 0; k < 3; k++) pinMode(KANAL_PIN[k], OUTPUT);
   noInterrupts();
   TCCR1A = 0;
   TCCR1B = _BV(WGM12) | _BV(CS11);  // CTC, 16 MHz / 8
@@ -118,38 +116,18 @@ unsigned long debugZuletzt = 0;
 
 void ledZeigen(int prozent) {
   prozent = constrain(prozent, 0, 100);
-#ifdef VIER_FARBEN
+#ifdef DREI_FARBEN
   uint16_t r = farbe[0], g = farbe[1], b = farbe[2];
-  uint16_t w = min(r, min(g, b));  // gemeinsamer Anteil → weiße LEDs
-#ifdef WEISS_IN_ECKEN
-  if (r == g && g == b) {           // Weiß/Grau: alle LEDs an (Arbeitslicht)
-    w = r;
-  } else {
-    r -= w; g -= w; b -= w;
-  }
-  if (effekt == 3) {  // „Regenbogen“ mit 4 Farben: rot → grün → blau → weiß, weich überblendet
-    unsigned long t = millis() % 6000;
-    uint8_t phase = t / 1500;
-    uint16_t f = (t % 1500) * 255 / 1500;
-    uint16_t v[4] = {0, 0, 0, 0};
-    v[phase] = 255 - f;
-    v[(phase + 1) % 4] = f;
-    r = v[0]; g = v[1]; b = v[2]; w = v[3];
-  }
-#else
   if (effekt == 3) {  // Regenbogen: rot/grün/blau mischen sich in jeder Ecke zum Farbkreis (6 s rundum)
     uint16_t hue = (millis() / 24) % 256;
     uint8_t seg = hue / 43, f = (hue % 43) * 6;
     uint8_t q = 255 - f;
     const uint8_t rgb[6][3] = {{255, f, 0}, {q, 255, 0}, {0, 255, f}, {0, q, 255}, {f, 0, 255}, {255, 0, q}};
     r = rgb[seg % 6][0]; g = rgb[seg % 6][1]; b = rgb[seg % 6][2];
-    w = 0;
   }
-#endif
   kanal[0] = stufe(r, prozent);
   kanal[1] = stufe(g, prozent);
   kanal[2] = stufe(b, prozent);
-  kanal[3] = stufe(w, prozent);
 #else
   analogWrite(LED, map(prozent, 0, 100, 0, 255));
 #endif
@@ -186,13 +164,13 @@ int effektHelligkeit(unsigned long t) {
 }
 
 void hallo() {
-  Serial.print("HALLO ALUPC-TASTEN 7 ");
+  Serial.print("HALLO ALUPC-TASTEN 8 ");
   Serial.println(BOARD);
 }
 
 void setup() {
 #if defined(__AVR_ATmega32U4__)
-  // Pro Micro: A0–A3 sind auch JTAG-Pins; bei manchen Nachbauten ist JTAG an → Regler (A0) und weiße LEDs (A1)
+  // Pro Micro: A0–A3 sind auch JTAG-Pins; bei manchen Nachbauten ist JTAG an → Regler (A0) und Buzzer (A2)
   // gingen nicht. Abschalten: JTD zweimal kurz hintereinander setzen.
   MCUCR |= (1 << JTD);
   MCUCR |= (1 << JTD);
@@ -203,7 +181,7 @@ void setup() {
     gedrueckt[i] = false;
     langGemeldet[i] = false;
   }
-#ifdef VIER_FARBEN
+#ifdef DREI_FARBEN
   kanaeleStarten();
 #else
   pinMode(LED, OUTPUT);

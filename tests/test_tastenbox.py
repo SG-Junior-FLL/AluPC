@@ -173,7 +173,7 @@ def tastenbox_sketch_exists() -> bool:
     from alupc.ui.tastenbox_page import SKETCH
 
     text = SKETCH.read_text(encoding="utf-8")
-    return all(w in text for w in ("HALLO ALUPC-TASTEN 7", "VIER_FARBEN", "TON ", "BUZZER", "LAUT", "WERT", "TASTE", "LANG", "EFFEKT", "FARBE", "DEBUG", "ROH", "PIXEL",
+    return all(w in text for w in ("HALLO ALUPC-TASTEN 8", "DREI_FARBEN", "TON ", "BUZZER", "LAUT", "WERT", "TASTE", "LANG", "EFFEKT", "FARBE", "DEBUG", "ROH", "PIXEL",
                                    "ARDUINO_AVR_LEONARDO"))
 
 
@@ -539,7 +539,7 @@ def test_arduino_sketches_download(env, monkeypatch, tmp_path):  # noqa: F811
         assert out == tmp_path / name / f"{name}.ino" and out.exists()
         text = out.read_text(encoding="utf-8")
         assert "void setup()" in text and "void loop()" in text and "JTD" in text  # Pro Micro: JTAG aus
-    assert "VIER_FARBEN" in (tmp_path / "AluPC-Tasten" / "AluPC-Tasten.ino").read_text(encoding="utf-8")
+    assert "DREI_FARBEN" in (tmp_path / "AluPC-Tasten" / "AluPC-Tasten.ino").read_text(encoding="utf-8")
 
 
 def _rule(name, folge, ziel, **wenn):
