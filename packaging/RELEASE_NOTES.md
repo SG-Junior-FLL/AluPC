@@ -10,9 +10,10 @@
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
 ### Neu in 2.4.1 – Tastenbox-Eingaben am Monitor
-- **Anzeige unten links am Hauptmonitor** (Seite Tastenbox → „Eingaben unten links am Monitor anzeigen“): bei jedem
-  Tastendruck kurz Taste, Lage auf der Box (kleines 3 × 3-Feld) und Aktion; laufende Tastenfolge, Code-Eingabe,
-  ausgelöste Wenn → Dann-Regel, auf Wunsch auch der Regler. Klicks gehen hindurch, nimmt nie den Fokus.
+- **Anzeige unten links am Hauptmonitor** (Seite Tastenbox → „Eingaben unten links am Monitor anzeigen“): das
+  Tastenfeld mit allen 9 Funktionen, die gedrückte Taste leuchtet. Kann eine Taste eine Tastenfolge beginnen, läuft
+  ein Wartebalken (ihre Funktion kommt erst danach) und die möglichen nächsten Tasten sind umrandet; Code-Eingabe,
+  ausgelöste Wenn → Dann-Regel, auf Wunsch der Regler. Klicks gehen hindurch, nimmt nie den Fokus.
   Unter KDE/Wayland legt KWin die Anzeige hin (dort am PC nicht ausprobiert).
 
 ### Neu in 2.4.0 – Tastenbox: Tastenfolgen, Buzzer mit Melodien und MIDI, flüssiger Mixer

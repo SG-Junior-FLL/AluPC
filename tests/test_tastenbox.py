@@ -734,12 +734,23 @@ def test_box_osd_shows_inputs(env, monkeypatch):  # noqa: F811
     osd.show_event({"art": "regler", "wert": 40, "ziel": "PC-Lautstärke"})
     assert osd.title == "Taste 7 · unten links"  # Regler abgeschaltet → bleibt bei der Taste
     labels = {"standbild": "Standbild an/aus"}
-    assert describe_event({"art": "taste", "n": 7, "aktion": "", "folge": "71"}, labels)[1] == "Folge 7-1 …"
+    assert describe_event({"art": "taste", "n": 1, "aktion": "", "folge": "71", "weiter": "2"}, labels)[1] == (
+        "Folge 7-1 … weiter mit 2")
+    assert describe_event({"art": "freigabe", "tasten": "71"}, labels)[1] == "Ausgeführt: Taste 7, 1"
+    # Tastenfeld: alle 9 Tasten tragen ihre Funktion
+    assert osd.caps[7] == "Standbild an/aus" and len(osd.caps) == 9 and all(osd.caps.values())
     assert describe_event({"art": "taste", "n": 3, "aktion": "", "lang": True}, labels)[:2] == (
         "Taste 3 · oben rechts · lang", "– nicht belegt –")
     assert describe_event({"art": "code", "code": "12", "fertig": False}, labels)[1] == "1-2 …"
     assert describe_event({"art": "regler", "wert": 40, "ziel": "PC-Lautstärke"}, labels)[1] == "PC-Lautstärke: 40 %"
     assert describe_event({"art": "zahl", "wert": 7}, labels)[1] == "007"
+    # Taste beginnt eine Folge → Wartebalken, mögliche nächste Taste markiert
+    controller.config["tasten"] = {**controller.config["tasten"],
+                                   "regeln": [_rule("Intro", "712", "standbild")]}
+    controller.buttonbox.key.emit(7)
+    assert osd.trail == "7" and osd.next_keys == "1" and osd._wait_ms > 0
+    controller._seq_flush()
+    assert osd.title == "Keine Folge"
     out = window.box_osd.grab()
     assert not out.isNull()
     osd.hide()

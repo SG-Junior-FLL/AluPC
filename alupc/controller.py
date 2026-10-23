@@ -1775,8 +1775,10 @@ class Controller(QObject):
         self._box_blink()
         self._box_click()
         held = self._seq_push(n, action)
-        self.box_input.emit({"art": "taste", "n": n, "aktion": action, "lang": False,
-                             "folge": self._seq_buffer() if held else ""})
+        buf = self._seq_buffer() if held else ""
+        self.box_input.emit({"art": "taste", "n": n, "aktion": action, "lang": False, "folge": buf,
+                             "weiter": self._seq_next(buf), "warten_ms": self._seq_timer.remainingTime()
+                             if buf and self._seq_timer.isActive() else 0})
         if held:
             return
         if action:
@@ -1810,6 +1812,15 @@ class Controller(QObject):
         self._seq_timer.start(SEQ_GAP_MS)
         return True
 
+    def _seq_next(self, buf: str) -> str:
+        """Tasten, mit denen eine angefangene Folge weitergehen kann (für die Anzeige)."""
+        if not buf:
+            return ""
+        from .automations import sequence_rules
+
+        return "".join(sorted({f[len(buf)] for f in (r["wenn"]["folge"] for r in sequence_rules(self.box_rules()))
+                               if f.startswith(buf) and len(f) > len(buf)}))
+
     def _seq_buffer(self) -> str:
         return "".join(str(k) for k, _a in self._seq_keys)
 
@@ -1837,6 +1848,8 @@ class Controller(QObject):
         """Zurückgehaltene Tasten doch normal ausführen (Folge abgebrochen)."""
         self._seq_timer.stop()
         keys, self._seq_keys = self._seq_keys, []
+        if keys:
+            self.box_input.emit({"art": "freigabe", "tasten": "".join(str(k) for k, _a in keys)})
         for _k, act in keys:
             if act:
                 self.run_command(act)
