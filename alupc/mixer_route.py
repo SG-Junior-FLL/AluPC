@@ -123,9 +123,13 @@ class AudioRouting(QObject):
             cfg.pop(old, None)
         self.config["audio_mixer"] = cfg
 
-    def devices(self) -> list[dict]:
-        """Virtuelle Geräte (Windows: die von VB-CABLE, Linux: die eingestellten)."""
-        return mixer.virtual_devices(None if IS_WINDOWS else self.cfg()["devices"])
+    def devices(self, snap: dict | None = None) -> list[dict]:
+        """Virtuelle Geräte (Windows: die von VB-CABLE, Linux: die eingestellten). Fragt das System ab – nicht im
+        Oberflächen-Thread aufrufen; snap: Ergebnis von mixer.snapshot() (Windows: Geräte nicht nochmal lesen)."""
+        configured = None if IS_WINDOWS else self.cfg()["devices"]
+        if snap:
+            return mixer.virtual_devices(configured, snap.get("out"), snap.get("in"))
+        return mixer.virtual_devices(configured)
 
     def has_route(self, src: str, dst: str) -> bool:
         return [src, dst] in self.cfg()["routes"]

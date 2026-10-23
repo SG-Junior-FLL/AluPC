@@ -18,6 +18,25 @@ def action_choices(config) -> list[tuple[str, str]]:
     for rule in config["tasten"].get("regeln") or []:
         if rule.get("name"):
             out.append((f"regel:{rule['name']}", f"Wenn → Dann: {rule['name']}"))
+    out += sound_choices()
+    return out
+
+
+def sound_choices() -> list[tuple[str, str]]:
+    """Klänge am PC und Melodien/MIDI-Dateien auf dem Buzzer der Tastenbox."""
+    from .. import buzzer, sounds
+
+    out = [(f"klang:builtin:{key}", f"Klang am PC: {label}") for key, label in sounds.BUILTIN.items()]
+    try:
+        out += [(f"klang:{p}", f"Klang am PC: {p.name}") for p in sounds.uploaded_files()]
+    except OSError:
+        pass
+    out += [(f"buzzer:{key}", f"Buzzer – {label}") for key, (label, _t, _n) in buzzer.SONGS.items()]
+    try:
+        out += [(f"buzzer_midi:{p}", f"Buzzer – MIDI: {p.name}") for p in buzzer.midi_files()]
+    except OSError:
+        pass
+    out.append(("buzzer_stopp", "Buzzer – Stopp"))
     return out
 
 

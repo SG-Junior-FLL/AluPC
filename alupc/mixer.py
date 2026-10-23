@@ -487,11 +487,14 @@ def remove_device(dev_id: str, run=_run) -> tuple[bool, str]:
     return True, ""
 
 
-def virtual_devices(configured: list[dict] | None = None) -> list[dict]:
+def virtual_devices(configured: list[dict] | None = None, outs: list[dict] | None = None,
+                    ins: list[dict] | None = None) -> list[dict]:
     """Virtuelle Geräte für Mixer und Weiterleitung: [{id, kind ("out"/"mic"), name, sink, source, present,
-    removable}] – sink: wohin Ton muss, damit er im Gerät ist; source: woher man ihn abgreift."""
+    removable}] – sink: wohin Ton muss, damit er im Gerät ist; source: woher man ihn abgreift.
+    outs/ins: schon gelesene Geräte (Windows) – spart die zweite Abfrage."""
     if IS_WINDOWS:
-        outs, ins = devices("out"), devices("in")
+        outs = devices("out") if outs is None else outs
+        ins = devices("in") if ins is None else ins
         found = []
         for o in outs:  # VB-CABLE: „CABLE Input“ ↔ „CABLE Output“ (auch CABLE-A/B …)
             low = o["name"].lower()

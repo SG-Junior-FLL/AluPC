@@ -33,16 +33,26 @@ from PySide6.QtWidgets import (
 
 from . import theme
 from .voice_custom import action_choices
-from .widgets import FlowLayout, button, font, page_header
+from .widgets import FlowLayout, button, font, page_header, searchable
 
 ARDUINO = Path(__file__).resolve().parents[1] / "resources" / "arduino"
 SKETCH = ARDUINO / "AluPC-Tasten" / "AluPC-Tasten.ino"
 SKETCHES = {"AluPC-Tasten": "Tastenbox-Programm", "Poti-Test": "Poti-Test (welcher Draht ist die Mitte?)",
             "Buzzer-Test": "Buzzer-Test (Taste drücken = Lied, Buzzer an A2)",
             "Pin-Finder": "Pin-Finder (an welchem Pin hängt welche Taste?)"}
-LED_MODES = {"live": "Leuchtet, wenn etwas live ist", "an": "Immer an", "aus": "Aus"}
-LED_EFFECTS = {"ruhig": "Ruhig", "atmen": "Atmen (langsam heller/dunkler)", "blinken": "Blinken",
-               "regenbogen": "Farbwechsel / Regenbogen"}
+LED_MODES = {"live": "Nur wenn Bildschirm 2 etwas zeigt (live)", "an": "Immer an", "aus": "Aus"}
+LED_EFFECTS = {"ruhig": "Ruhig (gleichmäßig)", "atmen": "Atmen (langsam heller und dunkler)", "blinken": "Blinken",
+               "regenbogen": "Farbwechsel (alle Farben nacheinander)"}
+# Besondere Einträge in den Tasten-Listen: öffnen eine Dateiauswahl
+FILE_CHOICES = [("__klang__", "Klang-Datei am PC abspielen … (Datei wählen)"),
+                ("__midi__", "MIDI-Datei auf dem Buzzer … (Datei wählen)")]
+LED_HELP = (
+    "<b>Wann:</b> wann die LEDs überhaupt leuchten. <b>Effekt:</b> ruhig = gleichmäßig, atmen = langsam heller und "
+    "dunkler, blinken, Farbwechsel = läuft durch alle Farben. <b>Farbe:</b> mischt deine roten, grünen und blauen LEDs "
+    "in jeder Ecke – Rot = nur die roten (Pin 10), Grün = nur die grünen (Pin 9), Blau = nur die blauen (Pin 16), "
+    "Weiß = alle drei. <b>Farbschema</b> gilt nur für RGB-LED-Streifen (WS2812), nicht für einzelne LEDs.")
+QUICK_COLORS = [("Rot", "#ff0000"), ("Grün", "#00ff00"), ("Blau", "#0000ff"), ("Weiß", "#ffffff"),
+                ("Lila", "#ff00ff"), ("Gelb", "#ffff00"), ("Türkis", "#00ffff")]
 CELL = 132  # 3 × 132 passt auch ins kleinste Fenster (600 px)
 
 
@@ -194,6 +204,14 @@ class TastenboxPage(QWidget):
         self.status = QLabel()
         self.status.setWordWrap(True)
         root.addWidget(self.status)
+        intro = QLabel(
+            "<b>So geht's:</b> ① Eine Taste unten antippen (oder die echte Taste drücken) und wählen, was sie tun soll "
+            "– kurz drücken und lang drücken (über 0,6 s) gehen getrennt. ② Beim Drehregler wählen, was er regelt. "
+            "③ Unter <b>Wenn → Dann</b> gehen Tastenfolgen (z. B. 7‑1‑2 schnell hintereinander), Codes und Zahlen am "
+            "Regler. In jeder Auswahlliste kann man <b>tippen, um zu suchen</b>.")
+        intro.setWordWrap(True)
+        intro.setObjectName("Muted")
+        root.addWidget(intro)
 
         cols = FlowLayout(spacing=14)  # breit: Tasten links, Regler rechts – schmal: untereinander
         holder = QWidget()
@@ -222,10 +240,10 @@ class TastenboxPage(QWidget):
         row = QHBoxLayout()
         self.key_label = QLabel()
         self.key_label.setObjectName("Muted")
-        self.action = QComboBox()
+        self.action = searchable(QComboBox())
         self.action.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.action.setMinimumContentsLength(16)
-        for key, label in self.choices:
+        for key, label in self.choices + FILE_CHOICES:
             self.action.addItem(label, key)
         self.action.activated.connect(lambda _i: self._set_key(self.action.currentData() or ""))
         row.addWidget(self.key_label)
@@ -235,11 +253,11 @@ class TastenboxPage(QWidget):
         long_label = QLabel("Lang:")
         long_label.setObjectName("Muted")
         long_label.setToolTip("Taste länger als 0,6 s halten (Arduino-Programm ab Version 2)")
-        self.long_action = QComboBox()
+        self.long_action = searchable(QComboBox())
         self.long_action.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.long_action.setMinimumContentsLength(16)
         self.long_action.addItem("– wie kurz –", "")
-        for key, label in self.choices[1:]:
+        for key, label in self.choices[1:] + FILE_CHOICES:
             self.long_action.addItem(label, key)
         self.long_action.activated.connect(lambda _i: self._set_long(self.long_action.currentData() or ""))
         long_row.addWidget(long_label)
@@ -302,73 +320,10 @@ class TastenboxPage(QWidget):
         knob_box.setFixedWidth(320)
         cols.addWidget(knob_box)
 
-        # ---- Box: an/aus, LED, Anschluss, Programm
-        dev = QGroupBox("Box")
-        dl = QVBoxLayout(dev)
-        df = QFormLayout()
-        on = QCheckBox("Tastenbox suchen und benutzen")
-        on.setChecked(bool(c.config["tasten"].get("on", True)))
-        on.toggled.connect(lambda v: self._save(on=v))
-        df.addRow("", on)
-        led = QComboBox()
-        for key, label in LED_MODES.items():
-            led.addItem(label, key)
-        led.setCurrentIndex(max(0, led.findData(c.config["tasten"].get("led", "live"))))
-        led.currentIndexChanged.connect(lambda _i: self._save(led=led.currentData()))
-        df.addRow("LED:", led)
-        effect = QComboBox()
-        for key, label in LED_EFFECTS.items():
-            effect.addItem(label, key)
-        effect.setCurrentIndex(max(0, effect.findData(c.config["tasten"].get("led_effekt", "ruhig"))))
-        effect.setToolTip("Wie die LEDs leuchten, wenn sie an sind (Box-Programm ab Version 3)")
-        effect.currentIndexChanged.connect(lambda _i: self._save(led_effekt=effect.currentData()))
-        df.addRow("Effekt:", effect)
-        from ..tastenbox import LED_SCHEMES
-
-        scheme = QComboBox()
-        for key, label in LED_SCHEMES.items():
-            scheme.addItem(label, key)
-        scheme.setCurrentIndex(max(0, scheme.findData(c.config["tasten"].get("led_schema", "einfarbig"))))
-        scheme.setToolTip("Für RGB-LEDs (Box-Programm 4): Ecken in eigenen Farben, Zustand (Rot = live, "
-                          "Gelb = Schwarz/Standbild) oder Regenbogen – siehe LED-Plan")
-        scheme.currentIndexChanged.connect(lambda _i: self._save(led_schema=scheme.currentData()))
-        df.addRow("Farbschema:", scheme)
-        self.color_btn = QPushButton()
-        self.color_btn.setToolTip("Mischfarbe der Ecken (rote, grüne, blaue LEDs, Programm 6) bzw. RGB-LEDs/Streifen")
-        self.color_btn.clicked.connect(self._pick_color)
-        self._show_color()
-        df.addRow("Farbe:", self.color_btn)
-        bright = QSpinBox()
-        bright.setRange(5, 100)
-        bright.setSingleStep(5)
-        bright.setSuffix(" %")
-        bright.setValue(c.box_led_brightness())
-        bright.valueChanged.connect(lambda v: self._save(led_hell=v))
-        df.addRow("Helligkeit:", bright)
-        blink = QCheckBox("LED blitzt bei jedem Tastendruck")
-        blink.setChecked(bool(c.config["tasten"].get("led_blink", False)))
-        blink.toggled.connect(lambda v: self._save(led_blink=v))
-        df.addRow("", blink)
-        self.port = QComboBox()
-        self.port.addItem("Automatisch", "")
-        self._fill_ports()
-        self.port.currentIndexChanged.connect(lambda _i: self._save(port=self.port.currentData()))
-        df.addRow("Anschluss:", self.port)
-        dl.addLayout(df)
-        for name, label in SKETCHES.items():  # untereinander: passt auch ins kleinste Fenster
-            b = button(label.split(" (")[0] + " speichern …", "download")
-            b.setToolTip(label + " – speichert einen fertigen Ordner für die Arduino-IDE (Ordner + .ino gleichen Namens)")
-            b.clicked.connect(lambda _c=False, n=name: self._save_sketch(n))
-            dl.addWidget(b, 0, Qt.AlignLeft)
-        wiring = QLabel("Hochladen: Arduino-IDE → Board „Arduino Leonardo“ (Pro Micro) bzw. „Arduino Nano“ → Anschluss → "
-                        "Hochladen.  Pro Micro: Tasten D2–D8, D14, D15 · Regler-Mitte A0 · LEDs rot D10, grün D9, blau D16, "
-                        "weiß A1.  Nano: Tasten D2–D10 · A0 · LEDs D11, D12, D13, A1.  Je Farbe ein 220-Ω-Widerstand "
-                        "für 4 LEDs (oder 1 kΩ je LED) · andere Tasten-Seite und kurze LED-Beine an GND.")
-        wiring.setObjectName("Muted")
-        wiring.setWordWrap(True)
-        dl.addWidget(wiring)
-        root.addWidget(dev)
+        root.addWidget(self._led_box())
+        root.addWidget(self._buzzer_box())
         root.addWidget(self._rules_box())
+        root.addWidget(self._device_box())
         root.addWidget(self._debug_box())
         root.addStretch(1)
 
@@ -377,8 +332,10 @@ class TastenboxPage(QWidget):
         bb.state_changed.connect(self._fill_ports)
         bb.key.connect(self._pressed)
         bb.long_key.connect(self._pressed)
-        bb.volume.connect(lambda _v: self.refresh())
-        bb.fine.connect(lambda _v: self._rules_live())
+        # Regler: viele Werte pro Sekunde → gebündelt neu zeichnen
+        self._live = QTimer(self, singleShot=True, interval=100, timeout=lambda: (self.refresh(), self._rules_live()))
+        bb.volume.connect(lambda _v: self._live.isActive() or self._live.start())
+        bb.fine.connect(lambda _v: self._live.isActive() or self._live.start())
         bb.raw.connect(self._raw)
         bb.log_line.connect(self._log)
         bb.state_changed.connect(self._debug_info)
@@ -393,16 +350,211 @@ class TastenboxPage(QWidget):
         c.apply_buttonbox()
 
     def _set_key(self, action: str) -> None:
+        action = self._file_action(action)
+        if action is None:  # Dateiauswahl abgebrochen
+            return self.select(self.selected)
         keys = self.controller.box_keys()
         keys[str(self.selected)] = action
         self._save(keys=keys)
+        self.select(self.selected)
         self.refresh()
 
     def _set_long(self, action: str) -> None:
+        action = self._file_action(action)
+        if action is None:
+            return self.select(self.selected)
         cfg = self.controller.config["tasten"]
         lang = {**(cfg.get("lang") or {}), str(self.selected): action}
         self._save(lang={k: v for k, v in lang.items() if v})
+        self.select(self.selected)
         self.refresh()
+
+    def _file_action(self, action: str) -> str | None:
+        """„Klang-/MIDI-Datei wählen …“ → Datei aussuchen, in den AluPC-Ordner kopieren → „klang:…“ bzw.
+        „buzzer_midi:…“. Andere Aktionen bleiben, wie sie sind; None = abgebrochen."""
+        if action not in ("__klang__", "__midi__"):
+            return action
+        from .. import buzzer, sounds
+
+        midi = action == "__midi__"
+        path, _ = QFileDialog.getOpenFileName(self, "MIDI-Datei wählen" if midi else "Klang wählen", "",
+                                              "MIDI (*.mid *.midi)" if midi else
+                                              "Töne (*.wav *.mp3 *.ogg *.flac *.m4a)")
+        if not path:
+            return None
+        if midi:
+            try:
+                buzzer.midi_notes(path)
+            except (OSError, ValueError) as exc:
+                self.controller.message.emit(f"Diese MIDI-Datei geht nicht: {exc}")
+                return None
+            command = "buzzer_midi:" + buzzer.upload_midi(path)
+        else:
+            command = "klang:" + sounds.upload(path)
+        self._refill_choices()
+        return command
+
+    def _refill_choices(self) -> None:
+        """Aktionslisten neu (neue Klang-/MIDI-Datei, neue Regel)."""
+        self.choices = [("", "– nichts –")] + action_choices(self.controller.config)
+        for combo, items in ((self.action, self.choices), (self.long_action, [("", "– wie kurz –")] + self.choices[1:])):
+            combo.blockSignals(True)
+            combo.clear()
+            for key, label in items + FILE_CHOICES:
+                combo.addItem(label, key)
+            combo.blockSignals(False)
+
+    # ------------------------------------------------------------ LEDs, Buzzer, Box
+    def _led_box(self) -> QGroupBox:
+        c = self.controller
+        box = QGroupBox("LEDs")
+        lay = QVBoxLayout(box)
+        help_text = QLabel(LED_HELP)
+        help_text.setObjectName("Muted")
+        help_text.setWordWrap(True)
+        lay.addWidget(help_text)
+        df = QFormLayout()
+        led = QComboBox()
+        for key, label in LED_MODES.items():
+            led.addItem(label, key)
+        led.setCurrentIndex(max(0, led.findData(c.config["tasten"].get("led", "live"))))
+        led.currentIndexChanged.connect(lambda _i: self._save(led=led.currentData()))
+        df.addRow("Wann:", led)
+        effect = QComboBox()
+        for key, label in LED_EFFECTS.items():
+            effect.addItem(label, key)
+        effect.setCurrentIndex(max(0, effect.findData(c.config["tasten"].get("led_effekt", "ruhig"))))
+        effect.currentIndexChanged.connect(lambda _i: self._save(led_effekt=effect.currentData()))
+        df.addRow("Effekt:", effect)
+        self.color_btn = QPushButton()
+        self.color_btn.setToolTip("Eigene Mischfarbe wählen")
+        self.color_btn.clicked.connect(self._pick_color)
+        self._show_color()
+        quick = QWidget()
+        ql = FlowLayout(spacing=4)
+        quick.setLayout(ql)
+        ql.addWidget(self.color_btn)
+        from .icons import dot_icon
+
+        for name, col in QUICK_COLORS:
+            b = QPushButton(name)
+            b.setIcon(dot_icon(col, 12))
+            b.clicked.connect(lambda _c=False, col=col: (self._save(led_farbe=col), self._show_color()))
+            ql.addWidget(b)
+        df.addRow("Farbe:", quick)
+        bright = QSpinBox()
+        bright.setRange(5, 100)
+        bright.setSingleStep(5)
+        bright.setSuffix(" %")
+        bright.setValue(c.box_led_brightness())
+        bright.valueChanged.connect(lambda v: self._save(led_hell=v))
+        df.addRow("Helligkeit:", bright)
+        from ..tastenbox import LED_SCHEMES
+
+        scheme = QComboBox()
+        for key, label in LED_SCHEMES.items():
+            scheme.addItem(label, key)
+        scheme.setCurrentIndex(max(0, scheme.findData(c.config["tasten"].get("led_schema", "einfarbig"))))
+        scheme.setToolTip("Nur für RGB-LED-Streifen (WS2812): Ecken in eigenen Farben, Zustand (Rot = live, "
+                          "Gelb = Schwarz/Standbild) oder Regenbogen – siehe LED-Plan")
+        scheme.currentIndexChanged.connect(lambda _i: self._save(led_schema=scheme.currentData()))
+        df.addRow("Farbschema:", scheme)
+        blink = QCheckBox("LEDs blitzen bei jedem Tastendruck kurz auf")
+        blink.setChecked(bool(c.config["tasten"].get("led_blink", False)))
+        blink.toggled.connect(lambda v: self._save(led_blink=v))
+        df.addRow("", blink)
+        lay.addLayout(df)
+        test = button("LED-Test: Rot, Grün, Blau einzeln", "sun")
+        test.setToolTip("Zeigt jede Farbe 1,2 s allein – so sieht man, welche LEDs nicht leuchten")
+        test.clicked.connect(self._test_led)
+        lay.addWidget(test, 0, Qt.AlignLeft)
+        return box
+
+    def _buzzer_box(self) -> QGroupBox:
+        from .. import buzzer
+
+        c = self.controller
+        box = QGroupBox("Buzzer")
+        lay = QVBoxLayout(box)
+        hint = QLabel("Ein kleiner Lautsprecher in der Box: <b>+</b> an <b>A2</b>, <b>−</b> an Minus. Passiver Buzzer "
+                      "(unten grüne Platine) spielt Melodien und MIDI-Dateien, aktiver (schwarz vergossen) piept nur. "
+                      f"Braucht das Tastenbox-Programm ab Version {buzzer.MIN_VERSION}. Melodien kann man Tasten "
+                      "und Wenn → Dann-Regeln geben.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+        click = QCheckBox("Kurzer Klick bei jedem Tastendruck")
+        click.setChecked(bool(c.config["tasten"].get("buzzer_klick", False)))
+        click.toggled.connect(lambda v: self._save(buzzer_klick=v))
+        lay.addWidget(click)
+        row = QHBoxLayout()
+        self.song = searchable(QComboBox())
+        for key, (label, _t, _n) in buzzer.SONGS.items():
+            self.song.addItem(label, key)
+        self.song.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.song.setMinimumContentsLength(14)
+        play = button("Abspielen", "play")
+        play.clicked.connect(lambda: c.play_buzzer_song(self.song.currentData()))
+        midi = button("MIDI-Datei …", "download")
+        midi.setToolTip("MIDI-Datei aussuchen und einmal auf dem Buzzer abspielen (der Buzzer spielt immer nur "
+                        "die höchste Stimme)")
+        midi.clicked.connect(self._try_midi)
+        stop = button("Stopp", "x")
+        stop.clicked.connect(c.buzzer.stop)
+        row.addWidget(self.song, 1)
+        lay.addLayout(row)
+        buttons = QWidget()
+        bl = FlowLayout(spacing=6)  # Knöpfe brechen im schmalen Fenster um
+        buttons.setLayout(bl)
+        for b in (play, midi, stop):
+            bl.addWidget(b)
+        lay.addWidget(buttons)
+        return box
+
+    def _try_midi(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "MIDI-Datei abspielen", "", "MIDI (*.mid *.midi)")
+        if path:
+            self.controller.play_buzzer_midi(path)
+
+    def _device_box(self) -> QGroupBox:
+        c = self.controller
+        dev = QGroupBox("Box und Arduino-Programme")
+        dl = QVBoxLayout(dev)
+        df = QFormLayout()
+        on = QCheckBox("Tastenbox suchen und benutzen")
+        on.setChecked(bool(c.config["tasten"].get("on", True)))
+        on.toggled.connect(lambda v: self._save(on=v))
+        df.addRow("", on)
+        self.port = QComboBox()
+        self.port.addItem("Automatisch", "")
+        self._fill_ports()
+        self.port.currentIndexChanged.connect(lambda _i: self._save(port=self.port.currentData()))
+        df.addRow("Anschluss:", self.port)
+        dl.addLayout(df)
+        explain = QLabel("Programme für die Arduino-IDE. Speichern → in der IDE öffnen → Board „Arduino Leonardo“ "
+                         "(Pro Micro) bzw. „Arduino Nano“ → Anschluss → Hochladen. Danach für AluPC wieder das "
+                         "<b>Tastenbox-Programm</b> hochladen – die Test-Programme reden nicht mit AluPC.")
+        explain.setObjectName("Muted")
+        explain.setWordWrap(True)
+        dl.addWidget(explain)
+        for name, label in SKETCHES.items():  # untereinander: passt auch ins kleinste Fenster
+            b = button(label.split(" (")[0] + " speichern …", "download")
+            b.setToolTip(label + " – speichert einen fertigen Ordner für die Arduino-IDE (Ordner + .ino gleichen Namens)")
+            b.clicked.connect(lambda _c=False, n=name: self._save_sketch(n))
+            row = QHBoxLayout()
+            row.addWidget(b)
+            what = QLabel(label.split(" (", 1)[1].rstrip(")") if " (" in label else "für AluPC – immer drauf lassen")
+            what.setObjectName("Muted")
+            what.setWordWrap(True)
+            row.addWidget(what, 1)
+            dl.addLayout(row)
+        wiring = QLabel("Anschlüsse Pro Micro: Tasten 2–8, 14, 15 · Regler-Mitte A0 · LEDs rot 10, grün 9, blau 16, "
+                        "weiß A1 · Buzzer A2.  Nano: Tasten 2–10 · A0 · LEDs 11, 12, 13, A1 · Buzzer A2.  Je Farbe ein "
+                        "220-Ω-Widerstand für 4 LEDs · das andere Tasten-Bein und die kurzen LED-Beine an Minus (GND).")
+        wiring.setObjectName("Muted")
+        wiring.setWordWrap(True)
+        dl.addWidget(wiring)
+        return dev
 
     def select(self, n: int) -> None:
         """Taste n bearbeiten (Klick auf die Kappe oder Druck auf die echte Taste)."""
@@ -435,17 +587,31 @@ class TastenboxPage(QWidget):
             self._save(led_farbe=col.name())
             self._show_color()
 
+    # LED-Test: jede Farbe einzeln (rote LEDs an Pin 10, grüne an 9, blaue an 16), dann alle – so sieht man,
+    # welche Farbgruppe nicht leuchtet. Mit der eingestellten Farbe allein ginge das nicht (Standard #00FFA0 hat 0 Rot).
+    LED_TEST_STEPS = [("Rot", "#ff0000"), ("Grün", "#00ff00"), ("Blau", "#0000ff"), ("Alle (weiß gemischt)", "#ffffff")]
+
     def _test_led(self) -> None:
-        """LEDs 3× aufblitzen lassen (zum Prüfen der Verkabelung), danach wie eingestellt."""
+        """Rot, Grün, Blau je 1,2 s einzeln, dann alle; danach wieder wie eingestellt."""
         c = self.controller
         if not c.buttonbox.connected:
             c.message.emit("Keine Box verbunden.")
             return
-        c.buttonbox.set_effect("ruhig")
-        for i in range(6):
-            QTimer.singleShot(i * 250, lambda on=i % 2 == 0: c.buttonbox.set_led(100 if on else 0))
-        QTimer.singleShot(1600, lambda: (setattr(c, "_led_level", None), setattr(c, "_led_extra", None),
-                                         c.update_box_led()))
+        bb = c.buttonbox
+        bb.set_effect("ruhig")
+        bb.set_led(100)
+        step_ms = 1200
+
+        def show(name, color):
+            bb.set_color(color)
+            bb.set_led(100)
+            c.message.emit(f"LED-Test: jetzt {name} – leuchten alle 4 Ecken?")
+
+        for i, (name, color) in enumerate(self.LED_TEST_STEPS):
+            QTimer.singleShot(i * step_ms, lambda n=name, col=color: show(n, col))
+        QTimer.singleShot(len(self.LED_TEST_STEPS) * step_ms,
+                          lambda: (setattr(c, "_led_level", None), setattr(c, "_led_extra", None),
+                                   c.update_box_led(), c.message.emit("LED-Test fertig.")))
 
     # ------------------------------------------------------------ Fehlersuche
     def _apply_preset(self, _i: int) -> None:
@@ -461,8 +627,13 @@ class TastenboxPage(QWidget):
     def _rules_box(self) -> QGroupBox:
         box = QGroupBox("Wenn → Dann")
         lay = QVBoxLayout(box)
-        hint = QLabel("Code auf den Tasten und/oder eine Zahl am Regler starten Programme, Webseiten, Videos, "
-                      "eigene Befehle oder AluPC-Befehle.")
+        hint = QLabel("<b>Wenn</b> an der Box etwas passiert, <b>dann</b> macht AluPC etwas (Programm, Webseite, Video, "
+                      "Klang, Buzzer-Melodie, eigener Befehl …). Drei Arten von „Wenn“:<br>"
+                      "• <b>Tastenfolge</b> – mehrere Tasten schnell hintereinander, z. B. 7‑1‑2 = unten links, oben "
+                      "links, oben Mitte. Keine Extra-Taste nötig.<br>"
+                      "• <b>Code</b> – erst die Code-Taste <i>lang</i> drücken (LEDs blinken), dann Ziffern tippen, "
+                      "1,5 s warten. Gut für „geheime“ Aktionen.<br>"
+                      "• <b>Reglerzahl</b> – Regler auf „Zahl 0–999“ stellen und auf eine Zahl drehen.")
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         lay.addWidget(hint)
@@ -501,6 +672,8 @@ class TastenboxPage(QWidget):
     def _store_rules(self, rules: list[dict]) -> None:
         self._save(regeln=rules)
         self._fill_rules()
+        self._refill_choices()  # „Wenn → Dann: Name“ in den Tasten-Listen
+        self.select(self.selected)
 
     def _fill_rules(self) -> None:
         from ..automations import describe
@@ -526,6 +699,8 @@ class TastenboxPage(QWidget):
         parts = [f"Regler jetzt: <b>{value:03d}</b>" if value is not None else "Regler: –"]
         if c.knob_target() != "wert":
             parts.append("Reglerzahl-Regeln ruhen (Regler „Regelt:“ auf „Zahl 0–999“ stellen)")
+        if any(r["wenn"]["folge"] for r in self._rules()):
+            parts.append("Tastenfolgen: Tasten schnell hintereinander drücken")
         if any(r["wenn"]["code"] for r in self._rules()):
             parts.append(f"Code: Taste {c.code_key()} lang drücken, Ziffern tippen, 1,5 s warten")
         if c.box_code is not None:

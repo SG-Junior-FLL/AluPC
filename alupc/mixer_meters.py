@@ -103,7 +103,7 @@ class Meters:
                 self._peaks = _on_com(_win_peaks, list(self._specs.values()), timeout=2)
             except Exception:  # noqa: BLE001
                 pass
-            time.sleep(0.08)
+            time.sleep(0.12)
 
     def stop(self) -> None:
         self._running = False
@@ -137,20 +137,42 @@ def _win_meter_api():
 
 
 def _win_peaks(specs: list[dict]) -> dict[str, float]:
+    """Pegel aller Kanäle. Die Messfühler (COM-Objekte) werden zwischengespeichert und nur alle 2 s (oder nach
+    einem Fehler) neu gesucht – vorher wurden bei jeder Abfrage alle Geräte und Sitzungen neu aufgezählt, das
+    hielt den Ton-Hilfsprozess dauernd beschäftigt (Lautstärke vom Regler musste warten → Ruckeln)."""
+    import comtypes
+
+    from . import audio
+
+    cache = getattr(audio._LOCAL, "meter_cache", None)
+    keys = tuple(sorted((s["key"], s["dev"], str(s.get("stream"))) for s in specs))
+    if cache is None or cache["keys"] != keys or time.monotonic() - cache["at"] > 2.0:
+        cache = audio._LOCAL.meter_cache = {"keys": keys, "at": time.monotonic(), "m": _win_meter_objects(specs)}
+    peaks: dict[str, float] = {}
+    for key, meters in cache["m"].items():
+        for m in meters:
+            try:
+                peaks[key] = max(peaks.get(key, 0.0), float(m.GetPeakValue()))
+            except (OSError, comtypes.COMError):
+                cache["at"] = 0.0  # Gerät weg o. Ä. → beim nächsten Mal neu suchen
+    return peaks
+
+
+def _win_meter_objects(specs: list[dict]) -> dict[str, list]:
+    """{Kanal-Schlüssel: [IAudioMeterInformation …]} für Geräte und Programm-Sitzungen."""
     import comtypes
 
     from . import audio
     from .mixer import _win_sessions_api
 
     w, meter = audio._win(), _win_meter_api()
-    peaks: dict[str, float] = {}
+    found: dict[str, list] = {}
     for s in specs:
         if s.get("stream") is not None:
             continue
         try:
             dev = audio._win_default("out") if s["dev"] == DEFAULT_OUT else w["enum"].GetDevice(s["dev"])
-            m = dev.Activate(meter._iid_, comtypes.CLSCTX_ALL, None).QueryInterface(meter)
-            peaks[s["key"]] = float(m.GetPeakValue())
+            found[s["key"]] = [dev.Activate(meter._iid_, comtypes.CLSCTX_ALL, None).QueryInterface(meter)]
         except (OSError, comtypes.COMError):
             pass
     wanted = {str(s["stream"]).split(":")[-1]: s["key"] for s in specs if s.get("stream") is not None}
@@ -166,8 +188,7 @@ def _win_peaks(specs: list[dict]) -> dict[str, float]:
                     unk = sessions.GetSession(k)
                     pid = str(int(unk.QueryInterface(api["IAudioSessionControl2"]).GetProcessId()))
                     if pid in wanted:
-                        val = float(unk.QueryInterface(meter).GetPeakValue())
-                        peaks[wanted[pid]] = max(peaks.get(wanted[pid], 0.0), val)
+                        found.setdefault(wanted[pid], []).append(unk.QueryInterface(meter))
             except (OSError, comtypes.COMError):
                 continue
-    return peaks
+    return found

@@ -9,6 +9,21 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
+### Neu in 2.4.0 – Tastenbox: Tastenfolgen, Buzzer mit Melodien und MIDI, flüssiger Mixer
+- **Mixer ruckelt nicht mehr:** Die Audio-Seite fragte alle 2 s für jeden Regler die Geräteliste im
+  Oberflächen-Thread ab – je mehr Geräte angeschlossen, desto mehr hing es. Läuft jetzt im Hintergrund.
+  Windows: Pegelanzeige hält den Ton-Hilfsprozess nicht mehr dauernd besetzt (Regler-Lautstärke wartete).
+  Regler drehen zeichnet nur noch gebündelt neu (vorher 4–9 ms Arbeit je Reglerwert, jetzt 0,1 ms).
+- **Wenn → Dann: Tastenfolgen** – z. B. 7‑1‑2 schnell hintereinander (unten links, oben links, oben Mitte)
+  startet eine Aktion, ohne Code-Taste. Folge im Dialog auf einem 3 × 3-Feld antippen.
+- **Buzzer** (Arduino-Programm 7, Buzzer an A2): Melodien und Signaltöne, eigene MIDI-Dateien (höchste Stimme),
+  Klick bei Tastendruck – für Tasten und Wenn → Dann-Regeln.
+- **Klang am PC** als Aktion für Tasten und Regeln (eingebaute Klänge oder eigene Tondatei).
+- **Suche in den Auswahllisten:** in der Liste tippen filtert die Einträge.
+- **Tastenbox-Seite übersichtlicher:** „So geht's“, LEDs mit Erklärung und Farbknöpfen, LED-Test zeigt Rot, Grün,
+  Blau einzeln (Standardfarbe #00FFA0 hat kein Rot – rote LEDs bleiben damit aus), eigener Buzzer-Bereich.
+- Am PC getestet und kompiliert; mit echter Box und echtem Buzzer nicht getestet.
+
 ### Neu in 2.3.0 – Tastenbox fertig (Pro Micro, 12 Farb-LEDs, Wenn → Dann), Dual-Boot-Abgleich, neues Design
 - **Arduino-Programme direkt aus AluPC** (Seite Tastenbox): Tastenbox-Programm und Poti-Test als fertiger Ordner
   für die Arduino-IDE speichern.

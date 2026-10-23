@@ -12,6 +12,7 @@
 //   4 Farben   :  rot D10 · grün D9 · blau D16 · weiß A1     rot D11 · grün D12 · blau D13 · weiß A1   (Standard)
 //   LEDs       :  D9                                 D11       (nur ohne VIER_FARBEN: alle LEDs an einem Pin)
 //   Streifen   :  D10                                D12       (nur mit STREIFEN, statt VIER_FARBEN)
+//   Buzzer     :  A2                                 A2        (optional: + an A2, − an GND)
 //
 //   Tasten: jeweils das andere Bein an GND (keine Widerstände nötig).
 //   Regler: Potentiometer 10 kΩ linear – Mitte an A0, die beiden Außenbeine an 5V/VCC und GND.
@@ -21,9 +22,11 @@
 //           Mischfarben entstehen in jeder Ecke; Regenbogen = Farbkreis. Weiß-Pin: gemeinsamer Weißanteil (optional).
 //           Mit WEISS_IN_ECKEN (weiße LEDs als 4. Farbe in den Ecken): Weißanteil geht an weiß statt an r/g/b.
 //   Streifen/RGB-LEDs (WS2812B, PL9823): DIN an den Streifen-Pin, 5V, GND (am USB höchstens ~8–10 LEDs).
+//   Buzzer: passiver Buzzer spielt Töne und Melodien (AluPC schickt Note für Note), aktiver piept nur.
+//           (Nano ohne VIER_FARBEN: Buzzer und LED-Pin D11 teilen sich Timer 2 – dann flackert die LED beim Ton.)
 //
 // Was die Box an den PC schickt (115200 Baud, eine Zeile je Meldung):
-//   HALLO ALUPC-TASTEN 6 NANO – Antwort auf „WER?“ (und einmal beim Start); 6 = Programmversion, dann das Board
+//   HALLO ALUPC-TASTEN 7 NANO – Antwort auf „WER?“ (und einmal beim Start); 7 = Programmversion, dann das Board
 //   TASTE n                   – Taste n kurz gedrückt (1–9), gemeldet beim Loslassen
 //   LANG n                    – Taste n lange gedrückt (ab 0,6 s, noch während sie unten ist)
 //   LAUT n                    – Regler steht auf n Prozent (0–100), nur wenn er sich bewegt hat, und auf „LAUT?“
@@ -33,6 +36,7 @@
 // Was der PC schickt:
 //   WER?  LAUT?  WERT?  LED n (Helligkeit 0–100, 0 = aus)  EFFEKT n (0 = ruhig, 1 = atmen, 2 = blinken, 3 = Regenbogen)
 //   FARBE r g b (alle RGB-LEDs, je 0–255)  PIXEL i r g b (eine RGB-LED, i ab 0)  DEBUG 0|1
+//   TON f ms (Buzzer: f Hz für ms Millisekunden, TON 0 0 = Stille)
 //
 // RGB-LEDs (Farben je LED): eine Kette aus adressierbaren LEDs am Streifen-Pin. Reihenfolge wie im LED-Plan:
 //   0 = Ecke vorne links, 1 = hinten links, 2 = hinten rechts, 3 = vorne rechts, ab 4 = Lichtleiste.
@@ -57,6 +61,7 @@ const uint8_t KANAL_PIN[4] = {11, 12, 13, A1};  // rot, grün, blau, weiß
 const char BOARD[] = "NANO";
 #endif
 const uint8_t REGLER = A0;
+const uint8_t BUZZER = A2;
 
 #if defined(VIER_FARBEN) && defined(STREIFEN)
 #error "VIER_FARBEN und STREIFEN gehen nicht zusammen (gleicher Pin) – eins von beiden ausschalten"
@@ -181,7 +186,7 @@ int effektHelligkeit(unsigned long t) {
 }
 
 void hallo() {
-  Serial.print("HALLO ALUPC-TASTEN 6 ");
+  Serial.print("HALLO ALUPC-TASTEN 7 ");
   Serial.println(BOARD);
 }
 
@@ -254,6 +259,15 @@ void befehl(String text) {
       ledZeigen(effektHelligkeit(millis()));
     }
 #endif
+  } else if (text.startsWith("TON ")) {
+    int a = text.indexOf(' ', 4);
+    long f = text.substring(4, a < 0 ? text.length() : a).toInt();
+    long ms = a < 0 ? 200 : text.substring(a + 1).toInt();
+    if (f < 31 || ms <= 0) {
+      noTone(BUZZER);
+    } else {
+      tone(BUZZER, min(f, 20000L), min(ms, 10000L));
+    }
   } else if (text.startsWith("DEBUG ")) {
     debug = text.substring(6).toInt() != 0;
   }

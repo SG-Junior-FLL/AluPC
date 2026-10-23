@@ -221,3 +221,5 @@ Seite **Geräte → Tastenbox → Fehlersuche → Anzeigen**:
 
 Buzzer **+** (langes Bein) → **A2** (Steckbrett j6), Buzzer **−** → Minus-Leiste. Aktiver Buzzer: 100 Ω davor geht auch.
 Test: in AluPC „Buzzer-Test“ speichern und hochladen → Taste 1–9 spielt je ein Lied, nochmal drücken stoppt.
+Im normalen Betrieb (Tastenbox-Programm ab Version 7) spielt AluPC Melodien, Signaltöne und MIDI-Dateien auf dem
+Buzzer – einstellbar für Tasten und Wenn → Dann-Regeln (Seite Tastenbox → Buzzer).

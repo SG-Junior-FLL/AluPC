@@ -173,7 +173,7 @@ def tastenbox_sketch_exists() -> bool:
     from alupc.ui.tastenbox_page import SKETCH
 
     text = SKETCH.read_text(encoding="utf-8")
-    return all(w in text for w in ("HALLO ALUPC-TASTEN 6", "VIER_FARBEN", "LAUT", "WERT", "TASTE", "LANG", "EFFEKT", "FARBE", "DEBUG", "ROH", "PIXEL",
+    return all(w in text for w in ("HALLO ALUPC-TASTEN 7", "VIER_FARBEN", "TON ", "BUZZER", "LAUT", "WERT", "TASTE", "LANG", "EFFEKT", "FARBE", "DEBUG", "ROH", "PIXEL",
                                    "ARDUINO_AVR_LEONARDO"))
 
 
@@ -325,7 +325,7 @@ def test_automation_rules_model(monkeypatch):
 
     r = a.clean_rule({"name": " Intro ", "wenn": {"code": "1a20 3", "wert": "1200", "toleranz": 99},
                       "dann": {"art": "quatsch", "ziel": " standbild "}})
-    assert r == {"name": "Intro", "an": True, "wenn": {"code": "123", "wert": 999, "toleranz": 50},
+    assert r == {"name": "Intro", "an": True, "wenn": {"folge": "", "code": "123", "wert": 999, "toleranz": 50},
                  "dann": {"art": "alupc", "ziel": "standbild"}}
     assert not a.is_valid(a.clean_rule({"wenn": {}, "dann": {"art": "alupc", "ziel": "x"}}))
     code = a.clean_rule({"name": "c", "wenn": {"code": "12"}, "dann": {"art": "alupc", "ziel": "x"}})
@@ -427,6 +427,8 @@ def test_rule_dialog(env):  # noqa: F811
 
     dlg = RuleDialog(controller, None, {"Alt"}, window)
     assert not dlg.ok.isEnabled()
+    assert dlg.trigger.currentData() == "folge"  # neue Regel: Tastenfolge vorgewählt
+    dlg.trigger.setCurrentIndex(dlg.trigger.findData("code"))
     dlg.name.setText("Alt")
     dlg.code.setText("42")
     dlg.ziel.setText("vlc")
@@ -437,7 +439,20 @@ def test_rule_dialog(env):  # noqa: F811
     assert dlg.rule()["dann"]["ziel"] == dlg.command.currentData()
     dlg.use_value.setChecked(True)
     dlg.value.setValue(321)
-    assert dlg.rule()["wenn"] == {"code": "42", "wert": 321, "toleranz": 3}
+    assert dlg.rule()["wenn"] == {"folge": "", "code": "42", "wert": 321, "toleranz": 3}
+    # Tastenfolge über das 3 × 3-Feld: 7, 1, 2 antippen
+    dlg.trigger.setCurrentIndex(dlg.trigger.findData("folge"))
+    from PySide6.QtWidgets import QPushButton
+
+    pad = {b.text(): b for b in dlg.seq_box.findChildren(QPushButton) if b.text().isdigit()}
+    for n in "712":
+        pad[n].click()
+    assert dlg.rule()["wenn"]["folge"] == "712" and dlg.rule()["wenn"]["code"] == ""
+    assert "unten links → oben links → oben Mitte" in dlg.seq_text.text() and dlg.ok.isEnabled()
+    # Buzzer-Melodie als Aktion
+    dlg.art.setCurrentIndex(dlg.art.findData("buzzer"))
+    dlg.song.setCurrentIndex(dlg.song.findData("tetris"))
+    assert dlg.rule()["dann"] == {"art": "buzzer", "ziel": "tetris"}
     dlg.deleteLater()
 
 
@@ -525,3 +540,172 @@ def test_arduino_sketches_download(env, monkeypatch, tmp_path):  # noqa: F811
         text = out.read_text(encoding="utf-8")
         assert "void setup()" in text and "void loop()" in text and "JTD" in text  # Pro Micro: JTAG aus
     assert "VIER_FARBEN" in (tmp_path / "AluPC-Tasten" / "AluPC-Tasten.ino").read_text(encoding="utf-8")
+
+
+def _rule(name, folge, ziel, **wenn):
+    from alupc.automations import clean_rule
+
+    return clean_rule({"name": name, "wenn": {"folge": folge, **wenn}, "dann": {"art": "alupc", "ziel": ziel}})
+
+
+def test_key_sequence_rules(env, monkeypatch):  # noqa: F811
+    """Tastenfolge 7-1-2: löst die Regel aus, die Einzelaktionen von 7 und 1 fallen weg; abgebrochene Folgen führen
+    die Tasten normal aus; Tasten außerhalb jeder Folge wirken sofort."""
+    controller, _window, _ = env
+    ran = []
+    monkeypatch.setattr(controller.buttonbox, "send", lambda line: True)
+    real = controller.run_command
+    monkeypatch.setattr(controller, "run_command", lambda a: ran.append(a) if not a.startswith("regel:") else real(a))
+    monkeypatch.setattr(controller, "run_rule", lambda r: ran.append("REGEL " + r["name"]))
+    keys = {str(n): f"aktion{n}" for n in range(1, 10)}
+    base = dict(controller.config["tasten"])
+    controller.config["tasten"] = {**base, "keys": keys, "regeln": [_rule("Intro", "712", "standbild"),
+                                                                     _rule("Kurz", "45", "schwarz"),
+                                                                     _rule("Lang", "456", "schwarz")]}
+    box = controller.buttonbox
+    for n in "712":
+        box.key.emit(int(n))
+    assert ran == ["REGEL Intro"]  # sofort, ohne auf die Pause zu warten
+    ran.clear()
+    box.key.emit(3)  # gehört zu keiner Folge → sofort
+    assert ran == ["aktion3"]
+    ran.clear()
+    box.key.emit(7)
+    assert ran == []  # 7 könnte eine Folge beginnen → wartet
+    box.key.emit(5)  # 7-5 ist keine Folge: 7 läuft jetzt, 5 beginnt „45“? nein → auch sofort
+    assert ran == ["aktion7", "aktion5"]
+    ran.clear()
+    box.key.emit(4)
+    box.key.emit(5)  # „45“ ist fertig, aber „456“ könnte noch kommen → wartet die Pause ab
+    assert ran == []
+    assert _until(lambda: ran == ["REGEL Kurz"], 3)
+    ran.clear()
+    box.key.emit(7)
+    box.key.emit(1)
+    assert _until(lambda: ran == ["aktion7", "aktion1"], 3)  # abgebrochen → normal ausführen
+    controller.config["tasten"] = base
+
+
+def test_sequence_describe_and_clean():
+    from alupc import automations as a
+
+    r = _rule("x", "7a12", "standbild")
+    assert r["wenn"]["folge"] == "712" and a.is_valid(r)
+    assert "Tastenfolge 7-1-2 (unten links → oben links → oben Mitte)" in a.describe(r)
+    assert _rule("y", "5", "standbild")["wenn"]["folge"] == ""  # eine Taste ist keine Folge
+    both = a.clean_rule({"wenn": {"folge": "12", "code": "34"}, "dann": {"ziel": "x"}})
+    assert both["wenn"]["code"] == ""  # Folge und Code schließen sich aus
+    assert a.rules_for_value([_rule("z", "12", "x", wert=5)], 5) == []  # Folge-Regeln lösen nicht über den Wert aus
+
+
+def _write_midi(path, tracks, division=480):
+    import struct
+
+    def vlq(n):
+        out = [n & 0x7F]
+        n >>= 7
+        while n:
+            out.insert(0, (n & 0x7F) | 0x80)
+            n >>= 7
+        return bytes(out)
+
+    data = b"MThd" + struct.pack(">IHHH", 6, 1, len(tracks), division)
+    for events in tracks:
+        body = b"".join(vlq(d) + bytes(e) for d, e in events) + b"\x00\xff\x2f\x00"
+        data += b"MTrk" + struct.pack(">I", len(body)) + body
+    path.write_bytes(data)
+
+
+def test_midi_to_buzzer_notes(tmp_path):
+    """MIDI → (Hz, ms): Tempo beachtet, Akkord → höchster Ton, Schlagzeug weg, Pausen bleiben."""
+    from alupc import buzzer
+
+    tempo = [(0, [0xFF, 0x51, 3, 0x07, 0xA1, 0x20])]  # 500000 µs = 120 bpm → Viertel = 500 ms
+    melody = [(0, [0x90, 69, 100]), (480, [0x80, 69, 0]),  # A4 eine Viertel
+              (480, [0x90, 72, 100]), (240, [0x90, 76, 100]), (240, [0x80, 76, 0]), (0, [0x80, 72, 0])]
+    drums = [(0, [0x99, 36, 100]), (960, [0x89, 36, 0])]
+    path = tmp_path / "t.mid"
+    _write_midi(path, [tempo, melody, drums])
+    notes = buzzer.midi_notes(path)
+    assert notes == [(440, 500), (0, 500), (523, 250), (659, 250)]
+    bad = tmp_path / "x.mid"
+    bad.write_bytes(b"kein midi")
+    import pytest
+
+    with pytest.raises(ValueError):
+        buzzer.midi_notes(bad)
+
+
+def test_buzzer_songs_and_player(env, monkeypatch):  # noqa: F811
+    from alupc import buzzer
+
+    assert buzzer.note_freq("A4") == 440 and buzzer.note_freq("DS5") == 622 and buzzer.note_freq("R") == 0
+    assert buzzer.parse_melody("A4/4 R/8 C5/4.", 120) == [(440, 500), (0, 250), (523, 750)]
+    for name in buzzer.SONGS:
+        assert buzzer.song_notes(name)  # alle eingebauten Melodien lassen sich lesen
+    controller, _window, _ = env
+    sent, msgs = [], []
+    box = controller.buttonbox
+    monkeypatch.setattr(box, "send", lambda line: sent.append(line) or True)
+    controller.message.connect(msgs.append)
+    box.port, box.version = "COM9", 6
+    assert not controller.play_buzzer_song("piep") and "Version 7" in msgs[-1]  # altes Programm: klare Meldung
+    box.version = 7
+    controller.run_command("buzzer:doppelpiep")
+    assert _until(lambda: len(sent) >= 2, 2)
+    assert sent[0].startswith("TON 880 ") and sent[1].startswith("TON 880 ")
+    controller.run_command("buzzer:tetris")
+    assert controller.buzzer.playing
+    controller.run_command("buzzer_stopp")
+    assert not controller.buzzer.playing and sent[-1] == "TON 0 0"
+    # Klick bei Tastendruck (Einstellung)
+    base = dict(controller.config["tasten"])
+    controller.config["tasten"] = {**base, "buzzer_klick": True, "keys": {}}
+    sent.clear()
+    box.key.emit(2)
+    assert sent and sent[0] == "TON 2400 12"
+    controller.config["tasten"] = base
+    box.port, box.version = "", 0
+
+
+def test_knob_updates_are_bundled(env, monkeypatch):  # noqa: F811
+    """Regler drehen: viele Werte, aber die Oberfläche zeichnet nur gebündelt neu (sonst ruckelte alles)."""
+    controller, _window, _ = env
+    from alupc import pc_control
+
+    monkeypatch.setattr(pc_control, "set_volume", lambda percent=None, step=0: (True, ""))
+    box = controller.buttonbox
+    box.port, box.version = "COM9", 6
+    base = dict(controller.config["tasten"])
+    controller.config["tasten"] = {**base, "nur_regler": False, "abgleich": False, "regler": "pc", "skala": "prozent"}
+    count = []
+    controller.changed.connect(lambda: count.append(1))
+    for v in range(60):
+        box.feed(f"LAUT {v}")
+    pump()
+    assert _until(lambda: count, 1)
+    assert len(count) <= 3
+    controller.config["tasten"] = base
+    box.port, box.version = "", 0
+
+
+def test_searchable_combo(env):  # noqa: F811
+    from PySide6.QtWidgets import QComboBox
+
+    from alupc.ui.widgets import searchable
+
+    combo = searchable(QComboBox())
+    for text in ("Standbild an/aus", "Schwarz an/aus", "Buzzer – Lied: Tetris"):
+        combo.addItem(text, text)
+    hits = []
+    combo.activated.connect(hits.append)
+    comp = combo.completer()
+    comp.setCompletionPrefix("tetris")
+    assert comp.currentCompletion() == "Buzzer – Lied: Tetris"  # Teilwort, egal ob groß/klein
+    comp.activated.emit("Buzzer – Lied: Tetris")
+    assert combo.currentIndex() == 2 and hits == [2]
+    combo.lineEdit().setText("gibtsnicht")
+    combo.lineEdit().editingFinished.emit()
+    pump()
+    assert combo.lineEdit().text() == "Buzzer – Lied: Tetris"
+    combo.deleteLater()

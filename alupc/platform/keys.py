@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
+import functools
 import os
 import sys
 
@@ -70,7 +71,13 @@ def available() -> bool:
         import shutil
 
         return shutil.which("ydotool") is not None
-    return bool(ctypes.util.find_library("Xtst")) and bool(os.environ.get("DISPLAY"))
+    return _has_xtst() and bool(os.environ.get("DISPLAY"))
+
+
+@functools.lru_cache(maxsize=1)
+def _has_xtst() -> bool:
+    """find_library startet ldconfig (Millisekunden) – das Ergebnis ändert sich während des Laufs nicht."""
+    return bool(ctypes.util.find_library("Xtst"))
 
 
 def send(name: str) -> bool:

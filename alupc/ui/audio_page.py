@@ -183,7 +183,10 @@ class Strip(QFrame):
         self.mute.setChecked(bool(item.get("muted")))
         self.mute.blockSignals(False)
         self.pct.setText(f"{self.slider.value()} %")
-        self._icons()
+        look = (self.mute.isChecked(), bool(item.get("default")))
+        if look != getattr(self, "_look", None):  # Symbole nur neu zeichnen, wenn sich etwas geändert hat
+            self._look = look
+            self._icons()
         # Tastenbox: der Standard-Lautsprecher gehört dem Regler; Programme bleiben frei
         locked = (self.kind == "out" and not self.stream and bool(item.get("default"))
                   and self.page.controller.volume_locked())
@@ -549,7 +552,7 @@ class AudioPage(QWidget):
             w = self.v_list.takeAt(0).widget()
             if w is not None:
                 w.deleteLater()
-        for d in self.routing.devices() if on else []:
+        for d in self._vdevs() if on else []:
             chip = QToolButton()
             chip.setText(("🔊 " if d["kind"] == "out" else "🎙 ") + d["name"])
             chip.setToolTip(("Virtueller Ausgang" if d["kind"] == "out" else "Virtuelles Mikro") +
@@ -598,14 +601,25 @@ class AudioPage(QWidget):
         def failed(_e):
             self._busy = False
 
-        run_async(mixer.snapshot, done, failed, owner=self)
+        routing = self.routing
+
+        def work():  # Geräte UND virtuelle Geräte im Hintergrund – im Oberflächen-Thread ruckelte das Mischpult
+            snap = mixer.snapshot()
+            snap["vdevs"] = routing.devices(snap)
+            return snap
+
+        run_async(work, done, failed, owner=self)
+
+    def _vdevs(self) -> list[dict]:
+        """Virtuelle Geräte aus der letzten Hintergrund-Abfrage (nicht im Oberflächen-Thread abfragen)."""
+        return self._snap.get("vdevs") or []
 
     def _routes_for(self, item_id: str, kind: str, virtual_out: bool) -> list[tuple[str, str, bool]]:
         """Weiterleitungs-Knöpfe eines Kanals: Mikros und virtuelle Ausgänge → jedes virtuelle Mikro (+ Mithören)."""
         cfg = self.routing.cfg()
         if not cfg["virtual"]:
             return []
-        devs = self.routing.devices()
+        devs = self._vdevs()
         own = next((d for d in devs if d["id"] == item_id), None)
         if kind == "in" and own is not None:
             return []  # ein virtuelles Mikro leitet man nicht weiter
@@ -632,7 +646,7 @@ class AudioPage(QWidget):
             self.routing.apply()
             QTimer.singleShot(300, self, self.reload)
         outs, ins, apps = snap.get("out", []), snap.get("in", []), snap.get("apps", [])
-        vdevs = {d["id"] for d in self.routing.devices() if d["kind"] == "out"} if self.routing.cfg()["virtual"] \
+        vdevs = {d["id"] for d in self._vdevs() if d["kind"] == "out"} if self.routing.cfg()["virtual"] \
             else set()
         signature = (tuple(d["id"] for d in outs), tuple(d["id"] for d in ins), tuple(a["id"] for a in apps),
                      tuple(map(tuple, self.routing.cfg()["routes"])), tuple(sorted(vdevs)),

@@ -2217,3 +2217,33 @@ class CommandBar(QPushButton):
             p.drawText(cap, Qt.AlignCenter, key)
             x -= kw + 5
         p.end()
+
+
+def searchable(combo, placeholder: str = "Tippen zum Suchen …"):
+    """Dropdown mit Suche: tippen filtert die Einträge (Teilwort, egal ob groß/klein), Auswahl wie gewohnt –
+    löst „activated“ aus. Getippter Text, der zu nichts passt, springt zurück auf den gewählten Eintrag."""
+    from PySide6.QtWidgets import QComboBox, QCompleter
+
+    combo.setEditable(True)
+    combo.setInsertPolicy(QComboBox.NoInsert)
+    edit = combo.lineEdit()
+    edit.setPlaceholderText(placeholder)
+    comp = combo.completer()
+    comp.setFilterMode(Qt.MatchContains)
+    comp.setCaseSensitivity(Qt.CaseInsensitive)
+    comp.setCompletionMode(QCompleter.PopupCompletion)
+    comp.setMaxVisibleItems(14)
+
+    def chosen(text: str) -> None:
+        i = combo.findText(text)
+        if i >= 0:
+            combo.setCurrentIndex(i)
+            combo.activated.emit(i)
+
+    def restore() -> None:
+        if combo.findText(edit.text()) < 0 or not edit.text():
+            edit.setText(combo.itemText(combo.currentIndex()))
+
+    comp.activated[str].connect(chosen)
+    edit.editingFinished.connect(lambda: QTimer.singleShot(0, combo, restore))
+    return combo

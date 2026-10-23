@@ -79,6 +79,14 @@ class Controller(QObject):
         self.box_code: str | None = None  # None = keine Code-Eingabe, sonst die bisher getippten Ziffern
         self._code_timer = QTimer(self, singleShot=True, timeout=self._code_done)
         self._value_timer = QTimer(self, singleShot=True, timeout=self._value_settled)
+        # Regler drehen schickt viele Werte pro Sekunde – die Oberfläche nur gebündelt neu zeichnen (sonst ruckelt alles)
+        self._knob_changed = QTimer(self, singleShot=True, interval=120, timeout=self.changed.emit)
+        # Tastenfolgen (z. B. 7-1-2): Tasten, die eine Folge beginnen könnten, warten kurz mit ihrer eigenen Aktion
+        self._seq_keys: list[tuple[int, str]] = []  # (Taste, ihre zurückgehaltene Aktion)
+        self._seq_timer = QTimer(self, singleShot=True, timeout=self._seq_timeout)
+        from .buzzer import BuzzerPlayer
+
+        self.buzzer = BuzzerPlayer(lambda line: self.buttonbox.send(line), self)
         self._value_hits: set[str] | None = None  # Regeln, die beim letzten ruhigen Wert passten (None = noch keiner)
         self._rule_depth = 0
         self._fine_level: int | None = None  # zuletzt gesetzte Stufe bei Zählwerk-Skala
@@ -1762,20 +1770,130 @@ class Controller(QObject):
             return self._code_digit(n)
         action = self.box_keys().get(str(n), "")
         self._box_blink()
+        self._box_click()
+        if self._seq_push(n, action):
+            return
         if action:
             self.run_command(action)
+
+    # ------------------------------------------------------------ Tastenfolgen
+    def _seq_push(self, n: int, action: str) -> bool:
+        """Taste in die laufende Folge aufnehmen. True = Aktion wird zurückgehalten (oder fällt weg, weil die Folge
+        komplett ist); False = gehört zu keiner Folge, sofort ausführen."""
+        from .automations import SEQ_GAP_MS, rules_for_sequence, sequence_rules
+
+        seqs = [r["wenn"]["folge"] for r in sequence_rules(self.box_rules())]
+        if not seqs:
+            self._seq_flush()
+            return False
+        self._seq_keys.append((n, action))
+        # vorne Tasten abgeben (= normal ausführen), bis der Rest der Anfang einer Folge ist
+        while self._seq_keys and not any(s.startswith(self._seq_buffer()) for s in seqs):
+            _k, act = self._seq_keys.pop(0)
+            if act:
+                self.run_command(act)
+        if not self._seq_keys:
+            self._seq_timer.stop()
+            return True  # die Aktion dieser Taste lief eben schon mit
+        keys = self._seq_buffer()
+        if keys in seqs and not any(s != keys and s.startswith(keys) for s in seqs):
+            self._seq_timer.stop()  # eindeutig fertig: sofort auslösen
+            self._seq_keys = []
+            self._seq_fire(keys, rules_for_sequence)
+            return True
+        self._seq_timer.start(SEQ_GAP_MS)
+        return True
+
+    def _seq_buffer(self) -> str:
+        return "".join(str(k) for k, _a in self._seq_keys)
+
+    def _seq_timeout(self) -> None:
+        from .automations import rules_for_sequence
+
+        keys = self._seq_buffer()
+        if rules_for_sequence(self.box_rules(), keys, self._seq_value()):
+            self._seq_keys = []
+            self._seq_fire(keys, rules_for_sequence)
+        else:
+            self._seq_flush()
+
+    def _seq_value(self) -> int | None:
+        return self.box_number() if self.knob_target() == "wert" else None
+
+    def _seq_fire(self, keys: str, find) -> None:
+        hits = find(self.box_rules(), keys, self._seq_value())
+        if not hits:  # Folge stimmt, aber z. B. der Regler nicht
+            self.message.emit(f"Tastenfolge {'-'.join(keys)}: Regler passt nicht.")
+        for rule in hits:
+            self.run_rule(rule)
+
+    def _seq_flush(self) -> None:
+        """Zurückgehaltene Tasten doch normal ausführen (Folge abgebrochen)."""
+        self._seq_timer.stop()
+        keys, self._seq_keys = self._seq_keys, []
+        for _k, act in keys:
+            if act:
+                self.run_command(act)
+
+    # ------------------------------------------------------------ Buzzer
+    def buzzer_ready(self) -> tuple[bool, str]:
+        from .buzzer import MIN_VERSION
+
+        if not self.buttonbox.connected:
+            return False, "Keine Tastenbox verbunden."
+        if self.buttonbox.version < MIN_VERSION:
+            return False, (f"Buzzer braucht das Tastenbox-Programm ab Version {MIN_VERSION} "
+                           f"(auf der Box: {self.buttonbox.version or '?'}) – neu hochladen.")
+        return True, ""
+
+    def play_buzzer(self, notes: list[tuple[int, int]], name: str) -> bool:
+        ok, why = self.buzzer_ready()
+        if not ok:
+            self.message.emit(why)
+            return False
+        self.buzzer.play(notes, name)
+        return True
+
+    def play_buzzer_song(self, name: str) -> bool:
+        from .buzzer import SONGS, song_notes
+
+        if name not in SONGS:
+            self.message.emit(f"Melodie „{name}“ gibt es nicht.")
+            return False
+        return self.play_buzzer(song_notes(name), SONGS[name][0])
+
+    def play_buzzer_midi(self, path: str) -> bool:
+        from pathlib import Path
+
+        from .buzzer import midi_notes
+
+        try:
+            notes = midi_notes(path)
+        except (OSError, ValueError) as exc:
+            self.message.emit(f"MIDI „{Path(path).name}“ geht nicht: {exc}")
+            return False
+        return self.play_buzzer(notes, Path(path).name)
+
+    def _box_click(self) -> None:
+        """Kurzer Klick auf dem Buzzer als Rückmeldung (Einstellung) – nicht mitten in eine Melodie."""
+        from .buzzer import CLICK
+
+        if self.config["tasten"].get("buzzer_klick") and self.buzzer_ready()[0] and not self.buzzer.playing:
+            self.buttonbox.send(f"TON {CLICK[0]} {CLICK[1]}")
 
     def _box_long_key(self, n: int) -> None:
         """Lange gedrückt: eigener Befehl – ohne einen solchen wie ein kurzer Druck. Die Code-Taste startet die
         Code-Eingabe (nur, wenn es eine Regel mit Code gibt)."""
         if self.box_code is not None:
             return self._code_digit(n)
+        self._seq_flush()  # langer Druck beendet eine angefangene Tastenfolge
         if n == self.code_key() and any(r["wenn"]["code"] for r in self.box_rules() if r["an"]):
             return self._code_start()
         action = (self.config["tasten"].get("lang") or {}).get(str(n), "")
         if not action:
             return self._box_key(n)
         self._box_blink()
+        self._box_click()
         self.run_command(action)
 
     def _box_blink(self) -> None:
@@ -1850,11 +1968,15 @@ class Controller(QObject):
     def _knob_moved(self, value: int) -> None:
         if self.knob_wait:  # neues Ziel: erst auf 0 drehen, dann greift der Regler
             if value > 2:
-                self.changed.emit()
+                self._changed_soon()
                 return
             self.knob_wait = False
         self._knob_apply(self.knob_target(), value)
-        self.changed.emit()
+        self._changed_soon()
+
+    def _changed_soon(self) -> None:
+        if not self._knob_changed.isActive():
+            self._knob_changed.start()
 
     # ------------------------------------------------------------ Wenn → Dann
     def box_rules(self) -> list[dict]:
@@ -1913,7 +2035,7 @@ class Controller(QObject):
 
         if self.knob_target() == "wert":
             self._value_timer.start(VALUE_SETTLE_MS)
-            self.changed.emit()
+            self._changed_soon()
         elif self.knob_scale() != "prozent" and self.knob_level() is not None:
             level = self.knob_level()
             if level != self._fine_level or self.knob_wait:  # ÷ 10: 10 Zahlen = 1 %
@@ -1954,6 +2076,12 @@ class Controller(QObject):
                 self.show_source({"type": "website", "url": url})
             elif art == "datei":
                 self.show_file(ziel)
+            elif art == "klang":
+                self.sounds.play(ziel)
+            elif art == "buzzer":
+                self.play_buzzer_song(ziel)
+            elif art == "buzzer_midi":
+                self.play_buzzer_midi(ziel)
             else:
                 self.run_command(ziel)
         finally:
@@ -2076,6 +2204,18 @@ class Controller(QObject):
                 self.message.emit(f"Regel „{command[6:]}“ gibt es nicht.")
             else:
                 self.run_rule(rule)
+            return
+        if command.startswith("buzzer:"):
+            self.play_buzzer_song(command[7:])
+            return
+        if command.startswith("buzzer_midi:"):
+            self.play_buzzer_midi(command[12:])
+            return
+        if command == "buzzer_stopp":
+            self.buzzer.stop()
+            return
+        if command.startswith("klang:"):
+            self.sounds.play(command[6:])
             return
         if command.startswith("box_"):
             if not self.box_led_command(command):

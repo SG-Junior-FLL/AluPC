@@ -189,7 +189,7 @@ def test_audio_page_builds(env, monkeypatch):  # noqa: F811
             "apps": [{"id": 3, "app": "Spotify", "title": "Song", "volume": 80, "muted": False, "device": "a"}],
             "rec": [], "virtual": {"supported": True, "out": "alupc_out", "mic": "alupc_mic", "why": ""},
             "routes": [], "ok": (True, "")}
-    monkeypatch.setattr(mixer, "virtual_devices", lambda configured=None: [
+    monkeypatch.setattr(mixer, "virtual_devices", lambda configured=None, outs=None, ins=None: [
         {"id": "alupc_out", "kind": "out", "name": "AluPC Virtueller Ausgang", "sink": "alupc_out",
          "source": "alupc_out.monitor", "present": True, "removable": False},
         {"id": "alupc_mic", "kind": "mic", "name": "AluPC Virtuelles Mikro", "sink": "alupc_mic_mix",
@@ -200,6 +200,7 @@ def test_audio_page_builds(env, monkeypatch):  # noqa: F811
     from alupc.ui.audio_page import AudioPage
 
     page = AudioPage(controller)
+    snap["vdevs"] = controller.audio_routing.devices(snap)  # wie die Hintergrund-Abfrage in reload()
     page._snap = snap
     page._fill()
     strips = page._strips
