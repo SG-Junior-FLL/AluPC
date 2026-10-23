@@ -212,6 +212,22 @@ class TastenboxPage(QWidget):
         intro.setWordWrap(True)
         intro.setObjectName("Muted")
         root.addWidget(intro)
+        osd_row = QWidget()
+        ol = FlowLayout(spacing=12)
+        osd_row.setLayout(ol)
+        cfg = c.config["tasten"]
+        osd = QCheckBox("Eingaben unten links am Monitor anzeigen")
+        osd.setToolTip("Bei jedem Tastendruck kurz unten links am Hauptmonitor: welche Taste (mit Lage auf der Box), "
+                       "was sie tut, laufende Tastenfolge oder Code, ausgelöste Wenn → Dann-Regel")
+        osd.setChecked(bool(cfg.get("anzeige", False)))
+        osd_knob = QCheckBox("auch den Regler")
+        osd_knob.setChecked(bool(cfg.get("anzeige_regler", True)))
+        osd_knob.setEnabled(osd.isChecked())
+        osd.toggled.connect(lambda v: (self._save(anzeige=v), osd_knob.setEnabled(v)))
+        osd_knob.toggled.connect(lambda v: self._save(anzeige_regler=v))
+        ol.addWidget(osd)
+        ol.addWidget(osd_knob)
+        root.addWidget(osd_row)
 
         cols = FlowLayout(spacing=14)  # breit: Tasten links, Regler rechts – schmal: untereinander
         holder = QWidget()

@@ -2107,6 +2107,9 @@ class MainWindow(QMainWindow):
     # ================================================================ Tray
     def _build_tray(self):
         """Symbol in der Taskleiste: Klick öffnet ein Schnellmenü, das Symbol zeigt den Zustand."""
+        from .box_osd import BoxOsd
+
+        self.box_osd = BoxOsd(self.controller)  # Tastenbox-Eingaben unten links am Hauptmonitor (Einstellung)
         self.tray = QSystemTrayIcon(app_icon(), self)
         self.tray.setToolTip(APP_NAME)
         c = self.controller

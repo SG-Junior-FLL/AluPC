@@ -9,6 +9,12 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
+### Neu in 2.4.1 – Tastenbox-Eingaben am Monitor
+- **Anzeige unten links am Hauptmonitor** (Seite Tastenbox → „Eingaben unten links am Monitor anzeigen“): bei jedem
+  Tastendruck kurz Taste, Lage auf der Box (kleines 3 × 3-Feld) und Aktion; laufende Tastenfolge, Code-Eingabe,
+  ausgelöste Wenn → Dann-Regel, auf Wunsch auch der Regler. Klicks gehen hindurch, nimmt nie den Fokus.
+  Unter KDE/Wayland legt KWin die Anzeige hin (dort am PC nicht ausprobiert).
+
 ### Neu in 2.4.0 – Tastenbox: Tastenfolgen, Buzzer mit Melodien und MIDI, flüssiger Mixer
 - **Mixer ruckelt nicht mehr:** Die Audio-Seite fragte alle 2 s für jeden Regler die Geräteliste im
   Oberflächen-Thread ab – je mehr Geräte angeschlossen, desto mehr hing es. Läuft jetzt im Hintergrund.

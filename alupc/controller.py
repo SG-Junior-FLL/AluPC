@@ -28,6 +28,9 @@ def evening_key() -> str:
 class Controller(QObject):
     changed = Signal()
     message = Signal(str)
+    # Tastenbox: was gerade an der Box passiert (Anzeige unten links am Hauptmonitor) –
+    # {"art": "taste"|"folge"|"code"|"regel"|"regler"|"zahl", …}
+    box_input = Signal(dict)
     settings_imported = Signal(list)  # Dual-Boot: Einstellungen vom anderen System übernommen
     sync_status = Signal(str)
     games_changed = Signal()  # Minispiele: Spieler/Phase geändert (Steuerfenster)
@@ -1771,7 +1774,10 @@ class Controller(QObject):
         action = self.box_keys().get(str(n), "")
         self._box_blink()
         self._box_click()
-        if self._seq_push(n, action):
+        held = self._seq_push(n, action)
+        self.box_input.emit({"art": "taste", "n": n, "aktion": action, "lang": False,
+                             "folge": self._seq_buffer() if held else ""})
+        if held:
             return
         if action:
             self.run_command(action)
@@ -1894,6 +1900,7 @@ class Controller(QObject):
             return self._box_key(n)
         self._box_blink()
         self._box_click()
+        self.box_input.emit({"art": "taste", "n": n, "aktion": action, "lang": True, "folge": ""})
         self.run_command(action)
 
     def _box_blink(self) -> None:
@@ -1973,6 +1980,7 @@ class Controller(QObject):
             self.knob_wait = False
         self._knob_apply(self.knob_target(), value)
         self._changed_soon()
+        self.box_input.emit({"art": "regler", "wert": value, "ziel": self.knob_target_label()})
 
     def _changed_soon(self) -> None:
         if not self._knob_changed.isActive():
@@ -1996,6 +2004,7 @@ class Controller(QObject):
             self.buttonbox.set_effect("blinken")
             self._led_extra = None  # nach der Eingabe wieder wie eingestellt
         self.message.emit("Code eingeben …")
+        self.box_input.emit({"art": "code", "code": "", "fertig": False})
         self.changed.emit()
 
     def _code_digit(self, n: int) -> None:
@@ -2005,6 +2014,7 @@ class Controller(QObject):
         self._code_timer.start(CODE_PAUSE_MS)
         self._box_blink()
         self.message.emit("Code: " + "-".join(self.box_code))
+        self.box_input.emit({"art": "code", "code": self.box_code, "fertig": False})
         self.changed.emit()
 
     def _code_done(self) -> None:
@@ -2013,6 +2023,7 @@ class Controller(QObject):
         code, self.box_code = self.box_code or "", None
         self.update_box_led()
         self.changed.emit()
+        self.box_input.emit({"art": "code", "code": code, "fertig": True})
         if not code:
             self.message.emit("Code-Eingabe abgebrochen.")
             return
@@ -2035,6 +2046,7 @@ class Controller(QObject):
 
         if self.knob_target() == "wert":
             self._value_timer.start(VALUE_SETTLE_MS)
+            self.box_input.emit({"art": "zahl", "wert": self.box_number()})
             self._changed_soon()
         elif self.knob_scale() != "prozent" and self.knob_level() is not None:
             level = self.knob_level()
@@ -2063,6 +2075,7 @@ class Controller(QObject):
         from .automations import run_external
 
         art, ziel = rule["dann"]["art"], rule["dann"]["ziel"]
+        self.box_input.emit({"art": "regel", "name": rule["name"]})
         if self._rule_depth > 3:  # Regel ruft Regel ruft Regel …
             self.message.emit("Wenn → Dann: zu viele Regeln hintereinander.")
             return

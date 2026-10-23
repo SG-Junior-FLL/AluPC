@@ -709,3 +709,38 @@ def test_searchable_combo(env):  # noqa: F811
     pump()
     assert combo.lineEdit().text() == "Buzzer – Lied: Tetris"
     combo.deleteLater()
+
+
+def test_box_osd_shows_inputs(env, monkeypatch):  # noqa: F811
+    """Option „Eingaben unten links anzeigen“: Taste mit Lage und Aktion, Tastenfolge, Code, Regler (abschaltbar)."""
+    controller, window, _ = env
+    from alupc.ui.box_osd import describe_event
+
+    osd = window.box_osd
+    monkeypatch.setattr(controller.buttonbox, "send", lambda line: True)
+    monkeypatch.setattr(controller, "run_command", lambda a: None)
+    base = dict(controller.config["tasten"])
+    controller.config["tasten"] = {**base, "keys": {"7": "standbild"}, "regeln": [], "anzeige": False}
+    controller.buttonbox.key.emit(7)
+    pump()
+    assert not osd.isVisible()  # aus: nichts anzeigen
+    controller.config["tasten"] = {**controller.config["tasten"], "anzeige": True, "anzeige_regler": False}
+    controller.buttonbox.key.emit(7)
+    pump()
+    assert osd.isVisible() and osd.title == "Taste 7 · unten links" and osd.detail == "Standbild an/aus"
+    assert osd.key == 7
+    geo = controller.main_screen().availableGeometry()
+    assert osd.x() < geo.x() + 60 and osd.geometry().bottom() > geo.bottom() - 60  # unten links
+    osd.show_event({"art": "regler", "wert": 40, "ziel": "PC-Lautstärke"})
+    assert osd.title == "Taste 7 · unten links"  # Regler abgeschaltet → bleibt bei der Taste
+    labels = {"standbild": "Standbild an/aus"}
+    assert describe_event({"art": "taste", "n": 7, "aktion": "", "folge": "71"}, labels)[1] == "Folge 7-1 …"
+    assert describe_event({"art": "taste", "n": 3, "aktion": "", "lang": True}, labels)[:2] == (
+        "Taste 3 · oben rechts · lang", "– nicht belegt –")
+    assert describe_event({"art": "code", "code": "12", "fertig": False}, labels)[1] == "1-2 …"
+    assert describe_event({"art": "regler", "wert": 40, "ziel": "PC-Lautstärke"}, labels)[1] == "PC-Lautstärke: 40 %"
+    assert describe_event({"art": "zahl", "wert": 7}, labels)[1] == "007"
+    out = window.box_osd.grab()
+    assert not out.isNull()
+    osd.hide()
+    controller.config["tasten"] = base
