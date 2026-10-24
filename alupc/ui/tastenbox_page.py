@@ -691,6 +691,26 @@ class TastenboxPage(QWidget):
         row.addWidget(self.code_key)
         row.addStretch(1)
         lay.addLayout(row)
+        cfg = self.controller.config["tasten"]
+        wait_row = QWidget()
+        wl = FlowLayout(spacing=10)  # bricht im schmalen Fenster um
+        wait_row.setLayout(wl)
+        wait = QCheckBox("Jede Taste wartet kurz (Tastenfolgen bleiben geheim)")
+        wait.setToolTip("An: jede Taste führt ihre Funktion erst nach der Wartezeit aus – man sieht nicht, mit welchen "
+                        "Tasten eine Folge anfängt. Aus: nur Tasten, mit denen eine Folge anfängt, warten.")
+        wait.setChecked(bool(cfg.get("folge_warten", True)))
+        wait.toggled.connect(lambda v: self._save(folge_warten=v))
+        gap = QSpinBox()
+        gap.setRange(300, 2000)
+        gap.setSingleStep(100)
+        gap.setSuffix(" ms")
+        gap.setPrefix("Wartezeit ")
+        gap.setToolTip("So lange wartet AluPC auf die nächste Taste einer Folge (nur wenn es Tastenfolgen gibt)")
+        gap.setValue(self.controller.seq_gap_ms())
+        gap.valueChanged.connect(lambda v: self._save(folge_ms=v))
+        wl.addWidget(wait)
+        wl.addWidget(gap)
+        lay.addWidget(wait_row)
         self._fill_rules()
         return box
 

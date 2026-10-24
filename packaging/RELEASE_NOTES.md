@@ -9,14 +9,22 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
-### Neu in 2.4.3 – Virtuelle Geräte wirklich weg, OpenRGB unter Windows
-- **Virtuelle Geräte aus = unsichtbar:** Windows: AluPC schaltet VB-CABLE im Gerätemanager ab (einmal Administrator
-  bestätigen) – dann sehen es weder Windows noch Programme; an = wieder eingeschaltet. Linux: übrig gebliebene
-  virtuelle Geräte werden beim Start entfernt. In den AluPC-Listen tauchen sie bei „aus“ nicht auf.
-- **„CABLE In 16ch“ ausgeblendet:** VB-CABLE legt zwei Eingänge an (normal + 16 Kanäle) – einer reicht.
-- **OpenRGB unter Windows:** AluPC findet OpenRGB jetzt auch im winget-Ordner (vorher nur unter „Programme“).
-- **Tastenbox ruckelt nicht mehr beim Tippen:** Die Seite stellte bei jedem Druck die Auswahllisten um (~20 ms neues Layout) – jetzt erst nach kurzer Ruhe; Leuchten der Tasten mit 25 statt 60 Bildern/s; die Anzeige unten links zeichnet ihr Tastenfeld nur einmal und sofort beim Druck (vorher erst nach der Aktion).
-- Unter Windows nicht auf echter Hardware getestet.
+### Neu in 2.4.3 – Tastenbox: mehrere Aktionen, geheime Tastenfolgen, bessere MIDIs; neue Design-Auswahl
+- **Mehrere Aktionen je Regel:** Wenn → Dann kann jetzt mehrere Dinge nacheinander tun („Weitere Aktion“).
+- **Jede Taste wartet kurz** (Standard, abschaltbar, Wartezeit einstellbar): sonst sah man an sofort reagierenden
+  Tasten, womit eine Tastenfolge anfängt. Die Anzeige unten links verrät keine nächsten Tasten mehr.
+- **MIDI-Dateien klingen besser:** AluPC sucht die Melodie-Spur (statt je Moment den höchsten Ton aller Spuren),
+  gleiche Töne hintereinander bleiben getrennt, Mini-Schnipsel fallen weg, die Melodie wird in den Bereich gelegt,
+  in dem ein Buzzer gut klingt.
+- **Buzzer-Lieder neu:** Kinderlieder raus; dafür bekannte, gemeinfreie Stücke aus Spielen/Filmen (Tetris, Can-Can,
+  Türkischer Marsch, Wilhelm Tell, Toccata, Bergkönig, Für Elise, Ode an die Freude) und weniger Signale.
+- **Design-Auswahl unten links neu:** Vorschaukarten je Stil, Hell/Dunkel, Farbtupfer, Profile – wirkt sofort.
+- **Tastenbox ruckelt nicht mehr beim Tippen** (Auswahl erst nach kurzer Ruhe, sparsameres Leuchten).
+- **Maus bei „Erweitern“ (KDE/Wayland):** wechselte man schnell um, konnte die Sperre zwischen den Monitoren bleiben.
+- **Virtuelle Geräte aus = unsichtbar:** Windows schaltet VB-CABLE im Gerätemanager ab (einmal Administrator);
+  „CABLE In 16ch“ (zweiter, unnötiger Eingang) immer aus. Linux: Reste beim Start entfernt.
+- **OpenRGB unter Windows:** wird jetzt auch im winget-Ordner gefunden.
+- Unter Windows und mit echter Box nicht getestet.
 
 ### Neu in 2.4.2 – Tastenbox ohne weiße LEDs
 - **Arduino-Programm 8:** nur noch rot, grün, blau (Pins 10, 9, 16). Weiß entsteht aus allen drei; Pin A1 ist frei.

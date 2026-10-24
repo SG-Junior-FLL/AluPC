@@ -18,40 +18,38 @@ MIN_VERSION = 7  # ab diesem Box-Programm gibt es „TON“
 # Name → (Anzeige, Tempo in Vierteln pro Minute, Noten „E5/4 B4/8 R/4 A4/8.“ – R = Pause, „.“ = punktiert)
 SONGS = {
     "piep": ("Signal: Piep", 120, "A5/16"),
-    "doppelpiep": ("Signal: Doppel-Piep", 120, "A5/16 R/32 A5/16"),
     "erfolg": ("Signal: Erfolg", 140, "C5/16 E5/16 G5/16 C6/8"),
     "fehler": ("Signal: Fehler", 120, "G4/8 C4/4"),
-    "start": ("Signal: Start", 160, "C5/16 E5/16 G5/16 C6/16"),
-    "alarm": ("Signal: Alarm", 150, "A5/8 E5/8 A5/8 E5/8 A5/8 E5/8"),
-    "tetris": ("Lied: Tetris", 144,
+    # Bekannte Stücke aus Spielen, Filmen und Werbung – alle gemeinfrei (Komponisten seit über 70 Jahren tot)
+    "tetris": ("Lied: Tetris (Korobeiniki)", 144,
                "E5/4 B4/8 C5/8 D5/4 C5/8 B4/8 A4/4 A4/8 C5/8 E5/4 D5/8 C5/8 B4/4. C5/8 D5/4 E5/4 C5/4 A4/4 A4/4 "
                "R/4 R/8 D5/4 F5/8 A5/4 G5/8 F5/8 E5/4. C5/8 E5/4 D5/8 C5/8 B4/4 B4/8 C5/8 D5/4 E5/4 C5/4 A4/4 A4/4"),
-    "freude": ("Lied: Ode an die Freude", 120,
-               "E5/4 E5/4 F5/4 G5/4 G5/4 F5/4 E5/4 D5/4 C5/4 C5/4 D5/4 E5/4 E5/4. D5/8 D5/2 E5/4 E5/4 F5/4 G5/4 "
-               "G5/4 F5/4 E5/4 D5/4 C5/4 C5/4 D5/4 E5/4 D5/4. C5/8 C5/2"),
-    "elise": ("Lied: Für Elise", 80,
+    "bergkoenig": ("Lied: In der Halle des Bergkönigs (Grieg)", 140,
+                   "A4/8 B4/8 C5/8 D5/8 E5/8 C5/8 E5/4 DS5/8 B4/8 DS5/4 D5/8 AS4/8 D5/4 A4/8 B4/8 C5/8 D5/8 E5/8 "
+                   "C5/8 E5/8 A5/8 G5/8 E5/8 C5/8 E5/8 G5/2"),
+    "cancan": ("Lied: Can-Can (Offenbach)", 150,
+               "C5/4 D5/8 F5/8 E5/8 D5/8 G5/4 G5/4 G5/8 A5/8 E5/8 F5/8 D5/4 D5/4 D5/8 F5/8 E5/8 D5/8 C5/8 C6/8 "
+               "B5/8 A5/8 G5/8 F5/8 E5/8 D5/8 C5/2"),
+    "turca": ("Lied: Türkischer Marsch (Mozart)", 120,
+              "B4/16 A4/16 GS4/16 A4/16 C5/8 R/8 D5/16 C5/16 B4/16 C5/16 E5/8 R/8 F5/16 E5/16 DS5/16 E5/16 B5/16 "
+              "A5/16 GS5/16 A5/16 B5/16 A5/16 GS5/16 A5/16 C6/4 A5/8 C6/8 B5/8 A5/8 G5/8 A5/8 B5/8 A5/8 G5/8 A5/8 "
+              "G5/8 FS5/8 E5/4"),
+    "tell": ("Lied: Wilhelm Tell (Rossini)", 150,
+             "G5/16 G5/16 G5/8 G5/16 G5/16 G5/8 G5/16 G5/16 C6/8 D6/8 E6/8 G5/16 G5/16 G5/8 G5/16 G5/16 G5/8 "
+             "C6/16 E6/16 D6/8 B5/8 G5/8 G5/16 G5/16 G5/8 G5/16 G5/16 G5/8 G5/16 G5/16 C6/8 D6/8 E6/8 C6/8 E6/8 "
+             "G6/4 E6/8 C6/8 D6/8 B5/8 C6/4"),
+    "toccata": ("Lied: Toccata d-Moll (Bach)", 60,
+                "A5/32 G5/32 A5/4. R/8 G5/32 F5/32 E5/32 D5/32 CS5/8 D5/4 R/4 A5/32 G5/32 A5/4. R/8 E5/8 F5/8 "
+                "CS5/8 D5/2"),
+    "elise": ("Lied: Für Elise (Beethoven)", 80,
               "E5/16 DS5/16 E5/16 DS5/16 E5/16 B4/16 D5/16 C5/16 A4/8. C4/16 E4/16 A4/16 B4/8. E4/16 GS4/16 B4/16 "
               "C5/8. E4/16 E5/16 DS5/16 E5/16 DS5/16 E5/16 B4/16 D5/16 C5/16 A4/8. C4/16 E4/16 A4/16 B4/8. E4/16 "
               "C5/16 B4/16 A4/2"),
-    "geburtstag": ("Lied: Happy Birthday", 110,
-                   "G4/8. G4/16 A4/4 G4/4 C5/4 B4/2 G4/8. G4/16 A4/4 G4/4 D5/4 C5/2 G4/8. G4/16 G5/4 E5/4 C5/4 B4/4 "
-                   "A4/4 F5/8. F5/16 E5/4 C5/4 D5/4 C5/2"),
-    "jingle": ("Lied: Jingle Bells", 170,
-               "E5/4 E5/4 E5/2 E5/4 E5/4 E5/2 E5/4 G5/4 C5/4. D5/8 E5/1 F5/4 F5/4 F5/4. F5/8 F5/4 E5/4 E5/4 E5/8 "
-               "E5/8 E5/4 D5/4 D5/4 E5/4 D5/2 G5/2"),
-    "entchen": ("Lied: Alle meine Entchen", 130,
-                "C5/8 D5/8 E5/8 F5/8 G5/4 G5/4 A5/8 A5/8 A5/8 A5/8 G5/2 A5/8 A5/8 A5/8 A5/8 G5/2 F5/8 F5/8 F5/8 "
-                "F5/8 E5/4 E5/4 D5/8 D5/8 D5/8 D5/8 C5/2"),
-    "jakob": ("Lied: Bruder Jakob", 130,
-              "C5/4 D5/4 E5/4 C5/4 C5/4 D5/4 E5/4 C5/4 E5/4 F5/4 G5/2 E5/4 F5/4 G5/2 G5/8 A5/8 G5/8 F5/8 E5/4 "
-              "C5/4 G5/8 A5/8 G5/8 F5/8 E5/4 C5/4 C5/4 G4/4 C5/2 C5/4 G4/4 C5/2"),
-    "bergkoenig": ("Lied: In der Halle des Bergkönigs", 140,
-                   "A4/8 B4/8 C5/8 D5/8 E5/8 C5/8 E5/4 DS5/8 B4/8 DS5/4 D5/8 AS4/8 D5/4 A4/8 B4/8 C5/8 D5/8 E5/8 "
-                   "C5/8 E5/8 A5/8 G5/8 E5/8 C5/8 E5/8 G5/2"),
-    "stern": ("Lied: Twinkle Twinkle Little Star", 120,
-              "C5/4 C5/4 G5/4 G5/4 A5/4 A5/4 G5/2 F5/4 F5/4 E5/4 E5/4 D5/4 D5/4 C5/2 G5/4 G5/4 F5/4 F5/4 E5/4 "
-              "E5/4 D5/2 G5/4 G5/4 F5/4 F5/4 E5/4 E5/4 D5/2 C5/4 C5/4 G5/4 G5/4 A5/4 A5/4 G5/2 F5/4 F5/4 E5/4 "
-              "E5/4 D5/4 D5/4 C5/2"),
+    "freude": ("Lied: Ode an die Freude (Beethoven)", 120,
+               "E5/4 E5/4 F5/4 G5/4 G5/4 F5/4 E5/4 D5/4 C5/4 C5/4 D5/4 E5/4 E5/4. D5/8 D5/2 E5/4 E5/4 F5/4 G5/4 "
+               "G5/4 F5/4 E5/4 D5/4 C5/4 C5/4 D5/4 E5/4 D5/4. C5/8 C5/2"),
+    "gameover": ("Signal: Game Over (Chopin, Trauermarsch)", 60,
+                 "C5/4 C5/8. C5/16 C5/4 DS5/8. D5/16 D5/8. C5/16 C5/8. B4/16 C5/2"),
 }
 CLICK = (2400, 12)  # kurzer Klick als Rückmeldung bei Tastendruck
 
@@ -100,8 +98,18 @@ def _vlq(data: bytes, i: int) -> tuple[int, int]:
             return value, i
 
 
+BUZZER_CENTER = 79  # G5 (~780 Hz): hier klingen kleine Piezo-Buzzer am besten – tiefe Töne schnarren
+BUZZER_LOW, BUZZER_HIGH = 60, 98  # C4 … D7: was darüber/darunter liegt, wird oktaviert
+
+
 def midi_notes(path: str | Path, max_ms: int = 10 * 60 * 1000) -> list[tuple[int, int]]:
-    """MIDI-Datei (Typ 0/1) → [(Hz, ms)] für einen Buzzer: je Moment der höchste klingende Ton, Pausen = 0 Hz.
+    """MIDI-Datei (Typ 0/1) → [(Hz, ms)] für einen Buzzer (kann nur einen Ton gleichzeitig), Pausen = 0 Hz.
+
+    Ein Lied hat meist mehrere Spuren (Melodie, Bass, Begleitung, Akkorde). Früher kam von allen Spuren je Moment der
+    höchste Ton – das sprang dauernd zwischen den Stimmen und klang schlimm. Jetzt:
+    1. die Melodie-Spur suchen (viele Noten, meist einstimmig, eher hoch; Schlagzeug nie),
+    2. nur diese Spur einstimmig machen (bei Akkorden der höchste Ton), gleiche Töne hintereinander bleiben getrennt,
+    3. Schnipsel unter 35 ms weg, 4. ganze Oktaven verschieben, bis die Melodie dort liegt, wo der Buzzer gut klingt.
     Fehlerhafte Dateien → ValueError."""
     data = Path(path).read_bytes()
     if data[:4] != b"MThd" or len(data) < 14:
@@ -109,10 +117,10 @@ def midi_notes(path: str | Path, max_ms: int = 10 * 60 * 1000) -> list[tuple[int
     hlen = struct.unpack(">I", data[4:8])[0]
     _fmt, ntracks, division = struct.unpack(">HHH", data[8:14])
     pos = 8 + hlen
-    events: list[tuple[int, int, int]] = []  # (Tick, +1/-1, Note)
+    events: list[tuple[int, int, int, tuple[int, int]]] = []  # (Tick, +1/-1, Note, (Spur, Kanal))
     tempos: list[tuple[int, int]] = [(0, 500000)]  # (Tick, µs je Viertel)
     try:
-        for _ in range(ntracks):
+        for track in range(ntracks):
             while data[pos:pos + 4] != b"MTrk":  # unbekannte Blöcke überspringen
                 if pos + 8 > len(data):
                     raise ValueError("Spur fehlt")
@@ -150,7 +158,7 @@ def midi_notes(path: str | Path, max_ms: int = 10 * 60 * 1000) -> list[tuple[int
                 i += 2
                 if chan == 9 or kind not in (0x80, 0x90):  # Schlagzeug / anderes
                     continue
-                events.append((tick, 1 if kind == 0x90 and vel > 0 else -1, note))
+                events.append((tick, 1 if kind == 0x90 and vel > 0 else -1, note, (track, chan)))
     except (IndexError, struct.error) as exc:
         raise ValueError("kaputte MIDI-Datei") from exc
     if not events:
@@ -170,37 +178,78 @@ def midi_notes(path: str | Path, max_ms: int = 10 * 60 * 1000) -> list[tuple[int
             last_tick, last_tempo = at, tempo
         return ms + (t - last_tick) * last_tempo / division / 1000
 
-    events.sort(key=lambda e: (e[0], e[1]))  # gleicher Zeitpunkt: erst aus, dann an
+    melody = _melody_voice(events)
+    events = sorted((e for e in events if e[3] == melody), key=lambda e: (e[0], e[1]))  # erst aus, dann an
     sounding: dict[int, int] = {}
-    out: list[list[int]] = []
-    prev_ms, cur = 0.0, 0
-    for tick, change, note in events:
+    segs: list[list[int]] = []  # [MIDI-Note oder 0, ms, neu angeschlagen?]
+    prev_ms, cur, attack = 0.0, 0, False
+    for tick, change, note, _voice in events:
         now = to_ms(tick)
         if now > prev_ms:
             seg = round(now - prev_ms)
-            if out and out[-1][0] == cur:
-                out[-1][1] += seg
-            elif seg > 0 and (out or cur):  # Stille am Anfang weglassen
-                out.append([cur, seg])
-            prev_ms = now
+            if segs and segs[-1][0] == cur and not attack:
+                segs[-1][1] += seg
+            elif seg > 0 and (segs or cur):  # Stille am Anfang weglassen
+                segs.append([cur, seg, attack])
+            prev_ms, attack = now, False
         if change > 0:
             sounding[note] = sounding.get(note, 0) + 1
+            if note >= max(sounding):
+                attack = True  # neu angeschlagen – auch derselbe Ton nochmal ist ein eigener Ton
         elif sounding.get(note):
             sounding[note] -= 1
             if not sounding[note]:
                 del sounding[note]
-        cur = midi_freq(max(sounding)) if sounding else 0
+        cur = max(sounding) if sounding else 0
         if now > max_ms:
             break
-    merged: list[tuple[int, int]] = []
-    for f, ms in out:  # Schnipsel unter 15 ms (Akkord-Anschläge) an den vorigen Ton hängen
-        if merged and ms < 15:
-            merged[-1] = (merged[-1][0], merged[-1][1] + ms)
+    clean: list[list[int]] = []
+    for note, ms, _attack in segs:  # Schnipsel unter 35 ms (Vorschläge, ungenaues Loslassen) an den vorigen Ton
+        if clean and ms < 35:
+            clean[-1][1] += ms
         else:
-            merged.append((f, ms))
-    while merged and merged[-1][0] == 0:
-        merged.pop()
-    return merged
+            clean.append([note, ms])
+    while clean and clean[-1][0] == 0:
+        clean.pop()
+    pitches = sorted(n for n, _ms in clean if n)
+    if not pitches:
+        raise ValueError("keine Noten in der Datei")
+    shift = 12 * round((BUZZER_CENTER - pitches[len(pitches) // 2]) / 12)
+    out: list[tuple[int, int]] = []
+    for note, ms in clean:
+        if note:
+            note += shift
+            while note < BUZZER_LOW:
+                note += 12
+            while note > BUZZER_HIGH:
+                note -= 12
+        out.append((midi_freq(note) if note else 0, ms))
+    return out
+
+
+def _melody_voice(events) -> tuple[int, int]:
+    """Welche (Spur, Kanal) ist die Melodie? Viele Noten, kaum Akkorde, eher hoch."""
+    voices: dict[tuple[int, int], list] = {}
+    for tick, change, note, voice in sorted(events, key=lambda e: (e[0], e[1])):
+        v = voices.setdefault(voice, [0, 0, 0, 0])  # Noten, Summe Tonhöhe, gleichzeitig angeschlagen, gerade an
+        if change > 0:
+            v[0] += 1
+            v[1] += note
+            if v[3] > 0:
+                v[2] += 1
+            v[3] += 1
+        else:
+            v[3] = max(0, v[3] - 1)
+    most = max(v[0] for v in voices.values())
+
+    def score(item):
+        _voice, (count, total, poly, _on) = item
+        if count < max(8, most * 0.15):  # kaum Noten: Einwürfe, Effekte
+            return -1.0
+        mean = total / count
+        return mean * (1 - 0.7 * poly / count) + min(count, 400) / 40
+
+    return max(voices.items(), key=score)[0]
 
 
 def midi_dir() -> Path:

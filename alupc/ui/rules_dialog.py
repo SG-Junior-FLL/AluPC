@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
     QPushButton,
     QSpinBox,
     QStackedWidget,
@@ -22,7 +23,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..automations import ACTION_HINTS, ACTIONS, KEY_POS, clean_rule, describe, describe_sequence, is_valid
+from ..automations import (
+    ACTION_HINTS,
+    ACTIONS,
+    KEY_POS,
+    actions_of,
+    clean_rule,
+    describe,
+    describe_sequence,
+    is_valid,
+    target_label,
+)
 from .voice_custom import action_choices
 from .widgets import button, page_header, searchable
 
@@ -157,6 +168,27 @@ class RuleDialog(QDialog):
         song_holder.setLayout(song_row)
         self.stack.addWidget(song_holder)
         form.addRow("", self.stack)
+        # Mehrere Aktionen: Liste der Schritte – der ausgewählte Schritt wird oben bearbeitet
+        self.actions = [dict(a) for a in actions_of(rule)]
+        self.cur = 0
+        steps = QWidget()
+        sl2 = QVBoxLayout(steps)
+        sl2.setContentsMargins(0, 0, 0, 0)
+        self.steps = QListWidget()
+        self.steps.setMaximumHeight(96)
+        self.steps.setToolTip("Alle Aktionen laufen nacheinander. Eine anklicken = oben bearbeiten.")
+        self.steps.currentRowChanged.connect(self._pick_step)
+        step_row = QHBoxLayout()
+        add = button("Weitere Aktion", "plus")
+        add.clicked.connect(self._add_step)
+        self.del_step = button("Entfernen", "trash")
+        self.del_step.clicked.connect(self._remove_step)
+        step_row.addWidget(add)
+        step_row.addWidget(self.del_step)
+        step_row.addStretch(1)
+        sl2.addWidget(self.steps)
+        sl2.addLayout(step_row)
+        form.addRow("Schritte:", steps)
         lay.addLayout(form)
 
         self.preview = QLabel()
@@ -182,19 +214,76 @@ class RuleDialog(QDialog):
             combo.currentIndexChanged.connect(self._check)
         self._check()
 
-    def rule(self) -> dict:
-        art, trig = self.art.currentData(), self.trigger.currentData()
+    def _editor_action(self) -> dict:
+        art = self.art.currentData()
         ziel = {"alupc": self.command.currentData(), "buzzer": self.song.currentData()}.get(art, self.ziel.text())
+        return {"art": art, "ziel": ziel or ""}
+
+    def _load_action(self, action: dict) -> None:
+        widgets = (self.art, self.ziel, self.command, self.song)
+        for w in widgets:
+            w.blockSignals(True)
+        self.art.setCurrentIndex(max(0, self.art.findData(action.get("art", "alupc"))))
+        ziel = action.get("ziel", "")
+        self.ziel.setText(ziel if action.get("art") not in ("alupc", "buzzer") else "")
+        if action.get("art") == "alupc":
+            self.command.setCurrentIndex(max(0, self.command.findData(ziel)))
+        if action.get("art") == "buzzer":
+            self.song.setCurrentIndex(max(0, self.song.findData(ziel)))
+        for w in widgets:
+            w.blockSignals(False)
+
+    def _fill_steps(self) -> None:
+        self.steps.blockSignals(True)
+        if self.steps.count() != len(self.actions):
+            self.steps.clear()
+            self.steps.addItems(["" for _ in self.actions])
+        for i, a in enumerate(self.actions):
+            label = f"{i + 1}. {ACTIONS.get(a['art'], a['art'])}: {target_label(a['art'], a['ziel']) or '…'}"
+            if a["art"] == "alupc":
+                label = f"{i + 1}. {self.command.itemText(max(0, self.command.findData(a['ziel'])))}"
+            self.steps.item(i).setText(label)
+        self.steps.setCurrentRow(self.cur)
+        self.steps.blockSignals(False)
+        self.del_step.setEnabled(len(self.actions) > 1)
+
+    def _pick_step(self, row: int) -> None:
+        if 0 <= row < len(self.actions):
+            self.cur = row
+            self._load_action(self.actions[row])
+            self._check()
+
+    def _add_step(self) -> None:
+        self.actions.append({"art": "alupc", "ziel": ""})
+        self.cur = len(self.actions) - 1
+        self._load_action(self.actions[self.cur])
+        self._check()
+
+    def _remove_step(self) -> None:
+        if len(self.actions) > 1:
+            self.actions.pop(self.cur)
+            self.cur = max(0, self.cur - 1)
+            self._load_action(self.actions[self.cur])
+            self._check()
+
+    def rule(self) -> dict:
+        trig = self.trigger.currentData()
+        if hasattr(self, "actions"):
+            self.actions[self.cur] = self._editor_action()
+        actions = [a for a in getattr(self, "actions", [self._editor_action()]) if a["ziel"]] or [self._editor_action()]
         use_value = self.use_value.isChecked() or trig == "wert"
         return clean_rule({"name": self.name.text(), "an": True,
                            "wenn": {"folge": self.seq.text() if trig == "folge" else "",
                                     "code": self.code.text() if trig == "code" else "",
                                     "toleranz": self.tol.value(),
                                     "wert": self.value.value() if use_value else None},
-                           "dann": {"art": art, "ziel": ziel}})
+                           "dann": actions[0], "weitere": actions[1:]})
 
     def _check(self) -> None:
         art, trig = self.art.currentData(), self.trigger.currentData()
+        if hasattr(self, "actions"):
+            self.actions[self.cur] = self._editor_action()
+            self._fill_steps()
         self.stack.setCurrentIndex({"alupc": 1, "buzzer": 2}.get(art, 0))
         self.ziel.setPlaceholderText(ACTION_HINTS.get(art, ""))
         self.pick.setVisible(art in ("programm", "datei", "klang", "buzzer_midi"))
@@ -226,8 +315,10 @@ class RuleDialog(QDialog):
         self.ok.setEnabled(not problem)
         hint = ""
         if trig == "folge":
-            hint += (" Die Tasten schnell hintereinander drücken (je höchstens 0,8 s Pause). Tasten, mit denen eine "
-                     "Folge anfängt, machen ihre eigene Aktion erst nach 0,8 s – falls keine Folge daraus wird.")
+            gap = self.controller.seq_gap_ms() / 1000
+            hint += (f" Die Tasten schnell hintereinander drücken (je höchstens {gap:.1f} s Pause). Tasten machen "
+                     f"ihre eigene Funktion erst nach {gap:.1f} s – falls keine Folge daraus wird (Einstellung "
+                     "„Jede Taste wartet kurz“ auf der Seite Tastenbox).")
         if trig == "code":
             hint += f" Taste {self.controller.code_key()} lang drücken (LEDs blinken), Code tippen, 1,5 s warten."
         if rule["wenn"]["wert"] is not None and self.controller.knob_target() != "wert":

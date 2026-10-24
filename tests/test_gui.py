@@ -4886,11 +4886,18 @@ def test_quick_style_switch(env):
     window.show()
     pump()
     assert window.style_button.isVisible()
-    window._fill_style_menu()
-    texts = [a.text() for a in window.style_menu.actions()]
-    assert any(t.startswith("Technisch") for t in texts) and "Knopf ausblenden" in texts
-    window.quick_appearance(style="technisch")
+    window.open_style_popover()  # grafisches Auswahlfeld: Vorschaukarten je Stil
+    pump()
+    from alupc.ui.style_popover import StyleCard
+
+    pop = window.style_popover
+    cards = {c.key: c for c in pop.findChildren(StyleCard)}
+    assert set(cards) == set(theme.STYLES) and pop.isVisible()
+    cards["technisch"].click()
+    pump()
     assert controller.config["appearance"]["style"] == "technisch" and theme.current().technical
+    assert {c.key for c in pop.findChildren(StyleCard) if c.current} == {"technisch"}  # Auswahl sofort sichtbar
+    pop.close()
     window.quick_profile("AluPC Standard")
     a = controller.config["appearance"]
     assert a["style"] == "normal" and a["profile"] == "AluPC Standard"

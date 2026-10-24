@@ -6,7 +6,7 @@ import copy
 import os
 import sys
 
-from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtWidgets import (
@@ -469,45 +469,18 @@ class MainWindow(QMainWindow):
         self.style_button.setFixedSize(36, 36)
         self.style_button.setCursor(Qt.PointingHandCursor)
         self.style_button.setToolTip("Design wechseln")
-        self.style_menu = QMenu(self)
-        self.style_menu.aboutToShow.connect(self._fill_style_menu)
-        self.style_button.clicked.connect(
-            lambda: self.style_menu.popup(self.style_button.mapToGlobal(QPoint(self.style_button.width() + 6, -8))))
+        self.style_button.clicked.connect(self.open_style_popover)
         corner.addWidget(self.style_button, 0, Qt.AlignBottom)
         lay.addLayout(corner)
         self.style_button.setVisible(bool(self.config["appearance"].get("quick_switch", True)))
         return side
 
-    def _fill_style_menu(self) -> None:
-        """Menü am Eckknopf: Stil, Holzart, Hell/Dunkel und Profile – sofort angewendet."""
-        m = self.style_menu
-        m.clear()
-        a = self.config["appearance"]
-        menu_header(m, "Stil")
-        for key, label in theme.STYLES.items():
-            act = m.addAction(label, lambda k=key: self.quick_appearance(style=k))
-            mark_current(act, a.get("style", "normal") == key)
-        if a.get("style") == "holz":
-            woods = m.addMenu("Holzart")
-            for key, info in theme.WOODS.items():
-                act = woods.addAction(info[0], lambda k=key: self.quick_appearance(wood=k))
-                mark_current(act, a.get("wood", theme.DEFAULT_WOOD) == key)
-        else:
-            menu_header(m, "Helligkeit")
-            for key, label in (("dunkel", "Dunkel"), ("hell", "Hell"), ("system", "Wie das System")):
-                act = m.addAction(label, lambda k=key: self.quick_appearance(mode=k))
-                mark_current(act, a.get("mode", "dunkel") == key)
-        profiles = {**theme.BUILTIN_PROFILES, **(a.get("profiles") or {})}
-        if profiles:
-            menu_header(m, "Profil")
-            for name in profiles:
-                act = m.addAction(name, lambda n=name: self.quick_profile(n))
-                mark_current(act, a.get("profile") == name)
-        m.addSeparator()
-        m.addAction(icons.icon("sliders", theme.current().text, 18), "Mehr einstellen …",
-                    lambda: self.open_setup_section("Darstellung"))
-        m.addAction(icons.icon("eye_off", theme.current().text, 18), "Knopf ausblenden",
-                    lambda: self.quick_appearance(quick_switch=False))
+    def open_style_popover(self) -> None:
+        """Grafische Design-Auswahl am Eckknopf (Vorschaukarten, Farben, Profile)."""
+        from .style_popover import StylePopover
+
+        self.style_popover = StylePopover(self)
+        self.style_popover.popup_at(self.style_button)
 
     def quick_appearance(self, **changes) -> None:
         """Darstellung über den Eckknopf ändern – wie in Setup → Darstellung (Profil gilt dann nicht mehr)."""

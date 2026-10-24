@@ -187,6 +187,7 @@ class CursorGuard(QObject):
         self.display = None  # Monitor-Steuerung (vom Controller) – für die Lücke unter KDE/Wayland
         self._tracking = False
         self._gap_busy = False
+        self._gap_want = False
 
     @property
     def wayland_gap(self) -> bool:
@@ -235,8 +236,8 @@ class CursorGuard(QObject):
             t.moved.disconnect(self._wayland_pos)
             t.release()
             self._tracking = False
-        if not on and self.has_gap():
-            self._set_gap(False)  # „Erweitern“: Maus darf wieder auf Monitor 2
+        if not on and (self.has_gap() or self._gap_busy):
+            self._set_gap(False)  # „Erweitern“: Maus darf wieder auf Monitor 2 (auch wenn die Lücke gerade entsteht)
         elif on and tracker().pos is not None:
             self._wayland_pos(tracker().pos)
 
@@ -249,8 +250,10 @@ class CursorGuard(QObject):
             self._set_gap(False)  # sonst säße sie auf Monitor 2 fest
 
     def _set_gap(self, on: bool) -> None:
+        self._gap_want = on
         if self._gap_busy:
-            return
+            return  # läuft gerade – danach wird der zuletzt gewünschte Zustand nachgeholt (sonst blieb z. B. beim
+            # Wechsel auf „Erweitern“ die Lücke bestehen und die Maus kam nicht mehr auf Monitor 2)
         from .ui.util import run_async
 
         self._gap_busy = True
@@ -258,6 +261,8 @@ class CursorGuard(QObject):
 
         def done(*_):
             self._gap_busy = False
+            if self._gap_want != on:
+                self._set_gap(self._gap_want)
 
         run_async(lambda: display.separate(main, out, GAP) if on else display.join(main, out), done, done)
 

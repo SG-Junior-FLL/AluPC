@@ -63,13 +63,18 @@ def clean_rule(rule: dict) -> dict:
     folge = "".join(ch for ch in str(wenn.get("folge") or "") if ch in "123456789")[:12]
     if len(folge) < 2:  # eine einzelne Taste ist keine Folge (dafür: Taste direkt belegen)
         folge = ""
+    extra = []
+    for a in (rule.get("weitere") or [])[:10]:  # weitere Aktionen, nacheinander nach der ersten
+        a = dict(a or {})
+        if str(a.get("ziel") or "").strip():
+            extra.append({"art": a.get("art") if a.get("art") in ACTIONS else "alupc", "ziel": str(a["ziel"]).strip()})
     wert = wenn.get("wert")
     wert = None if wert in (None, "") else max(0, min(999, int(wert)))
     art = dann.get("art") if dann.get("art") in ACTIONS else "alupc"
     return {"name": str(rule.get("name") or "Regel").strip()[:60], "an": bool(rule.get("an", True)),
             "wenn": {"folge": folge, "code": "" if folge else code, "wert": wert,
                      "toleranz": max(0, min(50, int(wenn.get("toleranz", 3) or 0)))},
-            "dann": {"art": art, "ziel": str(dann.get("ziel") or "").strip()}}
+            "dann": {"art": art, "ziel": str(dann.get("ziel") or "").strip()}, "weitere": extra}
 
 
 def is_valid(rule: dict) -> bool:
@@ -92,7 +97,14 @@ def describe(rule: dict) -> str:
         parts.append("Code " + "-".join(w["code"]))
     if w["wert"] is not None:
         parts.append(f"Regler {w['wert']:03d}" + (f" ± {w['toleranz']}" if w["toleranz"] else ""))
-    return f"{' und '.join(parts) or '–'} → {ACTIONS[d['art']]}: {target_label(d['art'], d['ziel'])}"
+    more = rule.get("weitere") or []
+    text = f"{' und '.join(parts) or '–'} → {ACTIONS[d['art']]}: {target_label(d['art'], d['ziel'])}"
+    return text + (f" + {len(more)} weitere Aktion{'en' if len(more) > 1 else ''}" if more else "")
+
+
+def actions_of(rule: dict) -> list[dict]:
+    """Alle Aktionen einer Regel in Reihenfolge: die erste („dann“) und die weiteren."""
+    return [rule["dann"], *(rule.get("weitere") or [])]
 
 
 def target_label(art: str, ziel: str) -> str:

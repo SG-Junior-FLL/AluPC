@@ -1788,13 +1788,26 @@ class Controller(QObject):
     def _seq_push(self, n: int, action: str) -> bool:
         """Taste in die laufende Folge aufnehmen. True = Aktion wird zurückgehalten (oder fällt weg, weil die Folge
         komplett ist); False = gehört zu keiner Folge, sofort ausführen."""
-        from .automations import SEQ_GAP_MS, rules_for_sequence, sequence_rules
+        from .automations import rules_for_sequence, sequence_rules
 
         seqs = [r["wenn"]["folge"] for r in sequence_rules(self.box_rules())]
         if not seqs:
             self._seq_flush()
             return False
         self._seq_keys.append((n, action))
+        if self.config["tasten"].get("folge_warten", True):
+            # Jede Taste wartet kurz – sonst sähe man an den sofort reagierenden Tasten, womit eine Folge anfängt
+            keys = self._seq_buffer()
+            done = next((f for f in sorted(seqs, key=len, reverse=True) if keys.endswith(f)
+                         and not any(o != f and o.startswith(f) for o in seqs)), None)
+            if done:  # eine Folge ist eindeutig fertig: Tasten davor normal, dann die Regel – ohne zu warten
+                self._seq_timer.stop()
+                before, self._seq_keys = self._seq_keys[:-len(done)], []
+                self._seq_run_plain(before)
+                self._seq_fire(done, rules_for_sequence)
+                return True
+            self._seq_timer.start(self.seq_gap_ms())
+            return True
         # vorne Tasten abgeben (= normal ausführen), bis der Rest der Anfang einer Folge ist
         while self._seq_keys and not any(s.startswith(self._seq_buffer()) for s in seqs):
             _k, act = self._seq_keys.pop(0)
@@ -1809,12 +1822,27 @@ class Controller(QObject):
             self._seq_keys = []
             self._seq_fire(keys, rules_for_sequence)
             return True
-        self._seq_timer.start(SEQ_GAP_MS)
+        self._seq_timer.start(self.seq_gap_ms())
         return True
 
+    def seq_gap_ms(self) -> int:
+        """Wie lange auf die nächste Taste einer Folge gewartet wird (Einstellung, 300–2000 ms)."""
+        from .automations import SEQ_GAP_MS
+
+        return max(300, min(2000, int(self.config["tasten"].get("folge_ms", SEQ_GAP_MS) or SEQ_GAP_MS)))
+
+    def _seq_run_plain(self, keys: list[tuple[int, str]]) -> None:
+        """Tasten, die zu keiner Folge gehören, normal ausführen (und der Anzeige melden)."""
+        if keys:
+            self.box_input.emit({"art": "freigabe", "tasten": "".join(str(k) for k, _a in keys)})
+        for _k, act in keys:
+            if act:
+                self.run_command(act)
+
     def _seq_next(self, buf: str) -> str:
-        """Tasten, mit denen eine angefangene Folge weitergehen kann (für die Anzeige)."""
-        if not buf:
+        """Tasten, mit denen eine angefangene Folge weitergehen kann (für die Anzeige). Wartet jede Taste (Folgen
+        geheim halten), verrät die Anzeige das nicht."""
+        if not buf or self.config["tasten"].get("folge_warten", True):
             return ""
         from .automations import sequence_rules
 
@@ -1825,14 +1853,27 @@ class Controller(QObject):
         return "".join(str(k) for k, _a in self._seq_keys)
 
     def _seq_timeout(self) -> None:
-        from .automations import rules_for_sequence
+        """Pause nach der letzten Taste: von links her Folgen erkennen (die längste zuerst), alle anderen Tasten
+        normal ausführen – in der Reihenfolge, in der sie gedrückt wurden."""
+        from .automations import rules_for_sequence, sequence_rules
 
-        keys = self._seq_buffer()
-        if rules_for_sequence(self.box_rules(), keys, self._seq_value()):
-            self._seq_keys = []
-            self._seq_fire(keys, rules_for_sequence)
-        else:
-            self._seq_flush()
+        seqs = sorted({r["wenn"]["folge"] for r in sequence_rules(self.box_rules())}, key=len, reverse=True)
+        keys, self._seq_keys = self._seq_keys, []
+        buf = "".join(str(k) for k, _a in keys)
+        plain: list[tuple[int, str]] = []
+        i = 0
+        while i < len(buf):
+            match = next((f for f in seqs if buf.startswith(f, i)
+                          and rules_for_sequence(self.box_rules(), f, self._seq_value())), None)
+            if match:
+                self._seq_run_plain(plain)
+                plain = []
+                self._seq_fire(match, rules_for_sequence)
+                i += len(match)
+            else:
+                plain.append(keys[i])
+                i += 1
+        self._seq_run_plain(plain)
 
     def _seq_value(self) -> int | None:
         return self.box_number() if self.knob_target() == "wert" else None
@@ -1848,11 +1889,7 @@ class Controller(QObject):
         """Zurückgehaltene Tasten doch normal ausführen (Folge abgebrochen)."""
         self._seq_timer.stop()
         keys, self._seq_keys = self._seq_keys, []
-        if keys:
-            self.box_input.emit({"art": "freigabe", "tasten": "".join(str(k) for k, _a in keys)})
-        for _k, act in keys:
-            if act:
-                self.run_command(act)
+        self._seq_run_plain(keys)
 
     # ------------------------------------------------------------ Buzzer
     def buzzer_ready(self) -> tuple[bool, str]:
@@ -2084,34 +2121,39 @@ class Controller(QObject):
                 self.run_rule(rule)
 
     def run_rule(self, rule: dict) -> None:
-        """Das „Dann“ einer Regel ausführen."""
-        from .automations import run_external
+        """Das „Dann“ einer Regel ausführen – alle Aktionen nacheinander."""
+        from .automations import actions_of
 
-        art, ziel = rule["dann"]["art"], rule["dann"]["ziel"]
         self.box_input.emit({"art": "regel", "name": rule["name"]})
         if self._rule_depth > 3:  # Regel ruft Regel ruft Regel …
             self.message.emit("Wenn → Dann: zu viele Regeln hintereinander.")
             return
         self._rule_depth += 1
         try:
-            if art in ("programm", "webseite", "befehl"):
-                ok, text = run_external(art, ziel)
-                self.message.emit(f"{rule['name']}: {text}")
-            elif art == "webseite_m2":
-                url = ziel if "://" in ziel else "https://" + ziel
-                self.show_source({"type": "website", "url": url})
-            elif art == "datei":
-                self.show_file(ziel)
-            elif art == "klang":
-                self.sounds.play(ziel)
-            elif art == "buzzer":
-                self.play_buzzer_song(ziel)
-            elif art == "buzzer_midi":
-                self.play_buzzer_midi(ziel)
-            else:
-                self.run_command(ziel)
+            for action in actions_of(rule):
+                self._run_rule_action(rule["name"], action["art"], action["ziel"])
         finally:
             self._rule_depth -= 1
+
+    def _run_rule_action(self, name: str, art: str, ziel: str) -> None:
+        from .automations import run_external
+
+        if art in ("programm", "webseite", "befehl"):
+            ok, text = run_external(art, ziel)
+            self.message.emit(f"{name}: {text}")
+        elif art == "webseite_m2":
+            url = ziel if "://" in ziel else "https://" + ziel
+            self.show_source({"type": "website", "url": url})
+        elif art == "datei":
+            self.show_file(ziel)
+        elif art == "klang":
+            self.sounds.play(ziel)
+        elif art == "buzzer":
+            self.play_buzzer_song(ziel)
+        elif art == "buzzer_midi":
+            self.play_buzzer_midi(ziel)
+        else:
+            self.run_command(ziel)
 
     def _box_mute(self) -> None:
         if self.volume_locked():

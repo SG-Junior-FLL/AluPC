@@ -326,7 +326,7 @@ def test_automation_rules_model(monkeypatch):
     r = a.clean_rule({"name": " Intro ", "wenn": {"code": "1a20 3", "wert": "1200", "toleranz": 99},
                       "dann": {"art": "quatsch", "ziel": " standbild "}})
     assert r == {"name": "Intro", "an": True, "wenn": {"folge": "", "code": "123", "wert": 999, "toleranz": 50},
-                 "dann": {"art": "alupc", "ziel": "standbild"}}
+                 "dann": {"art": "alupc", "ziel": "standbild"}, "weitere": []}
     assert not a.is_valid(a.clean_rule({"wenn": {}, "dann": {"art": "alupc", "ziel": "x"}}))
     code = a.clean_rule({"name": "c", "wenn": {"code": "12"}, "dann": {"art": "alupc", "ziel": "x"}})
     both = a.clean_rule({"name": "b", "wenn": {"code": "12", "wert": 250}, "dann": {"art": "alupc", "ziel": "y"}})
@@ -559,9 +559,9 @@ def test_key_sequence_rules(env, monkeypatch):  # noqa: F811
     monkeypatch.setattr(controller, "run_rule", lambda r: ran.append("REGEL " + r["name"]))
     keys = {str(n): f"aktion{n}" for n in range(1, 10)}
     base = dict(controller.config["tasten"])
-    controller.config["tasten"] = {**base, "keys": keys, "regeln": [_rule("Intro", "712", "standbild"),
-                                                                     _rule("Kurz", "45", "schwarz"),
-                                                                     _rule("Lang", "456", "schwarz")]}
+    controller.config["tasten"] = {**base, "keys": keys, "folge_warten": False,  # nur Folge-Anfänge warten
+                                   "regeln": [_rule("Intro", "712", "standbild"), _rule("Kurz", "45", "schwarz"),
+                                              _rule("Lang", "456", "schwarz")]}
     box = controller.buttonbox
     for n in "712":
         box.key.emit(int(n))
@@ -627,7 +627,8 @@ def test_midi_to_buzzer_notes(tmp_path):
     path = tmp_path / "t.mid"
     _write_midi(path, [tempo, melody, drums])
     notes = buzzer.midi_notes(path)
-    assert notes == [(440, 500), (0, 500), (523, 250), (659, 250)]
+    # eine Oktave höher gelegt (Buzzer klingt um G5 am besten): A5, Pause, C6, E6
+    assert notes == [(880, 500), (0, 500), (1047, 250), (1319, 250)]
     bad = tmp_path / "x.mid"
     bad.write_bytes(b"kein midi")
     import pytest
@@ -651,9 +652,9 @@ def test_buzzer_songs_and_player(env, monkeypatch):  # noqa: F811
     box.port, box.version = "COM9", 6
     assert not controller.play_buzzer_song("piep") and "Version 7" in msgs[-1]  # altes Programm: klare Meldung
     box.version = 7
-    controller.run_command("buzzer:doppelpiep")
+    controller.run_command("buzzer:erfolg")
     assert _until(lambda: len(sent) >= 2, 2)
-    assert sent[0].startswith("TON 880 ") and sent[1].startswith("TON 880 ")
+    assert sent[0].startswith("TON 523 ") and sent[1].startswith("TON 659 ")  # C5, E5
     controller.run_command("buzzer:tetris")
     assert controller.buzzer.playing
     controller.run_command("buzzer_stopp")
@@ -745,7 +746,7 @@ def test_box_osd_shows_inputs(env, monkeypatch):  # noqa: F811
     assert describe_event({"art": "regler", "wert": 40, "ziel": "PC-Lautstärke"}, labels)[1] == "PC-Lautstärke: 40 %"
     assert describe_event({"art": "zahl", "wert": 7}, labels)[1] == "007"
     # Taste beginnt eine Folge → Wartebalken, mögliche nächste Taste markiert
-    controller.config["tasten"] = {**controller.config["tasten"],
+    controller.config["tasten"] = {**controller.config["tasten"], "folge_warten": False,
                                    "regeln": [_rule("Intro", "712", "standbild")]}
     controller.buttonbox.key.emit(7)
     assert osd.trail == "7" and osd.next_keys == "1" and osd._wait_ms > 0
@@ -755,3 +756,91 @@ def test_box_osd_shows_inputs(env, monkeypatch):  # noqa: F811
     assert not out.isNull()
     osd.hide()
     controller.config["tasten"] = base
+
+
+def test_midi_picks_melody_and_keeps_repeated_notes(tmp_path):
+    """Lied mit Melodie + Bass + Akkorden: die Melodie-Spur zählt (nicht je Moment der höchste Ton aller Spuren);
+    gleiche Töne hintereinander bleiben getrennt (sonst wird E-E-E zu einem langen Ton)."""
+    from alupc import buzzer
+
+    def notes(seq, chan=0, length=240):
+        out = []
+        for n in seq:
+            out += [(0, [0x90 | chan, n, 90]), (length, [0x80 | chan, n, 0])]
+        return out
+
+    melody = notes([64, 64, 64, 64, 64, 67, 60, 62, 64, 65, 65, 65])  # Jingle-Bells-artig, einstimmig
+    chords = []  # Akkorde, höher als die Melodie – früher „gewann“ dieser höchste Ton
+    for _ in range(3):
+        chords += [(0, [0x91, 76, 60]), (0, [0x91, 79, 60]), (0, [0x91, 84, 60]),
+                   (960, [0x81, 76, 0]), (0, [0x81, 79, 0]), (0, [0x81, 84, 0])]
+    bass = notes([40, 43, 45, 40] * 3, chan=2, length=240)
+    path = tmp_path / "lied.mid"
+    _write_midi(path, [[(0, [0xFF, 0x51, 3, 0x07, 0xA1, 0x20])], melody, chords, bass])
+    out = buzzer.midi_notes(path)
+    pitched = [f for f, _ms in out if f]
+    assert len(pitched) == 12  # jede Melodienote einzeln, auch die fünf gleichen E am Anfang
+    assert pitched[:5] == [pitched[0]] * 5 and pitched[5] > pitched[0]  # E E E E E G
+    assert all(523 <= f <= 1600 for f in pitched)  # im guten Bereich des Buzzers
+
+
+def test_every_key_waits_when_sequences_exist(env, monkeypatch):  # noqa: F811
+    """„Jede Taste wartet kurz“ (Standard): auch Tasten, die keine Folge beginnen, warten – sonst verriete das
+    sofortige Reagieren, womit eine Folge anfängt. 1-1-1 löst nur die Regel aus, nicht dreimal Taste 1."""
+    controller, _window, _ = env
+    ran = []
+    monkeypatch.setattr(controller.buttonbox, "send", lambda line: True)
+    monkeypatch.setattr(controller, "run_command", lambda a: ran.append(a))
+    monkeypatch.setattr(controller, "run_rule", lambda r: ran.append("REGEL " + r["name"]))
+    base = dict(controller.config["tasten"])
+    controller.config["tasten"] = {**base, "keys": {str(n): f"a{n}" for n in range(1, 10)}, "folge_ms": 300,
+                                   "regeln": [_rule("Drei", "111", "x"), _rule("Intro", "712", "y")]}
+    assert controller.config["tasten"].get("folge_warten", True)
+    box = controller.buttonbox
+    for n in (1, 1, 1):
+        box.key.emit(n)
+    assert ran == ["REGEL Drei"]  # eindeutig fertig → sofort, Taste 1 nie einzeln
+    ran.clear()
+    box.key.emit(3)  # gehört zu keiner Folge – wartet trotzdem
+    assert ran == []
+    assert _until(lambda: ran == ["a3"], 2)
+    ran.clear()
+    for n in (5, 7, 1, 2):  # 5 normal, dann die Folge 7-1-2
+        box.key.emit(n)
+    assert ran == ["a5", "REGEL Intro"]
+    ran.clear()
+    for n in (7, 1, 9):  # angefangen, abgebrochen → alles normal, in Reihenfolge
+        box.key.emit(n)
+    assert ran == []
+    assert _until(lambda: ran == ["a7", "a1", "a9"], 2)
+    assert controller._seq_next("7") == ""  # Anzeige verrät keine nächsten Tasten
+    controller.config["tasten"] = base
+
+
+def test_rule_with_several_actions(env, monkeypatch):  # noqa: F811
+    """Eine Regel kann mehrere Aktionen haben – sie laufen nacheinander."""
+    controller, window, _ = env
+    from alupc.automations import clean_rule, describe
+    from alupc.ui.rules_dialog import RuleDialog
+
+    dlg = RuleDialog(controller, None, set(), window)
+    dlg.name.setText("Show")
+    for n in "12":
+        dlg.seq.setText(dlg.seq.text() + n)
+    dlg.art.setCurrentIndex(dlg.art.findData("alupc"))
+    dlg.command.setCurrentIndex(dlg.command.findData("standbild"))
+    dlg._add_step()
+    dlg.art.setCurrentIndex(dlg.art.findData("buzzer"))
+    dlg.song.setCurrentIndex(dlg.song.findData("erfolg"))
+    rule = dlg.rule()
+    assert rule["dann"] == {"art": "alupc", "ziel": "standbild"}
+    assert rule["weitere"] == [{"art": "buzzer", "ziel": "erfolg"}]
+    assert dlg.steps.count() == 2 and "+ 1 weitere Aktion" in describe(rule)
+    dlg._pick_step(0)  # erster Schritt wieder im Editor
+    assert dlg.art.currentData() == "alupc" and dlg.command.currentData() == "standbild"
+    dlg.deleteLater()
+    ran = []
+    monkeypatch.setattr(controller, "run_command", lambda a: ran.append(a))
+    monkeypatch.setattr(controller, "play_buzzer_song", lambda name: ran.append("buzzer:" + name))
+    controller.run_rule(clean_rule(rule))
+    assert ran == ["standbild", "buzzer:erfolg"]
