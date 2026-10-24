@@ -9,10 +9,9 @@ Einstellung: Seite Tastenbox → „Eingaben unten links am Monitor anzeigen“ 
 
 from __future__ import annotations
 
-import time
 
 from PySide6.QtCore import QElapsedTimer, QRectF, Qt, QTimer, QVariantAnimation
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QWidget
 
 from ..automations import KEY_POS
@@ -108,19 +107,26 @@ class BoxOsd(QWidget):
         self._timer = QTimer(self, singleShot=True, timeout=lambda: self._fade(0.0))
         self._placed = None
         self._labels: dict[str, str] | None = None
-        self._labels_at = 0.0
+        self._labels_sig = None
+        self._base: QPixmap | None = None  # Hintergrund + Tastenfeld, nur bei neuer Belegung/Farbe neu gezeichnet
+        self._base_sig = None
         controller.box_input.connect(self.show_event)
 
     def enabled(self) -> bool:
         return bool(self.controller.config["tasten"].get("anzeige", False))
 
     def labels(self) -> dict[str, str]:
-        # Namen (Szenen, Regeln, Klänge …) höchstens alle 5 s neu lesen – nicht bei jedem Tastendruck
-        if self._labels is None or time.monotonic() - self._labels_at > 5:
+        # Namen (Szenen, Regeln, Klänge …) nur neu lesen, wenn sich Belegung, Szenen oder Regeln geändert haben –
+        # action_choices liest auch Ordner (Klänge, MIDI), das darf nicht bei jedem Tastendruck passieren
+        cfg = self.controller.config
+        t = cfg["tasten"]
+        sig = (tuple(sorted((t.get("keys") or {}).items())), tuple(sorted((t.get("lang") or {}).items())),
+               tuple(r.get("name", "") for r in t.get("regeln") or []), tuple(cfg.scene_names()))
+        if self._labels is None or sig != self._labels_sig:
             from .voice_custom import action_choices
 
-            self._labels = dict(action_choices(self.controller.config))
-            self._labels_at = time.monotonic()
+            self._labels = dict(action_choices(cfg))
+            self._labels_sig = sig
         return self._labels
 
     def show_event(self, event: dict) -> None:
@@ -153,7 +159,8 @@ class BoxOsd(QWidget):
         self._place()
         self._fade(1.0)
         self._timer.start(SHOW_MS + self._wait_ms)
-        self.update()
+        if self.isVisible():
+            self.repaint()  # sofort zeichnen – nicht erst, wenn die Aktion der Taste fertig ist
 
     def _tick(self) -> None:
         if self._wait_clock.elapsed() >= self._wait_ms:
@@ -203,6 +210,47 @@ class BoxOsd(QWidget):
         if self.alpha <= 0.001 and self._anim.endValue() == 0.0 and not is_wayland() and self.isVisible():
             self.hide()  # unter Wayland sichtbar lassen (sonst landet sie beim nächsten Mal woanders)
 
+    def _cell(self, n: int) -> QRectF:
+        r, c = (n - 1) // 3, (n - 1) % 3
+        return QRectF(PAD + c * (CELL_W + GAP), HEAD + r * (CELL_H + GAP), CELL_W, CELL_H)
+
+    def _draw_key(self, p: QPainter, t, n: int, fill: QColor, pen: QPen, fg: QColor, num: QColor) -> None:
+        cell = self._cell(n)
+        p.setBrush(fill)
+        p.setPen(pen)
+        p.drawRoundedRect(cell, 8, 8)
+        p.setPen(num)
+        p.setFont(font(8, QFont.Bold))
+        p.drawText(cell.adjusted(7, 4, -6, 0), Qt.AlignLeft | Qt.AlignTop, str(n))
+        p.setPen(fg)
+        f, label = (font(8.5, QFont.DemiBold), f"Ziffer {n}") if self.code_mode else \
+            self._fitted.get(n, (font(8.5, QFont.DemiBold), "–"))
+        p.setFont(f)
+        p.drawText(QRectF(cell.x() + 6, cell.y() + 14, LABEL_W, LABEL_H), Qt.AlignCenter | Qt.TextWordWrap, label)
+
+    def _base_pixmap(self, t) -> QPixmap:
+        """Hintergrund und alle 9 Tasten im Ruhezustand – einmal zeichnen, danach nur noch kopieren."""
+        sig = (t.name if hasattr(t, "name") else id(t), t.surface, t.surface2, t.text, t.border, self.code_mode,
+               tuple(sorted(self.caps.items())), self.devicePixelRatioF())
+        if self._base is not None and sig == self._base_sig:
+            return self._base
+        dpr = self.devicePixelRatioF()
+        pm = QPixmap(int(W * dpr), int(H * dpr))
+        pm.setDevicePixelRatio(dpr)
+        pm.fill(Qt.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.Antialiasing)
+        bg = QColor(t.surface)
+        bg.setAlpha(240)
+        p.setPen(QPen(QColor(t.border), 1))
+        p.setBrush(bg)
+        p.drawRoundedRect(QRectF(0, 0, W, H).adjusted(0.5, 0.5, -0.5, -0.5), 14, 14)
+        for n in range(1, 10):
+            self._draw_key(p, t, n, QColor(t.surface2), QPen(QColor(t.border), 1), QColor(t.text), QColor(t.muted))
+        p.end()
+        self._base, self._base_sig = pm, sig
+        return pm
+
     def paintEvent(self, _e):
         if self.alpha <= 0.001:
             return
@@ -210,11 +258,7 @@ class BoxOsd(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setOpacity(self.alpha)
-        bg = QColor(t.surface)
-        bg.setAlpha(240)
-        p.setPen(QPen(QColor(t.border), 1))
-        p.setBrush(bg)
-        p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14, 14)
+        p.drawPixmap(0, 0, self._base_pixmap(t))
         accent = QColor(t.accent)
         # Kopfzeile
         p.setPen(QColor(t.muted))
@@ -224,27 +268,22 @@ class BoxOsd(QWidget):
         p.setFont(font(12.5, QFont.Bold))
         text = p.fontMetrics().elidedText(self.detail, Qt.ElideRight, W - 2 * PAD - 4)
         p.drawText(QRectF(PAD + 2, 24, W - 2 * PAD, 22), Qt.AlignLeft | Qt.AlignVCenter, text)
-        # Tastenfeld wie auf der Box
-        number = font(8, QFont.Bold)
+        # nur die besonderen Tasten neu zeichnen: gedrückt, Teil der Folge, mögliche nächste
+        white = QColor("#ffffff")
         for n in range(1, 10):
-            r, c = (n - 1) // 3, (n - 1) % 3
-            cell = QRectF(PAD + c * (CELL_W + GAP), HEAD + r * (CELL_H + GAP), CELL_W, CELL_H)
             pressed, in_trail, nxt = n == self.key, str(n) in self.trail, str(n) in self.next_keys
-            fill = QColor(accent) if pressed else QColor(t.surface2)
-            if in_trail and not pressed:
+            if not (pressed or in_trail or nxt):
+                continue
+            if pressed:
+                fill = QColor(accent)
+            elif in_trail:
                 fill = QColor(accent)
                 fill.setAlpha(90)
-            p.setBrush(fill)
-            p.setPen(QPen(accent, 2) if nxt else QPen(QColor(t.border), 1))
-            p.drawRoundedRect(cell, 8, 8)
-            p.setPen(QColor("#ffffff") if pressed else QColor(t.muted))
-            p.setFont(number)
-            p.drawText(cell.adjusted(7, 4, -6, 0), Qt.AlignLeft | Qt.AlignTop, str(n))
-            p.setPen(QColor("#ffffff") if pressed else QColor(t.text))
-            f, label = (font(8.5, QFont.DemiBold), f"Ziffer {n}") if self.code_mode else \
-                self._fitted.get(n, (font(8.5, QFont.DemiBold), "–"))
-            p.setFont(f)
-            p.drawText(QRectF(cell.x() + 6, cell.y() + 14, LABEL_W, LABEL_H), Qt.AlignCenter | Qt.TextWordWrap, label)
+            else:
+                fill = QColor(t.surface2)
+            pen = QPen(accent, 2) if nxt else QPen(QColor(t.border), 1)
+            self._draw_key(p, t, n, fill, pen, white if pressed else QColor(t.text),
+                           white if pressed else QColor(t.muted))
         # Wartebalken: Taste könnte eine Folge beginnen – ihre eigene Aktion kommt erst danach
         if self._wait_ms > 0:
             left = max(0.0, 1 - self._wait_clock.elapsed() / self._wait_ms)

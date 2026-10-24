@@ -123,7 +123,7 @@ def test_tastenbox_page(env):  # noqa: F811
     assert controller.box_keys()["5"] == "standbild" and page.caps[5].text == "Standbild an/aus"
     controller.buttonbox.key.emit(3)  # echte Taste gedrückt → leuchtet und wird ausgewählt
     assert page.caps[3]._anim.state() == page.caps[3]._anim.State.Running
-    assert page.selected == 3 and page.key_label.text() == "Taste 3:"
+    assert _until(lambda: page.selected == 3, 2) and page.key_label.text() == "Taste 3:"  # nach kurzer Ruhe
     assert page.target.findData("medien") >= 0 and page.target.findData("mikro") >= 0
     assert tastenbox_sketch_exists()
     window._go(0)

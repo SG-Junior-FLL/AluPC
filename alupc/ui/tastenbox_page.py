@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-from PySide6.QtCore import QEasingCurve, QPointF, QRectF, Qt, QTimer, QVariantAnimation, Signal
+from PySide6.QtCore import QEasingCurve, QPointF, QRectF, Qt, QTimeLine, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -71,16 +71,21 @@ class KeyCap(QWidget):
         self.glow = 0.0
         self.setFixedSize(CELL, 92)
         self.setCursor(Qt.PointingHandCursor)
-        self._anim = QVariantAnimation(self, startValue=1.0, endValue=0.0, duration=900)
+        # Aufleuchten: 25 Bilder/s reichen (vorher bis 60 – jedes Bild zeichnet die Taste neu, das bremste beim Tippen)
+        self._anim = QTimeLine(700, self)
+        self._anim.setUpdateInterval(40)
         self._anim.setEasingCurve(QEasingCurve.OutCubic)
         self._anim.valueChanged.connect(self._set_glow)
 
     def _set_glow(self, v) -> None:
-        self.glow = float(v)
+        self.glow = 1.0 - float(v)
         self.update()
 
     def flash(self) -> None:
         self._anim.stop()
+        self._anim.setCurrentTime(0)  # QTimeLine liefe sonst an der alten Stelle weiter
+        self.glow = 1.0
+        self.update()
         self._anim.start()
 
     def mouseReleaseEvent(self, e):
@@ -254,8 +259,9 @@ class TastenboxPage(QWidget):
             self.caps[n] = cap
         kl.addWidget(grid_box, 0, Qt.AlignLeft)
         row = QHBoxLayout()
-        self.key_label = QLabel()
+        self.key_label = QLabel("Taste 9:")
         self.key_label.setObjectName("Muted")
+        self.key_label.setFixedWidth(self.key_label.sizeHint().width() + 4)  # Textwechsel → kein neues Layout
         self.action = searchable(QComboBox())
         self.action.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.action.setMinimumContentsLength(16)
@@ -346,6 +352,9 @@ class TastenboxPage(QWidget):
         bb = c.buttonbox
         bb.state_changed.connect(self.refresh)
         bb.state_changed.connect(self._fill_ports)
+        self._select_later = 1
+        self._select_timer = QTimer(self, singleShot=True, interval=400,
+                                    timeout=lambda: self.select(self._select_later))
         bb.key.connect(self._pressed)
         bb.long_key.connect(self._pressed)
         # Regler: viele Werte pro Sekunde → gebündelt neu zeichnen
@@ -574,10 +583,13 @@ class TastenboxPage(QWidget):
 
     def select(self, n: int) -> None:
         """Taste n bearbeiten (Klick auf die Kappe oder Druck auf die echte Taste)."""
+        if n != getattr(self, "selected", None):
+            for k in (getattr(self, "selected", None), n):  # nur die zwei betroffenen Kappen neu zeichnen
+                cap = self.caps.get(k)
+                if cap is not None:
+                    cap.selected = k == n
+                    cap.update()
         self.selected = n
-        for k, cap in self.caps.items():
-            cap.selected = k == n
-            cap.update()
         current = self.controller.box_keys().get(str(n), "")
         if current and self.action.findData(current) < 0:
             self.action.addItem(current, current)  # z. B. gelöschte Szene: nicht still verlieren
@@ -920,7 +932,10 @@ class TastenboxPage(QWidget):
         cap = self.caps.get(n)
         if cap is not None:
             cap.flash()
-            self.select(n)  # echte Taste drücken = diese Taste bearbeiten
+            # echte Taste drücken = diese Taste bearbeiten – aber erst, wenn kurz Ruhe ist: Auswahllisten umstellen
+            # kostet ~20 ms (Layout), beim schnellen Tippen ruckelte es sonst
+            self._select_later = n
+            self._select_timer.start()
 
     def refresh(self) -> None:
         c = self.controller

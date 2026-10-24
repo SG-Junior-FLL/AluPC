@@ -15,6 +15,7 @@
   virtuelle Geräte werden beim Start entfernt. In den AluPC-Listen tauchen sie bei „aus“ nicht auf.
 - **„CABLE In 16ch“ ausgeblendet:** VB-CABLE legt zwei Eingänge an (normal + 16 Kanäle) – einer reicht.
 - **OpenRGB unter Windows:** AluPC findet OpenRGB jetzt auch im winget-Ordner (vorher nur unter „Programme“).
+- **Tastenbox ruckelt nicht mehr beim Tippen:** Die Seite stellte bei jedem Druck die Auswahllisten um (~20 ms neues Layout) – jetzt erst nach kurzer Ruhe; Leuchten der Tasten mit 25 statt 60 Bildern/s; die Anzeige unten links zeichnet ihr Tastenfeld nur einmal und sofort beim Druck (vorher erst nach der Aktion).
 - Unter Windows nicht auf echter Hardware getestet.
 
 ### Neu in 2.4.2 – Tastenbox ohne weiße LEDs
