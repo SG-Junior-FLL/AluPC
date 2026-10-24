@@ -436,7 +436,9 @@ def test_wlan_never_started_twice(env, monkeypatch):  # noqa: F811
     monkeypatch.setattr(hotspot.hotspot, "start", slow_start)
     first = threading.Thread(target=lambda: controller.set_hotspot(True))
     first.start()
-    time.sleep(0.2)
+    end = time.time() + 5  # warten, bis der erste Start wirklich läuft (feste 0,2 s waren in der CI zu knapp)
+    while not calls and time.time() < end:
+        time.sleep(0.01)
     ok, msg = controller.set_hotspot(True)  # z. B. Minispiele starten, während die Kachel das WLAN hochfährt
     assert not ok and "gerade schon" in msg and calls == [1]
     gate.set()
