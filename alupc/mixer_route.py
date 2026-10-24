@@ -101,6 +101,19 @@ class AudioRouting(QObject):
         self.config = config
         self._pumps: dict[tuple[str, str], Pump] = {}
         self.last_error = ""
+        if not IS_WINDOWS:
+            from PySide6.QtCore import QTimer
+
+            QTimer.singleShot(2000, self, self._cleanup_when_off)
+
+    def _cleanup_when_off(self) -> None:
+        """Linux: „Virtuelle Geräte“ aus, aber vom letzten Mal noch da (Audio-Dienst lief weiter) → entfernen, damit
+        sie weder im System noch in Programmen auftauchen."""
+        if self.cfg()["virtual"]:
+            return
+        from .ui.util import run_async
+
+        run_async(mixer.remove_virtual, None, lambda _e: None, owner=self)
 
     # ---- Einstellungen (alte Form: mic_inputs/out_to_mic/listen → Weiterleitungen)
     def cfg(self) -> dict:

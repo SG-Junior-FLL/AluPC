@@ -9,6 +9,14 @@
 | Linux (x86_64) | `AluPC-linux-x86_64-….tar.gz` | ohne Installation: entpacken, `AluPC/AluPC` starten |
 | Kubuntu / Ubuntu | `AluPC-installieren.sh` | installiert die .deb daneben (oder lädt sie), wartet auf laufende Updates |
 
+### Neu in 2.4.3 – Virtuelle Geräte wirklich weg, OpenRGB unter Windows
+- **Virtuelle Geräte aus = unsichtbar:** Windows: AluPC schaltet VB-CABLE im Gerätemanager ab (einmal Administrator
+  bestätigen) – dann sehen es weder Windows noch Programme; an = wieder eingeschaltet. Linux: übrig gebliebene
+  virtuelle Geräte werden beim Start entfernt. In den AluPC-Listen tauchen sie bei „aus“ nicht auf.
+- **„CABLE In 16ch“ ausgeblendet:** VB-CABLE legt zwei Eingänge an (normal + 16 Kanäle) – einer reicht.
+- **OpenRGB unter Windows:** AluPC findet OpenRGB jetzt auch im winget-Ordner (vorher nur unter „Programme“).
+- Unter Windows nicht auf echter Hardware getestet.
+
 ### Neu in 2.4.2 – Tastenbox ohne weiße LEDs
 - **Arduino-Programm 8:** nur noch rot, grün, blau (Pins 10, 9, 16). Weiß entsteht aus allen drei; Pin A1 ist frei.
   Programm neu hochladen (Seite Tastenbox → „Tastenbox-Programm speichern …“).

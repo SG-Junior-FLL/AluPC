@@ -2069,3 +2069,17 @@ def test_dual_boot_sync_tastenbox(tmp_path):
     assert "Gespeichert" in ss.sync_once(lin)[0]
     msg, changed = ss.sync_once(win)
     assert changed == ["tasten"] and win["tasten"]["keys"] == {"3": "schwarz"} and win["tasten"]["port"] == "COM5"
+
+
+def test_openrgb_found_in_winget_folder(tmp_path, monkeypatch):
+    """Windows: winget legt OpenRGB unter %LOCALAPPDATA%\\Microsoft\\WinGet\\Packages ab – AluPC findet es dort."""
+    from alupc import rgb
+
+    exe = tmp_path / "Microsoft" / "WinGet" / "Packages" / "OpenRGB.OpenRGB_x" / "OpenRGB Windows 64-bit" / "OpenRGB.exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_text("")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    assert str(exe) in rgb._winget_paths()
+    monkeypatch.setattr(rgb.sys, "platform", "win32")
+    monkeypatch.setattr(rgb.shutil, "which", lambda _n: None)
+    assert rgb.find_openrgb() == str(exe)

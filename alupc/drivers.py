@@ -48,8 +48,51 @@ Expand-Archive -Force $zip (Join-Path $tmp 'x')
 $setup = Get-ChildItem (Join-Path $tmp 'x') -Recurse -Filter 'VBCABLE_Setup_x64.exe' | Select-Object -First 1
 if (-not $setup) {{ Write-Output 'FEHLER: Setup fehlt im Paket'; exit 3 }}
 $p = Start-Process -FilePath $setup.FullName -ArgumentList '-i','-h' -Wait -PassThru
+Start-Sleep -Seconds 3
+""" + HIDE_16CH_PS + """
 Write-Output "VB-CABLE: fertig ($($p.ExitCode))"
 """
+
+
+# VB-CABLE legt zwei Wiedergabe-Geräte an: „CABLE Input“ und „CABLE In 16ch“ (dasselbe Kabel mit 16 Kanälen).
+# Eins reicht – den 16-Kanal-Eingang im Gerätemanager abschalten, dann sehen ihn weder Windows noch Programme.
+HIDE_16CH_PS = r"""
+Get-PnpDevice -Class AudioEndpoint -ErrorAction SilentlyContinue |
+  Where-Object { $_.FriendlyName -like '*CABLE In 16*' } |
+  ForEach-Object { Disable-PnpDevice -InstanceId $_.InstanceId -Confirm:$false -ErrorAction SilentlyContinue }
+"""
+
+
+def vbcable_toggle_ps(on: bool) -> str:
+    """VB-CABLE im Gerätemanager an- oder abschalten: aus = taucht in Windows und allen Programmen nicht mehr auf."""
+    verb = "Enable-PnpDevice" if on else "Disable-PnpDevice"
+    return f"""
+$ErrorActionPreference = 'Continue'
+$cable = @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object {{ $_.FriendlyName -like 'VB-Audio Virtual*Cable*' -and $_.Class -eq 'MEDIA' }})
+if ($cable.Count -eq 0) {{ Write-Output 'FEHLER: VB-CABLE ist nicht installiert'; exit 2 }}
+foreach ($d in $cable) {{ {verb} -InstanceId $d.InstanceId -Confirm:$false -ErrorAction SilentlyContinue }}
+Start-Sleep -Seconds 2
+""" + HIDE_16CH_PS + """
+Write-Output 'VB-CABLE: fertig'
+"""
+
+
+def vbcable_set_enabled(on: bool, run=subprocess.run) -> tuple[bool, str]:
+    """Windows: VB-CABLE an/aus (fragt einmal nach Administrator-Rechten). Blockiert – im Hintergrund aufrufen."""
+    if not IS_WINDOWS:
+        return True, ""
+    enc = encoded_command(vbcable_toggle_ps(on))
+    cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+           "Start-Process powershell -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList "
+           f"'-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','{enc}'"]
+    try:
+        r = run(cmd, capture_output=True, text=True, timeout=120,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, f"VB-CABLE umschalten ging nicht: {exc}"
+    if r.returncode != 0:
+        return False, "Abgebrochen (keine Administrator-Rechte?)"
+    return True, "VB-CABLE " + ("eingeschaltet." if on else "ausgeschaltet – Windows und Programme sehen es nicht mehr.")
 
 
 def obs_vcam_ps() -> str:

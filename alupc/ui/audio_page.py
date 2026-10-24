@@ -495,12 +495,29 @@ class AudioPage(QWidget):
     # ---------------------------------------------------------------- virtuelle Geräte
     def _toggle_virtual(self) -> None:
         st = self._snap.get("virtual") or {}
-        if IS_WINDOWS and not (st.get("out") and st.get("mic")):
+        want = not self.routing.cfg()["virtual"]
+        if IS_WINDOWS:
             from .. import drivers
 
-            drivers.install_async(self, "vbcable", done=self.reload)
+            if not (st.get("out") and st.get("mic")) and not self._snap.get("cable_off"):
+                drivers.install_async(self, "vbcable", done=self.reload)
+                return
+            # VB-CABLE im Gerätemanager an/aus (Administrator-Abfrage) – aus: Windows und Programme sehen es nicht
+            self.v_toggle.setEnabled(False)
+            self.v_error.setText("VB-CABLE wird " + ("eingeschaltet …" if want else "ausgeschaltet …"))
+
+            def done(result):
+                self.v_toggle.setEnabled(True)
+                ok, why = result
+                if ok:
+                    _CABLE_CACHE["at"] = 0.0
+                    QTimer.singleShot(1500, self, lambda: self._route(lambda: self.routing.set_virtual(want)))
+                self.show_result((ok, why))
+
+            run_async(lambda: drivers.vbcable_set_enabled(want), done,
+                      lambda e: (self.v_toggle.setEnabled(True), self.show_result((False, str(e)))), owner=self)
             return
-        self._route(lambda: self.routing.set_virtual(not self.routing.cfg()["virtual"]))
+        self._route(lambda: self.routing.set_virtual(want))
 
     def _add_device(self, kind: str) -> None:
         what = "den virtuellen Ausgang" if kind == "out" else "das virtuelle Mikro"
@@ -534,12 +551,14 @@ class AudioPage(QWidget):
         self.v_pill.setText("● AN" if on else "○ AUS")
         self.v_pill.setStyleSheet(f"color:{color}; background:{t.soft(color, 0.14)}; border-radius:11px;"
                                   "padding:3px 12px; font-weight:700;")
-        missing = IS_WINDOWS and not (st.get("out") and st.get("mic"))
+        missing = IS_WINDOWS and not (st.get("out") and st.get("mic")) and not self._snap.get("cable_off")
         self.v_toggle.setText("VB-CABLE installieren" if missing else ("Ausschalten" if on else "Einschalten"))
         self.v_toggle.setIcon(icons.icon("download" if missing else ("x" if on else "play"), t.text, 18))
         if IS_WINDOWS:
             self.v_text.setText("Von VB-CABLE: <b>„CABLE Input“</b> = virtueller Ausgang, <b>„CABLE Output“</b> = "
-                                "virtuelles Mikro – in Zoom, Teams, Discord oder OBS als Mikrofon wählen." +
+                                "virtuelles Mikro – in Zoom, Teams, Discord oder OBS als Mikrofon wählen. "
+                                "Aus = VB-CABLE ist im Gerätemanager abgeschaltet: Windows und Programme sehen es nicht. "
+                                "Den doppelten Eingang „CABLE In 16ch“ blendet AluPC immer aus." +
                                 (f"<br>{st.get('why')}" if missing else ""))
         else:
             self.v_text.setText("Virtuelle Ausgänge (Programme hineinspielen) und virtuelle Mikros (in Zoom, Teams, "
@@ -603,9 +622,18 @@ class AudioPage(QWidget):
 
         routing = self.routing
 
+        cfg = routing.cfg()
+        show_virtual = bool(cfg["virtual"])
+        configured = {d["id"] for d in cfg["devices"]}
+
         def work():  # Geräte UND virtuelle Geräte im Hintergrund – im Oberflächen-Thread ruckelte das Mischpult
             snap = mixer.snapshot()
             snap["vdevs"] = routing.devices(snap)
+            # Virtuelle Geräte aus: in den Listen gar nicht zeigen (unter Windows schaltet AluPC sie zusätzlich ab)
+            for key in ("out", "in"):
+                snap[key] = mixer.visible_devices(snap[key], show_virtual, configured)
+            if IS_WINDOWS and not show_virtual and not (snap["virtual"].get("out") and snap["virtual"].get("mic")):
+                snap["cable_off"] = _cable_driver_present()  # abgeschaltet, aber installiert → „Einschalten“
             return snap
 
         run_async(work, done, failed, owner=self)
@@ -732,6 +760,21 @@ class AudioPage(QWidget):
         self._cam_timer.stop()
         self._meter_timer.stop()
         self.meters.stop()
+
+
+_CABLE_CACHE = {"at": 0.0, "value": False}
+
+
+def _cable_driver_present() -> bool:
+    """Windows: Ist der VB-CABLE-Treiber installiert (auch wenn das Gerät gerade abgeschaltet ist)? pnputil ist
+    langsam – höchstens jede Minute fragen."""
+    import time
+
+    if time.monotonic() - _CABLE_CACHE["at"] > 60:
+        from .. import addons
+
+        _CABLE_CACHE.update(at=time.monotonic(), value=bool(addons._vbcable_infs()))
+    return _CABLE_CACHE["value"]
 
 
 class _GroupStrip(QWidget):

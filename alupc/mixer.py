@@ -569,6 +569,19 @@ def no_devices_hint() -> str:
                else "Auch „pactl list short sinks“ ist leer – kein Ton-Gerät erkannt (Treiber/Kabel?)."))
 
 
+def visible_devices(items: list[dict], show_virtual: bool, configured_ids: set[str] = frozenset()) -> list[dict]:
+    """Geräte für die Listen in AluPC: „CABLE In 16ch“ (zweiter, unnötiger Eingang von VB-CABLE) nie; virtuelle
+    Geräte (VB-CABLE bzw. die von AluPC angelegten) nur, wenn „Virtuelle Geräte“ an ist."""
+    def virtual(d: dict) -> bool:
+        low, dev_id = str(d.get("name", "")).lower(), str(d.get("id", ""))
+        if "vb-audio" in low or ("cable" in low and ("input" in low or "output" in low)):
+            return True
+        return dev_id in configured_ids or dev_id.startswith("alupc_") or dev_id.removesuffix(".monitor").endswith("_mix")
+
+    return [d for d in items if "cable in 16" not in str(d.get("name", "")).lower()
+            and (show_virtual or not virtual(d))]
+
+
 def snapshot() -> dict:
     """Alles für die Seite „Audio“ auf einmal (im Hintergrund lesen)."""
     snap = {"out": devices("out"), "in": devices("in"), "apps": streams("out"), "rec": streams("in"),

@@ -295,8 +295,24 @@ def find_openrgb(configured: str = "") -> str | None:
     if found:
         return found
     if sys.platform.startswith("win"):
-        return next((p for p in WINDOWS_PATHS if Path(p).is_file()), None)
+        return next((p for p in WINDOWS_PATHS + _winget_paths() if Path(p).is_file()), None)
     return None
+
+
+def _winget_paths() -> list[str]:
+    """winget legt OpenRGB (Zip-Paket) unter %LOCALAPPDATA%\\Microsoft\\WinGet ab – nicht in „Programme“. Der
+    Verweis-Ordner „Links“ steht zwar im PATH, aber erst für Programme, die NACH der Installation starten."""
+    import os
+
+    base = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet"
+    if not os.environ.get("LOCALAPPDATA") or not base.is_dir():
+        return []
+    out = [str(base / "Links" / "OpenRGB.exe")]
+    try:
+        out += [str(p) for p in sorted((base / "Packages").glob("OpenRGB*/**/OpenRGB.exe"))]
+    except OSError:
+        pass
+    return out
 
 
 OPENRGB_WINGET = "OpenRGB.OpenRGB"

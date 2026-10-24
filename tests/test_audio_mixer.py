@@ -462,3 +462,29 @@ def test_windows_sessions_once_per_program():
     assert [m["app"] for m in merged] == ["Systemklänge", "Spotify"]
     assert [m["id"] for m in merged] == ["p:0", "p:42"]
     assert int(merged[1]["id"].split(":")[-1]) == 42  # set_stream/Pegel lesen die Prozess-Nummer so
+
+
+def test_virtual_devices_hidden_when_off():
+    """Virtuelle Geräte aus → in den AluPC-Listen nicht zu sehen; „CABLE In 16ch“ (doppelter VB-CABLE-Eingang) nie."""
+    from alupc import mixer
+
+    outs = [{"id": "a", "name": "Lautsprecher (Realtek)"},
+            {"id": "b", "name": "CABLE Input (VB-Audio Virtual Cable)"},
+            {"id": "c", "name": "CABLE In 16ch (VB-Audio Virtual Cable)"},
+            {"id": "alupc_out", "name": "AluPC Virtueller Ausgang"},
+            {"id": "discord_mix", "name": "Discord"}]
+    names = lambda items: [d["id"] for d in items]  # noqa: E731
+    assert names(mixer.visible_devices(outs, True)) == ["a", "b", "alupc_out", "discord_mix"]
+    assert names(mixer.visible_devices(outs, False)) == ["a"]
+    ins = [{"id": "m", "name": "Mikrofon"}, {"id": "x", "name": "CABLE Output (VB-Audio Virtual Cable)"},
+           {"id": "meins", "name": "Mein Mikro"}]
+    assert names(mixer.visible_devices(ins, False, {"meins"})) == ["m"]
+
+
+def test_vbcable_toggle_script():
+    """Windows: VB-CABLE an/aus über den Gerätemanager, 16-Kanal-Eingang immer ab."""
+    from alupc import drivers
+
+    off, on = drivers.vbcable_toggle_ps(False), drivers.vbcable_toggle_ps(True)
+    assert "Disable-PnpDevice" in off and "Enable-PnpDevice" in on
+    assert "*CABLE In 16*" in on and "*CABLE In 16*" in off and "*CABLE In 16*" in drivers.vbcable_ps()
